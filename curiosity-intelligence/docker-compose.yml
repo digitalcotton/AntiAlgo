@@ -1,0 +1,111 @@
+# Curiosity Intelligence - Docker Compose
+# Full stack: API + Dashboard + Redis
+
+version: '3.8'
+
+services:
+  # ===========================================
+  # API Server
+  # ===========================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: curiosity-api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
+      - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET}
+      - REDDIT_USER_AGENT=${REDDIT_USER_AGENT}
+      - NEWSAPI_KEY=${NEWSAPI_KEY}
+      - SENTRY_DSN=${SENTRY_DSN}
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - curiosity-network
+
+  # ===========================================
+  # Dashboard (Frontend)
+  # ===========================================
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: curiosity-dashboard
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - curiosity-network
+
+  # ===========================================
+  # Redis (Rate Limiting + Caching)
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: curiosity-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - curiosity-network
+
+  # ===========================================
+  # Pipeline Worker (Background Jobs)
+  # ===========================================
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: curiosity-worker
+    restart: unless-stopped
+    command: python -m curiosity_intelligence.worker
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
+      - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET}
+      - NEWSAPI_KEY=${NEWSAPI_KEY}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - curiosity-network
+
+networks:
+  curiosity-network:
+    driver: bridge
+
+volumes:
+  redis-data:

@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-surface text-ink font-sans;
+    margin: 0;
+  }
+
+  ::selection {
+    background: rgba(0, 113, 227, 0.15);
+  }
+}
+
+@layer components {
+  .ive-container {
+    @apply max-w-[980px] mx-auto px-6;
+  }
+
+  .ive-section {
+    @apply py-20 md:py-30;
+  }
+
+  .ive-card {
+    @apply bg-surface rounded-ive-lg p-8 shadow-ive transition-shadow duration-300 hover:shadow-ive-lg;
+  }
+
+  .ive-input {
+    @apply w-full rounded-ive border border-ink-tertiary bg-surface px-4 py-3 text-body text-ink
+    placeholder:text-ink-secondary
+    focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20
+    transition-all duration-200;
+  }
+
+  .ive-button {
+    @apply inline-flex items-center justify-center rounded-ive-xl bg-accent text-white font-semibold
+    px-8 py-3 text-body
+    hover:bg-accent-hover active:scale-[0.98]
+    transition-all duration-200
+    disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .ive-button-secondary {
+    @apply inline-flex items-center justify-center rounded-ive-xl border-2 border-accent text-accent font-semibold
+    px-8 py-3 text-body
+    hover:bg-accent hover:text-white
+    transition-all duration-200;
+  }
+
+  .ive-badge {
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1 text-eyebrow uppercase tracking-wider;
+  }
+
+  .ive-divider {
+    @apply border-t border-ink-tertiary/50;
+  }
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Number counter animation */
+@property --num {
+  syntax: '<integer>';
+  initial-value: 0;
+  inherits: false;
+}
