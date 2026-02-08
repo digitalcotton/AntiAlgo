@@ -44,7 +44,6 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
 COPY curiosity_intelligence/ ./curiosity_intelligence/
-COPY gunicorn.conf.py .
 
 # Set ownership
 RUN chown -R app:app /app
@@ -63,5 +62,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Expose port
 EXPOSE ${PORT}
 
-# Run with gunicorn
-CMD ["gunicorn", "curiosity_intelligence.api.main:app", "-c", "gunicorn.conf.py"]
+# Run with uvicorn
+CMD ["uvicorn", "curiosity_intelligence.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
