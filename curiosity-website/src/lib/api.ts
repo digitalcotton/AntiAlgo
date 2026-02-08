@@ -146,3 +146,4 @@ export const archiveApi = {
   get: (week: string) =>
     fetchPublic<{ html: string; meta: NewsletterMeta }>(`/subscribers/newsletter/${week}`),
 }
+
