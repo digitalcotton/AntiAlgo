@@ -3,7 +3,10 @@
  * Talks to the curiosity-intelligence FastAPI backend.
  */
 
-const API_BASE = '/api/v1'
+// Use environment variable in production, relative path in development (for vite proxy)
+const API_BASE = import.meta.env.VITE_API_URL 
+  ? `${import.meta.env.VITE_API_URL}/api/v1`
+  : '/api/v1'
 
 async function fetchPublic<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE}${endpoint}`, {
