@@ -574,3 +574,65 @@ async def get_newsletter_archive(week: str):
             },
         },
     }
+
+
+# ═══════════════════════════════════════════════════════
+# PUBLIC TRENDING SIGNALS (no auth required)
+# ═══════════════════════════════════════════════════════
+
+@router.get("/trending")
+async def get_public_trending_signals(
+    limit: int = Query(5, ge=1, le=10),
+):
+    """
+    Get trending signals for public display on landing page.
+    No authentication required. Limited to top 10.
+    """
+    db: DatabaseService = await get_db()
+    
+    if not db._supabase:
+        return {"trending": []}
+    
+    try:
+        # Get latest week's top signals
+        result = db._supabase.table('signals').select(
+            'id, canonical_question, final_score, velocity_pct, tier, question_count, platform_count'
+        ).eq(
+            'is_signal', True
+        ).order(
+            'final_score', desc=True
+        ).limit(limit).execute()
+        
+        return {"trending": result.data or []}
+    except Exception as e:
+        logger.error(f"Error fetching trending signals: {e}")
+        return {"trending": []}
+
+
+@router.get("/prediction/latest")
+async def get_latest_prediction():
+    """
+    Get the latest graded prediction for public display.
+    Shows "last week we predicted..." with grade.
+    """
+    db: DatabaseService = await get_db()
+    
+    if not db._supabase:
+        return {"prediction": None}
+    
+    try:
+        # Get the most recent graded prediction
+        result = db._supabase.table('predictions').select(
+            'prediction_text, confidence, week, grade_display, grade_explanation'
+        ).not_.is_(
+            'grade_display', 'null'
+        ).order(
+            'created_at', desc=True
+        ).limit(1).execute()
+        
+        if result.data:
+            return {"prediction": result.data[0]}
+        return {"prediction": None}
+    except Exception as e:
+        logger.error(f"Error fetching prediction: {e}")
+        return {"prediction": None}

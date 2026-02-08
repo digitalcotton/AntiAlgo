@@ -126,7 +126,7 @@ export const subscriberApi = {
 export const signalApi = {
   /** Get trending signals (public, top 5) */
   trending: (limit = 5) =>
-    fetchPublic<{ trending: TrendingSignal[] }>(`/signals/trending?limit=${limit}`),
+    fetchPublic<{ trending: TrendingSignal[] }>(`/subscribers/trending?limit=${limit}`),
 
   /** Get editorial takes on trending signals (referral-gated) */
   editorial: (referralCode?: string) =>
