@@ -105,7 +105,9 @@ export const subscriberApi = {
 
   /** Confirm email (double opt-in) */
   confirm: (token: string) =>
-    fetchPublic<ConfirmResponse>(`/subscribers/confirm/${token}`),
+    fetchPublic<ConfirmResponse>(`/subscribers/confirm/${token}`, {
+    method: 'POST',
+  }),
 
   /** Unsubscribe */
   unsubscribe: (token: string) =>
