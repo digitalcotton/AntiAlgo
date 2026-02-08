@@ -123,6 +123,7 @@ export default function Landing() {
         referral_code: ref,
       })
       setSubmitted(true)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Try again.')
     } finally {
