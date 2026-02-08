@@ -43,10 +43,22 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     
-    # CORS middleware
+    # CORS middleware - include both www and non-www versions
+    cors_origins = os.environ.get(
+        "CORS_ORIGINS", 
+        "http://localhost:3000,http://localhost:3001,http://localhost:3002"
+    ).split(",")
+    # Always include production domains
+    production_origins = [
+        "https://antialgo.ai",
+        "https://www.antialgo.ai", 
+        "https://anti-algo.vercel.app",
+    ]
+    all_origins = list(set(cors_origins + production_origins))
+    
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:3002").split(","),
+        allow_origins=all_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
