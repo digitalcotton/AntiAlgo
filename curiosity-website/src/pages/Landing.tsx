@@ -123,7 +123,7 @@ export default function Landing() {
         referral_code: ref,
       })
       setSubmitted(true)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100)
     } catch (err: any) {
       setError(err.message || 'Something went wrong. Try again.')
     } finally {
