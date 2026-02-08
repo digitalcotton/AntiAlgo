@@ -1,13 +1,18 @@
-# TheTeam 🚀
+# AntiAlgo.ai
 
-A multi-agent product development studio that transforms ideas into complete, prioritized product specifications.
+**The algorithm decides what you see. We show you what it hides.**
 
-## What Makes This Different
+AntiAlgo is an AI-powered intelligence system that detects emerging questions and curiosity signals across the internet — surfacing what recommendation algorithms bury before it trends.
 
-1. **Multi-Agent Pipeline**: Your idea flows through Vision → Design → Engineering
-2. **Idea Generation**: Each agent doesn't just execute—they improve and innovate
-3. **Effort/Impact Mapping**: Every feature gets scored and prioritized on a 2×2 matrix
-4. **Persistent Memory**: Decisions compound across sessions
+## What's Inside
+
+This is a monorepo with two deployable services:
+
+| Folder | Purpose | Deploys To |
+|--------|---------|------------|
+| `curiosity-intelligence/` | FastAPI backend, signal detection, newsletter engine | [Railway](https://railway.app) |
+| `curiosity-website/` | React landing page, subscriber signup, referral system | [Vercel](https://vercel.com) |
+| `docs/` | Architecture & agent specifications | — |
 
 ---
 
