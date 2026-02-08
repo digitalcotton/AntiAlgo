@@ -37,12 +37,16 @@ function AnimatedCounter({ target, duration = 2000 }: { target: number; duration
 // ─── Tier Badge ──────────────────────────────────────────
 
 function TierBadge({ tier }: { tier: string }) {
+  // Normalize tier string (handle both "breakout" and "🔥 Breakout" formats)
+  const normalized = tier.toLowerCase().replace(/[🔥⚡📈⭐]/g, '').trim()
+  
   const config: Record<string, { label: string; color: string; icon: string }> = {
     breakout: { label: 'Breakout', color: 'bg-signal-breakout/10 text-signal-breakout', icon: '🔥' },
     strong:   { label: 'Strong',   color: 'bg-signal-strong/10 text-signal-strong',     icon: '⚡' },
     signal:   { label: 'Rising',   color: 'bg-signal-rising/10 text-signal-rising',     icon: '📈' },
+    rising:   { label: 'Rising',   color: 'bg-signal-rising/10 text-signal-rising',     icon: '📈' },
   }
-  const c = config[tier] || config.signal
+  const c = config[normalized] || config.signal
   return (
     <span className={`ive-badge ${c.color}`}>
       <span>{c.icon}</span>
