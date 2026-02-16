@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
+import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Runs from './pages/Runs'
 import RunDetail from './pages/RunDetail'
@@ -8,7 +10,7 @@ import SignalDetail from './pages/SignalDetail'
 import Experiments from './pages/Experiments'
 import Settings from './pages/Settings'
 
-function App() {
+function ProtectedRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Layout />}>
@@ -23,6 +25,16 @@ function App() {
       </Route>
     </Routes>
   )
+}
+
+function App() {
+  const { isAuthenticated } = useAuth()
+
+  if (!isAuthenticated) {
+    return <Login />
+  }
+
+  return <ProtectedRoutes />
 }
 
 export default App

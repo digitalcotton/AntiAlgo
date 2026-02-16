@@ -7,7 +7,7 @@ import {
   Settings,
   LogOut 
 } from 'lucide-react'
-import { useAuthStore } from '../store/auth'
+import { useAuth } from '../contexts/AuthContext'
 import clsx from 'clsx'
 
 const navigation = [
@@ -19,7 +19,7 @@ const navigation = [
 ]
 
 export default function Layout() {
-  const { tenant, logout } = useAuthStore()
+  const { logout } = useAuth()
 
   return (
     <div className="flex min-h-screen">
@@ -27,7 +27,7 @@ export default function Layout() {
       <aside className="w-64 bg-gray-900 text-white flex flex-col">
         <div className="p-4 border-b border-gray-800">
           <h1 className="text-xl font-bold">Curiosity Intel</h1>
-          <p className="text-sm text-gray-400">Signal Detection Dashboard</p>
+          <p className="text-sm text-gray-400">Dashboard (/dashboard)</p>
         </div>
         
         <nav className="flex-1 p-4 space-y-1">
@@ -52,15 +52,9 @@ export default function Layout() {
         </nav>
 
         <div className="p-4 border-t border-gray-800">
-          {tenant && (
-            <div className="mb-3">
-              <p className="text-sm font-medium">{tenant.name}</p>
-              <p className="text-xs text-gray-400 capitalize">{tenant.plan} plan</p>
-            </div>
-          )}
           <button
             onClick={logout}
-            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
           >
             <LogOut className="w-4 h-4" />
             Logout
