@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { runsApi, signalsApi, tenantsApi } from '../lib/api'
+import { runsApi, signalsApi, tenantsApi } from '@/lib/api'
 import { format } from 'date-fns'
 import { 
   TrendingUp, 
