@@ -9,12 +9,14 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true,
+    "noEmit": false,
+    "emitDecoratorMetadata": true,
     "jsx": "react-jsx",
     "strict": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
+    "suppressImplicitAnyIndexErrors": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
