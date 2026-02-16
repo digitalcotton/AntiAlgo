@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { runsApi } from '@/lib/api'
+import { runsApi } from '@/lib/api.ts'
 import { format } from 'date-fns'
 import { Plus, RefreshCw } from 'lucide-react'
 import { useState } from 'react'

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
-import { signalsApi } from '@/lib/api'
+import { signalsApi } from '@/lib/api.ts'
 import { Search, Filter } from 'lucide-react'
 import { useState } from 'react'
 
