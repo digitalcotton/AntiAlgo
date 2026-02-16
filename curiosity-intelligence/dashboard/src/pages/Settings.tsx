@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { tenantsApi } from '@/lib/api.ts'
+import { tenantsApi } from '../lib/api'
 import { useAuthStore } from '../store/auth'
 import { Key, Copy, Trash2, Eye, EyeOff } from 'lucide-react'
 

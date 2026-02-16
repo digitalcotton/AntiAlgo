@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { signalsApi } from '@/lib/api.ts'
+import { signalsApi } from '../lib/api'
 
 export default function SignalDetail() {
   const { id } = useParams<{ id: string }>()

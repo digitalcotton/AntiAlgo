@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { experimentsApi } from '@/lib/api.ts'
+import { experimentsApi } from '../lib/api'
 import { FlaskConical, Check } from 'lucide-react'
 import { useState } from 'react'
 

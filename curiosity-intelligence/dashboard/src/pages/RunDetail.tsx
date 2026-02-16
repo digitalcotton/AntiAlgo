@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { runsApi } from '@/lib/api.ts'
+import { runsApi } from '../lib/api'
 import { format } from 'date-fns'
 
 export default function RunDetail() {
