@@ -4,7 +4,7 @@
 # ============================================
 # Stage 1: Build
 # ============================================
-FROM node:20-alpine as builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ RUN npm run build
 # ============================================
 # Stage 2: Production with nginx
 # ============================================
-FROM nginx:alpine as production
+FROM nginx:alpine AS production
 
 # Copy built assets
 COPY --from=builder /app/dist /usr/share/nginx/html
