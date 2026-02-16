@@ -5,7 +5,7 @@
   },
   "deploy": {
     "numReplicas": 1,
-    "startCommand": "npm run build && npm run preview",
+    "startCommand": "npm run preview -- --host 0.0.0.0",
     "restartPolicyMaxRetries": 5
   }
 }
