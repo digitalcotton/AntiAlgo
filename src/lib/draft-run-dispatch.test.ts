@@ -93,8 +93,8 @@ describe('dispatchJobDraftRuns(): one fresh invocation per document', () => {
 
     expect(leftover).toEqual([]);
     expect(calls.map((c) => c.url)).toEqual([
-      'https://example.test/jobs/desk/job-draft/acme-staff-designer/run',
-      'https://example.test/jobs/desk/job-draft/acme-staff-designer/run'
+      'https://example.test/desk/job-draft/acme-staff-designer/run',
+      'https://example.test/desk/job-draft/acme-staff-designer/run'
     ]);
     const payloads = calls.map((c) => {
       const body = JSON.parse(String(c.init.body)) as { token: string };

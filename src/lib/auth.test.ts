@@ -36,14 +36,14 @@ function withEnv<T>(vars: Record<string, string | undefined>, fn: () => T): T {
 describe('trustedOrigins()', () => {
   it('always includes the public origin, even with no Vercel env vars set', () => {
     withEnv({ VERCEL_URL: undefined, VERCEL_BRANCH_URL: undefined }, () => {
-      expect(trustedOrigins()).toEqual(['https://tokenstoagents.ai']);
+      expect(trustedOrigins()).toEqual(['http://localhost:4321']);
     });
   });
 
   it('adds the deployment host from VERCEL_URL, prefixed with https', () => {
     withEnv({ VERCEL_URL: 'site-index-abc123.vercel.app', VERCEL_BRANCH_URL: undefined }, () => {
       expect(trustedOrigins()).toEqual([
-        'https://tokenstoagents.ai',
+        'http://localhost:4321',
         'https://site-index-abc123.vercel.app'
       ]);
     });
@@ -57,7 +57,7 @@ describe('trustedOrigins()', () => {
       { VERCEL_URL: 'site-index-abc123.vercel.app', VERCEL_BRANCH_URL: 'site-index-git-run-desk-v1.vercel.app' },
       () => {
         expect(trustedOrigins()).toEqual([
-          'https://tokenstoagents.ai',
+          'http://localhost:4321',
           'https://site-index-abc123.vercel.app',
           'https://site-index-git-run-desk-v1.vercel.app'
         ]);
@@ -67,7 +67,7 @@ describe('trustedOrigins()', () => {
 
   it('never lists the same origin twice, if VERCEL_URL and VERCEL_BRANCH_URL happen to match', () => {
     withEnv({ VERCEL_URL: 'same.vercel.app', VERCEL_BRANCH_URL: 'same.vercel.app' }, () => {
-      expect(trustedOrigins()).toEqual(['https://tokenstoagents.ai', 'https://same.vercel.app']);
+      expect(trustedOrigins()).toEqual(['http://localhost:4321', 'https://same.vercel.app']);
     });
   });
 });
