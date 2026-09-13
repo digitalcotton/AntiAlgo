@@ -1,0 +1,121 @@
+{
+  "layout": {
+    "measure": {
+      "$value": "70ch",
+      "$type": "dimension",
+      "$description": "Reading measure for verbatim description prose on job detail, taken from the canvas. An Index extension: the house sets its measures per page in ch, so there is no house step to port."
+    },
+    "table-min": {
+      "$value": "71.25rem",
+      "$type": "dimension",
+      "$description": "1140px. Below this the index table scrolls horizontally rather than crushing its columns; the canvas sets this as min-width on the row grid. An Index extension: the mothership has no table."
+    }
+  },
+  "table": {
+    "columns": {
+      "$value": "3.5rem minmax(15rem, 1.6fr) 9.5rem 9.25rem 11.875rem 12.5rem",
+      "$type": "other",
+      "$description": "The index table's six column tracks, measured off the approved canvas: fit, role as posted, comp as posted, location, age, apply. One token, because the column label row and every data row have to resolve the same tracks and two copies of a grid template is how a table's headings end up one column out. An Index extension: the mothership has no table. Nothing here duplicates a ramp step: the column gap and the panel gutter are space.400 and space.600 and stay on the ramp."
+    }
+  },
+  "provider": {
+    "columns": {
+      "$value": "13.5rem minmax(0, 1fr) auto",
+      "$type": "other",
+      "$description": "The Settings provider row's three column tracks: the provider name, its status line, and the inline actions (Change model, Replace key, Remove, or Connect). One token so every provider row resolves the same tracks and the names, statuses and actions line up down the section as one table. The name track is fixed wide enough for the longest label the registry carries, Kimi (Moonshot AI). An Index extension: the mothership has no such table."
+    }
+  },
+  "proposal": {
+    "columns": {
+      "$value": "7rem minmax(0, 1fr) 11rem 11rem 1.5rem",
+      "$type": "other",
+      "$description": "The resume review checklist's five column tracks: the kind read, the title and employer, the date range, what will happen to it, and the disclosure chevron. Its own token rather than record.columns, because these are different columns holding different things: a proposal has no id yet and does carry a status word, so one token serving both would mean neither could be sized for what it holds. An Index extension."
+    }
+  },
+  "record": {
+    "columns": {
+      "$value": "4.5rem minmax(0, 1fr) 13.5rem 7rem 1.5rem",
+      "$type": "other",
+      "$description": "The Profile Record row's five column tracks: the PRF id, the title and employer, the date range, the kind, and the disclosure chevron. A token for the same reason table.columns is one: every row on /profile resolves the same tracks, and a record whose ids do not line up down the page stops reading as a record. Separate from table.columns because these are different columns of different widths on a different page, and one token pulling double duty would mean neither page could change its own grid. An Index extension: the mothership has no record."
+    }
+  },
+  "text": {
+    "underline-offset": {
+      "$value": "3px",
+      "$type": "dimension",
+      "$description": "The gap between a link's baseline and its underline. One value, used by every underlined link on the site: it was written as a 3px literal in 19 files before it was a token, which is the same defect border.hairline's description already names. An Index extension: the mothership underlines from the browser's default."
+    }
+  },
+  "breakpoint": {
+    "phone": {
+      "$value": "48rem",
+      "$type": "dimension",
+      "$description": "768px. The tiles go two by two, and every multi-column band inside the index card stacks: comp and location each take the whole card width below this, because the paired line cannot hold a long location on a phone without printing it over the salary. This description used to say the rows become cards here. Measured, they become cards at lap; below phone they stop being two-up cards and become one column. An Index extension, and the one breakpoint most of the site is built on."
+    },
+    "lap": {
+      "$value": "60rem",
+      "$type": "dimension",
+      "$description": "960px. Where the six-column grid stops fitting: the index row drops its column tracks for a two-up card, and a two-column page band becomes one. This description used to claim the header nav wraps here. It does not, and no query makes it: the nav is a wrapping flex row and first takes a second line at 725px, which is where its own items run out of room. This breakpoint only tightens the gap. An Index extension."
+    },
+    "desk": {
+      "$value": "64rem",
+      "$type": "dimension",
+      "$description": "1024px. The report's split figure sits two abreast at or above this and stacks below it. An Index extension, used in both directions, which is why the two rules meet exactly here and not one step apart."
+    },
+    "card": {
+      "$value": "75rem",
+      "$type": "dimension",
+      "$description": "1200px, the social card's own raster width rather than a layout step. Below it the report cover releases its fixed height, because a fixed 630px box stops being a raster spec and starts clipping its own text. An Index extension."
+    },
+    "shell": {
+      "$value": "47.5rem",
+      "$type": "dimension",
+      "$description": "Where the shared header collapses to a menu button. It is the marketing site's value, and both halves of this site have to use the same one or the seam between them shows at exactly one width. Stated as a step here because a media query cannot read a custom property and an undeclared literal is how a magic number gets in."
+    }
+  },
+  "border": {
+    "hairline": {
+      "$value": "1px",
+      "$type": "dimension",
+      "$description": "Every rule inside a panel. 54 of 56 borders on the index canvas are this. An Index extension: the mothership writes 1px literally, and this repo's rule is that every visual value is a token."
+    },
+    "heavy": {
+      "$value": "2px",
+      "$type": "dimension",
+      "$description": "The two structural rules only: under the page header, and above the ecosystem band. They are what separates chrome from content."
+    }
+  },
+  "mark": {
+    "inline": {
+      "$value": "0.6875rem",
+      "$type": "dimension",
+      "$description": "11px. A verification mark beside its text partner, in a row or a legend. Deliberately not a size step: this is a glyph box, not type, and it is measured off the canvas as a fixed optical size against the text it partners."
+    },
+    "brand": {
+      "$value": "1.25rem",
+      "$type": "dimension",
+      "$description": "20px. The wordmark's mark in the header."
+    }
+  },
+  "motion": {
+    "duration": {
+      "instant": {
+        "$value": "150ms",
+        "$type": "duration",
+        "$description": "Colour and border transitions on hover and theme change."
+      },
+      "signature": {
+        "$value": "320ms",
+        "$type": "duration",
+        "$description": "The one signature moment. Standing rule 6 caps motion at 400ms; gate 6 asserts it runs once, under that cap, and not at all under prefers-reduced-motion."
+      }
+    },
+    "easing": {
+      "standard": {
+        "$value": "cubic-bezier(0.5, 0, 0.2, 1)",
+        "$type": "cubicBezier",
+        "$description": "One curve for everything. A second easing would be a second opinion."
+      }
+    }
+  }
+}

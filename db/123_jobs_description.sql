@@ -1,0 +1,13 @@
+-- 023_jobs_description.sql: the tracker learns to carry a posting's description.
+--
+-- The /role page renders the employer's own description; the tracked /board
+-- postings never had a place to hold one, so their detail page could only show
+-- facts and provenance. This adds that place. The column is nullable and starts
+-- null on every existing row: the description only appears once the mini's crawl
+-- begins emitting a `description` field and the ingest writes it here (the ingest
+-- reads it, boardRowToJob maps it to Job.description_html, and DescriptionSlot
+-- renders it verbatim or draws the empty slot when it is still absent).
+--
+-- Additive and reversible: no existing read or write depends on the column, so
+-- an old ingest that never sets it leaves every row exactly as it was.
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS description text;

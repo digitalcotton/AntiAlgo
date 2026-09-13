@@ -1,0 +1,26 @@
+{
+  "kills": [
+    {
+      "company": "Brex",
+      "title": "Staff Brand Designer",
+      "slug": "brex-staff-brand-designer",
+      "kill_rule": "repost-churn",
+      "reason": "Brex took this role down and put the identical text back up 10 days later, under a new link, dated Sep 3, 2026. The title, location, remote flag, employment type, posted pay and description are byte for byte identical to the posting at this company that came down.",
+      "killed_on": "2026-09-13",
+      "first_published": "2026-09-03",
+      "open_days": 10
+    },
+    {
+      "company": "Acme Robotics",
+      "title": "Product Designer",
+      "slug": "acme-robotics-product-designer",
+      "kill_rule": "touched-not-refreshed",
+      "reason": "Acme Robotics re-listed this posting without changing a word of it, twenty two days after it first went up.",
+      "killed_on": "2026-09-10",
+      "first_published": "2026-08-19",
+      "open_days": 22
+    }
+  ],
+  "window_months": 2,
+  "served_at_utc": "2026-09-13T07:30:00Z"
+}

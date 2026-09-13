@@ -1,0 +1,120 @@
+---
+import BrandMark from './BrandMark.astro';
+import ThemeToggle from './ThemeToggle.astro';
+import { routeFor } from '../data/nav';
+import { SITE } from '../data/site';
+
+/**
+ * The header, from the Anti Algo home canvas: the lowercase wordmark with the
+ * signal square, the marketing nav (Home, How it works, Evidence, Your key),
+ * the theme toggle, and the one action (Save my spot) as the signal-orange
+ * button.
+ */
+const here = new URL(Astro.request.url).pathname.replace(/\/$/, '') || '/';
+const isHere = (p: string) => here === p;
+
+const MARKETING = [
+  { label: 'Home', href: routeFor('start') },
+  { label: 'How it works', href: routeFor('how-it-works') },
+  { label: 'Evidence', href: routeFor('evidence') },
+  { label: 'Your key', href: routeFor('your-key') }
+];
+---
+
+<header class="hdr">
+  <div class="shell hdr-main">
+    <a class="brand" href={routeFor('start')} aria-label={`${SITE.name}, home`}>
+      <BrandMark />
+      <span class="wordmark">anti algo</span>
+    </a>
+    <nav class="nav kicker" aria-label="Site">
+      {MARKETING.map((item) => (
+        <a class="nav-link" href={item.href} aria-current={isHere(item.href) ? 'page' : undefined}>{item.label}</a>
+      ))}
+      <ThemeToggle />
+      <a class="signin" href={routeFor('sign-in')}>Sign in</a>
+      <a class="cta cta-header" href={`${routeFor('sign-up')}?from=header`}>Save my spot</a>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .hdr {
+    border-bottom: var(--border-heavy) solid var(--color-foreground);
+  }
+  .hdr-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-500);
+    padding-block: var(--space-400);
+    flex-wrap: wrap;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-300);
+  }
+  .wordmark {
+    font-weight: var(--weight-bold);
+    font-size: var(--size-300);
+    letter-spacing: var(--tracking-tight);
+  }
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-500);
+    flex-wrap: wrap;
+  }
+  .nav-link {
+    color: var(--color-muted);
+    border-bottom: var(--border-hairline) solid transparent;
+    padding-bottom: 2px;
+  }
+  .nav-link:hover,
+  .nav-link[aria-current='page'] {
+    color: var(--color-foreground);
+    border-bottom-color: var(--color-foreground);
+  }
+  .cta-header {
+    padding: var(--space-300) var(--space-500);
+  }
+  /* The secondary action: the signal-orange outline with no fill, sized to sit
+     beside the primary button. Its label is the theme foreground (dark ink on
+     paper, warm paper on ink) rather than the fixed dark ink the filled button
+     carries, so a no-fill button stays legible in both themes. */
+  .signin {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: var(--color-foreground);
+    border: var(--border-hairline) solid var(--color-signal);
+    border-radius: var(--radius);
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-bold);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-snug);
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .signin:hover,
+  .signin:focus-visible {
+    background: var(--color-signal);
+    color: var(--gray-950);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .signin {
+      transition:
+        background-color var(--motion-duration-instant) var(--motion-easing-standard),
+        color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .nav {
+      gap: var(--space-400);
+    }
+  }
+</style>

@@ -1,0 +1,519 @@
+/* The compiled tokens are the single source of style. Everything below consumes
+   them as var(--token-name). No raw value lives in this file except the ones
+   CSS will not let a custom property reach: @font-face descriptors, and the
+   off-screen offset on the skip link. Both are commented where they occur. */
+@import './tokens.css';
+@import './themes.css';
+
+/* ---------------------------------------------------------------------------
+   The two voices.
+
+   N27 is the human voice. Three cuts ship because three are used: Regular for
+   body and table cells, Medium for nav and quiet chrome emphasis, Bold for the
+   wordmark and headings.
+
+   The house weight ramp is 300 / 400 / 500 / 700, so there is no 600 step to
+   ask for. The Bold face is still declared across the 600-700 range anyway,
+   because a stray 600 arriving from anywhere should land on a real file rather
+   than be refused and fall back. N27 ships no 300 cut, so --weight-light has no
+   file behind it and nothing in this repo may use it until one is licensed.
+
+   Basier Square Mono is the machine voice, and it ships three real cuts here:
+   Regular, Medium and SemiBold. With 600 gone from the ramp, a mono element
+   asking for --weight-bold resolves to the SemiBold file, which is the heaviest
+   cut that exists. That is the honest answer, and it is why the SemiBold file
+   still ships.
+
+   font-synthesis is disabled on both families further down. A browser faking a
+   weight would put a value on screen that no token authorised.
+
+   Custom properties do not resolve inside @font-face, so the numeric weights
+   here are literal by necessity, not by choice.
+
+   The -latin suffix is load bearing. These six files are subsets, cut by
+   scripts/subset-fonts.mjs from the unmodified originals in fonts/source/,
+   which never ship. The full faces carry 399 codepoints including Greek and
+   Cyrillic; six of them weigh 165.6 KiB, which put the shell over gate 4's
+   150 KiB route budget before a single job row existed. The subsets weigh
+   90.8 KiB and cover every character a Western European name, title, location
+   or salary string can be written in. Read that script's header for the exact
+   range and why it is a fixed range rather than the glyphs today's data uses.
+
+   THESE SIX PATHS CARRY NO BASE, AND THAT IS CORRECT, WHICH IS WORTH WRITING
+   DOWN BECAUSE THE OBVIOUS GUESS IS WRONG. The site is served at
+   tokenstoagents.ai/jobs (docs/URL-STRUCTURE.md), and Astro's `base` handling
+   is not uniform: it rewrites a public-absolute url() inside a stylesheet it
+   bundles, and it does NOT rewrite an href a person typed into markup. So the
+   six lines below stay base-free and come out of the build as
+   url(/jobs/fonts/...), while the two <link rel="preload"> tags in
+   BaseLayout.astro have to call publicAsset() to get the same prefix. Writing
+   /jobs in here by hand double-prefixes it, and vite says so: six warnings
+   reading "didn't resolve at build time" is what that mistake sounds like.
+   --------------------------------------------------------------------------- */
+
+/* The @font-face rules used to live here and now live in BaseLayout.astro.
+   A plain .css file cannot call publicAsset(), so its url() had to be written
+   as a literal /fonts/... path. The build rewrites those against base, but
+   `astro dev` does not, so every face 404d in development and the whole site
+   rendered in fallback glyphs while production was fine. Declaring them in the
+   layout means the faces and the <link rel=preload> tags are produced by the
+   same helper and cannot disagree about the prefix in either environment. */
+
+/* ---------------------------------------------------------------------------
+   Reset. Deliberately small: only the things that would otherwise force a
+   component to undo a browser default.
+   --------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  color-scheme: light;
+}
+
+/* Tells the browser which set of form controls, scrollbars and default focus
+   rings to draw. Without this the UA paints light-mode scrollbars over an ink
+   page, which is the one part of the surface the token system cannot reach. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* The body role, measured off the mothership: 17px N27 Regular on 1.7 leading.
+   Everything that is prose inherits this and states nothing. */
+body {
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font-family: var(--font-family-sans);
+  font-weight: var(--weight-regular);
+  font-size: var(--size-200);
+  line-height: var(--leading-normal);
+  letter-spacing: var(--tracking-normal);
+  /* Standing rule 7: numbers in columns align. Set at the body rather than
+     per-component so a numeral cannot opt out by someone forgetting. */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: var(--feature-tabular);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* No widows. The browser rebreaks a paragraph's last lines so a single word
+   never sits alone. Progressive: browsers without it keep the greedy wrap. */
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* ---------------------------------------------------------------------------
+   The heading roles.
+
+   Sizes live here rather than on each page, so a bare <h1> lands on the page
+   title role without a page restating it. The two that were measured off the
+   mothership are h1 and h2; h3 and h4 continue down the same house ramp.
+
+   h1 is clamped rather than fixed because 76px is a desktop measurement. At
+   375px a fixed 76px page title sets four or five characters to the line. The
+   clamp is the mothership's own: it floors at the section-heading step and
+   tops out at the display step, so the role is exact at desktop and readable
+   on a phone, and both ends are tokens.
+   --------------------------------------------------------------------------- */
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(var(--size-500), 6.2vw, var(--size-700));
+  line-height: var(--leading-display);
+}
+
+h2 {
+  font-size: var(--size-500);
+  line-height: var(--leading-tight);
+}
+
+h3 {
+  font-size: var(--size-400);
+  line-height: var(--leading-snug);
+}
+
+h4 {
+  font-size: var(--size-300);
+  line-height: var(--leading-snug);
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* Controls inherit the page voice instead of the operating system's. */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: none;
+  padding: 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------------
+   THE FORM CONTROL SYSTEM. One set of rules for every text input, select and
+   textarea on the site. This used to be a `.field-input` ruleset re-typed,
+   byte for byte, in nine component files, because Astro scopes a `<style>`
+   block to the component that wrote it. The copies had already drifted: three
+   dropped `width: 100%`, one narrow variant was 16ch against everyone else's
+   12ch, and every copy wrote a literal `1px` border where the rest of the site
+   uses var(--border-hairline). Defined once here, unscoped, so a field is the
+   same height, the same 2px radius, and the same border on whatever page drew
+   it, and the copies are deleted.
+
+   THE SELECT, AND SAFARI. A native <select> ignores most of an <input>'s box
+   metrics on macOS Safari and draws its own rounded control, which is the
+   mismatch that prompted this. `appearance: none` turns that off on every
+   engine; the chevron below is then ours to draw, from --select-chevron, whose
+   colour follows the theme foreground. The dropdown POPUP the OS opens on click
+   is still the OS's, blur and all, which is the one part of a select worth
+   keeping native. */
+:root {
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%230B0B0D' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+
+  /* The dimmed backdrop behind a modal, hand-authored from --gray-950 the same
+     way --select-chevron is authored above, so this one translucent value is a
+     named token and not a raw rgba scattered at the point of use. Its only
+     reader today is AddJobModal.astro's <dialog>::backdrop; it is the same ink
+     in both themes, since a scrim over inverted and non-inverted pages alike
+     just needs to darken what is behind it. */
+  --color-overlay: color-mix(in srgb, var(--gray-950) 55%, transparent);
+}
+:root[data-theme='dark'] {
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23F6F5F2' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+.field-input {
+  width: 100%;
+  background: transparent;
+  border: var(--border-hairline) solid var(--color-line-strong);
+  border-radius: var(--radius);
+  padding: var(--space-300) var(--space-400);
+  font-family: var(--font-family-sans);
+  font-size: var(--size-200);
+  line-height: var(--leading-normal);
+  color: var(--color-foreground);
+}
+.field-input::placeholder {
+  color: var(--color-muted);
+  opacity: 1;
+}
+.field-input-narrow {
+  max-width: 12ch;
+}
+.field-textarea {
+  resize: vertical;
+}
+.field-file {
+  padding: var(--space-200);
+  font-size: var(--size-100);
+}
+select.field-input {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: var(--space-600);
+  background-image: var(--select-chevron);
+  background-repeat: no-repeat;
+  background-position: right var(--space-300) center;
+  background-size: var(--space-400) var(--space-400);
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+/* ---------------------------------------------------------------------------
+   The machine voice as a class.
+
+   A component asks for `.mono` rather than restating the family, size and
+   leading, so "is this a machine assertion?" is one decision recorded in the
+   markup instead of four properties that can drift apart. Standing rule 3:
+   if it is not a machine fact, it does not get this class.
+
+   The class carries a size, which it did not before. The machine voice is a
+   measured role, 14px on 1.7, and leaving the size to each call site meant the
+   role was a convention rather than a fact. A machine assertion set at display
+   size, a stat tile numeral, overrides the size and keeps everything else.
+
+   No letter-spacing. The mothership tracks its mono at zero, and the mono is
+   already wide enough to hold a numeral column apart without help.
+   --------------------------------------------------------------------------- */
+.mono,
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-family-mono);
+  font-weight: var(--weight-regular);
+  font-size: var(--size-100);
+  line-height: var(--leading-normal);
+  font-synthesis: none;
+}
+
+/* The uppercase mono label: the register the canvases use for every section
+   head, column key and status stamp. One step below the machine-voice default
+   because uppercase reads larger than its size, and tracked open because
+   uppercase at this size closes up without it. */
+.mono-label {
+  font-family: var(--font-family-mono);
+  font-weight: var(--weight-medium);
+  font-size: var(--size-075);
+  letter-spacing: var(--tracking-loose);
+  text-transform: uppercase;
+  font-synthesis: none;
+}
+
+/* The small-caps role, in the human voice: kickers, nav, section eyebrows.
+   Measured off the mothership at 14px Medium, tracked to 0.14em, uppercase.
+   Every property here inherits, so putting the class on a container sets the
+   whole register once instead of on each child. */
+.kicker {
+  font-family: var(--font-family-sans);
+  font-weight: var(--weight-medium);
+  font-size: var(--size-100);
+  letter-spacing: var(--tracking-loose);
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------------------
+   Theme transition and motion.
+
+   One transition, at the root only, and only when the visitor has not asked for
+   less motion. Standing rule 6 caps motion at 400ms; this is 150.
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+  body {
+    transition:
+      background-color var(--motion-duration-instant) var(--motion-easing-standard),
+      color var(--motion-duration-instant) var(--motion-easing-standard);
+  }
+}
+
+::selection {
+  background: var(--color-foreground);
+  color: var(--color-foreground-inverse);
+}
+
+/* ---------------------------------------------------------------------------
+   Focus.
+
+   Designed, not defaulted: a 2px ring in the foreground colour, offset so it
+   never touches the glyphs, drawn on the same square geometry as everything
+   else. It inverts with the theme because it is bound to --color-foreground,
+   so it is legible on paper and on ink without a second rule.
+   --------------------------------------------------------------------------- */
+:focus-visible {
+  outline: var(--border-heavy) solid var(--color-foreground);
+  outline-offset: 3px;
+  border-radius: var(--radius);
+}
+
+/* The layout shell. One place owns the measure and the gutter, so no screen
+   hardcodes a container width. */
+.shell {
+  /* The design's container: 1200px, side padding clamp(20px, 4vw, 56px). */
+  max-width: 75rem;
+  margin-inline: auto;
+  padding-inline: clamp(20px, 4vw, 56px);
+}
+
+/* ---------------------------------------------------------------------------
+   The skip link.
+
+   Off-screen until focused, then it lands in the top-left corner as an
+   inverted block. -9999px is a raw value on purpose: it is a mechanism for
+   removing something from the visual flow while keeping it in the accessibility
+   tree, not a spacing decision, so no token should own it.
+   --------------------------------------------------------------------------- */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  font-family: var(--font-family-sans);
+  font-weight: var(--weight-medium);
+  font-size: var(--size-100);
+}
+
+.skip-link:focus {
+  left: var(--space-500);
+  top: var(--space-500);
+  z-index: 100;
+  background: var(--color-surface-inverse);
+  color: var(--color-foreground-inverse);
+  padding: var(--space-300) var(--space-500);
+}
+
+/* main takes tabindex="-1" so the skip link can move focus into it. Browsers
+   would draw their default ring on that programmatic focus; suppressing it here
+   is safe because :focus-visible above still covers every real keyboard focus. */
+main:focus {
+  outline: none;
+}
+
+/* Screen-reader-only text, for the cases where a mark or a control needs a name
+   that the layout has no room to show. Standing rule 5 means a mark is never
+   alone, so this is for supplementary naming, never as a substitute for the
+   visible text partner. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Print, added for MASTER-SPEC F3 / RUN-MASTER section 3: "PDF export IS a
+   print stylesheet (not a fallback)." The deleted /account/tailor page was
+   this rule's first caller; src/components/tailor/DraftDocuments.astro
+   (rendered from src/pages/desk/draft/[id].astro, the draft room that
+   replaced it) carries the same print layout now, in its own scoped
+   <style>, because those elements belong to that component alone. What
+   lives HERE is only what a scoped style could never reach: SiteHeader.astro
+   and SiteFooter.astro are rendered by BaseLayout.astro, a different
+   component than any page that imports it, so no page- or component-scoped
+   style can select `.hdr` or `.ftr` at all. Hiding site chrome on print is
+   also correct for every other route on this site, not only the one that
+   asked for it first, so it belongs here rather than being duplicated into
+   every future page that prints.
+   --------------------------------------------------------------------------- */
+@media print {
+  .hdr,
+  .ftr,
+  .skip-link {
+    display: none !important;
+  }
+
+  /* A generic escape hatch for a page's own on-screen-only controls
+     (pickers, buttons, provenance ids, anything that exists to build the
+     document rather than being part of it). Pages apply this class
+     themselves; it does nothing outside print. */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Force the light palette regardless of the reader's chosen theme. Ink on
+     paper is the point of a printed page; a dark background is not a
+     "look", it is toner nobody asked to spend. Every value below is one of
+     this file's own primitive tokens (see tokens.css's unprefixed :root,
+     which is where the light theme's semantic layer already reads these
+     same primitives from), never a literal color: printing in the light
+     palette is a remapping of an existing token layer, not a new one. */
+  :root[data-theme='dark'] {
+    --color-surface: var(--gray-050);
+    --color-surface-inverse: var(--gray-950);
+    --color-surface-raised: var(--gray-000);
+    --color-foreground: var(--gray-950);
+    --color-foreground-inverse: var(--gray-050);
+    --color-muted: var(--gray-600);
+    --color-muted-inverse: var(--gray-400);
+    --color-line: var(--gray-200);
+    --color-line-strong: var(--gray-300);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   The two actions this site has. Defined once, unscoped, because the primary
+   action appears on the product page three times and on the auth pages once,
+   and four scoped copies would drift the way the form control copies did.
+
+   Primary: inversion, the only emphasis this design system allows. Secondary:
+   a plain underlined line in the human voice.
+   --------------------------------------------------------------------------- */
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-signal);
+  /* Dark ink in BOTH themes: the signal is the same warm orange on paper and
+     on ink, so its label is dark ink either way, never the theme foreground. */
+  color: var(--gray-950);
+  border: var(--border-hairline) solid var(--color-signal);
+  border-radius: var(--radius);
+  cursor: pointer;
+  padding: var(--space-300) var(--space-500);
+  font-family: var(--font-family-sans);
+  font-weight: var(--weight-bold);
+  font-size: var(--size-100);
+  letter-spacing: var(--tracking-snug);
+  white-space: nowrap;
+}
+.cta:hover,
+.cta:focus-visible {
+  background: var(--color-foreground);
+  color: var(--color-surface);
+  border-color: var(--color-foreground);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cta {
+    transition:
+      background-color var(--motion-duration-instant) var(--motion-easing-standard),
+      color var(--motion-duration-instant) var(--motion-easing-standard);
+  }
+}
+
+.link-line {
+  font-family: var(--font-family-sans);
+  font-weight: var(--weight-medium);
+  color: var(--color-foreground);
+  text-decoration: underline;
+  text-underline-offset: var(--text-underline-offset);
+}
+.link-line:hover {
+  color: var(--color-muted);
+}
+
+/* An absence, in the human voice, where a machine figure would otherwise go. */
+.absence {
+  font-family: var(--font-family-sans);
+  font-weight: var(--weight-regular);
+  color: var(--color-muted);
+}

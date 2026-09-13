@@ -1,0 +1,24 @@
+/**
+ * Do not edit directly, this file was auto-generated.
+ * Dark theme: the semantic layer remapped onto the primitives.
+ */
+
+:root[data-theme='dark'] {
+  --color-surface: var(--gray-950);
+  --color-surface-inverse: var(--gray-050);
+  --color-surface-raised: var(--gray-900);
+  --color-foreground: var(--gray-050);
+  --color-foreground-inverse: var(--gray-950);
+  --color-muted: var(--gray-400);
+  --color-muted-inverse: var(--gray-600);
+  --color-line: var(--gray-800);
+  --color-line-strong: var(--gray-600);
+  --color-hover-surface: var(--gray-800);
+  --color-mark-live: var(--status-live-on-ink);
+  --color-mark-closed: var(--gray-400);
+  --color-banner-stale: var(--status-stale-on-ink);
+  --color-stat-loss: var(--status-loss-on-ink);
+  --color-hatch-a: var(--gray-900);
+  --color-hatch-b: var(--gray-925);
+  --color-signal: var(--signal-base);
+}

@@ -1,0 +1,119 @@
+{
+  "gray": {
+    "000": {
+      "$value": "#FFFFFF",
+      "$type": "color",
+      "$description": "Pure white. Panel fills that must sit above paper."
+    },
+    "050": {
+      "$value": "#F6F5F2",
+      "$type": "color",
+      "$description": "Warm paper. Kept slightly warm, the same value the mothership uses."
+    },
+    "100": {
+      "$value": "#ECEAE5",
+      "$type": "color",
+      "$description": "One step down from paper. Calm hover wash."
+    },
+    "150": {
+      "$value": "#EDEBE6",
+      "$type": "color",
+      "$description": "The second stripe of the light hatch. Sits between 100 and paper on purpose, so the hatch reads as texture and never as a filled block."
+    },
+    "200": {
+      "$value": "#D8D5CE",
+      "$type": "color",
+      "$description": "Hairline rules on paper."
+    },
+    "300": {
+      "$value": "#B9B6AF",
+      "$type": "color",
+      "$description": "Heavy border. The canvas names this one directly: panel 1px hairline, heavy border."
+    },
+    "400": {
+      "$value": "#A8A5A0",
+      "$type": "color",
+      "$description": "Quiet decorative marks, and secondary text on ink."
+    },
+    "500": {
+      "$value": "#8F8C87",
+      "$type": "color",
+      "$description": "The dimmest readable text tone. Machine-voice metadata that must recede without disappearing."
+    },
+    "600": {
+      "$value": "#6B6966",
+      "$type": "color",
+      "$description": "Secondary text on paper."
+    },
+    "700": {
+      "$value": "#4A4845",
+      "$type": "color",
+      "$description": "Carried from the house ramp for parity. Unused by The Index so far."
+    },
+    "800": {
+      "$value": "#2A2A2C",
+      "$type": "color",
+      "$description": "Hairline rules on ink."
+    },
+    "900": {
+      "$value": "#141416",
+      "$type": "color",
+      "$description": "The first stripe of the dark hatch, and raised panels on ink."
+    },
+    "925": {
+      "$value": "#1B1B1E",
+      "$type": "color",
+      "$description": "The second stripe of the dark hatch. The dark mirror of gray.150."
+    },
+    "950": {
+      "$value": "#0B0B0D",
+      "$type": "color",
+      "$description": "Cool ink. Kept slightly cool, the same value the mothership uses."
+    }
+  },
+  "status": {
+    "live": {
+      "on-paper": {
+        "$value": "#1E7945",
+        "$type": "color",
+        "$description": "Both live marks, verified this sweep and re-verified, on a light surface. BUILD.md ruling 1: nudged one digit from the canvas #1E7A46, which was 4.45:1 on a hovered row. This clears 4.51:1 there and 4.97:1 on paper."
+      },
+      "on-ink": {
+        "$value": "#57C288",
+        "$type": "color",
+        "$description": "Both live marks on a dark surface. 8.87:1 on gray.950, clears AA."
+      }
+    },
+    "stale": {
+      "on-paper": {
+        "$value": "#7E5200",
+        "$type": "color",
+        "$description": "The sweep is old and the site says so. 5.65:1 on the worst light ground, clears AA. Amber because it is a warning about our own freshness, not a claim about an employer."
+      },
+      "on-ink": {
+        "$value": "#E8B15A",
+        "$type": "color",
+        "$description": "The same warning on a dark surface. 7.41:1 on the worst dark ground, clears AA."
+      }
+    },
+    "loss": {
+      "on-paper": {
+        "$value": "#A53A2E",
+        "$type": "color",
+        "$description": "The kill and ghost statistics on a light surface. 5.94:1 on gray.050, clears AA."
+      },
+      "on-ink": {
+        "$value": "#E58D7F",
+        "$type": "color",
+        "$description": "The kill and ghost statistics on a dark surface. 7.91:1 on gray.950, clears AA. The pair is required, not optional: the on-paper value is only 3.04:1 on ink and would fail gate 1."
+      }
+    }
+  },
+  "signal": {
+    "base": {
+      "$value": "#FF5A1F",
+      "$type": "color",
+      "$description": "Signal orange. The one accent on this marketing site, from the Anti Algo how-it-works canvas. Emphasis on the index stays inversion-only; here the signal marks the one thing that acts: the waitlist. Same value in both themes so the brand reads identically on paper and ink."
+    }
+  }
+}

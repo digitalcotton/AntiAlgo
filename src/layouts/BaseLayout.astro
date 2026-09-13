@@ -1,0 +1,86 @@
+---
+import '../styles/global.css';
+import SiteHeader from '../components/SiteHeader.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import { SITE } from '../data/site';
+
+/**
+ * The shell every route renders inside: the pre-paint theme resolution, the
+ * document head, the two faces, the skip target, and the chrome. Page-level
+ * structure belongs to the page.
+ */
+interface Props {
+  title: string;
+  description?: string;
+  noindex?: boolean;
+}
+
+const { title, description = SITE.description, noindex = false } = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, SITE.url).href.replace(/\/$/, '') || SITE.url;
+const fullTitle = title === SITE.name ? title : `${title} · ${SITE.name}`;
+const robots = noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large, max-snippet:-1';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- Theme, resolved before first paint: the stored choice wins, the OS
+         preference seeds a first visit. Inline and first so no stylesheet can
+         paint the wrong surface. -->
+    <script is:inline>
+      (() => {
+        let theme;
+        try {
+          theme = localStorage.getItem('theme');
+        } catch {}
+        if (theme !== 'dark' && theme !== 'light') {
+          theme = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <meta name="author" content={SITE.author.name} />
+    <meta name="robots" content={robots} />
+    {!noindex && <link rel="canonical" href={canonical} />}
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    {!noindex && <meta property="og:url" content={canonical} />}
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:locale" content={SITE.locale} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+
+    <!-- Only the two faces above the fold on every route are preloaded. -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="/fonts/n27-regular-latin.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="/fonts/n27-bold-latin.woff2" />
+
+    <style is:global>
+      /* Custom properties do not resolve inside @font-face, so the numeric
+         weights here are literal by necessity. The six files are the index's
+         own Latin subsets. */
+      @font-face { font-family: 'N27'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/n27-regular-latin.woff2') format('woff2'); }
+      @font-face { font-family: 'N27'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/n27-medium-latin.woff2') format('woff2'); }
+      @font-face { font-family: 'N27'; font-style: normal; font-weight: 600 700; font-display: swap; src: url('/fonts/n27-bold-latin.woff2') format('woff2'); }
+      @font-face { font-family: 'Basier Square Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/basiersquaremono-regular-latin.woff2') format('woff2'); }
+      @font-face { font-family: 'Basier Square Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/basiersquaremono-medium-latin.woff2') format('woff2'); }
+      @font-face { font-family: 'Basier Square Mono'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/basiersquaremono-semibold-latin.woff2') format('woff2'); }
+    </style>
+  </head>
+
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <SiteHeader />
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+    <SiteFooter />
+  </body>
+</html>

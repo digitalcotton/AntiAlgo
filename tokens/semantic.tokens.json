@@ -1,0 +1,89 @@
+{
+  "color": {
+    "surface": {
+      "$value": "{gray.050}",
+      "$type": "color",
+      "$description": "Default page surface, warm paper."
+    },
+    "surface-inverse": {
+      "$value": "{gray.950}",
+      "$type": "color",
+      "$description": "Inverted surface, cool ink. Emphasis is inversion."
+    },
+    "surface-raised": {
+      "$value": "{gray.000}",
+      "$type": "color",
+      "$description": "Panels that sit above paper: provenance, ease of apply, the insight strip."
+    },
+    "foreground": {
+      "$value": "{gray.950}",
+      "$type": "color",
+      "$description": "Default text and marks."
+    },
+    "foreground-inverse": {
+      "$value": "{gray.050}",
+      "$type": "color",
+      "$description": "Text on an inverted surface."
+    },
+    "muted": {
+      "$value": "{gray.600}",
+      "$type": "color",
+      "$description": "Secondary text on paper."
+    },
+    "muted-inverse": {
+      "$value": "{gray.400}",
+      "$type": "color",
+      "$description": "Secondary text on an inverted surface. Also the closed mark on ink."
+    },
+    "line": {
+      "$value": "{gray.200}",
+      "$type": "color",
+      "$description": "Hairline rules and borders."
+    },
+    "line-strong": {
+      "$value": "{gray.300}",
+      "$type": "color",
+      "$description": "The heavy panel border the canvas names directly."
+    },
+    "hover-surface": {
+      "$value": "{gray.100}",
+      "$type": "color",
+      "$description": "Calm hover wash on paper."
+    },
+    "mark-live": {
+      "$value": "{status.live.on-paper}",
+      "$type": "color",
+      "$description": "Verified this sweep, and re-verified. Two live states, one colour, per the legend canon."
+    },
+    "mark-closed": {
+      "$value": "{gray.600}",
+      "$type": "color",
+      "$description": "The closed mark. Deliberately not the loss colour: a closed posting is an honest archive record, not an alarm."
+    },
+    "banner-stale": {
+      "$value": "{status.stale.on-paper}",
+      "$type": "color",
+      "$description": "The assurance band when the sweep is older than the freshness window. The third and last non-neutral pair: it exists because a green band over stale rows is the one lie this site cannot tell."
+    },
+    "stat-loss": {
+      "$value": "{status.loss.on-paper}",
+      "$type": "color",
+      "$description": "The kill count and ghost rate. The only alarm colour on the site, and it is reserved for statistics, never for a row mark."
+    },
+    "hatch-a": {
+      "$value": "{gray.050}",
+      "$type": "color",
+      "$description": "First stripe of the verbatim-description placeholder hatch."
+    },
+    "hatch-b": {
+      "$value": "{gray.150}",
+      "$type": "color",
+      "$description": "Second stripe of the same hatch. Low contrast on purpose: it marks an empty slot, never fake prose."
+    },
+    "signal": {
+      "$value": "{signal.base}",
+      "$type": "color",
+      "$description": "The accent, used only on the primary action and the brand mark's live dot. Never on body text (it does not clear AA as text on paper)."
+    }
+  }
+}

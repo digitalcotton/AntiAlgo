@@ -1,0 +1,59 @@
+{
+  "size": {
+    "050": { "$value": "0.78rem", "$type": "dimension", "$description": "Caption, fine labels." },
+    "075": { "$value": "0.82rem", "$type": "dimension", "$description": "Mono labels." },
+    "100": { "$value": "0.875rem", "$type": "dimension" },
+    "150": { "$value": "0.95rem", "$type": "dimension", "$description": "Sans narration, between label and body." },
+    "200": { "$value": "1.0625rem", "$type": "dimension", "$description": "Body copy, 17px. N27 is display-leaning, so body runs 1px larger than the 16px default." },
+    "300": { "$value": "1.25rem", "$type": "dimension" },
+    "400": { "$value": "1.625rem", "$type": "dimension" },
+    "500": { "$value": "2.25rem", "$type": "dimension" },
+    "600": { "$value": "3.25rem", "$type": "dimension" },
+    "700": { "$value": "4.75rem", "$type": "dimension" }
+  },
+  "space": {
+    "100": { "$value": "0.25rem", "$type": "dimension" },
+    "200": { "$value": "0.5rem", "$type": "dimension" },
+    "300": { "$value": "0.75rem", "$type": "dimension" },
+    "400": { "$value": "1rem", "$type": "dimension" },
+    "500": { "$value": "1.5rem", "$type": "dimension" },
+    "600": { "$value": "2rem", "$type": "dimension" },
+    "700": { "$value": "3rem", "$type": "dimension" },
+    "800": { "$value": "4rem", "$type": "dimension" },
+    "900": { "$value": "6rem", "$type": "dimension" },
+    "1000": { "$value": "8rem", "$type": "dimension" }
+  },
+  "font": {
+    "scale-mono": { "$value": "0.9em", "$type": "dimension", "$description": "The machine voice's size against the surrounding sans. The faces share cap and x-heights; this compensates for the mono's wide set." },
+    "family": {
+      "sans": { "$value": "'N27', ui-sans-serif, system-ui, sans-serif", "$type": "fontFamily", "$description": "The human voice. Everything except code and machine-readable content." },
+      "mono": { "$value": "'Basier Square Mono', ui-monospace, monospace", "$type": "fontFamily", "$description": "The machine voice: numbers, timestamps, statuses, scores, source names, methodology lines. The Index ships Regular, Medium and SemiBold cuts of this face, which is the one place its font shipping differs from the mothership's; never let the browser synthesize a weight it does not have." }
+    }
+  },
+  "weight": {
+    "light": { "$value": "300", "$type": "fontWeight", "$description": "Display only, at sizes above 40px. Never for body copy." },
+    "regular": { "$value": "400", "$type": "fontWeight", "$description": "Body copy and long-form reading." },
+    "medium": { "$value": "500", "$type": "fontWeight", "$description": "Subheads, nav, labels, and UI chrome." },
+    "bold": { "$value": "700", "$type": "fontWeight", "$description": "Page titles and primary headings." }
+  },
+  "tracking": {
+    "tight": { "$value": "-0.02em", "$type": "dimension" },
+    "snug": { "$value": "0.02em", "$type": "dimension", "$description": "A touch of tracking on small numeric and label chrome." },
+    "normal": { "$value": "0em", "$type": "dimension" },
+    "wide": { "$value": "0.04em", "$type": "dimension", "$description": "Slightly opened tracking on small controls." },
+    "loose": { "$value": "0.14em", "$type": "dimension" }
+  },
+  "feature": {
+    "tabular": { "$value": "'tnum' 1", "$type": "fontFeature", "$description": "Tabular figures, applied wherever numbers align in columns: tables, token values, stats." }
+  },
+  "leading": {
+    "tight": { "$value": "1.0", "$type": "number" },
+    "display": { "$value": "1.05", "$type": "number", "$description": "Multi-line display headings. A hair of air over tight so wrapped lines do not collide." },
+    "snug": { "$value": "1.16", "$type": "number" },
+    "normal": { "$value": "1.7", "$type": "number", "$description": "Body leading. N27 is display-leaning, so long-form reading gets extra air." }
+  },
+  "radius": { "$value": "2px", "$type": "dimension", "$description": "Sharp by default, one token, applied consistently." },
+  "layout": {
+    "max": { "$value": "82.5rem", "$type": "dimension", "$description": "Max content measure, the page shell width." }
+  }
+}

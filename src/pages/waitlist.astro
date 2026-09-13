@@ -1,0 +1,142 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import SignOut from '../components/SignOut.astro';
+import { INDEX, routeFor } from '../data/nav';
+import { dayStamp } from '../lib/stats';
+import { accountFacts } from '../lib/viewer';
+import { WAITLIST_TIER } from '../lib/entitlement';
+
+/*
+ * The one waitlist page. It states three facts and nothing else: the account
+ * exists, it is on the list, the board is public and here is the link. No
+ * countdown, no queue position, no invented urgency.
+ *
+ * Session aware, not gated: a signed-out reader sees the ask, a waitlisted
+ * account sees its state, and an admitted account is pointed at its Desk.
+ * Middleware sends every waitlisted account that hits a gated route here.
+ */
+const facts = Astro.locals.viewer ? await accountFacts(Astro) : null;
+const state = !facts ? 'signed-out' : facts.tier === WAITLIST_TIER ? 'waitlisted' : 'admitted';
+---
+
+<BaseLayout title="Your place on the list" description="Your account on The Index." noindex>
+  <section class="shell room">
+    {state === 'signed-out' && (
+      <>
+        <span class="kicker muted">Account</span>
+        <h1>This page belongs to an account.</h1>
+        <p class="lede">Create one and it lands here. Or sign in to the one you have.</p>
+        <div class="actions">
+          <a class="cta" href={`${routeFor('sign-up')}?from=waitlist`}>Save my spot</a>
+          <a class="link-line" href={routeFor('sign-in')}>Sign in</a>
+        </div>
+      </>
+    )}
+
+    {state === 'waitlisted' && facts && (
+      <>
+        <span class="kicker muted">Your account</span>
+        <h1>You are on the list.</h1>
+        <dl class="facts">
+          <div class="fact">
+            <dt class="mono-label">Account</dt>
+            <dd class="mono">{facts.email}</dd>
+          </div>
+          <div class="fact">
+            <dt class="mono-label">On the list since</dt>
+            <dd class="mono">{dayStamp(facts.createdAt)}</dd>
+          </div>
+          <div class="fact">
+            <dt class="mono-label">The board</dt>
+            <dd>Public, and open now. <a class="link-line" href={INDEX.board}>Open the board</a></dd>
+          </div>
+        </dl>
+        <p class="body">
+          The account exists and it holds your place. When it opens, sign in and the Desk is behind it. Until then the
+          board is the product, and nothing on it waits for an account.
+        </p>
+        <SignOut />
+      </>
+    )}
+
+    {state === 'admitted' && facts && (
+      <>
+        <span class="kicker muted">Your account</span>
+        <h1>Your account is open.</h1>
+        <dl class="facts">
+          <div class="fact">
+            <dt class="mono-label">Account</dt>
+            <dd class="mono">{facts.email}</dd>
+          </div>
+          <div class="fact">
+            <dt class="mono-label">Tier</dt>
+            <dd class="mono">{facts.tier}</dd>
+          </div>
+        </dl>
+        <div class="actions">
+          <a class="cta" href={INDEX.desk}>Open your Desk</a>
+          <a class="link-line" href={routeFor('account')}>Your account</a>
+        </div>
+        <SignOut />
+      </>
+    )}
+  </section>
+</BaseLayout>
+
+<style>
+  .room {
+    padding-block: var(--space-800) var(--space-1000);
+    max-width: 60ch;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .muted {
+    color: var(--color-muted);
+  }
+  h1 {
+    margin: var(--space-300) 0 var(--space-600);
+    font-size: var(--size-600);
+    line-height: var(--leading-display);
+  }
+  .lede {
+    color: var(--color-muted);
+    margin-bottom: var(--space-600);
+  }
+  .facts {
+    margin: 0 0 var(--space-600);
+    width: 100%;
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .fact {
+    display: grid;
+    grid-template-columns: minmax(12ch, 1fr) 3fr;
+    gap: var(--space-400);
+    padding-block: var(--space-300);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+  .fact dt {
+    color: var(--color-muted);
+    align-self: baseline;
+  }
+  .fact dd {
+    margin: 0;
+  }
+  .body {
+    max-width: 52ch;
+  }
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-500);
+    flex-wrap: wrap;
+  }
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .fact {
+      grid-template-columns: 1fr;
+      gap: var(--space-100);
+    }
+  }
+</style>

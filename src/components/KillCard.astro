@@ -1,0 +1,353 @@
+---
+import { REDACTED, type KillRecord } from '../lib/kills';
+
+/**
+ * The kill card, reproduced on this site from the index's own ShareCard,
+ * KillRow and DurationBar. It is the same design and the same token layer, not
+ * a new one: the wordmark and byline that identify it, the loss-coloured Killed
+ * stamp, the observation set at reading size, the two dates, and the one bar
+ * measured against a shared scale with the median-posting-life reference line.
+ *
+ * WHAT IT DROPS, on purpose, because this is the public marketing surface and
+ * not the index's own list. The company is redacted (lib/kills.ts scrubs it
+ * from the observation too), so the card carries no live cross-links to the
+ * kill card or the archived posting, which would name the firm again. The
+ * evidence is the pattern, not the company.
+ *
+ * The values come from the live feed the index serves; this component only
+ * lays them out. An absent date renders as a stated absence, never as a stand
+ * in, exactly as the index's own row does.
+ */
+interface Props {
+  record: KillRecord;
+  /** The shared bar scale, the longest open span in the set, in days. */
+  scaleMax: number;
+  /** The address printed on the card, so a screenshot is traceable. */
+  address: string;
+  /** The instant the index served the feed, already formatted, or null. */
+  sweptLabel: string | null;
+  referenceDays?: number;
+  referenceCite?: string;
+}
+
+const {
+  record,
+  scaleMax,
+  address,
+  sweptLabel,
+  referenceDays = 7,
+  referenceCite = 'Davis and Samaniego de la Parra, NBER Working Paper 32320, 125 million applications'
+} = Astro.props;
+
+// A bar is drawn only where the span was measured and the scale is real. The
+// reference line and the fill are both percentages of the same shared scale, so
+// the comparison a reader sees is the one the index makes.
+const measured = record.openDays !== null && scaleMax > 0;
+const barPercent = measured ? Math.min(100, (record.openDays! / scaleMax) * 100) : 0;
+const referencePercent = scaleMax > 0 ? Math.min(100, (referenceDays / scaleMax) * 100) : 0;
+const labelInside = barPercent > 35;
+---
+
+<article class="card" aria-label={`Killed posting: ${REDACTED}, ${record.role}`}>
+  <header class="card-head">
+    <p class="card-brand">
+      <svg class="card-mark" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+        <rect x="4" y="4" width="40" height="40" rx="3" fill="none" stroke="var(--color-foreground)" stroke-width="3" />
+        <circle cx="24" cy="24" r="7" fill="var(--color-foreground)" />
+      </svg>
+      <span class="card-wordmark">The Index</span>
+      <span class="card-byline">by tokenstoagents.ai</span>
+    </p>
+    <p class="card-stamp">
+      Killed
+      {record.killedOn
+        ? <span class="card-stamp-date">{record.killedOn}</span>
+        : <span class="card-stamp-absence">date not shown</span>}
+    </p>
+  </header>
+
+  <div class="card-record">
+    <div class="kill">
+      <div class="kill-head">
+        <span class="kill-company">{REDACTED}</span>
+        <span class="kill-title">{record.role}</span>
+      </div>
+
+      <p class="kill-reason">{record.observation}</p>
+
+      <div class="kill-dates">
+        <span class="kill-date">
+          <span class="kill-date-key">First published</span>
+          {record.firstPublished
+            ? <span class="kill-date-value">{record.firstPublished}</span>
+            : <span class="kill-date-absence">not shown</span>}
+        </span>
+        <span class="kill-date">
+          <span class="kill-date-key">Killed</span>
+          {record.killedOn
+            ? <span class="kill-date-value">{record.killedOn}</span>
+            : <span class="kill-date-absence">not shown</span>}
+        </span>
+      </div>
+
+      <div class="duration">
+        {measured ? (
+          <>
+            <div class="bar-row">
+              <div class="track" role="img" aria-label={`Open ${record.openDays} days, against a median posting life of ${referenceDays} days`}>
+                <div class="fill" style={`width: ${barPercent.toFixed(2)}%;`}>
+                  {labelInside && <span class="label label-inside">Open {record.openDays}d</span>}
+                </div>
+                <div class="reference" style={`left: ${referencePercent.toFixed(2)}%;`} aria-hidden="true"></div>
+              </div>
+              {!labelInside && <span class="label">Open {record.openDays}d</span>}
+            </div>
+            <p class="reference-caption">Reference line: {referenceDays} days, the median posting life &middot; {referenceCite}</p>
+          </>
+        ) : (
+          <p class="absent">No first published date at source, so there is no duration to show.</p>
+        )}
+      </div>
+    </div>
+  </div>
+
+  <footer class="card-foot">
+    <p class="card-address">{address}</p>
+    {sweptLabel && <p class="card-swept">Swept {sweptLabel}</p>}
+  </footer>
+</article>
+
+<style>
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+    background: var(--color-surface-raised);
+    border: var(--border-heavy) solid var(--color-foreground);
+    padding: var(--space-600);
+  }
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    padding-bottom: var(--space-300);
+  }
+  .card-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-200);
+    margin: 0;
+  }
+  .card-mark {
+    width: 22px;
+    height: 22px;
+    flex: none;
+  }
+  .card-wordmark {
+    font-size: var(--size-300);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+  }
+  .card-byline {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+
+  /* The verdict, in the loss colour the index reserves for its kill statistics,
+     mono, larger than a label so it survives a screenshot. */
+  .card-stamp {
+    margin: 0;
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-200);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-150);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-stat-loss);
+  }
+  .card-stamp-date {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+  .card-stamp-absence {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-regular);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-normal);
+    text-transform: none;
+    color: var(--color-muted);
+  }
+
+  .card-record {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+  .kill {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+  .kill-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+  }
+  .kill-company {
+    font-size: var(--size-100);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .kill-title {
+    font-size: var(--size-400);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-snug);
+    text-wrap: pretty;
+  }
+  .kill-reason {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    text-wrap: pretty;
+  }
+
+  .kill-dates {
+    display: flex;
+    gap: var(--space-500);
+    flex-wrap: wrap;
+  }
+  .kill-date {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+  }
+  .kill-date-key {
+    font-size: var(--size-050);
+    color: var(--color-muted);
+  }
+  .kill-date-value {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+  .kill-date-absence {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+
+  /* The duration bar, one hue, one reference line, no other furniture. */
+  .duration {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    min-width: 0;
+  }
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-300);
+  }
+  .track {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: var(--space-500);
+    background: var(--color-hover-surface);
+  }
+  .fill {
+    position: relative;
+    height: 100%;
+    background: var(--color-stat-loss);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: var(--border-heavy);
+  }
+  .label {
+    font-family: var(--font-family-mono);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+  .label-inside {
+    color: var(--color-foreground-inverse);
+    padding-inline: var(--space-200);
+  }
+  .reference {
+    position: absolute;
+    inset-block: 0;
+    width: var(--border-heavy);
+    background: var(--color-foreground);
+    transform: translateX(calc(var(--border-heavy) * -0.5));
+  }
+  .reference-caption {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-050);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+  .absent {
+    margin: 0;
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  .card-foot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-300);
+    color: var(--color-muted);
+  }
+  .card-address {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-foreground);
+  }
+  .card-swept {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  @media (max-width: 48rem) {
+    .card {
+      padding: var(--space-400);
+      gap: var(--space-400);
+    }
+    .card-wordmark {
+      font-size: var(--size-200);
+    }
+    .kill-title {
+      font-size: var(--size-300);
+    }
+  }
+</style>

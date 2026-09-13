@@ -1,0 +1,70 @@
+-- 011_generation_on_apply.sql
+--
+-- One boolean: "draft my resume and cover letter when I apply." The
+-- setting src/pages/account/settings.astro's new panel writes, and
+-- src/pages/desk/application.ts's 'click' intent reads (by way of
+-- src/lib/generation-preference-store.ts's getGenerationPreference())
+-- before it will ever attempt a background render for a posting someone
+-- just clicked out to. This column is one of four things that all have to
+-- be true before that render is attempted; see src/lib/
+-- generation-preference.ts's decideGenerationTrigger() for the other
+-- three, and this file's own footer for why this column alone is never
+-- read as "go ahead and generate."
+--
+-- LIVES ON app_user_profile, THE SAME TABLE db/002_profile_names.sql PUT
+-- first_name/last_name ON AND db/010_profile_handle.sql PUT handle ON, FOR
+-- THE SAME REASON: one row per person already exists there, already
+-- cascades on delete (db/001_app_user_profile.sql's user_id FK, ON DELETE
+-- CASCADE), and already carries a trigger that stamps updated_at on any
+-- UPDATE (db/001's app_user_profile_touch_trigger, which fires on a
+-- change to ANY column of the row, this one included). A second table
+-- would need its own FK, its own cascade, and its own touch trigger to
+-- restate three facts this table already guarantees; db/010's own footer
+-- makes the identical argument for handle and it was checked there, not
+-- re-derived here.
+--
+-- DEFAULT FALSE, NOT NULL, ON PURPOSE. This is an opt-in, not a setting
+-- with a "not yet asked" third state. Every existing account gets false on
+-- this column the moment it is added, and a newly created account starts
+-- false too (app_user_profile's own INSERT never lists this column, so the
+-- DEFAULT clause is what actually sets it). MASTER-SPEC F4's covenant that
+-- this product never fabricates that a person applied extends here: it
+-- also never fabricates that a person asked for a draft. NOT NULL means
+-- getGenerationPreference() never has to decide what a null means; every
+-- row always has a real, stored answer, true or false.
+--
+-- WHAT THIS COLUMN DOES NOT DO. It does not carry a provider, a key, or
+-- anything about whether generation CAN succeed: an account can have this
+-- on with no provider key on file at all, which is the ordinary "meant to
+-- connect one later" state, and nothing here checks that. It also does not
+-- gate the byok feature as a whole (src/lib/flags.ts's 'byok' flag already
+-- does that) or say anything about whether KEY_ENCRYPTION_SECRET is set on
+-- this deployment (src/lib/keychain.ts's keyStorageIsConfigured() answers
+-- that, independently). This column is exactly one of decideGenerationTrigger()'s
+-- four required inputs, never sufficient on its own, and the trigger fails
+-- safe (no render, no error shown) if any of the other three is not also
+-- true.
+--
+-- Run with:  npm run db:migrate
+-- Safe to run repeatedly. Every statement is guarded.
+
+ALTER TABLE app_user_profile
+  ADD COLUMN IF NOT EXISTS generate_on_apply boolean NOT NULL DEFAULT false;
+
+-- WHERE THE CASCADE AND TOUCH-TRIGGER CLAIMS ABOVE WERE ACTUALLY CHECKED.
+-- Same footnote db/010_profile_handle.sql's own footer carries: ALTER
+-- TABLE ... ADD COLUMN does not touch app_user_profile's existing PRIMARY
+-- KEY / FOREIGN KEY (db/001_app_user_profile.sql's `user_id text PRIMARY
+-- KEY REFERENCES "user"(id) ON DELETE CASCADE`) or its existing
+-- BEFORE UPDATE trigger in any way; a column is not a constraint and not a
+-- trigger definition, and Postgres cascades a delete, and fires a trigger,
+-- by walking the table's constraints and trigger catalog, not by
+-- inspecting which columns happen to exist. generate_on_apply is exactly
+-- as cascaded, and exactly as touch-stamped, as handle already is, for the
+-- identical reason. No new migration, trigger, or application statement is
+-- needed for a deleted account's preference to stop existing;
+-- src/pages/account/delete.ts is unmodified by this migration and needs no
+-- change, and src/lib/account.ts's PERSON_TABLES needs no new entry either,
+-- because app_user_profile is already listed there with deleteReach
+-- 'cascade' and includedInExport: true, and a new column on an
+-- already-inventoried table is not a new table.

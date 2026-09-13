@@ -1,0 +1,38 @@
+-- 024_writing_model.sql
+--
+-- The model a person chose for the WRITING work, per provider.
+--
+-- The site asks a model for two opposite things. Reading a resume is
+-- transcription: the prompt orders verbatim copying and the verification layer
+-- discards anything that is not already in the source, so it is pinned to each
+-- provider's cheapest tier and nobody chooses it. Drafting a resume and a cover
+-- letter is writing, and prose quality is the point, so that one is a choice.
+-- This column holds it.
+--
+-- LIVES ON user_provider_key, THE SAME TABLE db/013_provider_key_label.sql PUT
+-- `label` ON, AND FOR THE SAME REASONS. The choice is per (person, provider),
+-- which is exactly this table's primary key; the row already cascades on
+-- account delete through db/007's user_id FK; and src/lib/account.ts's
+-- PERSON_TABLES already inventories this table for export and deletion, so a
+-- new column on it is not a new table and needs no new entry there. A separate
+-- table would restate three guarantees this one already makes.
+--
+-- It also means the choice lives exactly as long as the key it applies to: a
+-- person who removes a provider's key stops having a model choice for that
+-- provider, which is the correct lifetime for it.
+--
+-- Nullable, because every existing row predates the choice and a person who has
+-- never opened the picker has not chosen anything. Null means "use the
+-- provider's default", resolved in TypeScript, never here.
+--
+-- NO CHECK AGAINST THE MODEL LIST, deliberately, and for the reason db/007 and
+-- db/012 already give about the provider registry: that list lives in
+-- src/lib/generation-providers.ts, a module this migration cannot import.
+-- Validation is the endpoint's job on the way in (it refuses an id that is not
+-- in the registry) and the resolver's job on the way out (a stored id that has
+-- since been retired quietly falls back to the provider's default rather than
+-- being sent to an API that no longer knows it). The cap below is the
+-- database's own floor under that, not a substitute for it.
+ALTER TABLE user_provider_key
+  ADD COLUMN IF NOT EXISTS writing_model text
+    CHECK (writing_model IS NULL OR char_length(writing_model) <= 100);

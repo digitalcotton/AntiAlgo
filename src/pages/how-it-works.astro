@@ -1,0 +1,323 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { INDEX, routeFor } from '../data/nav';
+
+/*
+ * How it works, built to the Anti Algo how-it-works canvas: a hero, four
+ * numbered steps, and a closer. Three steps carry real captures pulled from
+ * the product (public/screens/): step 01 from a live role page, step 02 from
+ * the signed-in Add a job panel, step 04 from the signed-in Desk. Step 03,
+ * tailoring, is the one still on a labelled placeholder: a real capture needs
+ * a generated resume and cover, which need an AI key, so it waits until there
+ * is one to draft with. See the live-screenshots note for how the captures
+ * were taken (Playwright against the index, gated pages via a local sign-in).
+ */
+const signUp = (from: string) => `${routeFor('sign-up')}?from=${from}`;
+
+const STEPS = [
+  {
+    n: '01',
+    tag: 'Free',
+    title: "Find one that's real",
+    body: "Every posting re-checked at the company's own careers page last night. The fit score and the math behind it printed on the page. No account needed.",
+    link: { label: 'Open the board', href: INDEX.board },
+    img: { light: '/screens/hiw-01-light.png', dark: '/screens/hiw-01-dark.png', w: 2720, h: 2226, alt: 'A live role page on The Index: the fit score, the facts as posted, and the provenance panel.' },
+    caption: 'Captured from the product.'
+  },
+  {
+    n: '02',
+    tag: 'The account',
+    title: 'Bring any job, from anywhere',
+    body: 'Paste a link to a posting, ours or one you found somewhere else. We pull it into a job page so you can work it like everything else here.',
+    img: { light: '/screens/hiw-addjob-light.png', dark: '/screens/hiw-addjob-dark.png', w: 2720, h: 2226, alt: 'The Add a job panel on The Desk: paste the link to any posting and the machine reads it.' },
+    caption: 'Captured from the product.'
+  },
+  {
+    n: '03',
+    tag: 'The account',
+    title: 'Tailor in minutes, on your key',
+    body: 'Your resume and cover letter rewritten for that one posting, in your browser, on an AI key you own. We never see the key. Your resume never touches our server.',
+    link: { label: 'How the key works', href: routeFor('your-key') },
+    img: { light: '/screens/hiw-tailor-light.png', dark: '/screens/hiw-tailor-dark.png', w: 2700, h: 1350, alt: 'A role page on The Index with the tailored resume and cover letter ready to download, drafted on your key.' },
+    caption: 'Captured from the product.'
+  },
+  {
+    n: '04',
+    tag: 'The account',
+    title: 'Know what happened',
+    body: "Every job you're working on The Desk, as a board or a list. When the posting changes or dies, the machine writes down what it saw and when. Nothing goes quiet without a reason on the record.",
+    img: { light: '/screens/hiw-desk-light.png', dark: '/screens/hiw-desk-dark.png', w: 2720, h: 2226, alt: 'The Desk: what you told us and what the sweep observed, kept apart, across Saved, Clicked, Still working on it, and Applied.' },
+    caption: 'Captured from the product.',
+    coming: "Coming: alerts, and postings surfaced from what you've already applied to."
+  }
+];
+---
+
+<BaseLayout title="How it works" description="The window is 96 hours. Finding a real job is free; the account gets you through the window that matters.">
+  <div class="hiw">
+    <section class="hsec hero" aria-labelledby="hiw-hero">
+      <h1 id="hiw-hero" class="h1">The window is 96 hours. The account gets you through it.</h1>
+      <p class="lede">Most of the field applies within four days of a posting going up. Finding a real job is free here. Tailoring for it, applying, and knowing what happened after is what the account does.</p>
+      <p class="cite">45% of applications arrive within 48 hours, 60% within 96. Davis and Samaniego de la Parra, NBER 32320.</p>
+    </section>
+
+    {STEPS.map((s) => (
+      <section class="hsec step" aria-labelledby={`step-${s.n}`}>
+        <p class="eyebrow"><span class="n">{s.n}</span> <span class="tag">{s.tag}</span></p>
+        <h2 id={`step-${s.n}`} class="h2">{s.title}</h2>
+        <p class="body">{s.body}</p>
+        {s.link && <p class="more"><a href={s.link.href}>{s.link.label}</a></p>}
+        {s.img ? (
+          <figure class="shot">
+            <div class="shot-frame">
+              <img class="shot-img shot-light" src={s.img.light} width={s.img.w} height={s.img.h} loading="lazy" alt={s.img.alt} />
+              <img class="shot-img shot-dark" src={s.img.dark} width={s.img.w} height={s.img.h} loading="lazy" alt={s.img.alt} />
+            </div>
+            <figcaption>{s.caption}</figcaption>
+          </figure>
+        ) : (
+          <div class="placeholder">
+            <span class="placeholder-label">{s.placeholder}</span>
+          </div>
+        )}
+        {s.coming && <p class="coming-line">{s.coming}</p>}
+      </section>
+    ))}
+
+    <section class="hsec closer" aria-label="Save your spot">
+      <p class="closer-line">The board is public. The account holds your place.</p>
+      <div class="act">
+        <a class="cta" href={signUp('how-it-works-closer')}>Save my spot</a>
+        <a class="closer-link" href={INDEX.board}>Open the board</a>
+      </div>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  /* The canvas scale, as local variables, the same set the home page uses. */
+  .hiw {
+    --fs-10: 10px;
+    --fs-11: 11px;
+    --fs-12: 12px;
+    --fs-15: 15px;
+    --fs-17: 17.5px;
+    --fs-26: 27px;
+    --fs-h1: clamp(38px, 4.8vw, 58px);
+    --fs-h2: clamp(24px, 2.6vw, 32px);
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 24px;
+    --sp-6: 32px;
+    --sp-7: 48px;
+    --tc: 0.13em;
+    --tt: -0.02em;
+    --raise: var(--color-surface-raised);
+    --ink: var(--color-foreground);
+    --muted: var(--color-muted);
+    --faint: var(--gray-500);
+    --line: var(--color-line);
+    --line-strong: var(--color-foreground);
+    --signal: var(--color-signal);
+    --machine: var(--font-family-mono);
+
+    max-width: 75rem;
+    margin-inline: auto;
+    padding-inline: clamp(20px, 4vw, 56px);
+  }
+
+  .hsec {
+    border-bottom: 1px solid var(--line);
+    padding: var(--sp-7) 0;
+  }
+  .hsec.hero {
+    padding: var(--sp-7) 0 var(--sp-6);
+  }
+  .hsec.closer {
+    padding: var(--sp-7) 0 var(--sp-5);
+    border-bottom: none;
+  }
+
+  .h1 {
+    margin: 0;
+    font-weight: 700;
+    font-size: var(--fs-h1);
+    line-height: 1.05;
+    letter-spacing: var(--tt);
+    max-width: 24ch;
+    text-wrap: pretty;
+  }
+  .lede {
+    margin: var(--sp-4) 0 0;
+    font-size: var(--fs-17);
+    line-height: 1.55;
+    max-width: 58ch;
+    text-wrap: pretty;
+  }
+  .cite {
+    margin: var(--sp-4) 0 0;
+    font-family: var(--machine);
+    font-size: var(--fs-12);
+    line-height: 1.6;
+    color: var(--muted);
+    max-width: 70ch;
+  }
+
+  .eyebrow {
+    margin: 0;
+    font-family: var(--machine);
+    font-weight: 600;
+    font-size: var(--fs-11);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+  }
+  .eyebrow .n {
+    color: var(--signal);
+  }
+  .eyebrow .tag {
+    color: var(--muted);
+    margin-left: 10px;
+  }
+  .h2 {
+    margin: var(--sp-3) 0 0;
+    font-weight: 700;
+    font-size: var(--fs-h2);
+    letter-spacing: var(--tt);
+    line-height: 1.1;
+  }
+  .body {
+    margin: var(--sp-3) 0 0;
+    font-size: var(--fs-15);
+    line-height: 1.55;
+    max-width: 56ch;
+    text-wrap: pretty;
+  }
+  .more {
+    margin: var(--sp-4) 0 0;
+    font-size: var(--fs-15);
+  }
+  .more a {
+    text-decoration: none;
+    border-bottom: 1px solid var(--ink);
+  }
+  .more a:hover {
+    color: var(--muted);
+    border-bottom-color: var(--muted);
+  }
+
+  .shot {
+    margin: var(--sp-5) 0 0;
+  }
+  .shot-frame {
+    border: 1px solid var(--line-strong);
+    background: var(--raise);
+  }
+  .shot-img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  /* Two captures per shot: the light one shows by default, the dark one when
+     the reader's theme is dark. The site stamps data-theme on the root, so the
+     swap follows the theme toggle and the browser's own light/dark setting. */
+  .shot-dark {
+    display: none;
+  }
+  :global(:root[data-theme='dark']) .shot-light {
+    display: none;
+  }
+  :global(:root[data-theme='dark']) .shot-dark {
+    display: block;
+  }
+  .shot figcaption {
+    margin-top: var(--sp-2);
+    font-family: var(--machine);
+    font-size: var(--fs-10);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .placeholder {
+    margin-top: var(--sp-5);
+    border: 1px solid var(--line-strong);
+    background: repeating-linear-gradient(
+      45deg,
+      var(--color-surface),
+      var(--color-surface) 10px,
+      var(--raise) 10px,
+      var(--raise) 20px
+    );
+    aspect-ratio: 16 / 6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--sp-5);
+  }
+  .placeholder-label {
+    font-family: var(--machine);
+    font-size: var(--fs-11);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--color-surface);
+    border: 1px dashed var(--line-strong);
+    padding: 8px 14px;
+    text-align: center;
+    line-height: 1.7;
+    max-width: 36ch;
+  }
+  .coming-line {
+    margin: var(--sp-5) 0 0;
+    font-family: var(--machine);
+    font-size: var(--fs-12);
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  .closer-line {
+    margin: 0;
+    font-weight: 600;
+    font-size: var(--fs-26);
+    line-height: 1.3;
+    letter-spacing: var(--tt);
+    max-width: 32ch;
+    text-wrap: pretty;
+  }
+  .act {
+    margin-top: var(--sp-5);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-5);
+    flex-wrap: wrap;
+  }
+  .cta {
+    background: var(--signal);
+    color: var(--gray-950);
+    text-decoration: none;
+    font-family: var(--font-family-sans);
+    font-weight: 600;
+    font-size: var(--fs-17);
+    padding: 16px 30px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--signal);
+  }
+  .cta:hover,
+  .cta:focus-visible {
+    color: var(--gray-950);
+    filter: brightness(1.05);
+  }
+  .closer-link {
+    font-size: var(--fs-15);
+    color: var(--ink);
+    text-decoration: none;
+    border-bottom: 1px solid var(--ink);
+  }
+  .closer-link:hover {
+    color: var(--muted);
+    border-bottom-color: var(--muted);
+  }
+</style>

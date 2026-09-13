@@ -1,0 +1,78 @@
+---
+/**
+ * The theme toggle, the quietest control in the header. It names the TARGET
+ * theme, and the swatch is bound to --color-surface-inverse, which is by
+ * definition the other theme's surface.
+ */
+---
+
+<button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark mode" aria-pressed="false">
+  <span class="tt-swatch" aria-hidden="true"></span>
+  <span class="tt-to-dark" aria-hidden="true">Dark</span>
+  <span class="tt-to-light" aria-hidden="true">Light</span>
+</button>
+
+<style>
+  .theme-toggle {
+    display: inline-grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    column-gap: var(--space-200);
+    color: var(--color-muted);
+    border-bottom: var(--border-hairline) solid transparent;
+  }
+  .theme-toggle:hover {
+    color: var(--color-foreground);
+    border-bottom-color: var(--color-foreground);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .theme-toggle {
+      transition:
+        color var(--motion-duration-instant) var(--motion-easing-standard),
+        border-color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+  .tt-swatch {
+    grid-column: 1;
+    grid-row: 1;
+    width: 0.7em;
+    height: 0.7em;
+    background: var(--color-surface-inverse);
+    border: var(--border-hairline) solid var(--color-line-strong);
+  }
+  .tt-to-dark,
+  .tt-to-light {
+    grid-column: 2;
+    grid-row: 1;
+    white-space: nowrap;
+  }
+  .tt-to-light {
+    visibility: hidden;
+  }
+  :global([data-theme='dark']) .tt-to-light {
+    visibility: visible;
+  }
+  :global([data-theme='dark']) .tt-to-dark {
+    visibility: hidden;
+  }
+</style>
+
+<script>
+  const root = document.documentElement;
+  document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]').forEach((btn) => {
+    const sync = () => {
+      const dark = root.getAttribute('data-theme') === 'dark';
+      btn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+      btn.setAttribute('aria-pressed', dark ? 'true' : 'false');
+    };
+    btn.addEventListener('click', () => {
+      const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try {
+        localStorage.setItem('theme', next);
+      } catch {}
+      sync();
+    });
+    sync();
+  });
+</script>

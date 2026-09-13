@@ -1,0 +1,102 @@
+/**
+ * Do not edit directly, this file was auto-generated.
+ */
+
+:root {
+  --layout-measure: 70ch; /** Reading measure for verbatim description prose on job detail, taken from the canvas. An Index extension: the house sets its measures per page in ch, so there is no house step to port. */
+  --layout-table-min: 71.25rem; /** 1140px. Below this the index table scrolls horizontally rather than crushing its columns; the canvas sets this as min-width on the row grid. An Index extension: the mothership has no table. */
+  --layout-max: 82.5rem; /** Max content measure, the page shell width. */
+  --table-columns: 3.5rem minmax(15rem, 1.6fr) 9.5rem 9.25rem 11.875rem 12.5rem; /** The index table's six column tracks, measured off the approved canvas: fit, role as posted, comp as posted, location, age, apply. One token, because the column label row and every data row have to resolve the same tracks and two copies of a grid template is how a table's headings end up one column out. An Index extension: the mothership has no table. Nothing here duplicates a ramp step: the column gap and the panel gutter are space.400 and space.600 and stay on the ramp. */
+  --provider-columns: 13.5rem minmax(0, 1fr) auto; /** The Settings provider row's three column tracks: the provider name, its status line, and the inline actions (Change model, Replace key, Remove, or Connect). One token so every provider row resolves the same tracks and the names, statuses and actions line up down the section as one table. The name track is fixed wide enough for the longest label the registry carries, Kimi (Moonshot AI). An Index extension: the mothership has no such table. */
+  --proposal-columns: 7rem minmax(0, 1fr) 11rem 11rem 1.5rem; /** The resume review checklist's five column tracks: the kind read, the title and employer, the date range, what will happen to it, and the disclosure chevron. Its own token rather than record.columns, because these are different columns holding different things: a proposal has no id yet and does carry a status word, so one token serving both would mean neither could be sized for what it holds. An Index extension. */
+  --record-columns: 4.5rem minmax(0, 1fr) 13.5rem 7rem 1.5rem; /** The Profile Record row's five column tracks: the PRF id, the title and employer, the date range, the kind, and the disclosure chevron. A token for the same reason table.columns is one: every row on /profile resolves the same tracks, and a record whose ids do not line up down the page stops reading as a record. Separate from table.columns because these are different columns of different widths on a different page, and one token pulling double duty would mean neither page could change its own grid. An Index extension: the mothership has no record. */
+  --text-underline-offset: 3px; /** The gap between a link's baseline and its underline. One value, used by every underlined link on the site: it was written as a 3px literal in 19 files before it was a token, which is the same defect border.hairline's description already names. An Index extension: the mothership underlines from the browser's default. */
+  --breakpoint-phone: 48rem; /** 768px. The tiles go two by two, and every multi-column band inside the index card stacks: comp and location each take the whole card width below this, because the paired line cannot hold a long location on a phone without printing it over the salary. This description used to say the rows become cards here. Measured, they become cards at lap; below phone they stop being two-up cards and become one column. An Index extension, and the one breakpoint most of the site is built on. */
+  --breakpoint-lap: 60rem; /** 960px. Where the six-column grid stops fitting: the index row drops its column tracks for a two-up card, and a two-column page band becomes one. This description used to claim the header nav wraps here. It does not, and no query makes it: the nav is a wrapping flex row and first takes a second line at 725px, which is where its own items run out of room. This breakpoint only tightens the gap. An Index extension. */
+  --breakpoint-desk: 64rem; /** 1024px. The report's split figure sits two abreast at or above this and stacks below it. An Index extension, used in both directions, which is why the two rules meet exactly here and not one step apart. */
+  --breakpoint-card: 75rem; /** 1200px, the social card's own raster width rather than a layout step. Below it the report cover releases its fixed height, because a fixed 630px box stops being a raster spec and starts clipping its own text. An Index extension. */
+  --breakpoint-shell: 47.5rem; /** Where the shared header collapses to a menu button. It is the marketing site's value, and both halves of this site have to use the same one or the seam between them shows at exactly one width. Stated as a step here because a media query cannot read a custom property and an undeclared literal is how a magic number gets in. */
+  --border-hairline: 1px; /** Every rule inside a panel. 54 of 56 borders on the index canvas are this. An Index extension: the mothership writes 1px literally, and this repo's rule is that every visual value is a token. */
+  --border-heavy: 2px; /** The two structural rules only: under the page header, and above the ecosystem band. They are what separates chrome from content. */
+  --mark-inline: 0.6875rem; /** 11px. A verification mark beside its text partner, in a row or a legend. Deliberately not a size step: this is a glyph box, not type, and it is measured off the canvas as a fixed optical size against the text it partners. */
+  --mark-brand: 1.25rem; /** 20px. The wordmark's mark in the header. */
+  --motion-duration-instant: 150ms; /** Colour and border transitions on hover and theme change. */
+  --motion-duration-signature: 320ms; /** The one signature moment. Standing rule 6 caps motion at 400ms; gate 6 asserts it runs once, under that cap, and not at all under prefers-reduced-motion. */
+  --motion-easing-standard: cubic-bezier(0.5, 0, 0.2, 1); /** One curve for everything. A second easing would be a second opinion. */
+  --gray-100: #ECEAE5; /** One step down from paper. Calm hover wash. */
+  --gray-150: #EDEBE6; /** The second stripe of the light hatch. Sits between 100 and paper on purpose, so the hatch reads as texture and never as a filled block. */
+  --gray-200: #D8D5CE; /** Hairline rules on paper. */
+  --gray-300: #B9B6AF; /** Heavy border. The canvas names this one directly: panel 1px hairline, heavy border. */
+  --gray-400: #A8A5A0; /** Quiet decorative marks, and secondary text on ink. */
+  --gray-500: #8F8C87; /** The dimmest readable text tone. Machine-voice metadata that must recede without disappearing. */
+  --gray-600: #6B6966; /** Secondary text on paper. */
+  --gray-700: #4A4845; /** Carried from the house ramp for parity. Unused by The Index so far. */
+  --gray-800: #2A2A2C; /** Hairline rules on ink. */
+  --gray-900: #141416; /** The first stripe of the dark hatch, and raised panels on ink. */
+  --gray-925: #1B1B1E; /** The second stripe of the dark hatch. The dark mirror of gray.150. */
+  --gray-950: #0B0B0D; /** Cool ink. Kept slightly cool, the same value the mothership uses. */
+  --gray-000: #FFFFFF; /** Pure white. Panel fills that must sit above paper. */
+  --gray-050: #F6F5F2; /** Warm paper. Kept slightly warm, the same value the mothership uses. */
+  --status-live-on-paper: #1E7945; /** Both live marks, verified this sweep and re-verified, on a light surface. BUILD.md ruling 1: nudged one digit from the canvas #1E7A46, which was 4.45:1 on a hovered row. This clears 4.51:1 there and 4.97:1 on paper. */
+  --status-live-on-ink: #57C288; /** Both live marks on a dark surface. 8.87:1 on gray.950, clears AA. */
+  --status-stale-on-paper: #7E5200; /** The sweep is old and the site says so. 5.65:1 on the worst light ground, clears AA. Amber because it is a warning about our own freshness, not a claim about an employer. */
+  --status-stale-on-ink: #E8B15A; /** The same warning on a dark surface. 7.41:1 on the worst dark ground, clears AA. */
+  --status-loss-on-paper: #A53A2E; /** The kill and ghost statistics on a light surface. 5.94:1 on gray.050, clears AA. */
+  --status-loss-on-ink: #E58D7F; /** The kill and ghost statistics on a dark surface. 7.91:1 on gray.950, clears AA. The pair is required, not optional: the on-paper value is only 3.04:1 on ink and would fail gate 1. */
+  --signal-base: #FF5A1F; /** Signal orange. The one accent on this marketing site, from the Anti Algo how-it-works canvas. Emphasis on the index stays inversion-only; here the signal marks the one thing that acts: the waitlist. Same value in both themes so the brand reads identically on paper and ink. */
+  --size-100: 0.875rem;
+  --size-150: 0.95rem; /** Sans narration, between label and body. */
+  --size-200: 1.0625rem; /** Body copy, 17px. N27 is display-leaning, so body runs 1px larger than the 16px default. */
+  --size-300: 1.25rem;
+  --size-400: 1.625rem;
+  --size-500: 2.25rem;
+  --size-600: 3.25rem;
+  --size-700: 4.75rem;
+  --size-050: 0.78rem; /** Caption, fine labels. */
+  --size-075: 0.82rem; /** Mono labels. */
+  --space-100: 0.25rem;
+  --space-200: 0.5rem;
+  --space-300: 0.75rem;
+  --space-400: 1rem;
+  --space-500: 1.5rem;
+  --space-600: 2rem;
+  --space-700: 3rem;
+  --space-800: 4rem;
+  --space-900: 6rem;
+  --space-1000: 8rem;
+  --font-scale-mono: 0.9em; /** The machine voice's size against the surrounding sans. The faces share cap and x-heights; this compensates for the mono's wide set. */
+  --font-family-sans: 'N27', ui-sans-serif, system-ui, sans-serif; /** The human voice. Everything except code and machine-readable content. */
+  --font-family-mono: 'Basier Square Mono', ui-monospace, monospace; /** The machine voice: numbers, timestamps, statuses, scores, source names, methodology lines. The Index ships Regular, Medium and SemiBold cuts of this face, which is the one place its font shipping differs from the mothership's; never let the browser synthesize a weight it does not have. */
+  --weight-light: 300; /** Display only, at sizes above 40px. Never for body copy. */
+  --weight-regular: 400; /** Body copy and long-form reading. */
+  --weight-medium: 500; /** Subheads, nav, labels, and UI chrome. */
+  --weight-bold: 700; /** Page titles and primary headings. */
+  --tracking-tight: -0.02em;
+  --tracking-snug: 0.02em; /** A touch of tracking on small numeric and label chrome. */
+  --tracking-normal: 0em;
+  --tracking-wide: 0.04em; /** Slightly opened tracking on small controls. */
+  --tracking-loose: 0.14em;
+  --feature-tabular: 'tnum' 1; /** Tabular figures, applied wherever numbers align in columns: tables, token values, stats. */
+  --leading-tight: 1.0;
+  --leading-display: 1.05; /** Multi-line display headings. A hair of air over tight so wrapped lines do not collide. */
+  --leading-snug: 1.16;
+  --leading-normal: 1.7; /** Body leading. N27 is display-leaning, so long-form reading gets extra air. */
+  --radius: 2px; /** Sharp by default, one token, applied consistently. */
+  --color-surface: var(--gray-050); /** Default page surface, warm paper. */
+  --color-surface-inverse: var(--gray-950); /** Inverted surface, cool ink. Emphasis is inversion. */
+  --color-surface-raised: var(--gray-000); /** Panels that sit above paper: provenance, ease of apply, the insight strip. */
+  --color-foreground: var(--gray-950); /** Default text and marks. */
+  --color-foreground-inverse: var(--gray-050); /** Text on an inverted surface. */
+  --color-muted: var(--gray-600); /** Secondary text on paper. */
+  --color-muted-inverse: var(--gray-400); /** Secondary text on an inverted surface. Also the closed mark on ink. */
+  --color-line: var(--gray-200); /** Hairline rules and borders. */
+  --color-line-strong: var(--gray-300); /** The heavy panel border the canvas names directly. */
+  --color-hover-surface: var(--gray-100); /** Calm hover wash on paper. */
+  --color-mark-live: var(--status-live-on-paper); /** Verified this sweep, and re-verified. Two live states, one colour, per the legend canon. */
+  --color-mark-closed: var(--gray-600); /** The closed mark. Deliberately not the loss colour: a closed posting is an honest archive record, not an alarm. */
+  --color-banner-stale: var(--status-stale-on-paper); /** The assurance band when the sweep is older than the freshness window. The third and last non-neutral pair: it exists because a green band over stale rows is the one lie this site cannot tell. */
+  --color-stat-loss: var(--status-loss-on-paper); /** The kill count and ghost rate. The only alarm colour on the site, and it is reserved for statistics, never for a row mark. */
+  --color-hatch-a: var(--gray-050); /** First stripe of the verbatim-description placeholder hatch. */
+  --color-hatch-b: var(--gray-150); /** Second stripe of the same hatch. Low contrast on purpose: it marks an empty slot, never fake prose. */
+  --color-signal: var(--signal-base); /** The accent, used only on the primary action and the brand mark's live dot. Never on body text (it does not clear AA as text on paper). */
+}

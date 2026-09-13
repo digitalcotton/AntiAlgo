@@ -1,0 +1,90 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import SignOut from '../components/SignOut.astro';
+import { INDEX } from '../data/nav';
+import { dayStamp } from '../lib/stats';
+import { accountFacts } from '../lib/viewer';
+
+/*
+ * The signed-in account page, member tier and above. Gated by the '/account'
+ * entry in src/lib/entitlement.ts and enforced in middleware, which sends a
+ * waitlisted account to /waitlist and a signed-out reader to sign-in before
+ * this file ever renders. The page shows; it does not decide.
+ */
+const facts = await accountFacts(Astro);
+if (!facts) return Astro.redirect('/sign-in?next=%2Faccount', 302);
+---
+
+<BaseLayout title="Your account" description="Your account on The Index." noindex>
+  <section class="shell room">
+    <span class="kicker muted">Account</span>
+    <h1>{facts.firstName || facts.email}</h1>
+    <dl class="facts">
+      <div class="fact">
+        <dt class="mono-label">Email</dt>
+        <dd class="mono">{facts.email}</dd>
+      </div>
+      <div class="fact">
+        <dt class="mono-label">Tier</dt>
+        <dd class="mono">{facts.tier}</dd>
+      </div>
+      <div class="fact">
+        <dt class="mono-label">Since</dt>
+        <dd class="mono">{dayStamp(facts.createdAt)}</dd>
+      </div>
+    </dl>
+    <p class="body">Your Desk, your record and your settings are on the index.</p>
+    <div class="actions">
+      <a class="cta" href={INDEX.desk}>Open your Desk</a>
+      <a class="link-line" href={INDEX.board}>Open the board</a>
+    </div>
+    <SignOut />
+  </section>
+</BaseLayout>
+
+<style>
+  .room {
+    padding-block: var(--space-800) var(--space-1000);
+    max-width: 60ch;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .muted {
+    color: var(--color-muted);
+  }
+  h1 {
+    margin: var(--space-300) 0 var(--space-600);
+    font-size: var(--size-600);
+    line-height: var(--leading-display);
+  }
+  .facts {
+    margin: 0 0 var(--space-600);
+    width: 100%;
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .fact {
+    display: grid;
+    grid-template-columns: minmax(12ch, 1fr) 3fr;
+    gap: var(--space-400);
+    padding-block: var(--space-300);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+  .fact dt {
+    color: var(--color-muted);
+  }
+  .fact dd {
+    margin: 0;
+  }
+  .body {
+    margin-bottom: var(--space-500);
+  }
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-500);
+    flex-wrap: wrap;
+  }
+</style>

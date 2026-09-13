@@ -1,0 +1,30 @@
+{
+  "name": "antialgo-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The product site for The Index: the product page, sign-up, and the waitlist.",
+  "scripts": {
+    "tokens": "style-dictionary build --config style-dictionary.config.js",
+    "dev": "npm run tokens && astro dev",
+    "build": "npm run tokens && astro build",
+    "preview": "astro preview",
+    "check": "npm run tokens && astro check",
+    "test": "vitest run",
+    "db:migrate": "node db/migrate.mjs",
+    "admit": "node scripts/admit.mjs"
+  },
+  "dependencies": {
+    "@astrojs/vercel": "^9.0.5",
+    "astro": "^5",
+    "better-auth": "1.7.1",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9",
+    "@types/pg": "^8.23.1",
+    "style-dictionary": "^4.4.0",
+    "typescript": "^5",
+    "vitest": "^4.1.11"
+  }
+}

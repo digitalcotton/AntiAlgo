@@ -1,0 +1,130 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { INDEX, routeFor } from '../data/nav';
+
+/*
+ * Sign in. A signed-in reader is sent to /account, where the gate decides.
+ *
+ * `next` carries where the reader was, and it is validated hard: only a
+ * single-slash path on this site is honoured, so a sign-in link cannot be
+ * borrowed to land someone on another host.
+ */
+if (Astro.locals.viewer) return Astro.redirect(routeFor('account'), 302);
+
+function safeNext(raw: string | null): string {
+  const value = raw ?? '';
+  if (!value.startsWith('/') || value.startsWith('//') || /[\\\p{Cc}]/u.test(value)) return routeFor('account');
+  return value;
+}
+const next = safeNext(Astro.url.searchParams.get('next'));
+---
+
+<BaseLayout title="Sign in" description="Sign in to The Index." noindex>
+  <section class="auth-page">
+    <div class="shell auth-shell">
+      <span class="kicker muted">Account</span>
+      <h1>Sign in</h1>
+
+      <p id="auth-error" class="auth-error" role="alert" hidden>
+        That email and password did not match an account. Try again.
+      </p>
+
+      <form class="auth-form" method="POST" action="/auth/sign-in/email" data-next={next}>
+        <div class="field">
+          <label class="field-label" for="signin-email">Email address</label>
+          <input class="field-input" id="signin-email" type="email" name="email" required autocomplete="email" />
+        </div>
+        <div class="field">
+          <label class="field-label" for="signin-password">Password</label>
+          <input class="field-input" id="signin-password" type="password" name="password" required autocomplete="current-password" />
+        </div>
+        <button class="cta" type="submit">Sign in</button>
+      </form>
+
+      <div class="auth-links">
+        <a class="link-line" href={routeFor('sign-up')}>No account yet? Create one.</a>
+        <a class="link-line" href={INDEX.board}>Or open the board. It is public.</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  // One neutral error line: it never says which of email or password was
+  // wrong, so it never confirms that an address has an account.
+  const form = document.querySelector<HTMLFormElement>('.auth-form');
+  const errorEl = document.querySelector<HTMLElement>('#auth-error');
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (errorEl) errorEl.hidden = true;
+    const data = Object.fromEntries(new FormData(form).entries());
+    try {
+      const response = await fetch(form.action, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (response.ok) {
+        const next = form.dataset.next;
+        window.location.href = next && next.startsWith('/') ? next : '/';
+        return;
+      }
+    } catch {}
+    if (errorEl) errorEl.hidden = false;
+  });
+</script>
+
+<style>
+  .auth-shell {
+    padding-block: var(--space-800) var(--space-1000);
+    max-width: 44ch;
+  }
+  .muted {
+    color: var(--color-muted);
+  }
+  h1 {
+    margin: var(--space-300) 0 var(--space-600);
+    font-size: var(--size-600);
+    line-height: var(--leading-display);
+  }
+  .auth-error {
+    margin: 0 0 var(--space-500);
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+  }
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+    align-items: flex-start;
+  }
+  .auth-form .cta {
+    margin-top: var(--space-200);
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    width: 100%;
+  }
+  .field-label {
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .auth-links {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    margin-top: var(--space-600);
+    align-items: flex-start;
+  }
+</style>

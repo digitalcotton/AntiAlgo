@@ -1,0 +1,29 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+/*
+ * Exists so the `internal` gate is reachable and its server-side denial is
+ * provable: a signed-out reader is sent to sign-in, a waitlisted account to
+ * the waitlist page, a member gets a 403. Never a destination.
+ */
+---
+
+<BaseLayout title="Internal" noindex>
+  <section class="shell page">
+    <span class="kicker">Internal</span>
+    <h1>The gate is real.</h1>
+    <p>You are reading this because your account is internal tier. Nobody else reaches this line.</p>
+  </section>
+</BaseLayout>
+
+<style>
+  .page {
+    padding-block: var(--space-800) var(--space-1000);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    align-items: flex-start;
+  }
+</style>

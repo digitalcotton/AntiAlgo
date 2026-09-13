@@ -1,0 +1,911 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { INDEX, routeFor } from '../data/nav';
+import { SITE } from '../data/site';
+import { count, loadStats, sweptStamp, waitlistInLine } from '../lib/stats';
+import { daysToLaunch } from '../../site.config.mjs';
+
+/*
+ * The home page, built to the Anti Algo home canvas (marketing/Anti Algo
+ * Home.html), section by section, at the canvas's own scale. The seven canvas
+ * sections come first; the four sections still in development (how the machine
+ * works, one row, the kill receipts, the research) fall below them, kept so
+ * they can be folded in later.
+ *
+ * EVERY SWEEP NUMBER IS READ, NEVER TYPED. The hero line and the Last night
+ * band read the index's published stats per request; the canvas's own hardcoded
+ * figures are placeholders. The launch day count is derived from LAUNCH_DATE,
+ * and "in line" is the real waitlisted count. The rubric weights (30/25/20/15/10)
+ * and the 375 pre-list figure are the canvas's published constants.
+ */
+Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+
+const stats = await loadStats();
+const stamp = stats ? sweptStamp(stats.swept_at) : null;
+const days = daysToLaunch();
+const inLine = await waitlistInLine();
+const LAUNCH = 'Nov 10, 2026';
+const signUp = (from: string) => `${routeFor('sign-up')}?from=${from}`;
+
+// Data for the stack fit widget and the research table.
+const WEIGHTS = [
+  { part: 'Title scope', weight: 30 },
+  { part: 'Remote and geography', weight: 25 },
+  { part: 'Compensation', weight: 20 },
+  { part: 'Freshness', weight: 15 },
+  { part: 'Apply friction', weight: 10 }
+];
+const RESEARCH = [
+  {
+    stat: 'a week',
+    quote: 'The median posting lives about a week.',
+    source: 'Davis and Samaniego de la Parra, NBER Working Paper 32320, 125 million applications',
+    soWhat: 'Being early is most of the game, and a week is not long.'
+  },
+  {
+    stat: '45%',
+    quote: '45% of applications arrive within 48 hours of a posting going up, and 60% within 96 hours.',
+    source: 'Davis and Samaniego de la Parra, NBER Working Paper 32320, 125 million applications',
+    soWhat: 'By the fourth day most of the field has already applied.'
+  },
+  {
+    stat: '6 days',
+    quote: 'Never-interviewed candidates are silently archived after a median of about 6 days.',
+    source: 'Ashby 2026 Talent Trends, 54M+ applications',
+    soWhat: 'Silence has a median, so the Desk records what happened to the posting with a date.'
+  }
+];
+
+// The twelve refusals, in the home v2 canvas order (01-06 down the left column,
+// 07-12 down the right). Bold title, gray subline.
+const REFUSALS = [
+  { title: 'No feed.', sub: 'A list you search, not a stream that finds you.' },
+  { title: 'No one-click apply.', sub: 'You apply where the job lives, on purpose, every time.' },
+  { title: 'No resume black hole.', sub: 'Your resume stays on your machine. We never receive it.' },
+  { title: 'No pay-to-rank.', sub: 'No company can buy a spot above another.' },
+  { title: 'No ghost jobs by construction.', sub: 'Every posting is checked at its source, every night.' },
+  { title: 'No hidden score.', sub: 'You see the fit number and the math that made it.' },
+  { title: 'No guessed ghost rate.', sub: 'We publish each kill and the rule that caught it. Never a percentage.' },
+  { title: 'No stored key.', sub: 'Your AI key stays in your browser. We never see it.' },
+  { title: 'No selling your data.', sub: "We don't harvest it, so there's nothing to sell." },
+  { title: 'No ads.', sub: 'Nobody pays us to reach you.' },
+  { title: 'No tiers.', sub: "One price. It doesn't move." },
+  { title: 'No recruiter side.', sub: 'We work for the person looking, not the company hiring.' }
+];
+---
+
+<BaseLayout title={SITE.name} description={SITE.description}>
+  <div class="home">
+    <!-- 1 · hero -->
+    <section class="hsec hero" aria-labelledby="hero-title">
+      <p class="eyebrow">{SITE.domain} · product opens {LAUNCH}</p>
+      <h1 id="hero-title" class="h1">Every piece of the hiring stack works for them. This one works for you.</h1>
+      <p class="lede">
+        A job index for design and AI roles that checks every posting at its source nightly, shows you the score and the math
+        behind it, and runs on an AI key you own. <span class="mono-inline">$7.25</span> a month. That's the federal minimum
+        wage, on purpose.
+      </p>
+      <p class="sweep-wrap">
+        {stats
+          ? <a class="sweep-link" href={INDEX.board}>Swept {stamp}. {count(stats.boards_swept)} boards. {count(stats.postings_observed)} postings read. {count(stats.verified_live)} live.</a>
+          : <span class="sweep-link absence">The sweep could not be read just now. The board carries every number.</span>}
+      </p>
+      <div class="act">
+        <a class="cta" href={signUp('home-hero')}>Save my spot</a>
+        <span class="count">
+          <span><span class="count-strong">{days} {days === 1 ? 'day' : 'days'}</span> to launch · {LAUNCH}</span>
+          {inLine !== null && <span><span class="count-strong">{count(inLine)}</span> in line</span>}
+        </span>
+      </div>
+    </section>
+
+    <!-- 2 · last night -->
+    <section class="hsec" aria-labelledby="lastnight-title">
+      <div class="ln-head">
+        <h2 id="lastnight-title" class="h2">Last night</h2>
+        {stamp && <span class="ln-stamp">{stamp}</span>}
+      </div>
+      <a class="ln-bandlink" href={INDEX.kills}>
+        <div class="ln-band">
+          <div class="ln-tile">
+            <span class="ln-label">Boards</span>
+            {stats ? <span class="ln-figure">{count(stats.boards_swept)}</span> : <span class="ln-figure absence">Not read</span>}
+          </div>
+          <div class="ln-tile">
+            <span class="ln-label">Postings read</span>
+            {stats ? <span class="ln-figure">{count(stats.postings_observed)}</span> : <span class="ln-figure absence">Not read</span>}
+          </div>
+          <div class="ln-tile">
+            <span class="ln-label">Live</span>
+            {stats ? <span class="ln-figure">{count(stats.verified_live)}</span> : <span class="ln-figure absence">Not read</span>}
+          </div>
+          <div class="ln-tile">
+            <span class="ln-label">Killed by rule</span>
+            {stats ? <span class="ln-figure">{count(stats.killed_all_time)}</span> : <span class="ln-figure absence">Not read</span>}
+          </div>
+        </div>
+      </a>
+      <p class="ln-lede">We don't guess how many jobs are fake. We check every one, every night, and publish each kill with the rule that caught it.</p>
+      <p class="ln-more"><a href={INDEX.killsByRule}>The five rules and the kill record</a></p>
+    </section>
+
+    <!-- 3 · the stack -->
+    <section class="hsec" aria-labelledby="stack-title">
+      <h2 id="stack-title" class="h2">The stack between you and a job</h2>
+      <div class="stack-box">
+        <div class="stack-head">
+          <span>The layer</span>
+          <span>What it does to you</span>
+          <span>What we do instead</span>
+        </div>
+        <div class="stack-row">
+          <span class="stack-label">The board</span>
+          <span class="stack-desc">Posts anything. Never checks whether it's real.</span>
+          <a class="stack-link" href="https://tokenstoagents.ai/jobs/kills/brex-staff-brand-designer/card">Checked at the source every night. Brex reposted the same text 9 days later. We caught it.</a>
+        </div>
+        <div class="stack-row">
+          <span class="stack-label">The ATS</span>
+          <span class="stack-desc">Reads your resume. Loses a third of it.</span>
+          <span class="stack-note">Tailored to the posting before it meets one. It never leaves your machine.</span>
+        </div>
+        <div class="stack-row">
+          <span class="stack-label">Their AI</span>
+          <span class="stack-desc">Ranks what survived. You never see the score.</span>
+          <div class="fit-col">
+            <span class="fit">
+              <span class="fit-row">
+                {WEIGHTS.map((w) => <span class="fit-w">{w.weight}</span>)}
+              </span>
+              <span class="fit-sum">Fit 100 = 30+25+20+15+10</span>
+            </span>
+            <a class="stack-link" href={`${INDEX.methodology}#rubric`}>You see the score and every weight behind it.</a>
+          </div>
+        </div>
+        <div class="stack-row">
+          <span class="stack-label">The brokers</span>
+          <span class="stack-desc">Sell what you typed in.</span>
+          <a class="stack-link" href={INDEX.notHere}>Nothing you type is stored here. Not your resume, not your key.</a>
+        </div>
+        <div class="stack-row signal">
+          <span class="stack-label">Anti Algo</span>
+          <span class="stack-desc">Checks the board. Shows the score. Runs on your key. Sells nothing.</span>
+          <span class="stack-final">One layer on your side.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3b · what the research says -->
+    <section class="hsec" aria-labelledby="research-title">
+      <h2 id="research-title" class="h2">What the research says</h2>
+      <div class="research-rows">
+        {RESEARCH.map((r) => (
+          <div class="research-row">
+            <span class="rs-stat">{r.stat}</span>
+            <span class="rs-body">
+              <span class="rs-quote">{r.quote}</span>
+              <span class="rs-source">{r.source}</span>
+            </span>
+            <span class="rs-so">{r.soWhat}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- 4 · what the account opens -->
+    <section class="hsec" aria-labelledby="opens-title">
+      <h2 id="opens-title" class="h2">What the account opens</h2>
+      <p class="acct-intro">The Index is free and always will be. The account is where you do the work.</p>
+      <dl class="acct-dl">
+        <div class="acct-row">
+          <dt class="acct-term">Any job</dt>
+          <dd class="acct-def">Paste a link to a posting, ours or anyone's. We pull it into a job page and it's yours to work.</dd>
+        </div>
+        <div class="acct-row">
+          <dt class="acct-term">Tailored</dt>
+          <dd class="acct-def">Your resume and cover letter, rewritten for that one posting. On your key. Your resume never touches our server.</dd>
+        </div>
+        <div class="acct-row">
+          <dt class="acct-term">The Desk</dt>
+          <dd class="acct-def">Every job you're working, as a board or a list. Everything above lands here.</dd>
+        </div>
+        <div class="acct-row">
+          <dt class="acct-term">The prelist</dt>
+          <dd class="acct-def">Companies that just raised and haven't posted yet. You see them before the board does.</dd>
+        </div>
+      </dl>
+      <p class="acct-coming">Coming: alerts, and postings surfaced from what you've already applied to.</p>
+    </section>
+
+    <!-- 5 · the price -->
+    <section class="hsec" aria-labelledby="price-title">
+      <h2 id="price-title" class="visually-hidden">The price</h2>
+      <div class="price-grid">
+        <div class="price-col">
+          <span class="price-big">$7.25</span>
+          <span class="price-label">a month for the account</span>
+        </div>
+        <div class="price-col">
+          <p class="price-copy">That's the federal minimum wage. It hasn't moved since 2009, and neither will this price. Finding a career should never cost more than anyone's hour of work.</p>
+          <p class="price-copy">LinkedIn Premium is <span class="mono-inline">$39.99</span> a month and never checks whether a posting is real. Ours are checked every night, free. You pay for the desk.</p>
+          <p class="price-copy muted">Your AI runs on your key. We never pay for it, so we never charge for it. <a href={routeFor('your-key')}>How the key works</a></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 · not here on purpose -->
+    <section class="hsec" aria-labelledby="nothere-title">
+      <div class="nh-head">
+        <span class="nh-dot" aria-hidden="true"></span>
+        <h2 id="nothere-title" class="h2">Not here on purpose</h2>
+      </div>
+      <p class="nh-intro">Everything the hiring stack sells you, refused.</p>
+      <div class="refusals">
+        {REFUSALS.map((r, i) => (
+          <div class="refusal">
+            <span class="rf-n">{String(i + 1).padStart(2, '0')}</span>
+            <span class="rf-body">
+              <span class="rf-title">{r.title}</span>
+              <span class="rf-sub">{r.sub}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+      <p class="nh-foot">One person built this, on a Mac mini, because he was job hunting too.</p>
+    </section>
+
+    <!-- 7 · closer -->
+    <section class="hsec closer" aria-label="Save your spot">
+      <p class="closer-line">The first thousand members compete with each other. Everyone after that competes with everyone.</p>
+      <div class="act">
+        <a class="cta" href={signUp('home-closer')}>Save my spot</a>
+        <span class="count count-inline">
+          <span><span class="count-strong">{days} days</span> to launch</span> ·
+          {inLine !== null && <span><span class="count-strong">{count(inLine)}</span> in line</span>}
+        </span>
+      </div>
+    </section>
+
+  </div>
+</BaseLayout>
+
+<style>
+  /* The home canvas's own scale, as local variables, so every section here is
+     built at the canvas's sizes and spacing rather than the app's default ramp.
+     Colours map to the shared token layer; the two the canvas defines that the
+     app names differently are line-strong (ink here, not gray) and faint. */
+  .home {
+    --fs-10: 10px;
+    --fs-11: 11px;
+    --fs-12: 12px;
+    --fs-13: 13.5px;
+    --fs-15: 15px;
+    --fs-17: 17.5px;
+    --fs-20: 21px;
+    --fs-26: 27px;
+    --fs-h1: clamp(38px, 4.8vw, 58px);
+    --fs-h2: clamp(24px, 2.6vw, 32px);
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 24px;
+    --sp-6: 32px;
+    --sp-7: 48px;
+    --sp-8: 72px;
+    --tc: 0.13em;
+    --tt: -0.02em;
+
+    --raise: var(--color-surface-raised);
+    --ink: var(--color-foreground);
+    --muted: var(--color-muted);
+    --faint: var(--gray-500);
+    --line: var(--color-line);
+    --line-strong: var(--color-foreground);
+    --signal: var(--color-signal);
+    --human: var(--font-family-sans);
+    --machine: var(--font-family-mono);
+
+    max-width: 75rem;
+    margin-inline: auto;
+    padding-inline: clamp(20px, 4vw, 56px);
+  }
+
+  /* A section: a rule between each, at the canvas rhythm. */
+  .hsec {
+    border-bottom: 1px solid var(--line);
+    padding: var(--sp-7) 0;
+  }
+  .hsec.hero {
+    padding: var(--sp-8) 0 var(--sp-7);
+  }
+  .hsec.closer {
+    padding: var(--sp-8) 0 var(--sp-6);
+    border-bottom: none;
+  }
+  .hsec.no-border {
+    border-bottom: none;
+  }
+
+  .h1 {
+    margin: var(--sp-4) 0 0;
+    font-weight: 700;
+    font-size: var(--fs-h1);
+    line-height: 1.04;
+    letter-spacing: var(--tt);
+    max-width: 22ch;
+    text-wrap: pretty;
+  }
+  .h2 {
+    margin: 0;
+    font-weight: 700;
+    font-size: var(--fs-h2);
+    letter-spacing: var(--tt);
+    line-height: 1.1;
+  }
+
+  .eyebrow {
+    margin: 0;
+    font-family: var(--machine);
+    font-weight: 500;
+    font-size: var(--fs-11);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .lede {
+    margin: var(--sp-5) 0 0;
+    font-size: var(--fs-17);
+    line-height: 1.55;
+    color: var(--ink);
+    max-width: 58ch;
+    text-wrap: pretty;
+  }
+  .mono-inline {
+    font-family: var(--machine);
+    font-size: 0.92em;
+  }
+  .sweep-wrap {
+    margin: var(--sp-4) 0 0;
+  }
+  .sweep-link {
+    font-family: var(--machine);
+    font-size: var(--fs-12);
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid var(--line-strong);
+    line-height: 1.7;
+  }
+  .sweep-link:hover {
+    color: var(--ink);
+  }
+
+  /* The one action: the signal button, ink text in both themes. */
+  .cta {
+    background: var(--signal);
+    color: var(--gray-950);
+    text-decoration: none;
+    font-family: var(--human);
+    font-weight: 600;
+    font-size: var(--fs-17);
+    padding: 16px 30px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--signal);
+  }
+  .cta:hover,
+  .cta:focus-visible {
+    color: var(--gray-950);
+    filter: brightness(1.05);
+  }
+  .act {
+    margin-top: var(--sp-6);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-5);
+    flex-wrap: wrap;
+  }
+  .count {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-family: var(--machine);
+    font-size: var(--fs-12);
+    color: var(--muted);
+  }
+  .count span {
+    white-space: nowrap;
+  }
+  .count-inline {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+  }
+  .count-strong {
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  /* ---- 2 · the stack ---- */
+  .stack-box {
+    margin-top: var(--sp-5);
+    border: 1px solid var(--line-strong);
+    background: var(--raise);
+  }
+  .stack-head {
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: var(--sp-4);
+    padding: var(--sp-3) var(--sp-5);
+    border-bottom: 1px solid var(--line);
+    font-family: var(--machine);
+    font-size: var(--fs-10);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .stack-row {
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: var(--sp-4);
+    align-items: baseline;
+    padding: var(--sp-4) var(--sp-5);
+    border-bottom: 1px solid var(--line);
+  }
+  .stack-label {
+    font-family: var(--machine);
+    font-weight: 500;
+    font-size: var(--fs-11);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .stack-desc {
+    font-size: var(--fs-15);
+    line-height: 1.5;
+  }
+  .stack-link {
+    font-family: var(--machine);
+    font-size: var(--fs-11);
+    line-height: 1.6;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid var(--line-strong);
+    justify-self: start;
+  }
+  .stack-link:hover {
+    color: var(--ink);
+  }
+  .stack-note {
+    font-family: var(--machine);
+    font-size: var(--fs-11);
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .fit-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    align-items: flex-start;
+    justify-self: start;
+  }
+  .fit {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--line);
+    padding: 8px 10px;
+  }
+  .fit-row {
+    display: flex;
+    gap: 6px;
+    font-family: var(--machine);
+    font-weight: 500;
+    font-size: var(--fs-11);
+  }
+  .fit-w {
+    border: 1px solid var(--line);
+    padding: 1px 6px;
+  }
+  .fit-sum {
+    font-family: var(--machine);
+    font-size: var(--fs-10);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .stack-row.signal {
+    background: var(--signal);
+    color: var(--gray-950);
+    padding: var(--sp-5);
+    border-bottom: none;
+  }
+  .stack-row.signal .stack-label {
+    color: var(--gray-950);
+    font-weight: 600;
+  }
+  .stack-row.signal .stack-desc {
+    font-weight: 600;
+  }
+  .stack-final {
+    font-family: var(--machine);
+    font-weight: 600;
+    font-size: var(--fs-11);
+    line-height: 1.5;
+    justify-self: start;
+  }
+
+  /* ---- 3 · last night ---- */
+  .ln-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--sp-4);
+    flex-wrap: wrap;
+  }
+  .ln-stamp {
+    font-family: var(--machine);
+    font-weight: 500;
+    font-size: var(--fs-12);
+    color: var(--muted);
+  }
+  .ln-bandlink {
+    text-decoration: none;
+    color: var(--ink);
+    display: block;
+  }
+  .ln-bandlink:hover {
+    opacity: 0.85;
+    color: var(--ink);
+  }
+  .ln-band {
+    margin-top: var(--sp-5);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border: 1px solid var(--line-strong);
+    background: var(--raise);
+  }
+  .ln-tile {
+    padding: var(--sp-5);
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    min-width: 0;
+  }
+  .ln-tile:last-child {
+    border-right: none;
+  }
+  .ln-label {
+    font-family: var(--machine);
+    font-size: var(--fs-10);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .ln-figure {
+    font-family: var(--machine);
+    font-weight: 600;
+    font-size: var(--fs-26);
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+  .ln-lede {
+    margin: var(--sp-5) 0 0;
+    font-size: var(--fs-15);
+    line-height: 1.55;
+    max-width: 62ch;
+    text-wrap: pretty;
+  }
+  .ln-more {
+    margin: var(--sp-4) 0 0;
+    font-size: var(--fs-15);
+  }
+  .ln-more a {
+    text-decoration: none;
+    border-bottom: 1px solid var(--ink);
+  }
+  .ln-more a:hover {
+    color: var(--muted);
+    border-bottom-color: var(--muted);
+  }
+
+  /* ---- 4 · what the account opens ---- */
+  .acct-intro {
+    margin: var(--sp-3) 0 0;
+    font-size: var(--fs-17);
+    line-height: 1.55;
+    max-width: 52ch;
+    text-wrap: pretty;
+  }
+  .acct-dl {
+    margin: var(--sp-5) 0 0;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--line);
+  }
+  .acct-row {
+    display: grid;
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: var(--sp-4);
+    padding: var(--sp-4) 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .acct-term {
+    font-family: var(--machine);
+    font-weight: 500;
+    font-size: var(--fs-11);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .acct-def {
+    margin: 0;
+    font-size: var(--fs-15);
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+  .acct-def a {
+    text-decoration: none;
+    color: var(--ink);
+    border-bottom: 1px solid var(--line-strong);
+  }
+  .acct-def a:hover {
+    color: var(--muted);
+  }
+  .coming {
+    font-family: var(--machine);
+    font-size: var(--fs-10);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+    border: 1px solid var(--faint);
+    color: var(--muted);
+    padding: 1px 7px;
+    margin-left: 6px;
+    white-space: nowrap;
+  }
+
+  .acct-coming {
+    margin: var(--sp-4) 0 0;
+    font-family: var(--machine);
+    font-size: var(--fs-12);
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  /* ---- 5 · the price ---- */
+  .price-grid {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(0, 1.8fr);
+    gap: var(--sp-6);
+    align-items: start;
+  }
+  .price-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+  .price-col:first-child {
+    gap: var(--sp-2);
+  }
+  .price-big {
+    font-family: var(--machine);
+    font-weight: 600;
+    font-size: clamp(48px, 6vw, 76px);
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .price-label {
+    font-family: var(--machine);
+    font-size: var(--fs-11);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .price-copy {
+    margin: 0;
+    font-size: var(--fs-15);
+    line-height: 1.6;
+    max-width: 60ch;
+    text-wrap: pretty;
+  }
+  .price-copy.muted {
+    color: var(--muted);
+  }
+  .price-copy a {
+    color: var(--ink);
+    text-decoration: none;
+    border-bottom: 1px solid var(--ink);
+  }
+
+  /* ---- 6 · not here on purpose ---- */
+  .nh-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .nh-dot {
+    width: 10px;
+    height: 10px;
+    background: var(--signal);
+    flex-shrink: 0;
+  }
+  .nh-intro {
+    margin: var(--sp-3) 0 0;
+    font-size: var(--fs-17);
+    line-height: 1.55;
+    max-width: 52ch;
+    text-wrap: pretty;
+  }
+  .refusals {
+    margin-top: var(--sp-5);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: repeat(6, auto);
+    grid-auto-flow: column;
+    border-top: 1px solid var(--line);
+  }
+  .refusal {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 0 var(--sp-3);
+    align-items: baseline;
+    border-bottom: 1px solid var(--line);
+  }
+  .refusal:nth-child(-n + 6) {
+    padding: var(--sp-3) var(--sp-5) var(--sp-3) 0;
+    border-right: 1px solid var(--line);
+  }
+  .refusal:nth-child(n + 7) {
+    padding: var(--sp-3) 0 var(--sp-3) var(--sp-5);
+  }
+  .rf-n {
+    font-family: var(--machine);
+    font-weight: 500;
+    font-size: var(--fs-11);
+    color: var(--faint);
+  }
+  .rf-body {
+    display: block;
+  }
+  .rf-title {
+    display: block;
+    font-weight: 700;
+    font-size: var(--fs-15);
+    line-height: 1.35;
+  }
+  .rf-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--fs-13);
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  .nh-foot {
+    margin: var(--sp-5) 0 0;
+    font-size: var(--fs-15);
+    line-height: 1.55;
+    color: var(--muted);
+    max-width: 52ch;
+    text-wrap: pretty;
+  }
+
+  /* ---- 7 · closer ---- */
+  .closer-line {
+    margin: 0;
+    font-weight: 600;
+    font-size: var(--fs-26);
+    line-height: 1.3;
+    letter-spacing: var(--tt);
+    max-width: 32ch;
+    text-wrap: pretty;
+  }
+
+  .research-rows {
+    margin-top: var(--sp-5);
+    display: grid;
+    grid-auto-rows: 1fr;
+    border-top: 2px solid var(--line-strong);
+  }
+  .research-row {
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: var(--sp-4);
+    align-items: start;
+    padding: var(--sp-4) var(--sp-5);
+    border-bottom: 1px solid var(--line);
+  }
+  .research-row:last-child {
+    border-bottom: none;
+  }
+  .rs-stat {
+    font-family: var(--machine);
+    font-weight: 600;
+    font-size: var(--fs-26);
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  .rs-body {
+    display: block;
+  }
+  .rs-quote {
+    display: block;
+    font-weight: 700;
+    font-size: var(--fs-17);
+    line-height: 1.35;
+    text-wrap: pretty;
+  }
+  .rs-source {
+    display: block;
+    margin-top: var(--sp-2);
+    font-family: var(--machine);
+    font-size: var(--fs-11);
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  .rs-so {
+    font-size: var(--fs-15);
+    line-height: 1.5;
+    color: var(--muted);
+    text-wrap: pretty;
+  }
+
+  .absence {
+    font-family: var(--human);
+    color: var(--muted);
+  }
+
+  /* The canvas's own breakpoints. */
+  @media (max-width: 820px) {
+    .stack-row,
+    .acct-row {
+      grid-template-columns: 1fr;
+      gap: var(--sp-2);
+    }
+    .stack-head {
+      display: none;
+    }
+    .ln-band {
+      grid-template-columns: 1fr 1fr;
+    }
+    .ln-tile:nth-child(2) {
+      border-right: none;
+    }
+    .ln-tile:nth-child(1),
+    .ln-tile:nth-child(2) {
+      border-bottom: 1px solid var(--line);
+    }
+    .price-grid {
+      grid-template-columns: 1fr;
+    }
+    .research-row {
+      grid-template-columns: 1fr;
+      gap: var(--sp-2);
+    }
+    .refusals {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: none;
+      grid-auto-flow: row;
+    }
+    .refusal:nth-child(-n + 6),
+    .refusal:nth-child(n + 7) {
+      padding: var(--sp-3) 0;
+      border-right: none;
+    }
+  }
+  @media (max-width: 480px) {
+    .ln-band {
+      grid-template-columns: 1fr;
+    }
+    .ln-tile {
+      border-right: none;
+      border-bottom: 1px solid var(--line);
+    }
+    .ln-tile:last-child {
+      border-bottom: none;
+    }
+  }
+</style>
