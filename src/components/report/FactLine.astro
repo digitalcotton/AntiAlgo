@@ -1,0 +1,85 @@
+---
+import { fact } from '../../lib/data';
+
+/**
+ * One sourced statistic, quoted.
+ *
+ * The report never types a number into a sentence. It asks for a fact by id and
+ * this renders the string from src/data/facts.json character for character,
+ * which is what makes gate 2's verbatim rule cheap to obey rather than a thing
+ * to remember. Paraphrase is the failure this component removes the opportunity
+ * for.
+ *
+ * TWO TONES, AND THEY ARE A HIERARCHY, NOT A STYLE. `statement` is the sentence
+ * the figure above it exists to draw: one per figure, and the reason the chart
+ * is on the page. `note` is context that belongs beside it but is not what the
+ * chart measures. Setting them apart by size is how a reader can tell which
+ * sentence the picture is a picture of.
+ *
+ * THE TILE MARKERS, AND WHY NOTHING USES THEM ANY MORE. Where a quoted string
+ * restated a sweep measurement, the page passed the metric name and gate 2
+ * resolved the rendered sentence against src/data/stats.json rather than
+ * trusting that a fact file and a data file still agreed. That was a patch over
+ * a category error: facts.json held one entry, "We measured 27% this sweep, 14
+ * of 51 pulled", that was not a fact at all. It was a reading, true of one
+ * night, and it was deleted on 2026-08-19. Readings now come from
+ * src/lib/readings.ts through <Reading>, and every entry in facts.json is
+ * somebody else's research that does not change when a sweep runs. The props
+ * stay because the marker is still the right mechanism if a citation ever needs
+ * holding to our data, and gate 2 still checks them.
+ */
+
+interface Props {
+  /** The id in src/data/facts.json. Never a string of copy. */
+  factId: string;
+  tone?: 'statement' | 'note';
+  /**
+   * The stats.json metric this sentence restates, where it restates one.
+   * Turns the line into the tile marker gate 2 reads.
+   */
+  tileMetric?: string;
+  tileValue?: string | number;
+  class?: string;
+}
+
+const { factId, tone = 'statement', tileMetric, tileValue, class: className } = Astro.props;
+
+if (tileMetric !== undefined && tileValue === undefined) {
+  throw new Error(
+    `FactLine: "${factId}" declares the metric "${tileMetric}" and no value. Gate 2 compares the two, so a marker without a value declares nothing and would pass by measuring nothing.`
+  );
+}
+---
+
+<p
+  class:list={['fact-line', `fact-${tone}`, className]}
+  data-truth={tileMetric ? 'tile' : undefined}
+  data-truth-metric={tileMetric}
+  data-truth-value={tileValue !== undefined ? String(tileValue) : undefined}
+>
+  {fact(factId)}
+</p>
+
+<style>
+  .fact-line {
+    text-wrap: pretty;
+  }
+
+  .fact-statement {
+    font-size: var(--size-300);
+    line-height: var(--leading-snug);
+    color: var(--color-foreground);
+  }
+
+  .fact-note {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .fact-statement {
+      font-size: var(--size-200);
+    }
+  }
+</style>

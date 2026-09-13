@@ -1,0 +1,218 @@
+---
+import { assertLicensed, fact, factSource } from '../lib/data';
+
+/**
+ * The education layer, one strip per page maximum, placed where it changes
+ * behaviour rather than where there is room.
+ *
+ * The statistic is never typed. It comes from src/data/facts.json through
+ * fact(), because gate 2 compares every numeral-bearing sentence in a strip
+ * against that file character for character and a paraphrase fails the build.
+ * That is the point of the check: the eight sourced strings are the only
+ * statistics this site is allowed to state, and the way to keep it that way is
+ * to make quoting them the easiest thing to do.
+ *
+ * THREE GUARDS RUN AT BUILD TIME, before the gate ever sees the page.
+ *
+ *   1. The fact has to be licensed for this route. facts.json licenses a fact to
+ *      a route, not to a topic, so a fact quietly spreading across the site is a
+ *      build error and not a discovery someone makes later.
+ *   2. The "so what" line may not contain a numeral. Gate 2 reads every sentence
+ *      in the strip, so a second number in the follow-through would be read as a
+ *      second statistic and fail with a message about facts.json that would send
+ *      the reader to the wrong file. Failing here says what actually happened.
+ *   3. The source line renders verbatim from the fact's own source field, marked
+ *      data-truth="source" so its numerals are checked as a citation rather than
+ *      as a claim. "~80M applications" is a description of a study, not a
+ *      statistic the site is making.
+ *
+ * Dismissal is real: one click, stored, never shown again. A lesson that repeats
+ * becomes a banner and banners become blindness. localStorage is the right tool
+ * and it is used deliberately, because this is a website a person visits twice,
+ * not an app with an account.
+ */
+
+interface Props {
+  /** The id in src/data/facts.json. Never a string of copy. */
+  factId: string;
+  /**
+   * The route this strip renders on, checked against the fact's licence.
+   * Passed rather than read from Astro.url so a component rendered inside
+   * another page's layout cannot claim a route it does not sit on.
+   */
+  route: string;
+  /** The follow-through: what a reader should do about it. No numerals. */
+  soWhat: string;
+  /** Storage key, so two strips on one site dismiss independently. */
+  storageKey?: string;
+  /**
+   * Whether the strip offers a dismiss.
+   *
+   * On the index it does: the strip sits above a table a reader comes back to
+   * many times, and a teaching line that cannot be turned off becomes a banner,
+   * and banners become blindness.
+   *
+   * On a page you read once and leave, there is nothing to come back to, so the
+   * control is noise: it offers to hide two lines on a page whose whole job is
+   * to be read straight through. Off by page, not by guess.
+   */
+  dismissible?: boolean;
+  class?: string;
+}
+
+const {
+  factId,
+  route,
+  soWhat,
+  storageKey = `insight:${factId}`,
+  dismissible = true,
+  class: className
+} = Astro.props;
+
+assertLicensed(factId, route);
+
+if (/\d/.test(soWhat)) {
+  throw new Error(
+    `InsightStrip: the "so what" line for "${factId}" contains a numeral ("${soWhat}"). Gate 2 reads every sentence in a strip as a potential statistic, so the only numbers allowed here are the ones inside the fact string and its source. Say it in words, or add a sourced fact to src/data/facts.json.`
+  );
+}
+
+const statement = fact(factId);
+const source = factSource(factId);
+---
+
+<aside class:list={['insight-strip', className]} data-insight data-storage-key={storageKey}>
+  <p class="insight-text">
+    {statement} <span class="insight-source mono" data-truth="source">{source}</span>. {soWhat}
+  </p>
+
+  {dismissible && <button class="insight-dismiss" type="button" data-insight-dismiss>Dismiss</button>}
+</aside>
+
+{/*
+  Inline and immediately after the element, so a strip a reader already
+  dismissed is hidden before the browser paints it rather than blinking into
+  view and out again. is:inline keeps Astro from bundling and deferring this,
+  which would defeat the whole point.
+*/}
+<script is:inline>
+  (() => {
+    const strips = document.querySelectorAll('[data-insight][data-storage-key]:not([data-insight-wired])');
+    for (const strip of strips) {
+      strip.setAttribute('data-insight-wired', '');
+      const key = strip.getAttribute('data-storage-key');
+      let dismissed = false;
+      try {
+        dismissed = localStorage.getItem(key) === 'dismissed';
+      } catch {
+        // Storage blocked or full. The strip shows, which is the safe default:
+        // a teaching line nobody can dismiss is better than one nobody sees.
+      }
+      if (dismissed) {
+        strip.hidden = true;
+        continue;
+      }
+      const button = strip.querySelector('[data-insight-dismiss]');
+      if (!button) continue;
+      button.addEventListener('click', () => {
+        strip.hidden = true;
+        try {
+          localStorage.setItem(key, 'dismissed');
+        } catch {
+          // Dismissed for this page view only. Still the right behaviour now.
+        }
+      });
+    }
+  })();
+</script>
+
+<style>
+  .insight-strip {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-500);
+    flex-wrap: wrap;
+    padding: var(--space-300) var(--space-600);
+    background: var(--color-surface);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  /* `display: flex` above outranks the browser's own [hidden] rule, which is a
+     bare attribute selector at the same specificity and comes earlier in the
+     cascade. Without this the dismiss button sets the attribute, writes the
+     flag, and the strip stays fully on screen, on this visit and on every
+     later one. Same fix as `.job-row[hidden]`, and it has to live beside the
+     display declaration that caused it. */
+  .insight-strip[hidden] {
+    display: none;
+  }
+
+  .insight-text {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    max-width: var(--layout-measure);
+  }
+
+  /* The citation sits below the machine-voice default because it is an
+     attribution rather than an assertion: it names who measured, it does not
+     measure. Uppercase and tracked, which is the register every source line on
+     the site uses. */
+  .insight-source {
+    font-size: var(--size-050);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    /* It wraps. It used to be nowrap, and a nowrap inline span sets the minimum
+       size of the paragraph containing it, which sets the minimum size of the
+       flex column containing that, which pushed the whole strip wider than
+       whatever it was sitting in.
+
+       THIS WAS FIXED ONCE AND THE FIX WAS AIMED AT THE WRONG THING. It was
+       undone inside a 320px media query, on the reasoning that the citation only
+       fails to fit on a phone. Viewport width was never the question. The strip
+       renders in a 428px sidebar on every job detail page at any window size,
+       and there the citation ran 686px through a 591px column, out of its own
+       rectangle and off the page.
+
+       A component cannot know how wide its container is, so it must not have a
+       minimum width at all. A citation across two lines costs nothing. */
+    white-space: normal;
+  }
+
+  .insight-dismiss {
+    font-family: var(--font-family-sans);
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    white-space: nowrap;
+    /* Vertical padding rather than a height, so the hit target clears the
+       minimum without the control changing the strip's own height. */
+    padding-block: var(--space-200);
+  }
+
+  .insight-dismiss:hover {
+    color: var(--color-foreground);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .insight-dismiss {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .insight-strip {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-200);
+      padding: var(--space-300) var(--space-400);
+    }
+
+    .insight-text {
+      font-size: var(--size-100);
+    }
+
+  }
+</style>

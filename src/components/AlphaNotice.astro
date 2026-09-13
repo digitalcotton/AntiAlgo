@@ -1,0 +1,62 @@
+---
+/**
+ * The alpha notice. What is finished, what is not, said before the reader finds
+ * out by clicking.
+ *
+ * WHY IT SITS IN THE LANDING BLOCK AND NOT IN A CORNER. A status banner nobody
+ * reads is worse than none, because it converts an honest warning into an alibi.
+ * This one sits directly under the lede, in the first screen, at a size that is
+ * read rather than skimmed past.
+ *
+ * WHAT THE COPY IS CAREFUL ABOUT. It is specific about which half is unfinished.
+ * "Under construction" alone tells a reader nothing about whether the listings
+ * can be trusted, and the listings are the one thing on this site that is fully
+ * built. So the notice says the accounts are rough and the jobs are real, in
+ * that order, because the reader's next question after "is this a toy" is
+ * "should I apply".
+ *
+ * THE VERSION IS A PROP, NOT A CONSTANT IN THIS FILE. It is passed from the
+ * page so bumping it is one edit in one place, and so nothing here has to be
+ * touched to say 0.2.
+ */
+interface Props {
+  /** The alpha version, shown as given. Bump it at the call site. */
+  version: string;
+}
+const { version } = Astro.props;
+---
+
+<aside class="alpha" aria-labelledby="alpha-title">
+  <p id="alpha-title" class="alpha-title">Alpha {version}</p>
+  <p class="alpha-body">
+    This part of the site is under construction. Accounts are half built, so sign-in is rough and
+    there is little behind it yet. The jobs are real: every one checked against the company's own
+    posting in the last sweep, every link going straight to it. Apply today.
+  </p>
+</aside>
+
+<style>
+  .alpha {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    margin-block-start: var(--space-600);
+    padding-inline-start: var(--space-400);
+    border-inline-start: var(--border-heavy) solid var(--color-foreground);
+    max-width: 62ch;
+  }
+  .alpha-title {
+    margin: 0;
+    font-family: var(--font-family-sans);
+    font-size: var(--size-400);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-display);
+  }
+  .alpha-body {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+  }
+</style>

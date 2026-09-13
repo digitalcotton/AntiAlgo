@@ -1,0 +1,175 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import { withBase } from '../../site.config.mjs';
+
+// Server rendered so the token in the URL can be spent exactly once, on the
+// server, before anything reaches the browser. Unlike sign-in and sign-up
+// this page needs no client script at all: with prerender off the frontmatter
+// itself runs per request, so the Better Auth call happens here and the page
+// is written already knowing whether it worked. That is more in the spirit
+// of SignupForm's zero-client-JS approach than a fetch call from the browser
+// would have been.
+// HOW THE VERIFICATION FLOW ACTUALLY WORKS, which is not what this page first
+// assumed. Better Auth mails a link to its OWN endpoint,
+// /auth/verify-email?token=...&callbackURL=/verify-email. That endpoint
+// spends the token, sets the session cookie on the reader's browser, and then
+// redirects here. So this page never sees a raw token and must not try to
+// verify one.
+//
+// The earlier version fetched the verify endpoint from the frontmatter. That
+// fails twice over: the emailed link does not carry a token to this page, and
+// even if it did, a server-side fetch receives the Set-Cookie header on the
+// SERVER, so the reader's browser would never get the session and the account
+// would look unverified to them immediately after verifying.
+const params = Astro.url.searchParams;
+
+// ASK THE SESSION, NOT THE QUERY STRING. Better Auth's endpoint spends the
+// token and redirects here, but it does not reliably append a success marker,
+// so keying off ?token or ?verified showed "still waiting" to someone who had
+// just verified successfully. Since verification auto-signs the reader in, the
+// truthful question is whether this request carries a verified session, and
+// middleware has already resolved that into locals.
+const viewer = Astro.locals.viewer;
+const hasError = params.has('error') || params.get('status') === 'failed';
+
+type VerifyState = 'verified' | 'failed' | 'pending';
+const state: VerifyState = hasError
+  ? 'failed'
+  : viewer?.emailVerified
+    ? 'verified'
+    : 'pending';
+---
+
+<BaseLayout title="Verify email" description="Confirm your email address for tokens-to-agents." noindex>
+  <section class="auth-page">
+    <div class="shell auth-shell">
+      <span class="kicker">Account</span>
+      <h1>{state === 'verified' ? "You're in" : 'Verify your email'}</h1>
+
+      {
+        state === 'verified' && (
+          <>
+            {/* Verification signs the reader in, so the success line is a plain
+                statement of fact (subtext), not a control. The one thing to do
+                next is a single primary button. No sign-in link: they are
+                already signed in. */}
+            <p class="muted" role="status">Your email is verified and you are signed in.</p>
+            <a class="field-submit" href={withBase('/')}>
+              Go to the site
+              <Icon name="arrow-right" />
+            </a>
+          </>
+        )
+      }
+
+      {
+        state === 'failed' && (
+          <>
+            <p class="auth-error" role="alert">That link didn't work. It may have expired.</p>
+            <div class="auth-links">
+              <a class="auth-link" href={withBase('/sign-in')}>Sign in and we'll help you from there.</a>
+            </div>
+          </>
+        )
+      }
+
+      {
+        state === 'pending' && (
+          <>
+            <p class="muted">Open the verification link from your email to confirm your address.</p>
+            <div class="auth-links">
+              <a class="auth-link" href={withBase('/sign-up')}>Need an account? Create one.</a>
+              <a class="auth-link" href={withBase('/sign-in')}>Already verified? Sign in.</a>
+            </div>
+          </>
+        )
+      }
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .auth-page .auth-shell {
+    padding-block: var(--space-800) var(--space-1000);
+    max-width: 40ch;
+  }
+  .kicker {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  h1 {
+    margin: var(--space-300) 0 var(--space-600);
+    font-size: var(--size-600);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-display);
+  }
+  .muted {
+    margin: 0 0 var(--space-600);
+    color: var(--color-muted);
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+  }
+  .auth-error {
+    margin: 0 0 var(--space-500);
+    padding: var(--space-300) var(--space-400);
+    border: 1px solid var(--color-line-strong);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  /* The primary action on the verified screen, the same filled-inverse button
+     the rest of the account flow uses (sign-in.astro). It is an anchor here
+     rather than a form submit, so it also clears the underline a link would
+     carry, and the gap seats the arrow icon a token's width after the label. */
+  .field-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    gap: var(--space-200);
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .field-submit:hover,
+  .field-submit:focus-visible {
+    transform: translateX(4px);
+  }
+  .auth-links {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+  .auth-link {
+    align-self: flex-start;
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    border-bottom: 1px solid var(--color-foreground);
+    padding-bottom: 2px;
+    transition: opacity 140ms;
+  }
+  .auth-link:hover {
+    opacity: 0.6;
+  }
+</style>

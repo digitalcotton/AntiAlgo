@@ -1,0 +1,100 @@
+---
+import { assertCitationLicensed, citation, citationSource } from '../lib/data';
+
+/**
+ * A passage from published research, quoted rather than restated.
+ *
+ * WHY THIS IS NOT AN InsightStrip. A strip carries a statistic: a number
+ * somebody measured, which we put into our own sentence and cite. This carries
+ * somebody else's sentence. The distinction matters most exactly where this
+ * component is used, because the argument being made is that the field's own
+ * literature says an age threshold cannot produce a defensible finding, and
+ * that argument is worth nothing if we are the ones phrasing it.
+ *
+ * So the text is never typed into a page. It comes from src/data/citations.json
+ * through citation(), the licence is asserted at build time the same way a
+ * fact's is, and gate 2 checks the rendered HTML against the registry character
+ * for character. A quotation that drifts in the markup is a failed build.
+ *
+ * The attribution renders unconditionally and in machine voice, under the
+ * passage, never as a hoverable or a footnote marker. A reader who wants to go
+ * and check us should not have to look for the reference.
+ */
+
+interface Props {
+  /** The id in src/data/citations.json. Never a string of copy. */
+  citationId: string;
+  /** The route this quotation sits on, checked against its licence. */
+  route: string;
+  /**
+   * Our own framing sentence, above the passage. It says what the reader is
+   * about to read and why it is here. It may not contain quoted material: the
+   * whole point of the split is that our words and theirs are separable on
+   * sight, and a paraphrase smuggled into the frame defeats it.
+   */
+  lede?: string;
+  class?: string;
+}
+
+const { citationId, route, lede, class: className } = Astro.props;
+
+assertCitationLicensed(citationId, route);
+
+const quote = citation(citationId);
+const source = citationSource(citationId);
+
+if (lede && lede.includes('"')) {
+  throw new Error(
+    `Quotation "${citationId}": the lede contains quoted material. The frame is ours and the passage is theirs, and a reader has to be able to tell them apart on sight. Put the words in citations.json and render a second Quotation, or say it without quoting.`
+  );
+}
+---
+
+<figure class:list={['quotation', className]}>
+  {lede && <p class="quotation-lede">{lede}</p>}
+  <blockquote class="quotation-body" cite={source} data-truth="citation" data-truth-citation={citationId}>
+    <p class="quotation-text">{quote}</p>
+  </blockquote>
+  <figcaption class="quotation-source mono">{source}</figcaption>
+</figure>
+
+<style>
+  /* The passage is set in the reading face at reading size, not shrunk and not
+     italicised. It is evidence, and evidence that is styled as decoration reads
+     as decoration. The only thing marking it as somebody else's is the rule
+     down its inside edge and the machine-voice attribution under it. */
+  .quotation {
+    margin: var(--space-500) 0;
+    padding: 0;
+  }
+
+  .quotation-lede {
+    margin: 0 0 var(--space-300);
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+
+  .quotation-body {
+    margin: 0;
+    padding: 0 0 0 var(--space-400);
+    border-inline-start: var(--border-heavy) solid var(--color-line-strong);
+  }
+
+  .quotation-text {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+
+  .quotation-source {
+    margin: var(--space-200) 0 0 var(--space-400);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+</style>

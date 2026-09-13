@@ -1,0 +1,444 @@
+---
+import AgePlot from './index/AgePlot.astro';
+import BoardTabs from './BoardTabs.astro';
+import EmptyState from './EmptyState.astro';
+import ErrorState from './ErrorState.astro';
+import Filters from './Filters.astro';
+import JobTable from './JobTable.astro';
+import LoadingState from './LoadingState.astro';
+import Pagination from './Pagination.astro';
+import SortControl from './SortControl.astro';
+import StatTiles from './StatTiles.astro';
+import { clusterJobs, filterGroups, paginate, SORT_KEYS, type FilterGroup, type Job, type SortKey } from '../lib/data';
+import { PER_PAGE_OPTIONS, boardHref, hiddenFields, pageSpan, type BoardQuery } from '../lib/board-query';
+
+/**
+ * The board, the one component both tabs render through.
+ *
+ * The index and the Pre-List are the same surface with different populations:
+ * the Board tab lists postings, the Newly funded tab lists companies scored
+ * before they post a role. Both are Jobs, both are scored by the same weights,
+ * so they render through this one component. Everything a reader sees on the
+ * board, the tabs, the tiles, the filters, the sort, the age plot,
+ * the table, the paging, lives here once. A page passes its rows and its
+ * counts; nothing about the layout is a page's own to drift.
+ *
+ * TWO MODES SINCE 2026-09-11. client: every row is in the page and a script
+ * filters, sorts and pages it (the Pre-List, a few hundred static rows).
+ * server: the page holds one page of rows the store already filtered, sorted
+ * and sliced; the address is the state; the filter row is a GET form, the sort
+ * and the pager are links, and nothing reloads on its own. The board moved to
+ * server mode when the crawl passed 1,900 rows and shipping them all made the
+ * page heavy and the pager a toy. In server mode clustering (same company and
+ * title across locations, one row) happens within the page only; the counts
+ * and "Page N of M" count postings.
+ */
+interface Props {
+  jobs: readonly Job[];
+  mode?: 'client' | 'server';
+  /** Server mode: the page the store returned and where it sits. */
+  page?: { total: number; page: number; pages: number; per: number };
+  /** Server mode: the address's own settings (src/lib/board-query.ts). */
+  query?: BoardQuery;
+  /** Server mode: the groups with counts the store computed over the set. */
+  groups?: FilterGroup[];
+  /** Server mode: every row's dates for the age plot (never one page's). */
+  ageJobs?: readonly Job[];
+  /** Server mode: the board's own path, the forms' and links' target. */
+  boardPath?: string;
+  /** Which tab is live, for the view switch. */
+  active: 'board' | 'prelist';
+  /** The Newly-funded count on the tab. */
+  prospectCount: number;
+  /** Tile numbers, from the sweep. Undefined falls back to stats.json (Reading). */
+  boards?: number;
+  verifiedLive?: number;
+  /** Where a row's title links. Undefined uses the /role default. */
+  hrefFor?: (job: Job) => string;
+  /**
+   * Whether this reader sees the fit score: the Fit column, its why panels
+   * and the Fit sort. The page decides from the viewer and the fit_public
+   * flag; this component only carries the answer down to the table.
+   */
+  fit?: boolean;
+  /**
+   * Whether this reader sees the Board / Newly funded switch. The page
+   * decides from the viewer and the prelist_tab_public flag; off, the row
+   * keeps only the sweep stamp.
+   */
+  tabs?: boolean;
+  perPage?: number;
+  ariaLabel?: string;
+}
+
+const {
+  jobs,
+  mode = 'client',
+  page: served,
+  query,
+  groups: servedGroups,
+  ageJobs,
+  boardPath = '',
+  active,
+  prospectCount,
+  boards,
+  verifiedLive,
+  hrefFor,
+  fit = true,
+  tabs = true,
+  perPage = 8,
+  ariaLabel = 'The board'
+} = Astro.props;
+
+const sortKeys: readonly SortKey[] = fit ? SORT_KEYS : SORT_KEYS.filter((key) => key !== 'fit');
+// A reader who cannot see fit is served the age order in place of the unwritten
+// default (board.astro servedSort), so the control underlines Age for them.
+const sortCurrent = (q: BoardQuery): SortKey => (fit || q.sort !== 'fit' ? q.sort : 'age');
+
+const serverMode = mode === 'server' && served !== undefined && query !== undefined;
+const groups = serverMode ? (servedGroups ?? []) : filterGroups(jobs);
+const rows = clusterJobs(jobs);
+const clusterCount = rows.filter((row) => row.kind === 'cluster').length;
+const pages = paginate(rows, perPage);
+const totalPages = serverMode && served ? served.pages : pages.length;
+
+// Server mode's links and forms, all built from the one URL contract.
+const q = query as BoardQuery;
+const sortHref = (key: SortKey): string => boardHref(boardPath, q, { sort: key });
+const prevHref = serverMode && served && served.page > 1 ? boardHref(boardPath, q, { page: served.page - 1 }) : null;
+const nextHref = serverMode && served && served.page < served.pages ? boardHref(boardPath, q, { page: served.page + 1 }) : null;
+const span = serverMode && served ? pageSpan(served.page, served.per, served.total) : null;
+const spanText =
+  span && served
+    ? served.total === 0
+      ? 'No rows'
+      : `Rows ${span.first.toLocaleString()} to ${span.last.toLocaleString()} of ${served.total.toLocaleString()}`
+    : '';
+const clearHref = serverMode
+  ? boardHref(boardPath, q, { q: '', location: 'all', comp: 'all', freshness: 'all', ageMin: null, ageMax: null })
+  : '';
+// The age strip's two handles write the range into the address, the same way
+// every other filter does. Only in server mode: the client board has no
+// address to write to.
+const ageHref = serverMode
+  ? (min: number | null, max: number | null) => boardHref(boardPath, q, { ageMin: min, ageMax: max })
+  : undefined;
+---
+
+<section class="board" aria-label={ariaLabel} data-board-mode={mode}>
+  <div class="board-head">
+    <div class="board-tabs-row">
+      {tabs && <BoardTabs active={active} prospectCount={prospectCount} />}
+      {/* The sweep stamp, right of the tabs on the same row, and at the right
+          edge on its own when the switch is off. The page owns the element
+          (it carries data-swept and data-assurance-text, which the staleness
+          pair reads wherever they sit); this row only places it. */}
+      <span class="board-stamp">
+        <slot name="stamp" />
+      </span>
+    </div>
+    {/* Kills are never passed in. The board's own table has no kill rules, so
+        the only kill counts that exist are the sweep's, and StatTiles reads
+        those itself. See the note in StatTiles.astro. */}
+    <StatTiles boards={boards} verifiedLive={verifiedLive} liveMetric={serverMode ? 'board_rows' : undefined} />
+
+    <AgePlot
+      jobs={serverMode ? (ageJobs ?? jobs) : jobs}
+      range={serverMode ? { min: q.ageMin, max: q.ageMax } : undefined}
+      hrefFor={ageHref}
+    />
+
+    {/* The control strip is the last band before the table, directly above
+        the column labels, so the search, the facets and the sort sit on the
+        thing they act on rather than two bands away from it. */}
+    <div class="controls">
+      {serverMode ? (
+        <Filters
+          mode="server"
+          groups={groups}
+          selected={{ location: q.location, comp: q.comp, freshness: q.freshness }}
+          query={q.q}
+          action={boardPath}
+          hidden={hiddenFields(q, ['location', 'comp', 'freshness', 'q'])}
+        >
+          <SortControl slot="sort" current={sortCurrent(q)} hrefFor={sortHref} keys={sortKeys} />
+        </Filters>
+      ) : (
+        <Filters groups={groups}>
+          <SortControl slot="sort" current="fit" />
+        </Filters>
+      )}
+    </div>
+  </div>
+
+  <div class="table-region" data-index-region data-mode={mode}>
+    {!serverMode && (
+      <div class="region-state" data-index-loading hidden>
+        <LoadingState label="Applying your filters" />
+      </div>
+    )}
+
+    {!serverMode && (
+      <div class="region-state" data-index-error hidden>
+        <ErrorState
+          title="The table controls did not load"
+          detail="The rows below are the first page and are unchanged. Filtering, sorting and paging need scripting that did not start, so they are not available on this visit."
+        />
+      </div>
+    )}
+
+    {serverMode && served ? (
+      <JobTable
+        jobs={jobs}
+        paging="server"
+        verifiedBanner={false}
+        hrefFor={hrefFor}
+        fit={fit}
+        emptyDetail="Nothing fits the filters you have set. Widening one of them is the fastest way back to a full table."
+      >
+        <a class="clear-filters" slot="empty-action" href={clearHref}>
+          Clear the filters
+        </a>
+        {clusterCount > 0 && (
+          <p class="count-reconcile" slot="count">
+            Some roles on this page are posted in more than one location. We fold those into one row you can
+            open. Nothing is hidden.
+          </p>
+        )}
+        <Pagination
+          slot="pagination"
+          current={served.page}
+          total={served.pages}
+          prevHref={prevHref}
+          nextHref={nextHref}
+          picker={{
+            action: boardPath,
+            hidden: hiddenFields(q, ['per']),
+            per: q.per,
+            perOptions: PER_PAGE_OPTIONS,
+            span: spanText
+          }}
+        />
+      </JobTable>
+    ) : (
+      <JobTable jobs={jobs} paging="client" perPage={perPage} hrefFor={hrefFor}>
+        {clusterCount > 0 && (
+          <p class="count-reconcile" slot="count">
+            Some roles are posted in more than one location. We fold those into one row you can open.
+            Nothing is hidden.
+          </p>
+        )}
+        <Pagination slot="pagination" current={1} total={totalPages} />
+      </JobTable>
+    )}
+
+    {!serverMode && (
+      <div class="region-state" data-index-empty hidden>
+        <EmptyState
+          title="No roles match"
+          detail="Nothing here fits the filters you have set. Widening one of them is the fastest way back to a full table."
+        >
+          <button class="clear-filters" type="button" slot="action" data-clear-filters>
+            Clear the filters
+          </button>
+        </EmptyState>
+      </div>
+    )}
+  </div>
+</section>
+
+<script>
+  /**
+   * The board's own three states, wired to the table's report. The table
+   * announces index:rows after every change; everything here reads that rather
+   * than tracking its own idea of what happened. See JobTable.astro for the
+   * controller that owns filtering, sorting and paging.
+   */
+  const region = document.querySelector<HTMLElement>('[data-index-region]');
+
+  // Server mode has no controller to hear from: the address is the state and
+  // every control is a form or a link. Nothing below applies.
+  if (region && region.dataset.mode === 'client') {
+    const table = region.querySelector<HTMLElement>('[data-job-table]');
+    const loading = region.querySelector<HTMLElement>('[data-index-loading]');
+    const errorState = region.querySelector<HTMLElement>('[data-index-error]');
+    const empty = region.querySelector<HTMLElement>('[data-index-empty]');
+    const rowsLabel = region.querySelector<HTMLElement>('[data-count-rows]');
+    const pageLabel = region.querySelector<HTMLElement>('[data-count-page]');
+
+    const LOADING_AFTER_MS = 120;
+    let loadingTimer: number | undefined;
+    let tableAnswered = false;
+
+    const pendingWork = () => {
+      if (!loading || tableAnswered || (errorState && !errorState.hidden)) return;
+      window.clearTimeout(loadingTimer);
+      loadingTimer = window.setTimeout(() => {
+        loading.hidden = false;
+      }, LOADING_AFTER_MS);
+    };
+
+    const settle = () => {
+      window.clearTimeout(loadingTimer);
+      if (loading) loading.hidden = true;
+    };
+
+    document.addEventListener('index:filter', pendingWork);
+    document.addEventListener('index:sort', pendingWork);
+    document.addEventListener('index:page', pendingWork);
+
+    document.addEventListener('index:rows', (event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail) return;
+
+      tableAnswered = true;
+      settle();
+
+      const total = Number(detail.total);
+      const nothingMatched = total === 0;
+
+      if (empty) empty.hidden = !nothingMatched;
+      if (table) table.hidden = nothingMatched;
+
+      if (rowsLabel) {
+        const filtered = Object.values(detail.filters || {}).some((value) => value !== 'all');
+        rowsLabel.textContent = nothingMatched
+          ? 'No matching rows'
+          : filtered
+            ? `Rows ${detail.firstRow}-${detail.lastRow} of ${total} matching`
+            : `Rows ${detail.firstRow}-${detail.lastRow}`;
+      }
+
+      if (pageLabel) {
+        pageLabel.textContent = `Page ${detail.page} of ${detail.pages}`;
+      }
+    });
+
+    window.addEventListener('load', () => {
+      if (tableAnswered || !errorState) return;
+
+      let answered = false;
+      const hear = () => {
+        answered = true;
+      };
+      document.addEventListener('index:rows', hear, { once: true });
+      document.dispatchEvent(new CustomEvent('index:page', { detail: { page: 1 } }));
+      document.removeEventListener('index:rows', hear);
+
+      settle();
+      if (!answered) errorState.hidden = false;
+    });
+
+    const clear = region.querySelector<HTMLButtonElement>('[data-clear-filters]');
+    clear?.addEventListener('click', () => {
+      for (const select of document.querySelectorAll<HTMLSelectElement>('[data-filter-group]')) {
+        select.value = 'all';
+        document.dispatchEvent(
+          new CustomEvent('index:filter', {
+            detail: { group: select.getAttribute('data-filter-group'), value: 'all' }
+          })
+        );
+      }
+    });
+  }
+</script>
+
+<style>
+  .board {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* The bands above the table carry three of the card's four edges. The fourth
+     is the table's own top border, so there is no bottom border here. */
+  .board-head {
+    background: var(--color-surface);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-bottom: none;
+  }
+
+  .board-head > :global(.tiles) {
+    border-top: none;
+  }
+
+  .board-tabs-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-300) var(--space-400);
+    padding: var(--space-300) var(--space-600);
+    background: var(--color-surface-raised);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  /* Pushed to the right edge whether or not the switch is beside it. */
+  .board-stamp {
+    margin-inline-start: auto;
+  }
+
+  /* The control strip: Filters draws the cells and their dividers, this draws
+     the strip's own bottom edge. No padding, so the cells run edge to edge. */
+  .controls {
+    display: flex;
+    background: var(--color-surface-raised);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  .count {
+    color: var(--color-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .table-region {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .region-state {
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-bottom: none;
+  }
+
+  .region-state:last-child {
+    border-bottom: var(--border-hairline) solid var(--color-line-strong);
+  }
+
+  .clear-filters {
+    font-family: var(--font-family-sans);
+    font-size: var(--size-150);
+    padding: var(--space-200) var(--space-400);
+    border: var(--border-hairline) solid var(--color-foreground);
+    background: none;
+    color: var(--color-foreground);
+    white-space: nowrap;
+  }
+
+  .clear-filters:hover {
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .clear-filters {
+      transition:
+        background-color var(--motion-duration-instant) var(--motion-easing-standard),
+        color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .controls {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-300);
+      padding: var(--space-300) var(--space-400);
+    }
+
+    .count {
+      white-space: normal;
+    }
+  }
+</style>

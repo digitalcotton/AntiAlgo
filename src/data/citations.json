@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "what": "Verbatim passages from published research, quoted rather than restated. Separate from facts.json on purpose: a fact is a number we cite, a citation here is somebody else's sentence, and the two are checked differently. A fact may be reworded to fit a page. A quotation may not be touched at all.",
+    "rule": "Every string in 'quote' must be byte for byte what the source printed. Gate 2 asserts the rendered page against these, so a quotation that drifts in the markup is a failed build and not a thing a reader finds later.",
+    "punctuation": "House rule applies here too: no em dashes, no en dashes, no curly quotes. If a source ever prints one, that source cannot be quoted verbatim on this site and must be paraphrased with attribution instead, clearly marked as a paraphrase."
+  },
+  "citations": [
+    {
+      "id": "ng-age-cannot-categorise",
+      "quote": "While one could get data on how many jobs are posted and left for a period of more than 30 days or are continuously posted throughout the year, these cannot robustly be categorized as ghost jobs because the hiring firm can argue that they have difficulty finding good candidates.",
+      "author": "Ng",
+      "work": "Ghost Jobs, arXiv 2410.21771",
+      "year": 2024,
+      "locator": "page 7",
+      "pages": ["/methodology"],
+      "why": "The field's own statement of why an age threshold cannot produce a defensible finding. This is the paper that retired our evergreen rule, and it is quoted rather than summarised because a summary of it would be us saying it."
+    },
+    {
+      "id": "ng-slow-hires-excluded",
+      "quote": "Jobs which take a long time to hire, which may be due to stringent checks of job candidates do not fall under this definition.",
+      "author": "Ng",
+      "work": "Ghost Jobs, arXiv 2410.21771",
+      "year": 2024,
+      "locator": "page 3",
+      "pages": ["/methodology"],
+      "why": "The definition itself excludes slow hires. An age rule cannot tell a slow hire from a ghost, so an age rule cannot implement this definition."
+    },
+    {
+      "id": "jolts-actively-recruiting",
+      "quote": "actively recruiting",
+      "author": "US Bureau of Labor Statistics, quoted in Ng",
+      "work": "Ghost Jobs, arXiv 2410.21771",
+      "year": 2024,
+      "locator": "page 3",
+      "pages": ["/methodology"],
+      "why": "Half of the JOLTS test for counting an opening. Ng calls the test unverifiable, which is what puts ghost jobs inside the official US vacancy statistics rather than outside them."
+    },
+    {
+      "id": "jolts-thirty-days",
+      "quote": "could start within 30 days",
+      "author": "US Bureau of Labor Statistics, quoted in Ng",
+      "work": "Ghost Jobs, arXiv 2410.21771",
+      "year": 2024,
+      "locator": "page 3",
+      "pages": ["/methodology"],
+      "why": "The other half of the JOLTS test. Both halves are statements about employer intention and neither can be checked from outside."
+    }
+  ]
+}

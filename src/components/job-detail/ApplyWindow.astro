@@ -1,0 +1,305 @@
+---
+import {
+  ABSENCE,
+  ageHours,
+  ageOf,
+  assertLicensed,
+  fact,
+  factSource,
+  formatAgeDuration,
+  verifiedJobs,
+  type Job
+} from '../../lib/data';
+
+/**
+ * Where this posting sits against the windows the arrival research names.
+ *
+ * IT IS NOT A STALENESS METER, AND THAT DIFFERENCE IS THE WHOLE DESIGN.
+ * Postings do not go off. A hard senior search genuinely runs for months, and
+ * our own cited figure puts median time to first fill at 71 days. That fact is
+ * the one that retired our age rule, and it sits in the caption here for the
+ * same reason: without it, a marker drifting rightward reads as a verdict on
+ * the employer, which is the one thing this site never issues.
+ *
+ * WHAT IT ACTUALLY SAYS. 45% of applications arrive in the first 48 hours and
+ * 60% inside 96. That measures when OTHER PEOPLE apply. It does not measure
+ * whether anyone reads yours, no source we hold says that, and this strip must
+ * never be captioned as though it did. What a reader can act on is the size of
+ * the pile they are joining: early is when you are one of few.
+ *
+ * SO THERE IS NO SCORE, no colour that means late, no "apply now", and no count
+ * of how many postings sit past a line. Three named segments, one marker, and
+ * the numbers in the caption. The reader draws the conclusion, which lands
+ * harder anyway.
+ *
+ * THE BOUNDARIES ARE NOT OURS. 48 and 96 are the two figures in the cited fact.
+ * Nothing here is a threshold this site chose, which is exactly what keeps it an
+ * observation rather than a rule. If the fact is ever restated, these move with
+ * it, because they are read from it rather than typed.
+ *
+ * ABSENT RATHER THAN GUESSED. A posting whose board published no date renders
+ * the absence and no bar at all. A zero width bar reads as "brand new" and a
+ * full width one reads as "ancient". Both would be inventions.
+ */
+
+interface Props {
+  job: Job;
+  /** The route this renders on, checked against the facts' licences. */
+  route: string;
+  class?: string;
+}
+
+const { job, route, class: className } = Astro.props;
+
+assertLicensed('arrival-window', route);
+assertLicensed('time-to-fill', route);
+
+/**
+ * The two boundaries, read out of the fact rather than typed.
+ *
+ * The same discipline the kill list's reference line follows: if the sentence
+ * is ever restated the bar moves with it, and if the numbers ever leave the
+ * sentence this throws instead of quietly drawing a bar at nothing.
+ */
+const arrival = fact('arrival-window');
+const hourFigures = [...arrival.matchAll(/(\d+)\s*hours/g)].map((m) => Number(m[1]));
+if (hourFigures.length < 2) {
+  throw new Error(
+    `ApplyWindow: could not read two hour figures out of the "arrival-window" fact ("${arrival}"). ` +
+      'The segment boundaries are read from that sentence rather than chosen, so they cannot be inferred.'
+  );
+}
+const [firstWindow, secondWindow] = hourFigures.sort((a, b) => a - b);
+
+/**
+ * THE AXIS IS PIECEWISE, AND THE FIRST VERSION OF IT WAS USELESS.
+ *
+ * The named windows are 48 and 96 hours. The postings are 2 to 722 days old. A
+ * linear axis running to eight days pinned the marker to the right edge on 58
+ * of 63 pages, every one of them reading "past the right of this axis", which
+ * is true and tells a reader nothing. A scale that gives the same answer for a
+ * nine day old posting and a two year old one is not a scale.
+ *
+ * So the two named windows get a fixed, generous share of the width each, and
+ * everything after them is compressed by square root into the rest. A posting
+ * inside the windows is placed linearly, where an hour is worth reading. A
+ * posting past them is placed against every other posting past them, so nine
+ * days and two years are visibly different things.
+ *
+ * The axis is therefore NOT LINEAR, and the caption says so in those words.
+ * This is the same trick and the same disclosure the age plot on the index
+ * already uses; a distorted axis nobody tells you about is a lie by furniture.
+ *
+ * THE FAR END IS THE OLDEST ROLE ON THE WHOLE BOARD, not the oldest on this
+ * page, because this page only has one. A per posting axis would rescale under
+ * the reader and two job pages could not be compared, which is most of what a
+ * scale is for.
+ */
+const OLDEST_HOURS = Math.max(
+  secondWindow + 1,
+  ...verifiedJobs()
+    .map((row) => ageOf(row))
+    .filter((found): found is NonNullable<typeof found> => found !== null && found.basis === 'published_date')
+    .map((found) => found.days * 24)
+);
+
+/** Share of the width each part of the axis gets. They sum to 100. */
+const SHARE = { first: 30, second: 25, rest: 45 };
+
+const age = ageOf(job);
+const hours = ageHours(job);
+/** Hours since publication, or null when we hold no publication date at all. */
+const elapsed =
+  hours !== null ? hours : age && age.basis === 'published_date' ? age.days * 24 : null;
+
+function placeAt(value: number): number {
+  if (value <= firstWindow) return (value / firstWindow) * SHARE.first;
+  if (value <= secondWindow) {
+    return SHARE.first + ((value - firstWindow) / (secondWindow - firstWindow)) * SHARE.second;
+  }
+  const span = Math.sqrt(Math.max(1, OLDEST_HOURS - secondWindow));
+  const into = Math.sqrt(Math.max(0, value - secondWindow)) / span;
+  return SHARE.first + SHARE.second + Math.min(1, into) * SHARE.rest;
+}
+
+const measured = elapsed !== null;
+const position = measured ? Math.min(100, placeAt(elapsed)) : 0;
+
+const segments = [
+  { label: `First ${firstWindow} hours`, share: SHARE.first },
+  { label: `${firstWindow} to ${secondWindow} hours`, share: SHARE.second },
+  { label: `Past ${secondWindow} hours`, share: SHARE.rest }
+];
+
+const duration = formatAgeDuration(job);
+---
+
+<section class:list={['apply-window', className]} aria-labelledby="apply-window-heading">
+  <h2 id="apply-window-heading" class="kicker mono-label">When applications arrive</h2>
+
+  {
+    measured ? (
+      <>
+        {/* aria-hidden, with the sentence carried on the figure's own label
+            below. A bar made of divs reads as nothing useful to a screen
+            reader, and three unlabelled regions read as worse than nothing. */}
+        <div
+          class="track"
+          role="img"
+          aria-label={`This posting was published ${duration} ago, against a window where 45% of applications arrive in the first ${firstWindow} hours and 60% within ${secondWindow}.`}
+        >
+          {segments.map((segment) => (
+            <span class="segment" style={`flex-grow: ${segment.share};`}>
+              <span class="segment-label mono-label">{segment.label}</span>
+            </span>
+          ))}
+          <span
+            class="marker"
+            style={`left: ${position.toFixed(3)}%;`}
+            aria-hidden="true"
+          />
+        </div>
+
+        <p class="reading mono-label">
+          This posting, published{' '}
+          <span class="num" data-truth="machine">
+            {duration}
+          </span>{' '}
+          ago.
+        </p>
+      </>
+    ) : (
+      /* No published date, so no position. The absence is the reading. */
+      <p class="reading mono-label">
+        {ABSENCE.date}, so this posting has no place on this axis. Nothing here is estimated from the
+        date we first saw it.
+      </p>
+    )
+  }
+
+  <p class="caption" data-truth="source">
+    {fact('arrival-window')} <span class="cite mono-label">{factSource('arrival-window')}</span>.
+  </p>
+
+  {/* Said out loud, because a squashed axis nobody mentions is a lie told with
+      furniture. Same disclosure the age plot on the index carries. */}
+  <p class="axis-note mono-label">
+    The two windows are spaced evenly. Everything after them is squashed, so a posting a week old
+    and one two years old are not drawn in the same place.
+  </p>
+
+  {/* The caveat, and it is load bearing rather than a footnote. Without it a
+      marker on the right of this bar reads as a verdict, and it is not one. */}
+  <p class="caveat">
+    That is when other people apply, not whether anyone reads yours. And the more senior the role,
+    the less this window means: {fact('time-to-fill').toLowerCase()}.{' '}
+    <span class="cite mono-label">{factSource('time-to-fill')}</span>. A search measured in months
+    was never going to be decided in its first four days.
+  </p>
+</section>
+
+<style>
+  .apply-window {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    padding: var(--space-400) var(--space-500);
+    background: var(--color-surface-raised);
+    border: var(--border-hairline) solid var(--color-line);
+  }
+
+  .kicker {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  .track {
+    position: relative;
+    display: flex;
+    min-height: var(--space-700);
+    border: var(--border-hairline) solid var(--color-line);
+  }
+
+  .segment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-basis: 0;
+    min-width: 0;
+    padding: var(--space-200);
+    text-align: center;
+  }
+
+  /* Hairlines between segments and not around them, so the axis reads as one
+     continuous span of time rather than three separate boxes. */
+  .segment + .segment {
+    border-inline-start: var(--border-hairline) solid var(--color-line);
+  }
+
+  .segment-label {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-050);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  /* The one mark that carries meaning. Foreground, not a status colour: this
+     says where the posting is, never how a reader should feel about it. */
+  .marker {
+    position: absolute;
+    inset-block: 0;
+    width: var(--border-heavy);
+    background: var(--color-foreground);
+    transform: translateX(calc(var(--border-heavy) * -0.5));
+  }
+
+  .reading {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+
+  .axis-note {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-050);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+  }
+
+  .caption {
+    margin: 0;
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+
+  .caveat {
+    margin: 0;
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+  }
+
+  .cite {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-050);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  .num {
+    font-family: var(--font-family-mono);
+  }
+</style>

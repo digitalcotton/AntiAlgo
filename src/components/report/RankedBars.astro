@@ -1,0 +1,187 @@
+---
+import { loadStats } from '../../lib/data';
+
+/**
+ * The sweep, stage by stage: what the machine read, what it pulled, what
+ * survived verification, and what it killed.
+ *
+ * EVERY BAR IS A stats.json FIELD AND CARRIES ITS OWN TILE MARKER. Nothing here
+ * is typed and nothing is counted from the rows: gate 2 resolves each declared
+ * metric against src/data/stats.json, so a bar that drifts from the sweep fails
+ * the build rather than being noticed in a screenshot months later. That also
+ * means this component cannot be reused to draw anything the sweep did not
+ * measure, which is the correct limit for it.
+ *
+ * ONE HONEST WOBBLE, STATED RATHER THAN HIDDEN. The first bar counts company
+ * feeds and the other three count postings. They share an axis of counts, not of
+ * like things, and the figure's note says so. The alternative was to drop the
+ * feed count, which is the number that says how wide the net was and is the one
+ * stage a reader cannot infer from the others.
+ *
+ * COLOUR DOES ONE JOB. Green is the verified count and red is the kill count,
+ * matching StatTiles exactly, because the same number in two places on one site
+ * that is not the same colour in both is a small lie about what colour means
+ * here. The two upstream stages are neutral: they are inputs, not outcomes.
+ */
+
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+
+const stats = loadStats();
+
+interface Stage {
+  metric: 'boards' | 'pulled' | 'verified_live' | 'killed';
+  value: number;
+  label: string;
+  /** Which of the two meaning colours applies, if either. */
+  tone: 'neutral' | 'live' | 'loss';
+}
+
+// In sweep order, which is also descending, because each stage is a subset of
+// what the one above it produced. Sorting by value would draw the same picture
+// and would stop being true the day a stage grows.
+const STAGES: Stage[] = [
+  { metric: 'boards', value: stats.boards, label: 'Company feeds read', tone: 'neutral' },
+  { metric: 'pulled', value: stats.pulled, label: 'Postings pulled', tone: 'neutral' },
+  { metric: 'verified_live', value: stats.verified_live, label: 'Verified live at source', tone: 'live' },
+  { metric: 'killed', value: stats.killed, label: 'Killed by rule', tone: 'loss' }
+];
+
+const scaleMax = Math.max(...STAGES.map((stage) => stage.value));
+
+if (!(scaleMax > 0)) {
+  throw new Error(
+    'RankedBars: every stage of the sweep is zero or missing, so there is no scale to draw against. A chart of nothing should be an empty state, not a row of empty tracks.'
+  );
+}
+---
+
+<ul class:list={['ranked', className]}>
+  {
+    STAGES.map((stage) => (
+      <li class="row">
+        <span class="row-label">{stage.label}</span>
+
+        <span class="row-track">
+          <svg class="marks" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <rect
+              class:list={['bar', `bar-${stage.tone}`]}
+              x="0"
+              y="0"
+              width={((stage.value / scaleMax) * 100).toFixed(2)}
+              height="100"
+            />
+          </svg>
+        </span>
+
+        <span
+          class:list={['row-value', 'mono', `value-${stage.tone}`]}
+          data-truth="tile"
+          data-truth-metric={stage.metric}
+          data-truth-value={stage.value}
+        >
+          {stage.value}
+        </span>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .ranked {
+    display: grid;
+    row-gap: var(--space-300);
+    min-width: 0;
+  }
+
+  /* Label, bar, value. The three columns are declared on the LIST, not on the row,
+     and each row is display:contents so its three children become items of that one
+     shared grid.
+
+     This is the whole fix for a chart that read as jagged. When .row was its own
+     grid, max-content sized the label column to that row's own label, so "Killed by
+     rule" got a narrow column and "Verified live at source" a wide one, and every
+     track started at a different x with a different length. The comment here always
+     claimed the label column sizes to its widest member; only now is that true,
+     because there is now only one column to size.
+
+     Bars sharing an axis have to share a baseline or their lengths stop being
+     comparable, which is the single thing a ranked bar chart exists to do. */
+  .ranked {
+    grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto;
+    column-gap: var(--space-400);
+    align-items: center;
+  }
+
+  .row {
+    display: contents;
+  }
+
+  .row-label {
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  /* The empty part of the track is drawn, not implied: a bar with nothing behind
+     it gives a reader no way to see what full width would have been. */
+  .row-track {
+    display: block;
+    height: var(--space-500);
+    background: var(--color-hover-surface);
+    min-width: 0;
+  }
+
+  .marks {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .bar-neutral {
+    fill: var(--color-foreground);
+  }
+
+  .bar-live {
+    fill: var(--color-mark-live);
+  }
+
+  .bar-loss {
+    fill: var(--color-stat-loss);
+  }
+
+  .row-value {
+    font-size: var(--size-300);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-tight);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .value-live {
+    color: var(--color-mark-live);
+  }
+
+  .value-loss {
+    color: var(--color-stat-loss);
+  }
+
+  /* At phone width three columns will not hold: the label wraps to two lines and
+     the bar collapses to nothing. The row becomes label and value on one line
+     with the bar beneath, which keeps every bar on one shared scale. */
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .row {
+      grid-template-columns: minmax(0, 1fr) auto;
+      row-gap: var(--space-200);
+    }
+
+    .row-track {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      height: var(--space-400);
+    }
+  }
+</style>

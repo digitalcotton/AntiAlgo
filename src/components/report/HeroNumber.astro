@@ -1,0 +1,112 @@
+---
+/**
+ * One number, set at display size, with the words that make it mean something.
+ *
+ * The fourth chart pattern the work order names, and the only one that is not a
+ * picture. It earns its place on the same terms as the other three: a figure
+ * this large is a claim, so it never appears without the sourced sentence it was
+ * read out of, and the value it prints is always parsed from that sentence or
+ * read from the sweep, never typed into a template.
+ *
+ * THE NUMERAL IS MONO AND THE LABEL IS NOT. Standing rule 3, at the largest size
+ * on the page: the number is a machine assertion and the words around it are
+ * editorial. A reader can tell which is which from across the room, which is
+ * most of what this pattern is for.
+ *
+ * THE TILE MARKERS ARE HOW A SWEEP FIGURE GETS TO BE THIS BIG. Where the number
+ * is one of the machine's own, the page declares the metric and gate 2 holds the
+ * rendered glyphs to src/data/stats.json. The headline of the whole product does
+ * not get to be an untyped string.
+ */
+
+interface Props {
+  /** What to print, already in its final form ("0", "254"). */
+  value: string;
+  /** What the number is of. Editorial voice, one clause, no statistics. */
+  label: string;
+  /** Neutral by default. `loss` is reserved for kill and ghost figures. */
+  tone?: 'neutral' | 'loss' | 'live';
+  /** Declares this figure as a stats.json metric, for gate 2. */
+  tileMetric?: string;
+  /** Display size. `page` is the headline stat, `figure` is inside a figure. */
+  size?: 'page' | 'figure';
+  class?: string;
+}
+
+const { value, label, tone = 'neutral', tileMetric, size = 'figure', class: className } = Astro.props;
+
+if (/\d/.test(label)) {
+  throw new Error(
+    `HeroNumber: the label "${label}" contains a numeral. A second number beside a display figure reads as a second statistic and nothing on this page states a statistic that is not quoted from src/data/facts.json. Put the number in the sourced sentence underneath.`
+  );
+}
+---
+
+<div class:list={['hero', `hero-${size}`, className]}>
+  <p
+    class:list={['hero-value', 'mono', `hero-${tone}`]}
+    data-truth={tileMetric ? 'tile' : undefined}
+    data-truth-metric={tileMetric}
+    data-truth-value={tileMetric ? value : undefined}
+  >
+    {value}
+  </p>
+  <p class="hero-label">{label}</p>
+</div>
+
+<style>
+  .hero {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    min-width: 0;
+  }
+
+  .hero-value {
+    font-weight: var(--weight-bold);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  /* Two steps, because a headline stat and a figure inside a two-column grid are
+     not the same object. Both are ramp steps; neither is a measured one-off. */
+  .hero-page .hero-value {
+    font-size: var(--size-700);
+  }
+
+  .hero-figure .hero-value {
+    font-size: var(--size-600);
+  }
+
+  .hero-loss {
+    color: var(--color-stat-loss);
+  }
+
+  .hero-live {
+    color: var(--color-mark-live);
+  }
+
+  .hero-label {
+    font-size: var(--size-300);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: 26ch;
+    text-wrap: pretty;
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .hero-page .hero-value {
+      font-size: var(--size-600);
+    }
+
+    .hero-figure .hero-value {
+      font-size: var(--size-500);
+    }
+
+    .hero-label {
+      font-size: var(--size-200);
+    }
+  }
+</style>

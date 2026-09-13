@@ -1,0 +1,205 @@
+---
+/**
+ * AddJobModal: the one "Add a job" control on the Desk.
+ *
+ * A native <dialog> (focus trap, Escape, dimmed backdrop, top layer come from
+ * showModal(), which is why the Desk carries this one script). One field: the
+ * posting's link. Submits intent=add to /desk/posting, which records the card
+ * and the read request, wakes the Mac mini, and lands the person on the
+ * posting's own page, where the machine narrates the read and the draft rail
+ * waits for their reason.
+ *
+ * ONE CONTROL, NOT TWO (2026-09-11). "Track an application" asked for a link,
+ * a role and a company; "Add a posting" asked for the link and read the rest.
+ * The second makes the first redundant: given the link, the machine fills in
+ * the role and the company, and a person who wants to correct them does so on
+ * the posting's page. So the Desk has one button, named for what the person
+ * is doing (adding a job to their Desk). The submit is named for what happens
+ * next, in the machine's own word: "Read this posting". The owner asked for
+ * plain language about the link being taken in, and "read" is the verb every
+ * other surface already uses for it (the card's "Reading the posting from",
+ * the page's "Read from").
+ */
+interface Props {
+  action: string;
+  view: 'board' | 'table';
+}
+
+const { action, view } = Astro.props;
+---
+
+<button class="add-job-trigger" type="button" data-add-open>Add a job</button>
+<dialog class="add-job-box" id="add-job" aria-labelledby="add-job-title">
+  <button class="add-job-close" type="button" data-add-close aria-label="Close">
+    <span aria-hidden="true">&times;</span>
+  </button>
+  <p class="add-job-title mono-label" id="add-job-title">Add a job</p>
+  <p class="add-job-hint">
+    Paste the link to a job posting. Our machine reads the page and fills in the role and the
+    company. Then you add why this company, and we draft your resume and cover letter from it.
+    If the page cannot be read, you can paste the text instead.
+  </p>
+  <form class="add-job-form" method="POST" action={action}>
+    <input type="hidden" name="intent" value="add" />
+    <input type="hidden" name="view" value={view} />
+    <div class="ap-field">
+      <label class="ap-field-label" for="add-job-url">Posting link</label>
+      <input
+        class="field-input"
+        id="add-job-url"
+        name="url"
+        type="url"
+        required
+        pattern="https://.*"
+        placeholder="https://"
+        maxlength="2000"
+      />
+    </div>
+    <div class="ap-actions">
+      <button class="ap-submit" type="submit">Read this posting</button>
+      <button class="account-button-quiet" type="button" data-add-close>Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<style>
+  .add-job-trigger,
+  .ap-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+
+  .add-job-box {
+    position: relative;
+    width: 100%;
+    max-width: var(--layout-measure);
+    background: var(--color-surface-raised);
+    color: var(--color-foreground);
+    border: var(--border-heavy) solid var(--color-foreground);
+    padding: var(--space-600);
+  }
+  .add-job-box::backdrop {
+    background: var(--color-overlay);
+  }
+
+  .add-job-close {
+    position: absolute;
+    top: var(--space-400);
+    right: var(--space-400);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--space-600);
+    height: var(--space-600);
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    color: var(--color-muted);
+    font-size: var(--size-400);
+    line-height: 1;
+  }
+  .add-job-close:hover,
+  .add-job-close:focus-visible {
+    color: var(--color-foreground);
+  }
+
+  .add-job-title {
+    margin: 0 0 var(--space-300);
+    color: var(--color-muted);
+  }
+  .add-job-hint {
+    margin: 0 0 var(--space-500);
+    font-size: var(--size-150);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  .add-job-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+  .ap-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    min-width: 0;
+  }
+  .ap-field-label {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .ap-actions {
+    display: flex;
+    gap: var(--space-300);
+    align-items: center;
+  }
+  .account-button-quiet {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: var(--color-foreground);
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .add-job-box {
+      max-width: none;
+      padding: var(--space-500);
+    }
+    .ap-actions {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .ap-submit,
+    .account-button-quiet {
+      width: 100%;
+    }
+  }
+</style>
+
+<script>
+  // Guarded: absent markup (a signed-out Desk, a dark flag) means nothing runs.
+  const dialog = document.getElementById('add-job') as HTMLDialogElement | null;
+  const opener = document.querySelector<HTMLButtonElement>('[data-add-open]');
+  const urlField = document.getElementById('add-job-url') as HTMLInputElement | null;
+
+  if (dialog && opener) {
+    opener.addEventListener('click', () => {
+      dialog.showModal();
+      urlField?.focus();
+    });
+    dialog.querySelectorAll<HTMLButtonElement>('[data-add-close]').forEach((btn) => {
+      btn.addEventListener('click', () => dialog.close());
+    });
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+  }
+</script>

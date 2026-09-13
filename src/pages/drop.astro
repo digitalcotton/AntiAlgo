@@ -1,0 +1,464 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Panel from '../components/Panel.astro';
+import EmptyState from '../components/EmptyState.astro';
+import JobRow from '../components/JobRow.astro';
+import KillRow from '../components/KillRow.astro';
+import MarkLegend from '../components/MarkLegend.astro';
+import AppealLine from '../components/AppealLine.astro';
+import StatTiles from '../components/StatTiles.astro';
+import SponsorSlot from '../components/SponsorSlot.astro';
+import { dropWindow, enteredInWindow, closedInWindow, killsInWindow } from '../components/drop/window';
+import {
+  verifiedJobs,
+  closedJobs,
+  loadKills,
+  killArchive,
+  killSlug,
+  killsOnRecord,
+  killsRecordSince,
+  sweptStamp,
+  sweepDate,
+  daysBetween,
+  formatDate,
+  firstSeenVisible,
+  type Kill
+} from '../lib/data';
+import { routeFor } from '../data/nav';
+
+/**
+ * /drop: the weekly drop (RUN-FINISH phase 6, MASTER-SPEC F7, "The Ritual").
+ *
+ * "Weekly drop page ... shipping dark": what entered, what died, what
+ * changed, what is verified, read entirely from the published files this
+ * sweep exports. No fabricated cadence, no invented history: everything
+ * below is `src/lib/data.ts`'s own exports, at render time, on the same
+ * `verified_jobs.json` / `kills.json` / `stats.json` triad every other page
+ * on this site reads. See that file's own header for the three rules this
+ * page does not get to break: structure may be derived, facts may not; a
+ * number renders only when its provenance can be shown; one clock.
+ *
+ * PUBLIC AND STATIC, LIKE /kills AND /report, NOT LIKE /desk OR /prelist.
+ * This route carries no `export const prerender = false` and reads no
+ * `Astro.locals.verdict`: everything on it is already public on /, /kills
+ * and /report individually, so walling the weekly roll-up of the same facts
+ * behind sign-in would gate a summary of information a stranger can already
+ * read. The signed-in half of this feature (the personalized digest email)
+ * lives in `emails/templates/weekly-digest.mjs`, not here; this page is the
+ * generic, always-on cadence surface member-nav.ts's own "The Drop" entry
+ * points at.
+ *
+ * THE WEEK BOUNDARY, STATED HERE BECAUSE data.ts DOES NOT OWN ONE. data.ts's
+ * own header rule 3 is one clock, `stats.swept_at_utc`; it has no concept of
+ * a week, on purpose, the same reason `emails/lib/content.mjs`'s own header
+ * gives for defining `DIGEST_WINDOW_DAYS` in that file rather than in
+ * data.ts: "the site has no concept of a week... it is defined once... and
+ * the emails print it rather than implying it." This page makes the
+ * identical choice, independently, for the identical reason, and states the
+ * rule rather than importing the email pipeline's private constant into a
+ * page: seven days back from `sweepDate()`, computed below with the same
+ * plain date arithmetic `digestWindow()` uses, because this page and that
+ * template are the only two surfaces on the property that need a week at
+ * all and neither should reach into the other's module to get one.
+ *
+ * WHAT ONE SWEEP CAN AND CANNOT SAY ABOUT A WEEK. This property holds
+ * exactly one sweep (`stats.swept_at_utc` is `2026-08-23T07:30:02Z` and
+ * there is no second stats snapshot anywhere in the published files this
+ * page reads). Two consequences, both stated on the page rather than
+ * smoothed over:
+ *
+ *   1. "What entered" and "what changed" both read a record's own dated
+ *      field (`first_observed`, `closed_on`) against the seven day window.
+ *      That is a genuine, sourced observation, not a guess, but on a first
+ *      sweep every `first_observed` date is necessarily recent (the machine
+ *      only started watching this week), so "entered this week" and "the
+ *      whole verified catalog" are the same set tonight. The page says so
+ *      rather than letting a reader infer weekly churn that has not
+ *      happened yet. `firstSeenVisible()` is the same gate the index and the
+ *      digest already use to decide whether `first_observed` carries enough
+ *      depth to print at all; this page defers to it rather than re-deciding
+ *      the question a third way.
+ *
+ *   2. There is no "what changed since last week" figure anywhere on this
+ *      page, and there cannot honestly be one: a trend needs two points and
+ *      the published files hold one. What ships instead is `report.astro`'s
+ *      own answer to the identical problem, applied here: state the
+ *      absence in plain voice rather than render a number that is really a
+ *      first observation wearing a delta's clothes.
+ *
+ * THE WINDOW MATH ITSELF LIVES IN components/drop/window.ts, NOT HERE. Pulled
+ * out so a plain vitest run can prove "what entered" and "what changed" are
+ * real filters over data.ts's own rows and dates, against the real fixtures,
+ * with no Astro renderer involved. See that file's own header.
+ */
+
+const stamp = sweptStamp();
+const today = sweepDate();
+const window = dropWindow(today);
+
+// ---------------------------------------------------------------------------
+// What entered
+// ---------------------------------------------------------------------------
+const allVerified = verifiedJobs();
+const depthEnough = firstSeenVisible();
+const entered = depthEnough ? enteredInWindow(allVerified, window, daysBetween) : [];
+// True the day this property has held more than one sweep's worth of first
+// observations: the moment "entered this week" and "everything we hold"
+// finally diverge. Until then the page says the two sets are one, in words,
+// rather than let a reader read a shorter list as churn.
+const enteredIsWholeCatalog = depthEnough && entered.length === allVerified.length;
+
+// ---------------------------------------------------------------------------
+// What died
+// ---------------------------------------------------------------------------
+/**
+ * A seven day window read over the RECORD, not over tonight's file.
+ *
+ * kills.json is this sweep and only this sweep, so a window built from it was
+ * never seven days long: it was one night wearing a seven day label. A kill
+ * made on Friday vanished from "what died this week" on Saturday, which is the
+ * exact failure this page's own heading promises against.
+ *
+ * Two sets, because the page makes two different statements. The first counts
+ * everything the machine recorded in the window, held and unattributed records
+ * included, because "N kills recorded" is a claim about the machine. The second
+ * is what actually renders as a row. The sentence between them accounts for the
+ * gap, and it can only do that while the two are counted separately.
+ *
+ * Deduplicated by slug, which is the row identity a reader can see. Tonight's
+ * copy of a record wins: the record is rebuilt from the same archive, so the
+ * two agree, and where they ever did not the fresher observation is the sweep's.
+ */
+const dedupeBySlug = (kills: readonly Kill[]): Kill[] => {
+  const bySlug = new Map<string, Kill>();
+  for (const kill of kills) bySlug.set(killSlug(kill), kill);
+  return [...bySlug.values()];
+};
+
+const record = killsOnRecord();
+const recordSince = formatDate(killsRecordSince());
+const archive = dedupeBySlug([...record, ...killArchive()]);
+const publishable = dedupeBySlug([...record, ...loadKills()]);
+const diedThisWeek = killsInWindow(archive, window, daysBetween);
+const publishableThisWeek = killsInWindow(publishable, window, daysBetween);
+
+// ---------------------------------------------------------------------------
+// What changed: postings this sweep watched go from live to closed, each
+// one carrying its own closed_on date. Distinct from "what died": a closed
+// posting is an employer's own status change (filled, pulled, expired), not
+// a ghost a rule caught. See src/lib/data.ts's Job.closed_reason and
+// src/pages/kills/index.astro's own header for why the two are never
+// merged into one figure.
+// ---------------------------------------------------------------------------
+const closedThisWeek = closedInWindow(closedJobs(), window, daysBetween);
+
+// ---------------------------------------------------------------------------
+// What is verified: the sweep's own totals, via StatTiles, which reads
+// loadStats() itself. Nothing here needs a local copy of that call: this
+// page never prints a sweep total outside that component.
+// ---------------------------------------------------------------------------
+
+const indexHref = routeFor('index');
+const killsHref = routeFor('kills');
+const reportHref = routeFor('report');
+---
+
+<BaseLayout
+  title="The drop"
+  description="The weekly cadence page: what entered, what died, what changed, and what is verified, read straight from the published sweep."
+>
+  <div class="shell drop">
+    <header class="drop-head">
+      <p class="drop-eyebrow mono">SWEPT {stamp}</p>
+      <h1 class="drop-title">The weekly drop.</h1>
+      <p class="drop-lede">
+        Everything below is read from the same published files every other page on this site reads: what
+        entered the index this week, what died, what changed status, and what the sweep verifies as of
+        tonight. Every count carries the sweep it came from, and nothing here is estimated.
+      </p>
+    </header>
+
+    <section class="drop-section" aria-labelledby="verified-heading">
+      <h2 id="verified-heading" class="section-heading">What is verified</h2>
+      <p class="drop-note">
+        The sweep's own totals, as of {stamp}. The same tiles <a class="drop-link" href={killsHref}>the kill list</a> shows.
+      </p>
+      <StatTiles />
+    </section>
+
+    <section class="drop-section" aria-labelledby="entered-heading">
+      <h2 id="entered-heading" class="section-heading">What entered</h2>
+
+      {
+        !depthEnough ? (
+          <p class="drop-note">
+            This site's own record of when it first saw a posting is not yet deep enough to say what is new
+            this week rather than simply the first thing the machine ever observed. That gate is
+            <code class="drop-code">firstSeenVisible()</code>, the same one the index uses to decide whether
+            its own "First seen" column is worth printing, and tonight it says no. Nothing below is a guess
+            in its place.
+          </p>
+        ) : (
+          <>
+            <p class="drop-note">
+              {entered.length} of {allVerified.length} verified postings were first observed in the seven
+              days ending {formatDate(today)}, counted from each record's own <code class="drop-code">first_observed</code> date.
+            </p>
+            {enteredIsWholeCatalog && (
+              <p class="drop-note drop-note-flag">
+                That is the whole verified catalog. This is the first sweep this property has run, so "first
+                observed this week" and "everything we currently hold" are still the same set. A window like
+                this becomes a real filter, showing a subset rather than the whole table, once the archive
+                holds more than one week of first-observation dates.
+              </p>
+            )}
+            {entered.length === 0 ? (
+              <EmptyState
+                title="Nothing entered this week"
+                detail="No verified posting carries a first-observed date inside the last seven days."
+              />
+            ) : (
+              <div class="drop-panel">
+                <Panel title="Entered this week">
+                  <ul class="drop-list">
+                    {entered.map((job) => (
+                      <li>
+                        <JobRow job={job} surface="raised" />
+                      </li>
+                    ))}
+                  </ul>
+                  <div slot="footnote">
+                    <MarkLegend surface="raised" />
+                  </div>
+                </Panel>
+              </div>
+            )}
+          </>
+        )
+      }
+    </section>
+
+    <section class="drop-section" aria-labelledby="died-heading">
+      <h2 id="died-heading" class="section-heading">What died</h2>
+
+      {
+        archive.length === 0 ? (
+          <EmptyState
+            title="Nothing has died since tracking began"
+            detail="The record holds no kill at all yet. This is not a filtered view and not a window: there is nothing to show, on any date."
+          />
+        ) : diedThisWeek.length === 0 ? (
+          <EmptyState
+            title="Nothing died this week"
+            detail={`Nothing tripped a rule in the seven days ending ${formatDate(today)}. The record holds ${record.length} kill${record.length === 1 ? '' : 's'}${recordSince ? ` since ${recordSince}` : ''}, kept whether or not this week added to it.`}
+          >
+            <a slot="action" class="drop-link" href={killsHref}>
+              See the kill list
+            </a>
+          </EmptyState>
+        ) : (
+          <>
+            <p class="drop-note">
+              {diedThisWeek.length} kill{diedThisWeek.length === 1 ? '' : 's'} recorded in the seven days ending {formatDate(today)}.
+              {publishableThisWeek.length !== diedThisWeek.length && (
+                <>
+                  {' '}
+                  {publishableThisWeek.length} of {diedThisWeek.length} carry a rule this site still stands behind and are
+                  published below; the rest are held or unattributed, exactly as <a class="drop-link" href={killsHref}>the
+                  kill list</a> explains them.
+                </>
+              )}
+            </p>
+            {publishableThisWeek.length === 0 ? (
+              <EmptyState
+                title="This week's kills are not published rows"
+                detail="Every kill recorded in this window is held or carries a rule this site retired. None is printed here on a hunch."
+              />
+            ) : (
+              <div class="drop-panel">
+                <Panel title="Killed this week">
+                  <ul class="drop-list">
+                    {publishableThisWeek.map((kill, index) => (
+                      <li>
+                        <KillRow kill={kill} referenceCaption={index === 0} />
+                      </li>
+                    ))}
+                  </ul>
+                </Panel>
+              </div>
+            )}
+            <AppealLine class="drop-appeal" />
+          </>
+        )
+      }
+    </section>
+
+    <section class="drop-section" aria-labelledby="changed-heading">
+      <h2 id="changed-heading" class="section-heading">What changed</h2>
+
+      <p class="drop-note">
+        There is no week-over-week figure on this page, and there cannot honestly be one yet: a trend needs
+        two published sweeps to compare, and this property holds one. What this section states instead is
+        narrower and real: postings whose own status moved from live to closed this week, each with the date
+        the machine last saw it and the reason it recorded, read straight off each record.
+      </p>
+
+      {
+        closedThisWeek.length === 0 ? (
+          <EmptyState
+            title="No status changes this week"
+            detail="No verified posting's own status moved from live to closed in the seven days ending this sweep."
+          />
+        ) : (
+          <div class="drop-panel">
+            <Panel title="Closed this week">
+              <ul class="drop-list">
+                {closedThisWeek.map((job) => (
+                  <li class="drop-changed-row">
+                    <JobRow job={job} surface="raised" />
+                    {job.closed_reason && <p class="drop-changed-reason">{job.closed_reason}</p>}
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          </div>
+        )
+      }
+    </section>
+
+    <section class="drop-section drop-sponsor" aria-labelledby="sponsor-heading">
+      <h2 id="sponsor-heading" class="visually-hidden">Sponsorship</h2>
+      <SponsorSlot />
+    </section>
+
+    <section class="drop-section drop-elsewhere" aria-labelledby="elsewhere-heading">
+      <h2 id="elsewhere-heading" class="section-heading">Elsewhere</h2>
+      <p class="drop-note">
+        Every posting live at this sweep is on <a class="drop-link" href={indexHref}>the index</a>. Every kill,
+        held and unattributed records included, is on <a class="drop-link" href={killsHref}>the kill list</a>. The
+        wider figures, with their sources, are on <a class="drop-link" href={reportHref}>the report</a>.
+      </p>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .drop {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-700);
+    padding-block: var(--space-700) var(--space-800);
+  }
+
+  .drop-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .drop-eyebrow {
+    color: var(--color-muted);
+  }
+
+  .drop-title {
+    max-width: 24ch;
+  }
+
+  .drop-lede {
+    font-size: var(--size-300);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  .drop-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  /* Same convention report.astro sets for its own section heads: the h2 role
+     from global.css, with a heavy rule above marking a new section start. */
+  .section-heading {
+    padding-top: var(--space-400);
+    border-top: var(--border-heavy) solid var(--color-foreground);
+  }
+
+  .drop-note {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+
+  /* The honesty flag inside "what entered": not an alarm, so no loss colour,
+     just a heavier left edge the way /kills marks its own held-record notice. */
+  .drop-note-flag {
+    border-left: var(--border-heavy) solid var(--color-line-strong);
+    padding: var(--space-200) var(--space-400);
+  }
+
+  .drop-code {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-150);
+    background: var(--color-surface-raised);
+    padding: 0 var(--space-100);
+  }
+
+  .drop-link {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .drop-link {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  .drop-panel :global(.panel-body) {
+    padding: 0;
+  }
+
+  .drop-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .drop-changed-row {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .drop-changed-reason {
+    font-size: var(--size-150);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    padding: 0 var(--space-600) var(--space-400);
+    background: var(--color-surface-raised);
+  }
+
+  .drop-appeal {
+    margin-top: var(--space-200);
+  }
+
+  .drop-sponsor {
+    border-top: var(--border-heavy) solid var(--color-foreground);
+    padding-top: var(--space-400);
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .drop {
+      gap: var(--space-600);
+      padding-block: var(--space-600) var(--space-700);
+    }
+
+    .drop-lede {
+      font-size: var(--size-200);
+    }
+
+    .drop-changed-reason {
+      padding: 0 var(--space-400) var(--space-300);
+    }
+  }
+</style>

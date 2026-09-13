@@ -1,0 +1,36 @@
+---
+import { reading, type ReadingMetric } from '../lib/readings';
+
+/**
+ * One number the machine measured, rendered so gate 2 can hold the page to it.
+ *
+ * Use this for every number the site states about its own sweep, in a tile or
+ * mid sentence, on a page or in a caption. Never type one. src/lib/readings.ts
+ * is the long version of why: a reading is true on the night it is measured and
+ * a reading typed into a template is true on the day it is typed, and nothing
+ * on the page looks wrong on the morning those two stop agreeing.
+ *
+ * The markup contract is the existing one at the top of test/gates/truth.mjs:
+ * data-truth="tile" says "this rendered number IS this metric, hold me to it",
+ * and it was never only for tiles. Marking a count inside a sentence is what
+ * lets gate 2 verify prose as well as figures, and what lets its reading check
+ * fail a sweep claim whose numbers nobody declared.
+ */
+
+interface Props {
+  metric: ReadingMetric;
+  /** Off for a numeral inside running prose that is already set in mono. */
+  mono?: boolean;
+  class?: string;
+}
+
+const { metric, mono = true, class: className } = Astro.props;
+const value = reading(metric);
+---
+
+<span
+  class:list={[className, mono && 'mono']}
+  data-truth="tile"
+  data-truth-metric={value.metric}
+  data-truth-value={value.value}>{value.display}</span
+>

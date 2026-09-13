@@ -1,0 +1,173 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import AppealLine from '../../../components/AppealLine.astro';
+import MarkLegend from '../../../components/MarkLegend.astro';
+import ShareCard from '../_ShareCard.astro';
+import { killSlug, killsWithCards, type Kill } from '../../../lib/data';
+import { killCardImagePath, routeFor } from '../../../data/nav';
+
+/**
+ * /kills/[slug]/card: the single-kill share card, one per record.
+ *
+ * WHY EVERY KILL GETS ONE. Each row on the list carries a "Share this record"
+ * link, and a link that resolves for some rows and not others is a broken page.
+ * The paths come from killSlug(), the same function the list links with, so the
+ * two cannot drift: a new kill gets a card the night it is killed, with nobody
+ * naming a URL.
+ *
+ * WHY THE SET IS THE RECORD AND NOT THIS SWEEP. A card is what gets shared, so
+ * its URL has to keep answering after the sweep that made it has been replaced.
+ * Built from tonight's kills alone, every card 404s the following night, which
+ * is exactly what happened to the Brex record on 2026-09-05 and is the reason
+ * the record exists. killsWithCards() is tonight's rows and the record together.
+ *
+ * The populated Brex instance the work order asks for is the first of the set,
+ * at /kills/brex-staff-product-designer-sf-req/card. It is not special in the
+ * code, and that is the point: a template that only works for the example it was
+ * designed against is a mockup.
+ *
+ * NOINDEX, DELIBERATELY. src/data/nav.ts registers this route with
+ * sitemap: false, because it is a share surface rather than a page anyone should
+ * arrive at from a search result. The record itself belongs on the kill list and
+ * on the job page, and three copies of one posting competing in a search result
+ * would be this site doing the thing it complains about. The card still carries
+ * full social metadata, so a link that is shared unfurls with the record in it.
+ *
+ * The visible page around the card is deliberately thin: the card, one line
+ * saying what it is, the legend, the way back to the list, and the appeal. A
+ * reader who arrives here from a screenshot should be able to check the claim
+ * and answer it within one screen.
+ */
+
+export function getStaticPaths() {
+  return killsWithCards().map((kill) => ({
+    params: { slug: killSlug(kill) },
+    props: { kill }
+  }));
+}
+
+interface Props {
+  kill: Kill;
+}
+
+const { kill } = Astro.props;
+const killsHref = routeFor('kills');
+
+// The same slug the route was built from, recomputed from the record rather
+// than read out of Astro.params, so the social card this page points at and the
+// card route the list links to cannot come apart.
+const slug = killSlug(kill);
+
+// The document title and the social description are the record itself, verbatim
+// from the fixture. Neither is written here: an unfurled link should carry the
+// same observation the card does, and a summary written for the preview would be
+// a second version of a claim that only gets to have one.
+const recordName = `${kill.company}, ${kill.title}`;
+---
+
+{/*
+  The social image is this record's own card, not the site card. A share
+  surface whose preview shows a generic image is a share surface that lost the
+  record on the way, and until 2026-08-17 all fourteen of these pointed at a
+  file that did not exist at all. The route beside this one draws it from the
+  same fixture row.
+*/}
+<BaseLayout
+  title={recordName}
+  description={kill.reason}
+  active="kills"
+  image={killCardImagePath(slug)}
+  noindex
+>
+  <div class="shell card-page">
+    {/*
+      The accessible page title. It is hidden rather than drawn because the
+      card below already sets this record as the largest thing on screen, and a
+      second visible copy of the company and the title above it would make the
+      artifact compete with its own caption. Screen reader users get the record
+      named once, at the top, where a heading belongs.
+    */}
+    <h1 class="visually-hidden">{recordName}</h1>
+
+    <div class="stage">
+      <ShareCard kill={kill} listPath={killsHref} />
+    </div>
+
+    <section class="about" aria-labelledby="about-heading">
+      <h2 id="about-heading" class="about-heading mono-label">What this is</h2>
+      <p class="about-text">
+        One record from the kill list of The Index. The bar measures how long the posting stayed open against
+        the average lifespan of a single-position posting, and both figures are computed from the dates on the
+        card. Nothing here says why the company did anything, because a job feed cannot show that.
+      </p>
+      <p class="about-links">
+        <a class="about-link" href={killsHref}>Read the whole kill list</a>
+      </p>
+      <MarkLegend surface="page" class="about-legend" />
+    </section>
+
+    <AppealLine class="card-appeal" />
+  </div>
+</BaseLayout>
+
+<style>
+  .card-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-600);
+    padding-block: var(--space-700) var(--space-800);
+  }
+
+  /* The stage holds the card at a width where the ratio reads as a card rather
+     than as a banner. Wider than this and the type inside it starts to look
+     stranded; the card itself is fluid below that width. */
+  .stage {
+    max-width: 60rem;
+    width: 100%;
+  }
+
+  .about {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    max-width: var(--layout-measure);
+  }
+
+  .about-heading {
+    color: var(--color-foreground);
+  }
+
+  .about-text {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  .about-link {
+    font-size: var(--size-200);
+    color: var(--color-foreground);
+    border-bottom: var(--border-hairline) solid var(--color-foreground);
+    padding-block: var(--space-100);
+  }
+
+  /* The legend is here because the card can carry a verification mark: a killed
+     posting at a company that also holds a live one links that sibling, and
+     standing rule 5 says a mark is never more than one viewport from its
+     meaning. */
+  .about-legend {
+    padding-top: var(--space-200);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .about-link {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .card-page {
+      gap: var(--space-500);
+      padding-block: var(--space-600) var(--space-700);
+    }
+  }
+</style>

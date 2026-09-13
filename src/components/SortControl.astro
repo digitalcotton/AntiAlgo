@@ -1,0 +1,170 @@
+---
+import { SORT_KEYS, type SortKey } from '../lib/data';
+
+/**
+ * The sort control: a segmented group of three, exactly as the canvas draws it.
+ *
+ * NO LAYOUT SHIFT ON CHANGE, and the way that is achieved is worth stating
+ * because it is easy to break. The pressed segment differs from the others by
+ * background and colour only. It does not gain a weight, a border, or a letter,
+ * so the group's width never changes and nothing beside it moves when a reader
+ * changes their mind. A bold pressed state would push the last segment sideways
+ * by a couple of pixels on every click, which is the kind of small dishonesty
+ * that makes an interface feel cheap.
+ *
+ * LABELS DESCRIBE REALITY. Standing rule 4: Fit blends the rubric score with
+ * freshness, so the table footnote says so. The control does not get to imply
+ * that Fit is a pure quality ranking when it is partly a recency ranking.
+ *
+ * It is a group of buttons with aria-pressed rather than a radio group, because
+ * that is what it is: three commands, one of which is currently in effect. The
+ * pressed attribute is the state, so the styling and the announcement cannot
+ * drift apart.
+ */
+
+interface Props {
+  /** Which sort is in effect. Must match the order the caller rendered rows in. */
+  current?: SortKey;
+  /** Where a link-based sort should point. Omit for the island behaviour. */
+  hrefFor?: (key: SortKey) => string;
+  /**
+   * Which keys to offer, in SORT_KEYS order. The board drops `fit` for a
+   * reader who does not see the fit score (flags.config.mjs fit_public), so
+   * the control never names a sort whose column is not on the page.
+   */
+  keys?: readonly SortKey[];
+  class?: string;
+}
+
+const { current = 'fit', hrefFor, keys = SORT_KEYS, class: className } = Astro.props;
+
+const LABELS: Record<SortKey, string> = {
+  fit: 'Fit',
+  comp: 'Comp',
+  age: 'Age'
+};
+---
+
+<div class:list={['sort', className]} data-sort-control>
+  {/* aria-label rather than aria-labelledby: an id would have to be unique on a
+      page, and a shared component cannot promise that about itself. */}
+  <span class="sort-label" aria-hidden="true">Sort</span>
+  <div class="segments" role="group" aria-label="Sort the table">
+    {
+      keys.map((key) =>
+        hrefFor ? (
+          <a
+            class="segment"
+            href={hrefFor(key)}
+            aria-current={key === current ? 'true' : undefined}
+            data-sort-key={key}
+          >
+            {LABELS[key]}
+          </a>
+        ) : (
+          <button
+            class="segment"
+            type="button"
+            aria-pressed={key === current ? 'true' : 'false'}
+            data-sort-key={key}
+          >
+            {LABELS[key]}
+          </button>
+        )
+      )
+    }
+  </div>
+</div>
+
+<script>
+  /**
+   * Announces intent, and nothing else. The table owns the rows; this owns three
+   * buttons and their pressed state. Keeping them apart is what lets the same
+   * control drive a table that pages on the server and one that pages in the
+   * browser without knowing which it is talking to.
+   */
+  for (const control of document.querySelectorAll<HTMLElement>('[data-sort-control]')) {
+    const buttons = Array.from(control.querySelectorAll<HTMLButtonElement>('button[data-sort-key]'));
+    if (buttons.length === 0) continue; // Link mode: the href does the work.
+
+    for (const button of buttons) {
+      button.addEventListener('click', () => {
+        const key = button.getAttribute('data-sort-key');
+        if (!key) return;
+        document.dispatchEvent(new CustomEvent('index:sort', { detail: { key } }));
+      });
+    }
+
+    // The table is the authority on what is in effect, so the pressed state is
+    // set from what happened rather than from what was clicked. If a future
+    // table ever refuses a sort, this control will show the truth.
+    document.addEventListener('index:rows', (event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail || typeof detail.sort !== 'string') return;
+      for (const button of buttons) {
+        button.setAttribute(
+          'aria-pressed',
+          button.getAttribute('data-sort-key') === detail.sort ? 'true' : 'false'
+        );
+      }
+    });
+  }
+</script>
+
+<style>
+  /* One cell of the control strip: "SORT" in the machine voice, then the
+     three keys inline, the one in effect underlined. No boxes: the strip's
+     hairlines are the only lines, and an underline is the one mark that
+     cannot move a pixel when the choice changes. */
+  .sort {
+    display: flex;
+    align-items: center;
+    gap: var(--space-300);
+    flex: none;
+    padding: var(--space-300) var(--space-500);
+    white-space: nowrap;
+  }
+
+  .sort-label {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  .segments {
+    display: flex;
+    gap: var(--space-300);
+  }
+
+  .segment {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    font-weight: var(--weight-regular);
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--color-muted);
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .segment:hover {
+    color: var(--color-foreground);
+  }
+
+  .segment[aria-pressed='true'],
+  .segment[aria-current='true'] {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .segment {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+</style>

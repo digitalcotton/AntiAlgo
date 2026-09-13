@@ -1,0 +1,206 @@
+---
+import { hoursIn, percentagesIn } from './figures';
+
+/**
+ * When applications arrive, drawn as the cumulative shape the source actually
+ * states and nothing more.
+ *
+ * WHAT THE SOURCE GIVES US IS TWO POINTS, SO THE CHART DRAWS TWO POINTS.
+ * "41% of applications arrive within 48 hours, 56% within 96" is a cumulative
+ * distribution measured at two moments. A curve through them would be an
+ * interpolation nobody measured, and a tail after them would be a third number
+ * nobody published. So the whole run of applications for one posting is drawn as
+ * one bar, cut where the source cut it: everything inside the first window,
+ * everything added by the second, and the rest, which is labelled by its
+ * position in time and carries no figure at all.
+ *
+ * The share of the remainder is deliberately absent. It is one subtraction away
+ * and that subtraction would put a number on the page that no source published,
+ * which is the line BUILD.md draws between structure and facts.
+ *
+ * BOTH NUMBERS ARE PARSED OUT OF THE FACT STRING, never typed here, so restating
+ * the fact moves the cuts. See report/figures.ts for why that matters more on a
+ * chart than anywhere else on the site.
+ *
+ * THE THREE FILLS ARE NEUTRAL, ON PURPOSE. Green and red on this site mean the
+ * live count and the loss statistics and nothing else. An arrival window is
+ * neither, so the segments separate by lightness alone, which is also the only
+ * separation that survives being printed on a monochrome office printer.
+ */
+
+interface Props {
+  /** The fact whose windows this chart draws. */
+  factId: string;
+  class?: string;
+}
+
+const { factId, class: className } = Astro.props;
+
+const shares = percentagesIn(factId);
+const hours = hoursIn(factId);
+
+if (shares.length < 2 || hours.length < 2) {
+  throw new Error(
+    `DistributionChart: "${factId}" gave ${shares.length} share(s) and ${hours.length} window(s). This chart draws a cumulative distribution and needs at least two of each. It will not fill in a second point it was not given.`
+  );
+}
+
+const [firstShare, secondShare] = shares;
+const [firstWindow, secondWindow] = hours;
+
+if (secondShare <= firstShare) {
+  throw new Error(
+    `DistributionChart: "${factId}" reads as ${firstShare}% then ${secondShare}%, which is not cumulative. A later window in a cumulative distribution cannot hold less than an earlier one, so either the fact was restated in a different shape or the numbers came out in the wrong order.`
+  );
+}
+
+// Segment widths as a share of the whole run. The second segment's width is the
+// distance between two published points, which is a length on this chart and
+// never a number on it: nothing renders the subtraction.
+const firstWidth = firstShare;
+const secondWidth = secondShare - firstShare;
+---
+
+<div class:list={['distribution', className]}>
+  <div class="track">
+    <svg class="marks" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <rect class="segment segment-first" x="0" y="0" width={firstWidth} height="100" />
+      <rect class="segment segment-second" x={firstWidth} y="0" width={secondWidth} height="100" />
+      <rect class="segment segment-rest" x={secondShare} y="0" width={100 - secondShare} height="100" />
+    </svg>
+
+    {/* The two cuts are the only furniture on this chart. They are drawn as
+        elements over the bar rather than inside the stretched viewBox so they
+        stay one device pixel wide at every viewport. */}
+    <span class="cut" style={`left: ${firstWidth}%;`} aria-hidden="true"></span>
+    <span class="cut" style={`left: ${secondShare}%;`} aria-hidden="true"></span>
+  </div>
+
+  <ul class="keys">
+    <li class="key">
+      <span class="swatch swatch-first" aria-hidden="true"></span>
+      <span class="key-value mono">{firstShare}%</span>
+      <span class="key-label">In the first {firstWindow} hours</span>
+    </li>
+    <li class="key">
+      <span class="swatch swatch-second" aria-hidden="true"></span>
+      <span class="key-value mono">{secondShare}%</span>
+      <span class="key-label">By {secondWindow} hours, running total</span>
+    </li>
+    <li class="key">
+      <span class="swatch swatch-rest" aria-hidden="true"></span>
+      <span class="key-value key-value-absent">Not published</span>
+      <span class="key-label">After {secondWindow} hours</span>
+    </li>
+  </ul>
+</div>
+
+<style>
+  .distribution {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    min-width: 0;
+  }
+
+  .track {
+    position: relative;
+    height: var(--space-700);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    min-width: 0;
+  }
+
+  .marks {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .segment-first {
+    fill: var(--color-foreground);
+  }
+
+  .segment-second {
+    fill: var(--color-muted);
+  }
+
+  /* The unpublished remainder. The quietest surface on the site, so it reads as
+     the part of the run nobody measured rather than as a third category. */
+  .segment-rest {
+    fill: var(--color-hover-surface);
+  }
+
+  .cut {
+    position: absolute;
+    inset-block: 0;
+    width: var(--border-hairline);
+    background: var(--color-surface-raised);
+  }
+
+  .keys {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-400);
+  }
+
+  .key {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: var(--space-200);
+    row-gap: var(--space-100);
+    align-items: baseline;
+  }
+
+  /* A square, because the whole system is square, and sized off the type ramp so
+     it stays in step with the label beside it. */
+  .swatch {
+    width: var(--size-050);
+    height: var(--size-050);
+    align-self: center;
+  }
+
+  .swatch-first {
+    background: var(--color-foreground);
+  }
+
+  .swatch-second {
+    background: var(--color-muted);
+  }
+
+  .swatch-rest {
+    background: var(--color-hover-surface);
+    outline: var(--border-hairline) solid var(--color-line-strong);
+    outline-offset: calc(var(--border-hairline) * -1);
+  }
+
+  .key-value {
+    font-size: var(--size-300);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-tight);
+  }
+
+  /* An absence is us saying what we do not know, so it renders in the human
+     voice at the size of a label rather than in the machine voice at the size of
+     a measurement. Standing rule 3, applied to a chart key. */
+  .key-value-absent {
+    font-family: var(--font-family-sans);
+    font-size: var(--size-100);
+    font-weight: var(--weight-regular);
+    color: var(--color-muted);
+  }
+
+  .key-label {
+    grid-column: 2;
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    text-wrap: pretty;
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .keys {
+      grid-template-columns: 1fr;
+      gap: var(--space-300);
+    }
+  }
+</style>

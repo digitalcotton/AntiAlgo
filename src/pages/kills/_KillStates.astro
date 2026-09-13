@@ -1,0 +1,79 @@
+---
+import EmptyState from '../../components/EmptyState.astro';
+import ErrorState from '../../components/ErrorState.astro';
+import LoadingState from '../../components/LoadingState.astro';
+import { routeFor } from '../../data/nav';
+
+/**
+ * The kill list's three non-list states, in one place.
+ *
+ * WHY THIS IS A COMPONENT AND NOT THREE BRANCHES INSIDE THE PAGE.
+ * SESSION-07-KILL-LIST.md names empty, loading and error as deliverables of
+ * this page. They were written as branches of the page's own `state` value,
+ * reachable only through `KILLS_STATE=empty npm run dev`, which meant none of
+ * them ever reached `dist/`: no gate measured them, no baseline photographed
+ * them, and a reviewer had to know an environment variable existed to see one.
+ * A state no gate can see is a state that can rot without anyone finding out,
+ * which is the failure mode BUILD.md names in the verifier's job list.
+ *
+ * So the copy lives here, once, and two surfaces render it: the kill list
+ * itself, under the same override, and `/_states`, the gated review route that
+ * ships in the tree the gates read and never in production. One source of
+ * copy means the reviewed state and the shipped state cannot drift, which is
+ * the same argument that made KillRow one component rather than two.
+ *
+ * Nothing here invents a row. An empty state draws no rows because there are
+ * none, a loading state draws no skeleton (LoadingState refuses one: grey
+ * rectangles shaped like content are a picture of data that may not exist), and
+ * the error state says what is missing rather than apologising in general.
+ */
+
+interface Props {
+  state: 'empty' | 'loading' | 'error';
+  /** The heading id the surrounding section is labelled by. */
+  headingId?: string;
+  /** Rendered when the surrounding page has not already provided a heading. */
+  heading?: boolean;
+}
+
+const { state, headingId = 'records-heading', heading = true } = Astro.props;
+const indexHref = routeFor('index');
+---
+
+{heading && <h2 id={headingId} class="visually-hidden">The records</h2>}
+
+{
+  state === 'empty' && (
+    <EmptyState
+      title="No kills this sweep"
+      detail="Nothing died this sweep, which happens and is worth saying plainly. Every posting the machine already knew about was still there when it checked, and none of them tripped a rule."
+    >
+      <a class="state-action" href={indexHref} slot="action">Read what survived</a>
+    </EmptyState>
+  )
+}
+
+{state === 'loading' && <LoadingState label="Reading the kill archive" />}
+
+{
+  state === 'error' && (
+    <ErrorState
+      title="The kill records did not load"
+      detail="Nothing is shown rather than a partial list that would read as the whole one. The sweep this page holds is stamped below."
+    >
+      <a class="state-action" href={indexHref} slot="action">Read what survived</a>
+    </ErrorState>
+  )
+}
+
+<style>
+  /* The one control any of these states offers. Same treatment as the kill
+     list's own links: a rule under the words rather than a filled button, so
+     nothing on this page looks like an apply path. */
+  .state-action {
+    font-size: var(--size-200);
+    color: var(--color-foreground);
+    border-bottom: var(--border-hairline) solid var(--color-foreground);
+    padding-block: var(--space-100);
+  }
+</style>

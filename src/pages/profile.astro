@@ -1,0 +1,1516 @@
+---
+/**
+ * /profile: the person's own profile, and the Profile Record editor, on one
+ * page. MASTER-SPEC 3.1 (Person) for the identity header, 3.2 (Profile
+ * Record) for the record beneath it, F2 for the record-building outcome
+ * ("a person can build their record in under 20 minutes: entries,
+ * artifacts, classifications") and its import boost. The owner's words,
+ * verbatim: "like LinkedIn, the user should have a profile page and should
+ * be able to edit that profile page on the page."
+ *
+ * MERGED FROM TWO PAGES INTO ONE. This used to be src/pages/account/profile.astro
+ * (the identity header plus a read-only render of the record) and
+ * src/pages/account/record.astro (the structured editor: add an entry, the
+ * resume-import boost, every entry's edit/delete/artifact forms) at two
+ * separate addresses, both rendering the same record through the same
+ * RecordView, both posting to the same three endpoints. Two pages for one
+ * resource meant two places the "where does a save send you back to" bug
+ * below could recur, and two URLs a signed-in reader had to already know
+ * apart. One page, one URL, ends that: /account/record no longer exists,
+ * and everything it did lives here.
+ *
+ * IT READS AS A RECORD, NOT A FORM. The rule this page is now built on:
+ * nothing renders an empty form until it is summoned. Before this rebuild the
+ * page rendered, on load, an upload form, a paste form, an add-entry form, an
+ * add-link form, and one empty add-artifact form under every single entry. The
+ * import band is a state machine with one action at a time; the record is one
+ * row per entry with everything else behind its own disclosure; the add-entry
+ * form is behind a disclosure of its own. See EntryCard.astro and
+ * ProposalForm.astro, which carry the same rule.
+ *
+ * GATED BY THE '/profile' PREFIX IN src/lib/entitlement.ts, a policy entry
+ * of its own now rather than inherited from '/account' by string match, so
+ * this page reads Astro.locals.verdict the same way every other gated page
+ * does.
+ *
+ * THE RECORD IS RENDERED THROUGH RecordView, EDITABLE, THROUGH THE
+ * ENDPOINTS THAT ALREADY EXIST. No second write path to the same data: the
+ * forms below post to src/pages/profile/entry.ts, .../artifact.ts and
+ * .../import.ts, the only three endpoints that ever touch a record row.
+ *
+ * EDITING IN PLACE, INCLUDING ON SAVE. `profilePagePath` below is this
+ * page's OWN address, so the per-entry "Edit" and "Cancel" links open and
+ * close the edit form without leaving this page, and `returnKey="profile"`
+ * tells entry.ts and artifact.ts to send the reader back here afterwards as
+ * well. There is now exactly one value that key can carry, because there is
+ * exactly one page left that carries these forms; see RecordView's own
+ * Props for why the type still names it as a key rather than inlining the
+ * one path it resolves to.
+ *
+ * THE COOKIE-PATH TRAP, AND WHY EVERY RELAY PATH HERE IS withBase('/profile').
+ * A validation failure cannot return in a redirect's body, so entry.ts and
+ * artifact.ts relay it through a short-lived, httpOnly cookie scoped, by path,
+ * to whichever page posted (see RETURN_PATHS in profile/entry.ts). That scope
+ * has to equal the address this page is actually read at, or the cookie a
+ * failed submission set is never sent back on the reload that follows. THE
+ * BROWSER COMPARES A COOKIE'S Path AGAINST THE FULL REQUEST PATH, INCLUDING THE
+ * SITE BASE: this page is served at /jobs/profile, so a cookie scoped to the
+ * base-free /profile is never sent, and for a long time that silently swallowed
+ * every validation error. An earlier version of this comment claimed the base
+ * was excluded from the comparison; it is not. Every relay path here, and the
+ * matching set in entry.ts/artifact.ts/import.ts/link.ts, is withBase('/profile')
+ * so the set path and the request path agree.
+ *
+ * WORKS WITHOUT JAVASCRIPT, AND THAT IS WHY EVERY DISCLOSURE IS <details>.
+ * Every form on this page, and on RecordView and EntryCard beneath it, is a
+ * plain POST to a real endpoint. The record rows, the add-entry form, the
+ * paste fallback, the per-proposal review fields and the delete confirmations
+ * are all native <details>, so they open and close with no script running.
+ * The record's kind filter is a set of plain links read from `?kind=`, and
+ * "Edit" is a plain link that sets `?edit=`. The one script on this page is
+ * the upload enhancement at the foot, and everything it does has a plain
+ * navigation behind it. The "Your surfaces" nav at the foot of the allowed
+ * branch is the same discipline applied to navigation.
+ *
+ * THE IMMUTABLE CORE IS NOT VISUALLY SPECIAL HERE, ON PURPOSE. record.ts's
+ * IMMUTABLE_CORE_FIELDS (employer, title, dates) are immutable to a RENDER
+ * of this record, never to the person editing their own record: nothing on
+ * this page locks those fields, marks them with a warning icon, or treats
+ * editing them as more dangerous than any other field.
+ *
+ * CLASSIFICATION IS RECORDED, NOT LIVE. RUN-MASTER amendment 6 locks
+ * anything above 'private' dark this run: the control exists on every
+ * entry and genuinely writes what a person chooses, and the page says so
+ * plainly, once, rather than hiding the control or pretending the choice
+ * already does something.
+ *
+ * NAME, EMAIL AND HANDLE ARE READ HERE, NEVER EDITED HERE. The Identity
+ * panel below is text: whoever wants to change any of the three now goes to
+ * Settings, which is the one place that writes them.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { withBase } from '../../site.config.mjs';
+import Panel from '../components/Panel.astro';
+import ImportBand from '../components/profile/ImportBand.astro';
+import ProposalForm from '../components/profile/ProposalForm.astro';
+import RecordView from '../components/profile/RecordView.astro';
+import OnboardingChecklist, { type OnboardingStep } from '../components/profile/OnboardingChecklist.astro';
+import { KIND_LABELS, CLASSIFICATION_LABELS, MONTH_NAMES, issueMessage } from '../components/profile/entry-presentation';
+import {
+  RELAY_COOKIE,
+  addFormState,
+  artifactFormState,
+  editFormState,
+  parseRelay
+} from '../components/profile/record-relay';
+import { routeFor } from '../data/nav';
+import { MEMBER_NAV } from '../data/member-nav';
+import { CEILINGS, CLASSIFICATIONS, ENTRY_KINDS } from '../lib/record';
+import { getCoverLetter, listEntries, listLinks, personName } from '../lib/record-store';
+import { listApplications } from '../lib/desk-store';
+import { linkPlatformLabel } from '../lib/profile-links';
+import PlatformIcon from '../components/profile/PlatformIcon.astro';
+import { getParse } from '../lib/resume-parse-store';
+import { keyStorageIsConfigured } from '../lib/keychain';
+import { keyMeta } from '../lib/keychain-store';
+import { GENERATION_PROVIDER_ORDER, PROVIDER_REGISTRY } from '../lib/generation-providers';
+import { isOn } from '../lib/flags';
+import { getAuth } from '../lib/auth';
+
+export const prerender = false;
+
+const verdict = Astro.locals.verdict;
+const allowed = verdict?.allow === true;
+const reason = verdict?.reason ?? 'signed-out';
+const viewer = Astro.locals.viewer;
+
+const name = allowed && viewer ? await personName(viewer.userId) : null;
+// The account email has no reader inside src/lib/entitlement.ts's Viewer
+// type (it deliberately carries only userId, tier and emailVerified), so
+// this page calls src/lib/auth.ts's own getAuth().api.getSession()
+// directly, the identical call viewer.ts already makes internally, to read
+// session.user.email. A second session lookup per request rather than a
+// shared one; tailor.astro's own header already describes making the same
+// call for the same reason.
+const session = allowed ? await getAuth().api.getSession({ headers: Astro.request.headers }) : null;
+const email = session?.user?.email ?? null;
+
+/* ---------------------------------------------------------------------------
+   The relay cookie: what a failed entry or artifact submission carried
+   back. Read once, then deleted, so a reload never repeats it. See this
+   file's own header on why RELAY_COOKIE_PATH is the literal '/profile'.
+   --------------------------------------------------------------------------- */
+const RELAY_COOKIE_PATH = withBase('/profile');
+const relay = parseRelay(Astro.cookies.get(RELAY_COOKIE)?.value);
+Astro.cookies.delete(RELAY_COOKIE, { path: RELAY_COOKIE_PATH });
+
+/* ---------------------------------------------------------------------------
+   The import boost (MASTER-SPEC F2's parenthesis): upload a resume, which
+   profile/import/parse.ts reads in the background, then review and confirm the
+   proposals here. The band below is a state machine with four states, and
+   exactly one is ever on screen:
+
+   - done:    a confirm just landed. A one-line receipt, relayed the ordinary
+              way through a short-lived httpOnly cookie set by import.ts, read
+              once here and deleted, never the entries themselves.
+   - review:  a finished read is waiting to be acted on. This is the state that
+              matters most: a person who uploaded and navigated away comes back
+              to their proposals, not to an empty upload box. The parse row is
+              the proof it is still waiting, because import.ts clears that row
+              on confirm.
+   - reading: a read is still running.
+   - idle:    nothing in flight. The upload band.
+   --------------------------------------------------------------------------- */
+
+interface ImportRelay {
+  scope: 'import';
+  created: number;
+  failed: number;
+  links: number;
+  name: boolean;
+  /** The prfIds the confirm actually created, so the record below can mark
+      exactly those rows. Optional in the guard: a cookie written by the
+      previous deploy has no such field, and an old receipt is worth showing
+      without its marks rather than dropping on the floor. */
+  createdIds: string[];
+}
+
+function parseImportRelay(raw: string | undefined): ImportRelay | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<ImportRelay>;
+    if (
+      parsed.scope === 'import' &&
+      typeof parsed.created === 'number' &&
+      typeof parsed.failed === 'number' &&
+      typeof parsed.links === 'number' &&
+      typeof parsed.name === 'boolean'
+    ) {
+      const createdIds = Array.isArray(parsed.createdIds)
+        ? parsed.createdIds.filter((id): id is string => typeof id === 'string')
+        : [];
+      return { ...(parsed as ImportRelay), createdIds };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+const IMPORT_RELAY_COOKIE_PATH = withBase('/profile');
+const importRelay = parseImportRelay(Astro.cookies.get('record_import_relay')?.value);
+Astro.cookies.delete('record_import_relay', { path: IMPORT_RELAY_COOKIE_PATH });
+
+/* ---------------------------------------------------------------------------
+   The links relay cookie: what a rejected add carried back (see
+   profile/link.ts). Unlike the keys relay on Settings, this one may carry the
+   typed value, because a link is a public URL the person needs to see to fix,
+   not a secret. Read once, then deleted, so a reload never repeats it.
+   --------------------------------------------------------------------------- */
+
+interface LinkRelay {
+  scope: 'link';
+  url: string;
+  reason: string;
+}
+
+function parseLinkRelay(raw: string | undefined): LinkRelay | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<LinkRelay>;
+    if (parsed.scope === 'link' && typeof parsed.url === 'string' && typeof parsed.reason === 'string') {
+      return { scope: 'link', url: parsed.url, reason: parsed.reason };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+const LINK_RELAY_COOKIE_PATH = withBase('/profile');
+const linkRelay = parseLinkRelay(Astro.cookies.get('profile_link_relay')?.value);
+Astro.cookies.delete('profile_link_relay', { path: LINK_RELAY_COOKIE_PATH });
+
+// A parse waiting to be reviewed, if any: a pending read still running, or a
+// ready one the person has not confirmed yet (import.ts clears the row on
+// confirm).
+const parse = allowed && viewer ? await getParse(viewer.userId) : null;
+
+// The finished read, rendered IN PLACE on this page: the person uploads here,
+// waits here, and confirms here. The assembly below is review.astro's own
+// (that page remains the no-JS destination), so the two surfaces render one
+// truth through the same ProposalForm. The name proposal is offered only when
+// the person has set no name yet, so an upload fills an empty identity but
+// never quietly overwrites one they chose; `name` is already read above.
+const parseOutcome = parse?.status === 'ready' ? parse.outcome : null;
+const hasStoredName = name !== null && (name.firstName.trim().length > 0 || name.lastName.trim().length > 0);
+const parseNameProposal = parseOutcome?.proposals.name && !hasStoredName ? parseOutcome.proposals.name : null;
+const parseProposals = parseOutcome?.proposals ?? null;
+const parseHasSomething =
+  parseProposals !== null &&
+  (parseProposals.entries.length > 0 || parseProposals.links.length > 0 || parseNameProposal !== null);
+const importAction = routeFor('profile-import');
+const importStatusAction = routeFor('profile-import-status');
+
+/** Which of the four import states is on screen. Exactly one, always. */
+type BandState = 'idle' | 'reading' | 'review' | 'done';
+const bandState: BandState =
+  parse?.status === 'pending' ? 'reading' : parseOutcome !== null ? 'review' : importRelay ? 'done' : 'idle';
+
+// Whether this person can have their resume read at all: a bring-your-own-key
+// application reads a resume only with the person's OWN provider key. No key,
+// no read. The deterministic reader matches one strict shape and misses
+// anything written differently, so it is not offered as the way in; the
+// person connects a key and their own model does it. Same gate drafting uses
+// (keyStorageIsConfigured, byok flag, at least one key on file).
+const keyRows = allowed && viewer && keyStorageIsConfigured() && isOn('byok') ? await keyMeta(viewer.userId) : [];
+const hasProviderKey = keyRows.length > 0;
+
+// Which key the read will actually be spent on, resolved the same way
+// resume-parse-runner.ts resolves it: first match in the fixed provider order.
+// Named on the waiting log, because "sent to your model" is vaguer than this
+// page can afford to be about somebody's own key.
+const readProviderRow = GENERATION_PROVIDER_ORDER.map((id) => keyRows.find((row) => row.provider === id)).find(
+  (row) => row !== undefined
+);
+const readProviderLabel = readProviderRow ? PROVIDER_REGISTRY[readProviderRow.provider].label : null;
+
+const settingsPath = `${routeFor('settings')}#keys`;
+
+/* ---------------------------------------------------------------------------
+   Display formatting: KIND_LABELS, CLASSIFICATION_LABELS and MONTH_NAMES are
+   imported above from entry-presentation.ts, the one place that names an
+   entry now. EntryCard.astro reads the same three maps to draw one entry;
+   this page needs them again for its own add-an-entry form, which is not
+   EntryCard's concern.
+   --------------------------------------------------------------------------- */
+
+const entries = allowed && viewer ? await listEntries(viewer.userId) : [];
+const links = allowed && viewer ? await listLinks(viewer.userId) : [];
+
+/* The record's kind filter. Plain links setting `?kind=`, filtered here, so
+   it works with no script. A tab exists only for a kind that has entries:
+   this record holds six kinds, not the two a resume usually fills, and a tab
+   for a kind nobody has is a control that can only disappoint. */
+const kindParam = Astro.url.searchParams.get('kind');
+const activeKind = ENTRY_KINDS.find((kind) => kind === kindParam) ?? null;
+const kindCounts = ENTRY_KINDS.map((kind) => ({
+  kind,
+  count: entries.filter((entry) => entry.kind === kind).length
+})).filter((row) => row.count > 0);
+const visibleEntries = activeKind ? entries.filter((entry) => entry.kind === activeKind) : entries;
+
+const editParam = Astro.url.searchParams.get('edit');
+const addState = addFormState(relay);
+/* The add-entry form opens when the record is empty (there is nothing else to
+   do on the page), or when a submission bounced and its reason is inside it. */
+const addOpen = entries.length === 0 || addState.issues.length > 0;
+
+/* This page's own address, in the one form markup needs (base included).
+   See this file's header on why the relay cookie paths above stay
+   base-free while this one does not. */
+const profilePagePath = routeFor('profile');
+const entryAction = routeFor('profile-entry');
+const artifactActionPath = routeFor('profile-artifact');
+const parseAction = routeFor('profile-import-parse');
+const coverAction = routeFor('profile-import-cover');
+const reviewPath = routeFor('profile-review');
+
+// The cover letter on file, and its "added" date formatted for the on-file
+// line. Formatting lives here (the component prints the label as given), using
+// the same month names the rest of this page uses.
+const coverLetterRecord = allowed && viewer ? await getCoverLetter(viewer.userId) : null;
+const coverLetterOnFile = coverLetterRecord
+  ? {
+      sourceName: coverLetterRecord.sourceName,
+      addedLabel: coverLetterRecord.addedAt
+        ? (() => {
+            const when = new Date(coverLetterRecord.addedAt);
+            return `${MONTH_NAMES[when.getUTCMonth()]} ${when.getUTCDate()}, ${when.getUTCFullYear()}`;
+          })()
+        : null
+    }
+  : null;
+const linkAction = routeFor('profile-link');
+
+/**
+ * The guided first run, behind the `onboarding` flag. Every step reads state
+ * this page already computed, so the flag adds one component and one small
+ * cross-check query (applications), never a second data path. The applications
+ * read is skipped entirely when the flag is off. Verification is shown already
+ * done because /profile's record only renders to a verified reader (an
+ * unverified one gets the resend branch below), so reaching here means it is.
+ *
+ * The checklist stops rendering once the required steps (history and a first
+ * application) are done; the optional key step never blocks completion, so a
+ * reader who drafts with the deterministic fallback is not nagged forever.
+ */
+const onboarding = isOn('onboarding');
+const applications = onboarding && allowed && viewer ? await listApplications(viewer.userId) : [];
+const onboardingSteps: OnboardingStep[] = onboarding
+  ? [
+      {
+        label: 'Verify your email',
+        hint: 'Done. You confirmed your address to reach your profile.',
+        done: true
+      },
+      {
+        label: 'Add your work history',
+        hint: 'Upload a resume to fill it in seconds, or add a role by hand below.',
+        done: entries.length > 0,
+        href: '#get-started',
+        action: 'Upload a resume or add a role'
+      },
+      {
+        label: 'Turn on tailored drafting',
+        hint: 'Connect your own AI provider key so a draft is written in your voice, billed to your key.',
+        done: keyRows.length > 0,
+        optional: true,
+        href: settingsPath,
+        action: 'Add a provider key'
+      },
+      {
+        label: 'Apply to your first role',
+        hint: 'Applying from a posting tracks it on your Desk and drafts your application.',
+        done: applications.length > 0,
+        href: routeFor('board'),
+        action: 'Browse roles'
+      }
+    ]
+  : [];
+const onboardingComplete = onboardingSteps.filter((step) => !step.optional).every((step) => step.done);
+const showOnboarding = onboarding && !onboardingComplete;
+---
+
+<BaseLayout
+  title="Your profile"
+  description="Your name, your email, and the Profile Record you have built."
+  noindex
+>
+  <section class="profile-page">
+    <div class="shell profile-shell">
+      {
+        allowed ? (
+          <>
+            <header class="profile-header">
+              <div class="profile-header-main">
+                <span class="kicker">Account</span>
+                <h1>Your profile</h1>
+                <p class="muted">
+                  One place for your professional facts. Fill it once, and everything you generate later pulls
+                  from here.
+                </p>
+              </div>
+              <div class="profile-header-stats">
+                <span class="profile-stat">
+                  <strong>{entries.length}</strong> {entries.length === 1 ? 'entry' : 'entries'},{' '}
+                  <strong>{links.length}</strong> {links.length === 1 ? 'link' : 'links'}
+                </span>
+                <span class="profile-stat-private">Private, only you can see it</span>
+              </div>
+            </header>
+
+            {/* The guided first run, behind the `onboarding` flag, above the
+                import band it points at. Gone the moment the required steps are
+                done (see showOnboarding), so a settled account never sees it. */}
+            {showOnboarding && <OnboardingChecklist steps={onboardingSteps} />}
+
+            {/* The anchor the checklist's "add your work history" step scrolls
+                to: the import band is the fastest way to fill the record. */}
+            <span id="get-started" class="anchor-target"></span>
+
+            {/* ---------------------------------------------------------------
+                The import band. One state at a time. Its review state lives in
+                the slot below the band rather than inside it, because the
+                script replaces that slot's contents wholesale with freshly
+                rendered HTML from this same page.
+                --------------------------------------------------------------- */}
+            <ImportBand
+              state={bandState}
+              receipt={importRelay}
+              hasProviderKey={hasProviderKey}
+              providerLabel={readProviderLabel}
+              parseAction={parseAction}
+              reviewPath={reviewPath}
+              profilePath={profilePagePath}
+              settingsPath={settingsPath}
+              coverAction={coverAction}
+              coverLetterOnFile={coverLetterOnFile}
+            />
+
+            {/* The review, in place. The person uploaded above, waited above,
+                and confirms here, never leaving the page. The slot div is the
+                script's swap target: on a finished read it fetches this page's
+                own HTML and replaces the slot's content with the freshly
+                rendered version of this same block, so ProposalForm.astro
+                stays the one renderer of a proposal. /profile/review renders
+                the identical assembly for the no-JS path. */}
+            <div data-import-review-slot data-status-url={importStatusAction}>
+              {parseOutcome && (
+                <section class="import-review" id="import-review" aria-label="What we read">
+                  {parseOutcome.method === 'llm' && parseOutcome.providerLabel && (
+                    <p class="import-review-line">Read with your connected {parseOutcome.providerLabel} key.</p>
+                  )}
+                  {parseOutcome.fallbackReason && (
+                    <p class="import-review-line import-fallback" role="status">
+                      Your connected provider could not read this one: {parseOutcome.fallbackReason}. The basic
+                      reader was used instead. Check your key in{' '}
+                      <a class="profile-link" href={settingsPath}>Settings</a>, or try the upload again.
+                    </p>
+                  )}
+
+                  {parseOutcome.notes.map((note) => (
+                    <p class="import-review-line import-review-note">{note}</p>
+                  ))}
+
+                  {parseHasSomething ? (
+                    <Panel title="What we read" class="profile-panel">
+                      <p class="import-review-line">
+                        Everything below is checked and ready to add. Uncheck what you do not want, open a row
+                        to fix anything read wrong, then add the rest. Nothing is saved until you do.
+                      </p>
+                      <ProposalForm
+                        entries={parseProposals?.entries ?? []}
+                        links={parseProposals?.links ?? []}
+                        nameProposal={parseNameProposal}
+                        existingLinkUrls={links.map((link) => link.url)}
+                        action={importAction}
+                      />
+                    </Panel>
+                  ) : (
+                    <p class="import-review-line import-review-note">
+                      Nothing could be read from that file. Try a cleaner file, paste the text instead, or add
+                      entries by hand below.
+                    </p>
+                  )}
+                </section>
+              )}
+            </div>
+
+            <div class="profile-two-up">
+              <Panel title="Identity" class="profile-panel">
+                <p class="profile-name">
+                  {name && (name.firstName || name.lastName) ? `${name.firstName} ${name.lastName}`.trim() : 'No name on file'}
+                </p>
+                <p class="profile-email">{email ?? 'No email on file'}</p>
+                <div class="profile-actions">
+                  <a class="profile-link" href={routeFor('settings')}>Edit in Settings</a>
+                </div>
+              </Panel>
+
+              <Panel title="Links" class="profile-panel">
+                <span slot="aside" class="panel-aside">Top of every resume and cover letter you draft</span>
+                <div id="links" class="links-anchor" />
+
+                {linkRelay && (
+                  <p class="field-issue" role="alert">That link was not added: {linkRelay.reason}.</p>
+                )}
+
+                {links.length > 0 && (
+                  <ul class="links-list">
+                    {links.map((link) => (
+                      <li class="links-row">
+                        <span class="links-where">
+                          <PlatformIcon platform={link.platform} class="links-logo" />
+                          <span>{linkPlatformLabel(link.platform)}</span>
+                        </span>
+                        <a class="links-url" href={link.url} rel="noopener nofollow" target="_blank">{link.url}</a>
+                        <form class="links-remove-form" method="POST" action={linkAction}>
+                          <input type="hidden" name="intent" value="remove" />
+                          <input type="hidden" name="linkId" value={link.id} />
+                          <button class="links-remove" type="submit" aria-label={`Remove ${link.url}`}>
+                            &#215;
+                          </button>
+                        </form>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <form class="links-add" method="POST" action={linkAction}>
+                  <input type="hidden" name="intent" value="add" />
+                  <label class="visually-hidden" for="link-url">Link</label>
+                  <input
+                    class="field-input links-add-input"
+                    id="link-url"
+                    type="url"
+                    name="url"
+                    inputmode="url"
+                    autocomplete="off"
+                    placeholder="Paste any link. We read what it is from the address."
+                    value={linkRelay?.url ?? ''}
+                  />
+                  <button class="field-submit-quiet" type="submit">Add</button>
+                </form>
+              </Panel>
+            </div>
+
+            {/* ---------------------------------------------------------------
+                The record. One band, one row per entry, everything else behind
+                a disclosure.
+                --------------------------------------------------------------- */}
+            <section class="record-section" aria-label="Record">
+              <div class="record-band">
+                <span class="mono-label record-band-title">
+                  Record, {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
+                </span>
+                {kindCounts.length > 1 && (
+                  <nav class="record-filters" aria-label="Filter the record by kind">
+                    <a
+                      class:list={['record-filter', !activeKind && 'record-filter-on']}
+                      href={profilePagePath}
+                      aria-current={!activeKind ? 'true' : undefined}
+                    >
+                      All <span class="record-filter-count">{entries.length}</span>
+                    </a>
+                    {kindCounts.map((row) => (
+                      <a
+                        class:list={['record-filter', activeKind === row.kind && 'record-filter-on']}
+                        href={`${profilePagePath}?kind=${row.kind}`}
+                        aria-current={activeKind === row.kind ? 'true' : undefined}
+                      >
+                        {KIND_LABELS[row.kind]} <span class="record-filter-count">{row.count}</span>
+                      </a>
+                    ))}
+                  </nav>
+                )}
+              </div>
+
+              <p class="record-note">
+                Employer, official title and dates appear exactly as typed in everything generated from this
+                record. Type them as the employer would recognize them.
+              </p>
+
+              <details class="add-entry-details" open={addOpen}>
+                <summary class="add-entry-summary">Add an entry by hand</summary>
+                <div class="add-entry-body">
+                  {entries.length === 0 && (
+                    <p class="record-note-line">
+                      Nothing is here yet. Add the first entry: a role you held, a degree, a project, a
+                      skill in your own words, a standalone piece of work, or a piece of recognition. Each one
+                      takes under a minute.
+                    </p>
+                  )}
+                  <form class="record-form" method="POST" action={entryAction}>
+                    <input type="hidden" name="return" value="profile" />
+                    <input type="hidden" name="intent" value="create" />
+
+                    <div class="field">
+                      <label class="field-label" for="add-kind">Kind</label>
+                      <select class="field-input" id="add-kind" name="kind" required>
+                        <option value="" disabled selected={addState.values.kind === ''}>
+                          Choose a kind
+                        </option>
+                        {ENTRY_KINDS.map((kind) => (
+                          <option value={kind} selected={addState.values.kind === kind}>
+                            {KIND_LABELS[kind]}
+                          </option>
+                        ))}
+                      </select>
+                      {issueMessage(addState.issues, 'kind') && (
+                        <p class="field-issue" id="add-kind-issue">{issueMessage(addState.issues, 'kind')}</p>
+                      )}
+                    </div>
+
+                    <div class="field">
+                      <label class="field-label" for="add-employer">Employer or institution</label>
+                      <input
+                        class="field-input"
+                        id="add-employer"
+                        type="text"
+                        name="employerOrInstitution"
+                        maxlength={CEILINGS.employerOrInstitution}
+                        value={addState.values.employerOrInstitution}
+                        aria-describedby={issueMessage(addState.issues, 'employerOrInstitution') ? 'add-employer-issue' : undefined}
+                      />
+                      <p class="field-hint">Required for a role held or education. Leave blank otherwise.</p>
+                      {issueMessage(addState.issues, 'employerOrInstitution') && (
+                        <p class="field-issue" id="add-employer-issue">{issueMessage(addState.issues, 'employerOrInstitution')}</p>
+                      )}
+                    </div>
+
+                    <div class="field">
+                      <label class="field-label" for="add-title">Official title</label>
+                      <input
+                        class="field-input"
+                        id="add-title"
+                        type="text"
+                        name="officialTitle"
+                        required
+                        maxlength={CEILINGS.officialTitle}
+                        value={addState.values.officialTitle}
+                      />
+                      {issueMessage(addState.issues, 'officialTitle') && (
+                        <p class="field-issue">{issueMessage(addState.issues, 'officialTitle')}</p>
+                      )}
+                    </div>
+
+                    <div class="field-row">
+                      <div class="field">
+                        <label class="field-label" for="add-start-year">Start year</label>
+                        <input
+                          class="field-input field-input-narrow"
+                          id="add-start-year"
+                          type="number"
+                          name="startYear"
+                          required
+                          min="1900"
+                          max="2100"
+                          value={addState.values.startYear}
+                        />
+                      </div>
+                      <div class="field">
+                        <label class="field-label" for="add-start-month">Start month</label>
+                        <select class="field-input field-input-narrow" id="add-start-month" name="startMonth">
+                          <option value="" selected={addState.values.startMonth === ''}>Unknown</option>
+                          {MONTH_NAMES.map((monthName, index) => (
+                            <option value={index + 1} selected={addState.values.startMonth === String(index + 1)}>
+                              {monthName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    {(issueMessage(addState.issues, 'start') || issueMessage(addState.issues, 'start.year') || issueMessage(addState.issues, 'start.month')) && (
+                      <p class="field-issue">
+                        {issueMessage(addState.issues, 'start') ?? issueMessage(addState.issues, 'start.year') ?? issueMessage(addState.issues, 'start.month')}
+                      </p>
+                    )}
+
+                    <div class="field field-checkbox">
+                      <input
+                        class="field-check"
+                        id="add-still-here"
+                        type="checkbox"
+                        name="stillHere"
+                        checked={addState.values.stillHere}
+                      />
+                      <label class="field-label field-label-inline" for="add-still-here">Still there</label>
+                    </div>
+
+                    <div class="field-row">
+                      <div class="field">
+                        <label class="field-label" for="add-end-year">End year</label>
+                        <input
+                          class="field-input field-input-narrow"
+                          id="add-end-year"
+                          type="number"
+                          name="endYear"
+                          min="1900"
+                          max="2100"
+                          value={addState.values.endYear}
+                        />
+                      </div>
+                      <div class="field">
+                        <label class="field-label" for="add-end-month">End month</label>
+                        <select class="field-input field-input-narrow" id="add-end-month" name="endMonth">
+                          <option value="" selected={addState.values.endMonth === ''}>Unknown</option>
+                          {MONTH_NAMES.map((monthName, index) => (
+                            <option value={index + 1} selected={addState.values.endMonth === String(index + 1)}>
+                              {monthName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <p class="field-hint">Leave both blank, and leave "Still there" unchecked, only if the end date is unknown rather than absent.</p>
+                    {issueMessage(addState.issues, 'end') && <p class="field-issue">{issueMessage(addState.issues, 'end')}</p>}
+
+                    <div class="field">
+                      <label class="field-label" for="add-location">Location</label>
+                      <input class="field-input" id="add-location" type="text" name="location" maxlength={CEILINGS.location} value={addState.values.location} />
+                    </div>
+
+                    <div class="field">
+                      <label class="field-label" for="add-description">Description</label>
+                      <textarea class="field-input field-textarea" id="add-description" name="description" maxlength={CEILINGS.description} rows="4">{addState.values.description}</textarea>
+                      {issueMessage(addState.issues, 'description') && <p class="field-issue">{issueMessage(addState.issues, 'description')}</p>}
+                    </div>
+
+                    <fieldset class="field-fieldset">
+                      <legend class="field-legend">Classification</legend>
+                      {CLASSIFICATIONS.map((value) => (
+                        <div class="field-radio">
+                          <input
+                            class="field-check"
+                            type="radio"
+                            id={`add-classification-${value}`}
+                            name="classification"
+                            value={value}
+                            checked={addState.values.classification === value}
+                          />
+                          <label class="field-label field-label-inline" for={`add-classification-${value}`}>
+                            {CLASSIFICATION_LABELS[value]}
+                          </label>
+                        </div>
+                      ))}
+                    </fieldset>
+                    {issueMessage(addState.issues, 'classification') && <p class="field-issue">{issueMessage(addState.issues, 'classification')}</p>}
+
+                    <button class="field-submit" type="submit">Add entry</button>
+                  </form>
+                </div>
+              </details>
+
+              {/* editFormState and artifactFormState are bound to this page's
+                  own relay here, not passed bare: both take the relay as a
+                  first argument, and passing them straight through would leave
+                  RecordView calling a two-argument function with one. */}
+              <RecordView
+                entries={visibleEntries}
+                editable={true}
+                editParam={editParam}
+                newIds={importRelay?.createdIds ?? []}
+                editFormState={(entry) => editFormState(relay, entry)}
+                artifactFormState={(entry) => artifactFormState(relay, entry)}
+                returnKey="profile"
+                recordPagePath={profilePagePath}
+                entryAction={entryAction}
+                artifactActionPath={artifactActionPath}
+              />
+            </section>
+
+            <p class="profile-visibility-note">
+              This profile is private. Public profiles are not live yet, for anyone. What you build is real and
+              saved. Who can ever see it is a later decision, not this one.
+            </p>
+
+            <nav class="profile-surfaces" aria-label="Your surfaces">
+              <ul class="profile-surfaces-list">
+                {MEMBER_NAV.map((item) => (
+                  <li>
+                    {item.built ? (
+                      <a class="profile-surfaces-link" href={item.href}>{item.label}</a>
+                    ) : (
+                      <span class="profile-surfaces-text">{item.label}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          </>
+        ) : (
+          <>
+            <span class="kicker">Account</span>
+            <h1>Not available</h1>
+            {reason === 'email-unverified' ? (
+              <>
+                <p class="muted">Confirm your email and this page opens.</p>
+                <div class="account-links">
+                  <a class="account-link" href={routeFor('verify-email')}>Resend the link</a>
+                </div>
+              </>
+            ) : (
+              <>
+                <p class="muted">Sign in to see your profile.</p>
+                <div class="account-links">
+                  <a class="account-link" href={routeFor('sign-in')}>Sign in</a>
+                  <a class="account-link" href={routeFor('sign-up')}>No account yet? Create one.</a>
+                </div>
+              </>
+            )}
+          </>
+        )
+      }
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  /**
+   * The upload band's enhancement: drop a file, and read it without leaving
+   * this page.
+   *
+   * Without this script the band still works: the dashed box is a <label>
+   * around a real file input, so clicking it opens the file picker, and a
+   * plain POST 303s to /profile/review, which polls itself and shows the same
+   * form. With it, the person drops a file here, the ring turns here while
+   * their model reads, and the filled-in review appears here, in the slot
+   * below the band.
+   *
+   * THE LOG NARRATES ONLY WHAT IT KNOWS. /profile/import/status answers
+   * "pending" or "ready" and nothing else, so this prints the four things it
+   * genuinely has: what was sent, which provider key it went to (rendered into
+   * a data attribute by the server, which resolved it the same way the parse
+   * runner does), how long it has been waiting, and, when the read lands, the
+   * read's own notes verbatim. It never claims a stage it has not been told
+   * about.
+   *
+   * THE SWAP IS THE SERVER'S OWN RENDERING. On a finished read this fetches
+   * /profile itself, parses the HTML, and replaces the slot's content with
+   * the freshly rendered slot from that document. No client-side templating
+   * of proposals exists: ProposalForm.astro stays the one renderer, and if
+   * the swap cannot find the slot it falls back to a plain reload, which
+   * lands in exactly the same place.
+   *
+   * Every failure falls back to something honest: a rejected start shows the
+   * note line, a poll that never turns ready stops and says so, and any
+   * thrown fetch is treated as "try the plain navigation instead".
+   */
+  const POLL_MS = 3000;
+  const POLL_LIMIT = 40; // two minutes: past the read's own 55s ceiling, with slack.
+
+  const slot = document.querySelector<HTMLElement>('[data-import-review-slot]');
+  const working = document.querySelector<HTMLElement>('[data-import-working]');
+  const log = document.querySelector<HTMLElement>('[data-import-log]');
+  const note = document.querySelector<HTMLElement>('[data-import-note]');
+  const forms = Array.from(document.querySelectorAll<HTMLFormElement>('[data-import-form]'));
+  const dropzone = document.querySelector<HTMLElement>('[data-dropzone]');
+  const fileInput = document.querySelector<HTMLInputElement>('[data-file-input]');
+  const chips = document.querySelector<HTMLElement>('[data-file-chips]');
+
+  const statusUrl = slot?.dataset.statusUrl ?? '';
+  const providerLabel = working?.dataset.providerLabel ?? '';
+
+  const show = (el: HTMLElement | null, on: boolean) => {
+    if (el) el.hidden = !on;
+  };
+  const say = (text: string) => {
+    if (note) {
+      note.textContent = text;
+      note.hidden = false;
+    }
+  };
+
+  /* ---- the honest log ---------------------------------------------------- */
+
+  /** Append one line. Returns it, so a line that updates (the wait counter)
+      can be held onto rather than reprinted. */
+  function logLine(text: string): HTMLElement | null {
+    if (!log) return null;
+    const line = document.createElement('li');
+    line.textContent = text;
+    log.append(line);
+    return line;
+  }
+
+  function formatSize(bytes: number): string {
+    return bytes >= 1024 * 1024
+      ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+      : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+
+  /** What this submission actually sent, named from the form itself. */
+  function describeSubmission(form: HTMLFormElement): string {
+    const file = form.querySelector<HTMLInputElement>('input[type="file"]')?.files?.[0];
+    if (file) return `sent ${file.name}, ${formatSize(file.size)}`;
+    const pasted = form.querySelector<HTMLTextAreaElement>('textarea[name="pasted"]')?.value ?? '';
+    const words = pasted.trim().split(/\s+/).filter(Boolean).length;
+    return `sent ${words} ${words === 1 ? 'word' : 'words'} of pasted text`;
+  }
+
+  const setBusy = (busy: boolean) => {
+    for (const form of forms) {
+      const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+      if (submit) submit.disabled = busy;
+    }
+    show(working, busy);
+  };
+
+  /* ---- the dropzone ------------------------------------------------------ */
+
+  if (dropzone && fileInput) {
+    const paint = (on: boolean) => dropzone.classList.toggle('is-dragging', on);
+
+    dropzone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      paint(true);
+    });
+    dropzone.addEventListener('dragleave', () => paint(false));
+    dropzone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      paint(false);
+      const dropped = event.dataTransfer?.files?.[0];
+      if (!dropped) return;
+      // Hand the drop to the real input, so the form posts exactly what it
+      // would have posted had the file been chosen through the picker.
+      const carrier = new DataTransfer();
+      carrier.items.add(dropped);
+      fileInput.files = carrier.files;
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (!chips) return;
+      chips.replaceChildren();
+      const chosen = fileInput.files?.[0];
+      if (!chosen) return;
+      const chip = document.createElement('span');
+      chip.className = 'import-chip';
+      chip.textContent = `${chosen.name}, ${formatSize(chosen.size)}`;
+      chips.append(chip);
+    });
+  }
+
+  /* ---- the read ---------------------------------------------------------- */
+
+  async function readStatus(): Promise<Record<string, unknown> | null> {
+    try {
+      const response = await fetch(statusUrl, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' }
+      });
+      if (!response.ok) return null;
+      return (await response.json()) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Pull this page again and swap in the freshly rendered review slot. */
+  async function swapInReview(): Promise<void> {
+    try {
+      const response = await fetch(window.location.href, { credentials: 'same-origin' });
+      const html = await response.text();
+      const fresh = new DOMParser()
+        .parseFromString(html, 'text/html')
+        .querySelector('[data-import-review-slot]');
+      if (fresh && slot) {
+        slot.replaceChildren(...Array.from(fresh.childNodes));
+        slot.querySelector('#import-review')?.scrollIntoView({ block: 'start' });
+        return;
+      }
+    } catch {
+      /* fall through to the reload below */
+    }
+    window.location.reload();
+  }
+
+  async function watch(startedAt: number): Promise<void> {
+    const waitLine = logLine('waiting, 0s');
+    for (let attempt = 0; attempt < POLL_LIMIT; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+      if (waitLine) {
+        waitLine.textContent = `waiting, ${Math.round((Date.now() - startedAt) / 1000)}s`;
+      }
+      const state = await readStatus();
+      if (state && state.status === 'ready') {
+        // The read's own account of itself, verbatim, before the review
+        // replaces the log.
+        if (Array.isArray(state.notes)) {
+          for (const line of state.notes) if (typeof line === 'string') logLine(line);
+        }
+        setBusy(false);
+        await swapInReview();
+        return;
+      }
+    }
+    setBusy(false);
+    say('The read is taking longer than it should. Reload this page to check on it, or try the upload again.');
+  }
+
+  if (slot && forms.length > 0) {
+    for (const form of forms) {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        show(note, false);
+        if (slot) slot.replaceChildren();
+        if (log) log.replaceChildren();
+        const startedAt = Date.now();
+        logLine(describeSubmission(form));
+        if (providerLabel) {
+          logLine(`to your ${providerLabel} key, held in memory for this one read`);
+        }
+        setBusy(true);
+
+        let body: Record<string, unknown> | null = null;
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+            body: new FormData(form)
+          });
+          body = response.ok ? ((await response.json()) as Record<string, unknown>) : null;
+          if (!response.ok) {
+            // Signed out mid-session or walled: the plain navigation knows
+            // where to send them, so hand the submit back to the browser.
+            setBusy(false);
+            form.submit();
+            return;
+          }
+        } catch {
+          setBusy(false);
+          say('The upload could not be sent. Check your connection and try again.');
+          return;
+        }
+
+        // A read that finished immediately (a bad file, an empty paste) hands
+        // its message back; show it in place, no navigation, no polling.
+        if (body && body.status === 'ready') {
+          setBusy(false);
+          if (typeof body.note === 'string') say(body.note);
+          else await swapInReview();
+          return;
+        }
+
+        void watch(startedAt);
+      });
+    }
+  }
+</script>
+
+<style>
+  /* The page. The 70ch cap this shell used to carry is gone: two of the bands
+     below are two-column, and a column that narrow cannot hold them. Prose
+     keeps its measure per block instead, which is where the measure token says
+     it belongs. */
+  .profile-page .profile-shell {
+    padding-block: var(--space-800) var(--space-1000);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-600);
+  }
+  .kicker {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  h1 {
+    margin: var(--space-300) 0 0;
+    font-size: var(--size-600);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-display);
+  }
+  .muted {
+    margin: var(--space-400) 0 0;
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+  }
+
+  .profile-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-500);
+    flex-wrap: wrap;
+  }
+  .profile-header-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-200);
+    text-align: right;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    font-feature-settings: var(--feature-tabular);
+  }
+  .profile-stat strong {
+    font-weight: var(--weight-medium);
+    color: var(--color-foreground);
+  }
+  .profile-stat-private {
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+
+  /* ---- the review ------------------------------------------------------- */
+
+  .import-review {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+  .import-review-line {
+    margin: 0;
+    max-width: var(--layout-measure);
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .import-review-note {
+    color: var(--color-muted);
+  }
+  /* The honest fallback line: the specific reason the person's own model
+     could not read this one, in the muted tone every machine aside takes,
+     with a hairline to set it off from the proposals below it. */
+  .import-fallback {
+    border: var(--border-hairline) solid var(--color-line-strong);
+    padding: var(--space-300) var(--space-400);
+  }
+
+  /* ---- identity and links ----------------------------------------------- */
+
+  .profile-two-up {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: var(--space-500);
+    align-items: start;
+  }
+  .panel-aside {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+  }
+  .profile-name {
+    margin: 0 0 var(--space-100);
+    font-size: var(--size-300);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-snug);
+    color: var(--color-foreground);
+  }
+  .profile-email {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+  }
+  .profile-actions {
+    margin-top: var(--space-400);
+  }
+  .profile-link {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    border-bottom: 1px solid var(--color-foreground);
+    padding-bottom: 2px;
+  }
+
+  .links-anchor {
+    /* Clear the sticky SiteHeader on a #links jump, the same offset the
+       settings #keys target uses. var(--space-500) alone left the anchor
+       tucked under the bar. */
+    scroll-margin-top: calc(var(--hdr-h, calc(var(--space-400) * 2 + 44px)) + var(--space-400));
+  }
+  .links-list {
+    margin: 0 0 var(--space-400);
+    padding: 0;
+    list-style: none;
+  }
+  .links-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-400);
+    padding: var(--space-300) 0;
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    min-width: 0;
+  }
+  .links-where {
+    display: flex;
+    align-items: center;
+    gap: var(--space-200);
+    width: 8rem;
+    flex: none;
+    font-size: var(--size-150);
+    white-space: nowrap;
+  }
+  .links-logo {
+    font-size: var(--size-200);
+    color: var(--color-foreground);
+    flex: none;
+  }
+  .links-url {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+  .links-url:hover {
+    color: var(--color-foreground);
+  }
+  .links-remove-form {
+    flex: none;
+  }
+  .links-remove {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-200);
+    line-height: var(--leading-tight);
+    color: var(--color-muted);
+  }
+  .links-remove:hover,
+  .links-remove:focus-visible {
+    color: var(--color-foreground);
+  }
+  .links-add {
+    display: flex;
+    gap: var(--space-300);
+    align-items: stretch;
+  }
+  .links-add-input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* ---- the record ------------------------------------------------------- */
+
+  .record-section {
+    border: var(--border-hairline) solid var(--color-line);
+  }
+  .record-band {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-500);
+    flex-wrap: wrap;
+    padding: var(--space-300) var(--space-500);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+  .record-band-title {
+    color: var(--color-foreground);
+  }
+  .record-filters {
+    display: flex;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+  }
+  .record-filter {
+    color: var(--color-muted);
+    border-bottom: var(--border-hairline) solid transparent;
+    padding-bottom: var(--space-100);
+  }
+  .record-filter:hover {
+    color: var(--color-foreground);
+  }
+  .record-filter-on {
+    color: var(--color-foreground);
+    border-bottom-color: var(--color-foreground);
+  }
+  .record-filter-count {
+    font-feature-settings: var(--feature-tabular);
+    color: var(--color-muted);
+  }
+
+  .record-note {
+    margin: 0;
+    padding: var(--space-300) var(--space-500);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    max-width: var(--layout-measure);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+  }
+  .record-note-line {
+    margin: 0 0 var(--space-400);
+    max-width: var(--layout-measure);
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+  }
+
+  .add-entry-details {
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+  .add-entry-summary {
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .add-entry-summary:hover {
+    color: var(--color-foreground);
+  }
+  .add-entry-body {
+    padding: var(--space-400) var(--space-500) var(--space-500);
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+
+  /* ---- forms, matching sign-in.astro / sign-up.astro's field vocabulary
+     so this page reads as the same system rather than inventing a second
+     one. --------------------------------------------------------------- */
+  .record-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    min-width: 0;
+  }
+  .field-row {
+    display: flex;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+  }
+  .field-label {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .field-label-inline {
+    text-transform: none;
+    letter-spacing: var(--tracking-normal);
+    font-size: var(--size-150);
+    color: var(--color-foreground);
+  }
+  .field-hint {
+    margin: 0;
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+  .field-issue {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+  }
+  .field-checkbox,
+  .field-radio {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-200);
+  }
+  .field-check {
+    margin: 0;
+    width: var(--size-200);
+    height: var(--size-200);
+    accent-color: var(--color-foreground);
+  }
+  .field-fieldset {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+  .field-legend {
+    padding: 0;
+    font-family: var(--font-family-sans);
+    font-size: var(--size-075);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .field-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+  .field-submit-quiet {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: var(--color-foreground);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-200) var(--space-400);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+  .field-submit-quiet:hover {
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+  }
+
+  /* ---- the foot --------------------------------------------------------- */
+
+  .profile-visibility-note {
+    margin: 0;
+    max-width: var(--layout-measure);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+  }
+  .profile-surfaces {
+    padding-top: var(--space-400);
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .profile-surfaces-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-400);
+  }
+  .profile-surfaces-link {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    border-bottom: 1px solid var(--color-foreground);
+    padding-bottom: 2px;
+  }
+  .profile-surfaces-text {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+
+  .account-links {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    margin-top: var(--space-200);
+  }
+  .account-link {
+    align-self: flex-start;
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    border-bottom: 1px solid var(--color-foreground);
+    padding-bottom: 2px;
+  }
+
+  /* Both two-column bands stack at the same step every other two-up band on
+     this site stacks at. */
+  @media (max-width: 60rem) {
+    .profile-two-up {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .profile-header {
+      align-items: flex-start;
+    }
+    .profile-header-stats {
+      align-items: flex-start;
+      text-align: left;
+    }
+    .record-band,
+    .record-note,
+    .add-entry-summary {
+      padding-inline: var(--space-400);
+    }
+    .add-entry-body {
+      padding-inline: var(--space-400);
+    }
+  }
+</style>

@@ -1,0 +1,56 @@
+---
+/**
+ * The one turning ring: continuous motion for work genuinely in flight.
+ *
+ * Standing rule 6 caps motion at 400ms and gate 6 fails any animation that
+ * repeats forever, with exactly one named exception: the animations in
+ * CONTINUOUS_MOTION_ALLOWED (test/gates/motion.mjs), granted for cues that
+ * track real, unpredictable work and stop when it stops. `draft-spin` is that
+ * name. This component exists so every surface that earns the exemption uses
+ * the one name, the one geometry, and the one reduced-motion behaviour, and
+ * so a second spinner cannot appear without touching the gate's list.
+ *
+ * THE TERMS TRAVEL WITH IT: render this only while work is actually running
+ * (hidden before it starts, hidden the moment it lands). A ring turning over
+ * nothing is the exact lie the motion rule exists to prevent. Reduced-motion
+ * readers get the ring standing still, which still marks the line as work in
+ * progress.
+ *
+ * An open ring: three quarters in the line colour, one quarter in the
+ * foreground, so the turn is legible without a second element.
+ */
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+---
+
+<span class:list={['spinner', className]} aria-hidden="true"></span>
+
+<style>
+  .spinner {
+    display: inline-block;
+    flex: none;
+    width: var(--space-400);
+    height: var(--space-400);
+    border: var(--border-heavy) solid var(--color-line-strong);
+    border-top-color: var(--color-foreground);
+    border-radius: 50%;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* The name is the contract: gate 6 allows continuous motion only for the
+       animations in CONTINUOUS_MOTION_ALLOWED, and 'draft-spin' is on that
+       list. Renaming this without renaming it there fails the gate. */
+    .spinner {
+      animation: draft-spin 900ms linear infinite;
+    }
+  }
+
+  @keyframes draft-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+</style>

@@ -1,0 +1,31 @@
+{
+  "_meta": {
+    "purpose": "Sample outreach drafts, committed so the gated route is provable end to end without a runtime dependency on the sweep machine.",
+    "these_are_samples": "Every record here is invented. No real founder, no real company, no real draft. Real drafts contain founder identities and live in the machine's private dossier, which is not published and must not be committed here. See the note in src/pages/drafts/[slug].astro.",
+    "written": "2026-08-20"
+  },
+  "drafts": [
+    {
+      "slug": "northwind",
+      "company": "Northwind Labs",
+      "founder": "Dana Okonkwo",
+      "cohort": "Summer 2026",
+      "team_size": 6,
+      "signal": "Hiring three engineers, none for design.",
+      "preview": "Dana, your onboarding asks for the workspace name before it says what a workspace is.",
+      "full": "Dana, your onboarding asks for the workspace name before it says what a workspace is. I rebuilt that first screen as a two field form with the explanation inline, and the drop-off in your demo video stops making sense any other way. Happy to send it over. I do founding design work, mostly AI native teams.",
+      "character_count": 297
+    },
+    {
+      "slug": "castellan",
+      "company": "Castellan",
+      "founder": "Ravi Menon",
+      "cohort": "Spring 2026",
+      "team_size": 4,
+      "signal": "Four people, no designer, shipped a public beta last month.",
+      "preview": "Ravi, the beta buries its best feature three clicks deep behind a menu labelled More.",
+      "full": "Ravi, the beta buries its best feature three clicks deep behind a menu labelled More. That is the thing your landing page leads with, so people are arriving for it and not finding it. I sketched the surface it deserves. Can I send you the frame? I do founding design work with early AI teams.",
+      "character_count": 288
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+---
+/**
+ * AddedPostingNote: the one line the draft room prints for a posting a person
+ * added by URL. It says where the text came from and that nothing about it is
+ * verified by us: no sweep read it, no rule judged it, no fate overlay applies.
+ */
+import type { StoredPostingFetch } from '../../lib/posting-fetch-store';
+import { hostnameOf } from '../../lib/added-posting';
+import { formatDate } from '../../lib/data';
+
+interface Props {
+  row: StoredPostingFetch;
+}
+
+const { row } = Astro.props;
+const host = hostnameOf(row.url);
+const readOn = row.fetchedAt ? formatDate(row.fetchedAt.toISOString().slice(0, 10)) : null;
+---
+
+<p class="added-note" role="note">
+  {row.origin === 'pasted'
+    ? 'Added by you, from pasted text. We could not read the page, so nothing here is verified by us.'
+    : `Added by you. We read this posting from ${host}${readOn ? ` on ${readOn}` : ''}. It is not one of our verified listings and gets no fate overlay.`}
+  {!row.company && ` We did not find the company name on the page, so the letter uses ${host}. Set it on the Desk.`}
+</p>
+
+<style>
+  .added-note {
+    margin: 0;
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+</style>

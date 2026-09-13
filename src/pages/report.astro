@@ -1,0 +1,733 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import NewHereStrip from '../components/NewHereStrip.astro';
+import Figure from '../components/report/Figure.astro';
+import FactLine from '../components/report/FactLine.astro';
+import SourceLine from '../components/report/SourceLine.astro';
+import HeroNumber from '../components/report/HeroNumber.astro';
+import DistributionChart from '../components/report/DistributionChart.astro';
+import RankedBars from '../components/report/RankedBars.astro';
+import RuleTally from '../components/RuleTally.astro';
+import { countIn } from '../components/report/figures';
+import { loadStats, sweptStamp, factsFor } from '../lib/data';
+import { formatReading, killedByRuleTotal } from '../lib/readings';
+import { routeFor } from '../data/nav';
+import { SITE, absoluteUrl } from '../data/site';
+
+/**
+ * The report: state of the market, built from src/data/facts.json and
+ * src/data/stats.json, and from nothing else.
+ *
+ * WHAT THIS PAGE IS FOR. DESIGN-BRIEF.md asks for a monthly template plus one
+ * fully worked issue: a title block, a headline stat, four chart patterns
+ * (trend, distribution, ranked bar, hero number), a source line in mono under
+ * every figure, a methodology footer, a print stylesheet and a social cover. All
+ * of that is here, and the issue that fills it is sweep 001.
+ *
+ * THE ONE RULE THAT SHAPED EVERY DECISION ON IT. A chart is a number turned into
+ * a length, so a chart is the easiest place on a website to state something
+ * nobody measured. Three consequences, all visible in the markup:
+ *
+ *   1. No page-level literals. Every figure is read from facts.json through
+ *      fact() or from src/data/stats.json through loadStats(), and the geometry
+ *      is parsed from the same string the caption quotes. Nothing on this page
+ *      is a number somebody typed into a template.
+ *
+ *   2. No series we cannot source. There is no trend on this page, because a
+ *      trend is a shape made of several readings and we hold one sweep. The
+ *      figure that used to draw one is a tally of what each rule found.
+ *
+ *   3. No derived statistic, anywhere. The arrival distribution stops where the
+ *      published numbers stop; the share it does not cover is one subtraction
+ *      away and that subtraction never happens on screen.
+ *
+ * SEVEN OF THE EIGHT FACTS APPEAR HERE. The eighth, "first-96-hours", is the
+ * short form of the arrival window already on the page, and facts.json says in
+ * its own note never to render both: two shapes of one fact read as two facts.
+ * The assertion at the bottom of this block is what keeps that decision from
+ * quietly rotting when somebody adds a fact later.
+ */
+
+// The report's own social card, wired here so a crawler stops being handed the
+// generic site card for the launch issue. It is a route, not a file: see the
+// header of src/pages/report.og.svg.ts.
+const reportCard = routeFor('report-card-image');
+
+const stats = loadStats();
+const stamp = `State of the market · Swept ${sweptStamp()}`;
+
+// The hero figure for the volume chart, read out of the sentence beneath it
+// rather than typed beside it. See components/report/figures.ts.
+const applicationsPerJob = countIn('applications-per-job');
+
+/**
+ * Every fact this page renders, declared here so the page can check itself.
+ *
+ * facts.json licenses eight statistics to routes, and /report is licensed for
+ * all eight. That is a permission, not an instruction, and the one it does not
+ * want exercised is the pair of arrival-window facts. Listing what actually
+ * renders means the guard below can catch the day somebody adds the second one.
+ */
+const RENDERED: readonly string[] = [
+  'admitted-fake-postings',
+  'arrival-window',
+  'posting-lifespan',
+  'time-to-fill',
+  'applications-per-job',
+  'ai-sameness-red-flag'
+];
+
+/**
+ * Licensed here and deliberately not rendered: "no-hiring-activity".
+ *
+ * facts.json licenses Greenhouse's 18 to 22% to /report, and a licence is a
+ * permission rather than an instruction. This issue does not exercise it,
+ * because the only place it would have gone is beside our own kill counts, and
+ * the fact's own note in facts.json forbids exactly that: "never place this
+ * beside our own numbers as though they measure the same thing". Greenhouse
+ * counts postings where somebody else saw no hiring activity, by a method they
+ * have never published. We count postings a named rule caught, with the
+ * evidence attached. Two numbers, two questions, one page width apart is all it
+ * takes for a reader to read them as one measurement. It stays on /kills and
+ * /methodology, where it stands alone.
+ */
+const NOT_RENDERED_HERE = 'no-hiring-activity';
+if (RENDERED.includes(NOT_RENDERED_HERE)) {
+  throw new Error(
+    `report.astro renders "${NOT_RENDERED_HERE}". Read the block above this check before adding it: the industry figure and our own rule counts do not measure the same thing, and this page is where they would end up side by side.`
+  );
+}
+
+const licensed = factsFor('/report').map((entry) => entry.id);
+const unlicensed = RENDERED.filter((id) => !licensed.includes(id));
+if (unlicensed.length > 0) {
+  throw new Error(
+    `report.astro renders ${unlicensed.join(', ')}, which src/data/facts.json has not licensed for /report. Add the route to the fact's pages list deliberately, or drop the figure.`
+  );
+}
+
+if (RENDERED.includes('first-96-hours')) {
+  throw new Error(
+    'report.astro renders both shapes of the arrival fact. src/data/facts.json says never to put "first-96-hours" and "arrival-window" on one page, because two shapes of one statistic read as two statistics. Pick one.'
+  );
+}
+
+/**
+ * Which figures have data behind them.
+ *
+ * A figure state on this page is derived, never set by hand. On sweep 001 both
+ * predicates are true and every figure renders its chart, and the point of
+ * writing them down is that "the data is there" becomes something the build
+ * checks rather than something the template assumes. The night an export lands
+ * with a missing field, the figure says so instead of drawing a bar of length
+ * zero, which reads as a measurement of zero and is a different claim entirely.
+ *
+ * Figures 2 and 4 have no predicate because they cannot have one: they draw
+ * facts from src/data/facts.json, and a missing fact throws inside fact()
+ * before this page gets a chance to render anything. That is the right failure
+ * for a fact and the wrong one for a sweep reading, which is why the two are
+ * handled differently.
+ */
+// Figure 1 is always ready, and that is a decision rather than an oversight.
+// The other figures on this page draw a chart, so a figure with no data drops
+// to an empty state rather than plotting a zero. This one is a tally, and a
+// tally of five zeroes is a result: it says which rules ran and what each one
+// found. Handing it to the empty state would have replaced five true counts
+// with one sentence saying there were none, which is a smaller claim than the
+// page can actually make. What it does NOT do is draw five empty tracks, and
+// the component says why on its face.
+const sweepCounts = [stats.boards, stats.pulled, stats.verified_live, stats.killed];
+const hasSweepCounts =
+  sweepCounts.every((count) => Number.isFinite(count) && count >= 0) &&
+  sweepCounts.some((count) => count > 0);
+
+const rankedState = hasSweepCounts ? 'ready' : 'empty';
+
+const methodologyHref = routeFor('methodology');
+const killsHref = routeFor('kills');
+const writingHref = `${SITE.parent.url}/writing`;
+// absoluteUrl, not `${SITE.url}${path}`: routeFor() already carries the base.
+// This string is the print-only footer, so the doubled prefix it used to build
+// went out on every paper copy of the launch issue and on nothing a link
+// checker reads. See src/data/site.ts.
+const canonical = absoluteUrl(routeFor('report'));
+---
+
+<BaseLayout
+  title="The report"
+  description="State of the market, built from one night of reading company job feeds direct and from research we name in full. Every figure carries its source."
+  active="report"
+  image={reportCard}
+>
+  <div class="shell report">
+    <header class="masthead">
+      {/* The stamp is a machine assertion and carries the clock, so it declares
+          itself. Without the marker the sweep time reads to gate 2 as loose copy
+          that happens to contain the kill count, which is exactly the kind of
+          undeclared number this site does not ship. */}
+      <p class="masthead-stamp mono-label" data-truth="machine">{stamp}</p>
+      <h1 class="masthead-title">The first sweep, in full.</h1>
+      <p class="masthead-lede">
+        Every figure here is a reading. It came either from one night of reading company job feeds direct, or
+        from research we name in full underneath it. Nothing is modelled and nothing is projected. Where we
+        hold one observation, the chart shows one observation and says so on its face.
+      </p>
+    </header>
+
+    {/* Wrapped rather than styled through a class prop: a page's scoped styles
+        do not reach a child component's own root element, and a rule that
+        silently does not apply is worse than one nobody wrote. */}
+    <div class="report-new-here">
+      <NewHereStrip surface="page" />
+    </div>
+
+    <section class="headline" aria-labelledby="headline-heading">
+      <h2 id="headline-heading" class="section-heading">The headline number</h2>
+
+      <div class="headline-body">
+        {/* The headline was a ghost rate until 2026-08-19: killed divided by
+            pulled, printed at display size in the loss colour. It came off the
+            page for the reason the whole rule set was rewritten. A reader reads
+            that division as a deception rate, and the only rule producing kills
+            was evergreen, which killed a posting for being old. Age is a
+            duration, not a motive, so the number was an accusation the evidence
+            underneath it could not carry.
+
+            What stands here instead is the number that can be defended line by
+            line: postings a named rule caught, with the observation and the
+            date attached to each. It reads as zero tonight. That is the most
+            useful thing this page can currently say. */}
+        <HeroNumber
+          size="page"
+          tone="loss"
+          value={formatReading(killedByRuleTotal())}
+          label="postings caught by a named rule this sweep"
+          tileMetric="killed_by_rule"
+        />
+
+        <div class="headline-words">
+          <p class="headline-statement">
+            Five rules ran. Every one of them reports what it found, including the ones that found
+            nothing, because a rule missing from a summary reads as a rule nobody ran.
+          </p>
+          <p class="headline-follow">
+            This is the only number on this page we produced ourselves, and it is a reading rather
+            than a fact: it is what the machine measured last night and it will be a different number
+            tomorrow. Everything else here is somebody else's research, cited where it sits.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="figures" aria-labelledby="figures-heading">
+      <h2 id="figures-heading" class="section-heading">The figures</h2>
+
+      <div class="figure-grid">
+        {/* Figure 1 was "Ghost rate, sweep by sweep", a trend with one reading
+            in it and an industry reference line beside that reading. Both
+            numbers are gone: the reference was a restated activity measure and
+            the column rested on a retired rule. What replaced it is not a chart
+            at all, because five counts of zero drawn as bars would be five
+            empty tracks pretending to be a measurement.
+
+            The empty state is the figure. It is also the only honest shape for
+            this page tonight, and it is worth more than a chart would have
+            been: it says what was looked for, by what method, and what came
+            back. */}
+        <Figure
+          number={1}
+          pattern="Ranked bar"
+          title="What each rule found"
+          id="kills-by-rule"
+          wide
+          state="ready"
+        >
+          <RuleTally />
+
+          <p slot="statement" class="statement">
+            Each rule states what it observed rather than what it concluded. The counts are readings
+            from the sweep, so they are as current as the night they were taken and no more.
+          </p>
+          <p slot="source" class="mono source" data-truth="machine">
+            Measured by The Index, swept {sweptStamp()}
+          </p>
+
+          <FactLine slot="note" factId="admitted-fake-postings" tone="note" />
+          <SourceLine slot="note" factId="admitted-fake-postings" label="Context" />
+          <p slot="note" class="note">
+            That survey asks hiring managers what they did. It is the only honest source for intent,
+            because a machine reading job feeds cannot observe one. Nothing above it is a measurement
+            of intent, and the two are not two views of one number.
+          </p>
+        </Figure>
+
+        <Figure number={2} pattern="Distribution" title="When applications arrive">
+          <DistributionChart factId="arrival-window" />
+
+          <FactLine slot="statement" factId="arrival-window" />
+          <SourceLine slot="source" factId="arrival-window" />
+
+          <FactLine slot="note" factId="posting-lifespan" tone="note" />
+          <SourceLine slot="note" factId="posting-lifespan" label="Also" />
+        </Figure>
+
+        <Figure
+          number={3}
+          pattern="Ranked bar"
+          title="The sweep, stage by stage"
+          state={rankedState}
+          emptyTitle="No stage counts"
+          emptyDetail="The sweep recorded no counts for its own stages, so there are no bars to rank. Nothing is estimated from the rows on the index."
+        >
+          <RankedBars />
+
+          <p slot="statement" class="statement">
+            Four stages, one night. Each bar is a count the machine recorded as it went, not a total anybody
+            reconciled afterwards.
+          </p>
+          <p slot="source" class="mono source" data-truth="machine">
+            Measured by The Index, swept {sweptStamp()}
+          </p>
+
+          <p slot="note" class="note">
+            The first bar counts company feeds and the other three count postings. They share an axis of
+            counts, not of like things. The feed count stays because it is the one stage a reader cannot work
+            out from the others.
+          </p>
+        </Figure>
+
+        <Figure number={4} pattern="Hero number" title="What one posting attracts" layout="split" wide>
+          <HeroNumber value={String(applicationsPerJob)} label="applications on the average job" />
+
+          <FactLine slot="statement" factId="applications-per-job" />
+          <SourceLine slot="source" factId="applications-per-job" />
+
+          <FactLine slot="note" factId="ai-sameness-red-flag" tone="note" />
+          <SourceLine slot="note" factId="ai-sameness-red-flag" label="And" />
+        </Figure>
+      </div>
+    </section>
+
+    <section class="method" aria-labelledby="method-heading">
+      <h2 id="method-heading" class="section-heading">How these figures were made</h2>
+
+      <dl class="method-list">
+        <div class="method-item">
+          <dt class="method-term mono-label">Facts and readings</dt>
+          <dd class="method-detail">
+            Two kinds of number, kept apart. A citation is somebody else's research: static, quoted word for
+            word, with its source under it. A reading is ours: what the machine measured last night, computed
+            when this page was built and true only of that night. Nothing on this site states a reading as a
+            fact, which is what our own kill count used to be doing.
+          </dd>
+        </div>
+
+        <div class="method-item">
+          <dt class="method-term mono-label">Read direct</dt>
+          <dd class="method-detail">
+            Every count on this page came from a company's own feed, read at source on the night of the sweep.
+            No aggregator sits between a posting and this page.
+          </dd>
+        </div>
+
+        <div class="method-item">
+          <dt class="method-term mono-label">One clock</dt>
+          <dd class="method-detail">
+            Every time on this page is the sweep instant, <span class="mono" data-truth="machine">{sweptStamp()}</span>.
+            There is no second clock and no time of rendering anywhere on this site.
+          </dd>
+        </div>
+
+        <div class="method-item">
+          <dt class="method-term mono-label">Nothing modelled</dt>
+          <dd class="method-detail">
+            No projection, no smoothing, no line drawn between two published points. Where a number was not
+            published, the chart shows the gap rather than filling it.
+          </dd>
+        </div>
+
+        <div class="method-item">
+          <dt class="method-term mono-label">Every figure sourced</dt>
+          <dd class="method-detail">
+            Each figure names who measured it, in the machine voice, directly under the chart. A figure with
+            no source line fails the build before it can reach a reader.
+          </dd>
+        </div>
+
+        <div class="method-item">
+          <dt class="method-term mono-label">A closed fact list</dt>
+          <dd class="method-detail">
+            The statistics this site may state live in one file with their sources, and this page renders
+            six of the seven. The one it leaves out is Greenhouse's activity figure, which is licensed for
+            this page and stays off it: the only place it would sit is beside our own counts, and the two do
+            not measure the same thing.
+          </dd>
+        </div>
+      </dl>
+
+      <ul class="method-links">
+        <li>
+          <a class="method-link" href={methodologyHref}>Methodology</a>
+          <span class="method-link-note">The sweep, the kill rules, the rubric and its weights.</span>
+        </li>
+        <li>
+          <a class="method-link" href={killsHref}>The kill list</a>
+          <span class="method-link-note">Every posting the machine closed, with its dates and the rule it tripped.</span>
+        </li>
+        <li>
+          <a class="method-link" href={writingHref}>Writing on tokenstoagents.ai</a>
+          <span class="method-link-note">The research this index came out of.</span>
+        </li>
+      </ul>
+
+      {/* Print only. A page that leaves the browser should carry the address it
+          came from, and a screen reader should not have to hear it. */}
+      <p class="print-only print-source" aria-hidden="true">{canonical}</p>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .report {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-800);
+    padding-block: var(--space-700) var(--space-900);
+  }
+
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .masthead-stamp {
+    color: var(--color-muted);
+  }
+
+  /* The page title role lives on h1 in global.css. All this page decides is how
+     many words go on a line, counted in the title's own size so the line count
+     survives the clamp moving that size between the phone and the desktop. */
+  .masthead-title {
+    max-width: 20ch;
+  }
+
+  .masthead-lede {
+    font-size: var(--size-300);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+
+  .report-new-here {
+    border: var(--border-hairline) solid var(--color-line);
+  }
+
+  /* A section heading takes the h2 role from global.css and a rule above it, the
+     way a masthead essay sets its sections apart. */
+  .section-heading {
+    padding-top: var(--space-400);
+    border-top: var(--border-heavy) solid var(--color-foreground);
+  }
+
+  .headline,
+  .figures,
+  .method {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-600);
+  }
+
+  .headline-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-600);
+    align-items: start;
+  }
+
+  .headline-words {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  .headline-follow {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+
+  .figure-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-500);
+  }
+
+  .figure-grid > :global(.figure-wide) {
+    grid-column: 1 / -1;
+  }
+
+  /* The two paragraph roles a figure caption can hold, matching FactLine so a
+     sentence this page wrote and a sentence it quoted sit at the same weight in
+     the hierarchy. */
+  .statement {
+    font-size: var(--size-300);
+    line-height: var(--leading-snug);
+    text-wrap: pretty;
+  }
+
+  .note {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    text-wrap: pretty;
+  }
+
+  .method-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-500) var(--space-600);
+    margin: 0;
+  }
+
+  .method-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    padding-top: var(--space-300);
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+
+  .method-term {
+    color: var(--color-foreground);
+  }
+
+  .method-detail {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    text-wrap: pretty;
+    /* The list is two columns above --breakpoint-desk, where each detail lands
+       at about 63 characters and needs no help. From 769px to 1024px it is one
+       column, each item spans the whole content measure, and the longest line
+       runs 128 characters. The cap only binds in that band, which is exactly
+       the band a laptop and a landscape tablet sit in. */
+    max-width: var(--layout-measure);
+  }
+
+  .method-links {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-500);
+    padding-top: var(--space-400);
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+
+  .method-link {
+    display: block;
+    font-weight: var(--weight-medium);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .method-link-note {
+    display: block;
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .method-link {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  .method-link:hover {
+    color: var(--color-muted);
+  }
+
+  @media (max-width: 64rem) { /* --breakpoint-desk */
+    .figure-grid,
+    .method-list {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .headline-body {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .method-links {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .report {
+      gap: var(--space-700);
+      padding-block: var(--space-600) var(--space-800);
+    }
+
+    .masthead-lede {
+      font-size: var(--size-200);
+    }
+
+    .method-links {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-400);
+    }
+  }
+
+  /* Screen default. The print block below turns it back on, and it has to come
+     after this rule: two rules of equal specificity are decided by source
+     order, and a media query does not change that. */
+  .print-only {
+    display: none;
+  }
+
+  /* ---------------------------------------------------------------------
+     PRINT, the half of the print stylesheet that belongs to this page.
+
+     It lives in the scoped block, and it has to. Astro scopes a component's
+     styles by appending a [data-astro-cid-*] attribute to every selector,
+     which adds a class-level component to the specificity. A global
+     `.figure-grid { grid-template-columns: 1fr }` therefore loses to this
+     page's own `.figure-grid[data-astro-cid-*]` and the print layout silently
+     does nothing, which is exactly what happened on the first pass here.
+     Scoped rules compete with scoped rules on equal terms and win on source
+     order, so everything this page owns is printed from here, and only the
+     things it does not own (the shell's header and footer, the theme tokens,
+     the page box) are set globally below.
+
+     It is last in the block on purpose: the width queries above it also match
+     when a browser lays out for paper, and the later rule wins the tie.
+     --------------------------------------------------------------------- */
+  @media print {
+    .report {
+      gap: var(--space-600);
+      padding-block: 0;
+    }
+
+    /* The shell's measure and gutter are a screen accommodation. Paper has its
+       own margin, set once in the page box. */
+    .shell {
+      max-width: none;
+      padding-inline: 0;
+    }
+
+    /* An orientation strip a reader cannot dismiss, on a sheet they already
+       chose to keep. */
+    .report-new-here {
+      display: none;
+      border: none;
+    }
+
+    .figure-grid,
+    .method-list,
+    .method-links,
+    .headline-body {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* A figure split across two sheets separates a bar from the source line
+       that certifies it, which on this page is the one thing that must not
+       happen. */
+    .headline-body,
+    .method-item {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .section-heading {
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    /* The address the sheet came from, so a printout traces back to the sweep
+       that produced it. Hidden on screen by the rule this one overrides. */
+    .print-only {
+      display: block;
+      padding-top: var(--space-400);
+      font-family: var(--font-family-mono);
+      font-size: var(--size-050);
+      color: var(--color-muted);
+    }
+  }
+</style>
+
+{/*
+  THE PRINT STYLESHEET, the half that reaches outside this page.
+
+  Everything this page owns is printed from the scoped block above, for the
+  specificity reason written there. What is left here is the four things a
+  scoped rule cannot touch: the theme tokens on the root element, the body, the
+  shell's own header and footer, and the page box itself. Astro only ships a
+  page's styles with that page, so nothing here reaches another route.
+
+  Two of them are worth reading twice:
+
+  1. THE PALETTE IS FORCED BACK TO PAPER. themes.css remaps the semantic colours
+     under :root[data-theme='dark'], so a reader who prints while in the dark
+     theme would otherwise get a sheet of ink. Every declaration below points at
+     the same primitive the light theme points at, so this is the light theme
+     restated rather than a set of print colours somebody invented. The selector
+     out-specifies the theme block without an !important: :root plus an
+     attribute is two class-level components, so adding the html type wins on
+     specificity rather than on source order, which is not something a bundler
+     gets to reorder.
+
+  2. THE CHART FILLS SURVIVE. Browsers drop backgrounds and fills when printing
+     unless a page asks for them, and on this page the fills are the content.
+*/}
+<style is:global>
+  @media print {
+    html:root,
+    html:root[data-theme='dark'] {
+      --color-surface: var(--gray-050);
+      --color-surface-inverse: var(--gray-950);
+      --color-surface-raised: var(--gray-000);
+      --color-foreground: var(--gray-950);
+      --color-foreground-inverse: var(--gray-050);
+      --color-muted: var(--gray-600);
+      --color-muted-inverse: var(--gray-400);
+      --color-line: var(--gray-200);
+      --color-line-strong: var(--gray-300);
+      --color-hover-surface: var(--gray-100);
+      --color-mark-live: var(--status-live-on-paper);
+      --color-mark-closed: var(--gray-600);
+      --color-stat-loss: var(--status-loss-on-paper);
+      --color-hatch-a: var(--gray-050);
+      --color-hatch-b: var(--gray-150);
+    }
+
+    /* Millimetres, because a sheet of paper is measured in millimetres and no
+       token on this site is. Same treatment as the skip link's offset: a raw
+       value that names a mechanism rather than a design decision. */
+    @page {
+      margin: 16mm;
+    }
+
+    body {
+      background: var(--color-surface);
+      color: var(--color-foreground);
+    }
+
+    /* Chrome a printed page cannot use: the nav goes nowhere on paper, the
+       ecosystem band is a set of links, and the skip link is a keyboard
+       affordance. These belong to the shell, which is why they are here. */
+    .site-header,
+    .site-footer,
+    .skip-link {
+      display: none;
+    }
+
+    /* The fills are the content. Without this the bars print as outlines and the
+       reader gets a page of empty tracks. */
+    .report,
+    .report * {
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+  }
+</style>

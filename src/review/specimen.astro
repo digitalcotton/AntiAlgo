@@ -1,0 +1,1876 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Mark from '../components/Mark.astro';
+import MarkLegend from '../components/MarkLegend.astro';
+import stats from '../data/stats.json';
+import { killedByRuleTotal } from '../lib/readings';
+import { sortJobs, verifiedJobs } from '../lib/data';
+// The compiled token sheet as text. `?raw` because this page reads the values
+// rather than applying them, and the sheet is already linked by the layout.
+import tokensCss from '../styles/tokens.css?raw';
+
+/**
+ * The specimen. A dev-only route, leading underscore so Astro does not build it
+ * into a page, that renders every token in every context the product actually
+ * uses it in, at the real size and the real weight, on the real background.
+ *
+ * This is the surface the contrast audit measures. That is why every sample
+ * carries `data-token`, `data-bg` and `data-role`: the audit reads the computed
+ * colour off the node and the computed background off the panel, and needs to
+ * report which token names produced them. Without the attributes the script
+ * would be matching hex values back to names by guesswork, and a guess in a
+ * conformance report is worth nothing.
+ *
+ * Both themes: this page renders in whichever theme is active, and the audit
+ * runs it twice, setting data-theme on the root between passes. That is the same
+ * mechanism the real site uses, so the specimen measures the shipping code path
+ * rather than a parallel copy of the dark remap that could drift from it.
+ *
+ * `data-role` picks the threshold. Text is judged at AA 4.5:1 (or 3:1 where the
+ * computed size and weight qualify as large). Graphics, borders and disabled
+ * affordances are judged at 3:1 per WCAG 1.4.11. BUILD.md ruling 2 resolved
+ * `dim` from exactly this split, so the split has to be declared in the markup
+ * rather than inferred by the script.
+ *
+ * WHAT HAPPENED TO `dim`. It is gone, and the contexts it used to paint are
+ * still here, rendered in `muted`. The audit on 2026-08-17 measured gray.500 at
+ * 3.07:1 on paper, 3.34:1 on a raised panel and 2.78:1 on a hovered row, at the
+ * 10px to 14px sizes it carried, and then walked the ramp line one 8-bit step at
+ * a time to find that gray.600 is the lightest tone clearing 4.5:1 on the worst
+ * light ground, with the very next step failing at 4.48:1. There is no room on
+ * this paper for a third readable tone. The rows below are what that costs: the
+ * pairings that used to be two tones deep are now one tone and a weight, a size
+ * or a voice apart. Read reports/contrast-audit.md for the measurements.
+ *
+ * Every sample string is either a description of its own context or a real
+ * figure from src/data/stats.json. Nothing on this page is invented.
+ *
+ * AND THE ROW IT BORROWS IS READ, NEVER TYPED. The two fit-score samples used to
+ * carry a hardcoded slug and a hardcoded 96. The slug was
+ * figma-manager-design-systems-and-infrastructure, which was a real row when the
+ * specimen was written and has not been in src/data/jobs.json since. Gate 2
+ * caught it and said the right thing about it: a score for a row nobody swept is
+ * an invented number, on the one page whose claim is that nothing here is
+ * invented. Both samples now read the top-fit verified row out of the data, so
+ * the specimen shows a real score for a real posting on every build and cannot
+ * go stale again without the data going stale with it.
+ */
+
+/**
+ * The row the fit samples borrow, and its real total.
+ *
+ * Top of the default sort, so it is the same row the index puts first and a
+ * reader comparing the two sees one number. Null only where a build has no
+ * verified rows at all, in which case the samples render their own context
+ * string instead of a score, because a specimen has no business inventing one.
+ */
+const fitRow = sortJobs(verifiedJobs(), 'fit')[0] ?? null;
+const fitScore = fitRow ? fitRow.fit.total : null;
+
+interface Sample {
+  /** Ink token, without the --color- prefix. */
+  token: string;
+  /** Size token, without the --size- prefix. */
+  size: string;
+  /** Weight token, without the --weight- prefix. */
+  weight: string;
+  voice: 'sans' | 'mono';
+  /** 'text' is judged at AA contrast, 'graphic' at 3:1. */
+  role: 'text' | 'graphic';
+  /** Where in the product this exact pairing occurs. */
+  context: string;
+  /** What renders. Descriptions of themselves, or real sweep figures. */
+  sample: string;
+  /** Uppercase mono, as the canvases set every label and stamp. */
+  caps?: boolean;
+  /**
+   * Present on every sample whose string carries a real sweep number, absent on
+   * the ones that only describe themselves.
+   *
+   * The specimen shows type at product sizes, so the fastest way to show a stat
+   * numeral at 76px is to render the actual stat. The moment it does that it is
+   * publishing sweep data, and gate 2's markup contract applies to it exactly as
+   * it applies to the index page: a number that means something declares what it
+   * means, and the gate resolves the declaration against src/data/stats.json.
+   * Without this the page would print a sweep count as an untyped string, which
+   * is the one thing gate 2's reading check exists to hard-fail.
+   *
+   * `tile` names a metric in stats. `fit` names a job slug, and gate 2 then also
+   * proves the total equals the sum of that job's rubric components.
+   */
+  truth?:
+    | { kind: 'tile'; metric: string; value: string }
+    | { kind: 'fit'; job: string; total: number };
+}
+
+interface Panel {
+  /** Background token, without the --color- prefix. */
+  bg: string;
+  title: string;
+  note: string;
+  samples: Sample[];
+}
+
+// The three surfaces text sits on in the light theme, and their dark mirrors.
+// Every pairing below appears somewhere on one of the two approved canvases; the
+// context line names where.
+const PANELS: Panel[] = [
+  {
+    bg: 'surface',
+    title: 'On the page surface',
+    note: 'Paper on light, ink on dark. The page itself, the header, the strips between panels.',
+    samples: [
+      {
+        token: 'foreground',
+        size: '200',
+        weight: 'regular',
+        voice: 'sans',
+        role: 'text',
+        context: 'Body copy and interface text, the product default',
+        sample: 'Body copy and interface text, the product default'
+      },
+      {
+        token: 'foreground',
+        size: '100',
+        weight: 'bold',
+        voice: 'sans',
+        role: 'text',
+        context: 'Header nav, current page',
+        caps: true,
+        sample: 'Index'
+      },
+      {
+        token: 'foreground',
+        size: '300',
+        weight: 'bold',
+        voice: 'sans',
+        role: 'text',
+        context: 'The wordmark',
+        sample: 'The Index'
+      },
+      {
+        token: 'foreground',
+        size: '600',
+        weight: 'bold',
+        voice: 'mono',
+        role: 'text',
+        context: 'Stat tile numeral, boards swept',
+        sample: String(stats.boards),
+        truth: { kind: 'tile', metric: 'boards', value: String(stats.boards) }
+      },
+      {
+        token: 'muted',
+        size: '150',
+        weight: 'regular',
+        voice: 'sans',
+        role: 'text',
+        context: 'Secondary prose, stat tile labels, ecosystem notes',
+        sample: 'Secondary prose, stat tile labels, ecosystem notes'
+      },
+      {
+        token: 'muted',
+        size: '100',
+        weight: 'medium',
+        voice: 'sans',
+        role: 'text',
+        context: 'Header nav, resting state',
+        caps: true,
+        sample: 'Kill list'
+      },
+      {
+        token: 'muted',
+        size: '100',
+        weight: 'regular',
+        voice: 'mono',
+        role: 'text',
+        context: 'The sweep stamp and the row counter',
+        sample: `SWEPT ${stats.swept_at_utc}`,
+        caps: true
+      },
+      {
+        token: 'muted',
+        size: '050',
+        weight: 'regular',
+        voice: 'mono',
+        role: 'text',
+        context: 'The mark legend labels',
+        sample: 'VERIFIED THIS SWEEP',
+        caps: true
+      },
+      {
+        token: 'muted',
+        size: '100',
+        weight: 'regular',
+        voice: 'sans',
+        role: 'text',
+        context: 'Header nav, an announced page with no route yet',
+        caps: true,
+        sample: 'The Desk, soon'
+      },
+      {
+        token: 'muted',
+        size: '150',
+        weight: 'regular',
+        voice: 'sans',
+        role: 'text',
+        context: 'Truthful absence, where the source shows no value',
+        sample: 'No date shown at source'
+      },
+      {
+        token: 'muted',
+        size: '075',
+        weight: 'regular',
+        voice: 'sans',
+        role: 'text',
+        context: 'Table column labels',
+        sample: 'Role, as posted'
+      },
+      {
+        token: 'muted',
+        size: '050',
+        weight: 'regular',
+        voice: 'mono',
+        role: 'text',
+        context: 'The methodology line in the table footer',
+        sample: 'FIT BLENDS RUBRIC SCORE AND FRESHNESS · SWEEPS NIGHTLY 02:00 UTC',
+        caps: true
+      },
+      {
+        token: 'mark-live',
+        size: '600',
+        weight: 'bold',
+        voice: 'mono',
+        role: 'text',
+        context: 'Stat tile numeral, verified live',
+        sample: String(stats.verified_live),
+        truth: { kind: 'tile', metric: 'verified_live', value: String(stats.verified_live) }
+      },
+      {
+        token: 'mark-live',
+        size: '075',
+        weight: 'medium',
+        voice: 'mono',
+        role: 'text',
+        context: 'The verification banner above the table',
+        sample: 'EVERY LIVE ROW VERIFIED THIS SWEEP',
+        caps: true
+      },
+      {
+        token: 'banner-stale',
+        size: '075',
+        weight: 'medium',
+        voice: 'mono',
+        role: 'text',
+        context: 'The assurance band once the sweep is past its freshness window',
+        sample: 'LAST VERIFIED 2 DAYS AGO. THESE ROWS WERE TRUE AT THE LAST SWEEP.',
+        caps: true
+      },
+      {
+        token: 'stat-loss',
+        size: '600',
+        weight: 'bold',
+        voice: 'mono',
+        role: 'text',
+        context: 'Stat tile numeral, killed this sweep',
+        sample: String(stats.killed),
+        truth: { kind: 'tile', metric: 'killed', value: String(stats.killed) }
+      },
+      {
+        token: 'stat-loss',
+        size: '075',
+        weight: 'regular',
+        voice: 'mono',
+        role: 'text',
+        context: 'A kill reason stamp on the kill list',
+        sample: `KILLED BY RULE ${killedByRuleTotal()}`,
+        caps: true,
+        truth: { kind: 'tile', metric: 'killed_by_rule', value: String(killedByRuleTotal()) }
+      },
+      {
+        token: 'mark-closed',
+        size: '075',
+        weight: 'regular',
+        voice: 'mono',
+        role: 'text',
+        context: 'A closed record status, beside its mark',
+        sample: 'CLOSED',
+        caps: true
+      }
+    ]
+  },
+  {
+    bg: 'surface-raised',
+    title: 'On a raised panel',
+    note: 'White on light, gray.900 on dark. Table rows, the provenance panel, the ease-of-apply breakdown, the ecosystem band.',
+    samples: [
+      {
+        token: 'foreground',
+        size: '150',
+        weight: 'regular',
+        voice: 'sans',
+        role: 'text',
+        context: 'A table row, resting',
+        sample: 'A table row, resting'
+      },
+      {
+        token: 'foreground',
+        size: '150',
+        weight: 'bold',
+        voice: 'mono',
+        role: 'text',
+        context: 'The fit score in a row',
+        sample: fitScore === null ? 'The fit score in a row' : String(fitScore),
+        truth:
+          fitRow && fitScore !== null
+            ? ({ kind: 'fit', job: fitRow.slug, total: fitScore } as const)
+            : undefined
+      },
+      {
+        token: 'foreground',
+        size: '200',
+        weight: 'bold',
+        voice: 'sans',
+        role: 'text',
+        context: 'An ecosystem band label',
+        sample: 'The Standard'
+      },
+      {
+        token: 'muted',
+        size: '150',
+        weight: 'regular',
+        voice: 'sans',
+        role: 'text',
+        context: 'An ecosystem band note, and row secondary text',
+        sample: 'Sign-off rules for AI-built interfaces.'
+      },
+      {
+        token: 'muted',
+        size: '100',
+        weight: 'regular',
+        voice: 'mono',
+        role: 'text',
+        context: 'A provenance value',
+        sample: 'GREENHOUSE, COMPANY-OWNED FEED',
+        caps: true
+      },
+      {
+        token: 'muted',
+        size: '075',
+        weight: 'regular',
+        voice: 'sans',
+        role: 'text',
+        context: 'Table column labels over the first row',
+        sample: 'Comp, as posted'
+      },
+      {
+        token: 'muted',
+        size: '200',
+        weight: 'bold',
+        voice: 'sans',
+        role: 'text',
+        context: 'The ecosystem band, an announced property',
+        sample: 'The Desk, soon'
+      },
+      {
+        token: 'mark-live',
+        size: '075',
+        weight: 'regular',
+        voice: 'mono',
+        role: 'text',
+        context: 'A row status beside its mark',
+        sample: 'VERIFIED',
+        caps: true
+      },
+      {
+        token: 'mark-closed',
+        size: '075',
+        weight: 'regular',
+        voice: 'mono',
+        role: 'text',
+        context: 'A closed row status beside its mark',
+        sample: 'CLOSED',
+        caps: true
+      },
+      {
+        token: 'stat-loss',
+        size: '150',
+        weight: 'regular',
+        voice: 'sans',
+        role: 'text',
+        context: 'A kill reason in the kill list table',
+        sample: 'Open past its own stated deadline'
+      }
+    ]
+  },
+  {
+    bg: 'hover-surface',
+    title: 'On a hovered row',
+    note: 'The surface BUILD.md ruling 1 was decided on. mark-live is 4.51:1 here, which is the tightest passing pairing on the site.',
+    samples: [
+      {
+        token: 'foreground',
+        size: '150',
+        weight: 'regular',
+        voice: 'sans',
+        role: 'text',
+        context: 'A table row under the cursor',
+        sample: 'A table row under the cursor'
+      },
+      {
+        token: 'foreground',
+        size: '150',
+        weight: 'bold',
+        voice: 'mono',
+        role: 'text',
+        context: 'The fit score in a hovered row',
+        sample: fitScore === null ? 'The fit score in a hovered row' : String(fitScore),
+        truth:
+          fitRow && fitScore !== null
+            ? ({ kind: 'fit', job: fitRow.slug, total: fitScore } as const)
+            : undefined
+      },
+      {
+        token: 'muted',
+        size: '150',
+        weight: 'regular',
+        voice: 'sans',
+        role: 'text',
+        context: 'Row secondary text under the cursor',
+        sample: 'Row secondary text under the cursor'
+      },
+      {
+        token: 'muted',
+        size: '075',
+        weight: 'regular',
+        voice: 'sans',
+        role: 'text',
+        context: 'A column label above a hovered row',
+        sample: 'Location'
+      },
+      {
+        token: 'mark-live',
+        size: '075',
+        weight: 'regular',
+        voice: 'mono',
+        role: 'text',
+        context: 'A row status under the cursor, the tightest pairing on the site',
+        sample: 'VERIFIED',
+        caps: true
+      },
+      {
+        token: 'mark-closed',
+        size: '075',
+        weight: 'regular',
+        voice: 'mono',
+        role: 'text',
+        context: 'A closed row status under the cursor',
+        sample: 'CLOSED',
+        caps: true
+      },
+      {
+        token: 'stat-loss',
+        size: '150',
+        weight: 'regular',
+        voice: 'sans',
+        role: 'text',
+        context: 'A kill reason in a hovered kill list row',
+        sample: 'Open past its own stated deadline'
+      }
+    ]
+  },
+  {
+    bg: 'surface-inverse',
+    title: 'On an inverted block',
+    note: 'Ink on light, paper on dark. The active sort control, and any block that takes emphasis by inversion.',
+    samples: [
+      {
+        token: 'foreground-inverse',
+        size: '150',
+        weight: 'regular',
+        voice: 'sans',
+        role: 'text',
+        context: 'The active sort control',
+        sample: 'Fit'
+      },
+      {
+        token: 'muted-inverse',
+        size: '075',
+        weight: 'regular',
+        voice: 'mono',
+        role: 'text',
+        context: 'A secondary stamp inside an inverted block',
+        sample: 'SWEPT AT SOURCE',
+        caps: true
+      }
+    ]
+  }
+];
+
+// The non-text pairings. Lines, marks and disabled affordances, measured apart
+// from text because WCAG asks a different question about them: 1.4.11 at 3:1,
+// not 1.4.3 at 4.5:1.
+const GRAPHIC_BGS = ['surface', 'surface-raised', 'hover-surface'] as const;
+
+/**
+ * This list previously carried a third entry claiming `dim` was the border of
+ * the disabled previous-page button. It is not, and the canvas is unambiguous:
+ *
+ *   <button disabled style="...border:1px solid #D8D5CE;color:#8F8C87;...">
+ *
+ * The border is `line`. `dim` was the button's label. That mattered more than a
+ * mislabelled row, because BUILD.md ruling 2 resolves `dim` by splitting it into
+ * a text group and a non-text group, and this entry was the entire non-text
+ * group. With it corrected, `dim` had exactly one job (carrying words) and the
+ * split the ruling anticipated had nothing to split. `tokens/README.md` had it
+ * right all along: gray.500 "only ever appears as `color:`, 45 times".
+ */
+const LINES = [
+  { token: 'line', context: 'Every hairline rule inside a panel, and the disabled previous-page button' },
+  { token: 'line-strong', context: 'The heavy panel border the canvas names directly' }
+] as const;
+
+const MARKS = [
+  { state: 'verified', token: 'mark-live', context: 'Verified this sweep' },
+  { state: 're-verified', token: 'mark-live', context: 'Re-verified, with the surface knocked out of the ring' },
+  { state: 'closed', token: 'mark-closed', context: 'Closed' }
+] as const;
+
+// Panel background token -> the Mark component's surface prop. The knockout on
+// the re-verified mark has to be filled with the actual background or the notch
+// shows the wrong colour, so the mapping is explicit rather than assumed.
+const MARK_SURFACE = {
+  surface: 'page',
+  'surface-raised': 'raised',
+  'hover-surface': 'hover'
+} as const;
+
+/**
+ * The specimen's own labelling chrome, per panel background.
+ *
+ * This matters more than it looks. The audit trusts `data-token` to name the
+ * colour it measures, so a label that declares `dim` while inheriting
+ * `foreground` would put a wrong token name in a conformance report. Worse, the
+ * inverted panel would contribute muted-on-ink and dim-on-ink pairings that the
+ * product never uses, and the audit would report failures for combinations
+ * nobody can reach.
+ *
+ * So the chrome tokens are chosen per surface, and the same value drives both
+ * the rendered colour and the declared attribute. They cannot disagree because
+ * they come from one place.
+ */
+const chromeFor = (bg: string) =>
+  bg === 'surface-inverse'
+    ? { fg: 'foreground-inverse', muted: 'muted-inverse', quiet: 'muted-inverse' }
+    : { fg: 'foreground', muted: 'muted', quiet: 'muted' };
+
+/**
+ * The five type roles, each at the size the mothership was measured at.
+ *
+ * The `tokens` string is written out rather than composed from the class,
+ * because it is the claim the row is making and it has to be readable next to
+ * the thing it describes. If the two ever disagree the row is a lie, which is
+ * the same reason every colour sample on this page drives its rendered value
+ * and its `data-token` from one place.
+ *
+ * The page title renders at a flat 4.75rem here, not the clamp the shipping h1
+ * uses. A specimen exists to show the role at its size; the clamp is a
+ * responsive accommodation and it is documented in global.css where it lives.
+ */
+const TYPE_ROLES = [
+  {
+    className: 'role-title',
+    tokens: 'size.700 / leading.display / tracking.tight / weight.bold',
+    context: 'Page title, one per page. 76px on 79.8px.',
+    sample: 'Verified last night'
+  },
+  {
+    className: 'role-section',
+    tokens: 'size.500 / leading.tight / tracking.tight / weight.bold',
+    context: 'Section heading. 36px on 36px.',
+    sample: 'What the machine killed'
+  },
+  {
+    className: 'role-body',
+    tokens: 'size.200 / leading.normal / weight.regular',
+    context: 'Body copy, the reading default. 17px on 28.9px.',
+    sample: 'Every number on this site is an observation with a timestamp on it.'
+  },
+  {
+    className: 'role-kicker',
+    tokens: 'size.100 / tracking.loose / weight.medium / uppercase',
+    context: 'Kicker, nav, small caps. 14px, tracked to 0.14em.',
+    sample: 'Kill list'
+  },
+  {
+    className: 'role-mono',
+    tokens: 'font.family.mono / size.100 / leading.normal / weight.regular',
+    context: 'The machine voice. 14px Basier Square Mono on 23.8px.',
+    sample: `SWEPT ${stats.swept_at_utc}`
+  }
+] as const;
+
+/* ---------------------------------------------------------------------------
+   Everything that is not a colour and not a size.
+
+   WHY THESE SECTIONS EXIST. BUILD.md phase 1 asks for "the /_specimen dev route
+   rendering every token in every documented context at real sizes on both
+   themes", and this page's own lede promises the same thing in stronger words.
+   Neither was true: an audit diffed the 82 custom properties in
+   src/styles/tokens.css against the rendered page and found 38 of them nowhere
+   on it, including the whole space ramp, every tracking and leading step, the
+   primitive gray ramp, the status pairs, the motion tokens and the layout
+   measures. What shipped was the semantic colour set and the type scale, which
+   is the half a contrast audit needs and about half of what the system defines.
+
+   Every row below names its token and renders the value doing its job: a space
+   step is a rule of that width, a tracking step is the same string set at it, a
+   leading step is a wrapped paragraph, a motion duration is a number beside the
+   curve it is spent on. Nothing here is a swatch of a value nobody uses, because
+   the promise is contexts rather than an inventory.
+
+   THE CONTEXT STRINGS COME FROM THE TOKEN DESCRIPTIONS. Each token's $description
+   in tokens/ is where its job is written down, and repeating it here in a
+   shortened form keeps this page a reading of the token file rather than a
+   second opinion about it. Where a token is deliberately unused, the row says so
+   rather than inventing a use for it.
+   --------------------------------------------------------------------------- */
+
+/**
+ * The compiled values, read out of the artifact the browser actually resolves.
+ *
+ * Not retyped, and not read out of the DTCG JSON either. The same argument
+ * emails/lib/tokens.mjs already makes: a value typed beside a token name is a
+ * second copy that drifts silently, and the compiled CSS is one step further
+ * down the same pipeline than the source JSON, so a token that failed to compile
+ * shows here as a missing value rather than as a confident number. A name this
+ * page asks for and the build did not emit throws, because a specimen printing a
+ * value for a token that does not exist is worse than no specimen.
+ */
+const TOKENS_CSS: string = tokensCss;
+const TOKEN_VALUES = new Map<string, string>(
+  [...TOKENS_CSS.matchAll(/^\s*--([a-z0-9-]+):\s*([^;]+);/gim)].map((match) => [`--${match[1]}`, match[2].trim()])
+);
+const tokenValue = (name: string): string => {
+  const found = TOKEN_VALUES.get(name);
+  if (!found) {
+    throw new Error(
+      `_specimen: ${name} is not in src/styles/tokens.css. The specimen documents what the pipeline emits, so a row for a token that does not compile is a row that is not true.`
+    );
+  }
+  return found;
+};
+
+/** The two ramps of neutral primitives, light end first, as the file orders them. */
+const GRAY_STEPS = [
+  { step: '000', semantic: 'surface-raised' },
+  { step: '050', semantic: 'surface, foreground-inverse' },
+  { step: '100', semantic: 'hover-surface' },
+  { step: '150', semantic: 'hatch-b' },
+  { step: '200', semantic: 'line' },
+  { step: '300', semantic: 'line-strong' },
+  { step: '400', semantic: 'muted-inverse, and muted on ink' },
+  { step: '500', semantic: 'nothing. The tone dim promised, retired by measurement' },
+  { step: '600', semantic: 'muted, mark-closed' },
+  { step: '700', semantic: 'nothing. Carried from the house ramp for parity' },
+  { step: '800', semantic: 'line on ink, hover-surface on ink' },
+  { step: '900', semantic: 'surface-raised on ink, hatch-a on ink' },
+  { step: '925', semantic: 'hatch-b on ink' },
+  { step: '950', semantic: 'surface-inverse, foreground' }
+] as const;
+
+/** The three non-neutral pairs, which are the one deliberate break from the house. */
+const STATUS_PRIMITIVES = [
+  { token: 'status-live-on-paper', semantic: 'mark-live, light theme', note: 'Both live marks. BUILD.md ruling 1 nudged it one digit off the canvas for the hovered row.' },
+  { token: 'status-live-on-ink', semantic: 'mark-live, dark theme', note: 'The same two marks on ink.' },
+  { token: 'status-loss-on-paper', semantic: 'stat-loss, light theme', note: 'The kill count and the rule count, and nothing else.' },
+  { token: 'status-loss-on-ink', semantic: 'stat-loss, dark theme', note: 'The pair is required: the on-paper value is 3.04:1 on ink.' },
+  { token: 'status-stale-on-paper', semantic: 'banner-stale, light theme', note: 'The only colour here that describes us rather than an employer: the sweep is old and the band says so.' },
+  { token: 'status-stale-on-ink', semantic: 'banner-stale, dark theme', note: 'The same warning on ink, 7.41:1 on the worst dark ground.' }
+] as const;
+
+/** The space ramp, and where each step is actually spent. */
+const SPACE_STEPS = [
+  { step: '100', context: 'A label sitting on its value. The tightest gap in the system.' },
+  { step: '200', context: 'Inside a control, and between a mark and the word beside it.' },
+  { step: '300', context: 'Between the lines of a stacked cell, and a panel heading and its rule.' },
+  { step: '400', context: 'The table column gap, and the gap between rows of a key and value list.' },
+  { step: '500', context: 'Panel padding, and the gap between a heading and the prose under it.' },
+  { step: '600', context: 'The panel gutter, and the space between panels in a section.' },
+  { step: '700', context: 'Between sections of a page.' },
+  { step: '800', context: 'Between the bands of a page, and the tail padding under the last one.' },
+  { step: '900', context: 'The manifesto band gap, which is what puts its fold where it is.' },
+  { step: '1000', context: 'The widest step on the ramp. Reserved for a full-bleed band.' }
+] as const;
+
+/** The four weights, one of which has no font behind it and is a trap. */
+const WEIGHTS = [
+  { step: 'light', context: 'Declared by the house ramp and unused here. N27 Light does not ship, and font-synthesis is off, so a request for it renders Regular.' },
+  { step: 'regular', context: 'Body copy and long-form reading.' },
+  { step: 'medium', context: 'Subheads, nav, labels, and chrome.' },
+  { step: 'bold', context: 'Page titles and primary headings. On the mono this resolves to the SemiBold file, the heaviest cut that exists.' }
+] as const;
+
+const TRACKINGS = [
+  { step: 'tight', context: 'Headings and the wordmark, where the house sets negative tracking.' },
+  { step: 'normal', context: 'The default. Body copy and inline mono take no tracking at all.' },
+  { step: 'snug', context: 'Small numeric and label chrome.' },
+  { step: 'wide', context: 'Small controls that need opening up.' },
+  { step: 'loose', context: 'Uppercase small caps: the kicker, the nav, every mono stamp.' }
+] as const;
+
+const LEADINGS = [
+  { step: 'tight', context: 'Section headings, where the line box is the type size.' },
+  { step: 'display', context: 'Multi-line display headings. A hair of air over tight.' },
+  { step: 'snug', context: 'Captions and stacked cells.' },
+  { step: 'normal', context: 'Body leading. N27 is display-leaning, so reading gets extra air.' }
+] as const;
+
+/**
+ * The scalars that shape a box rather than a letter.
+ *
+ * Rendered as a value beside its context rather than as a drawing, except where
+ * a drawing is the only honest demonstration: the two border widths and the
+ * radius are drawn, because a number in a table cannot show a hairline.
+ */
+/**
+ * The easing curve's own control points, read out of the token rather than
+ * drawn by eye.
+ *
+ * A hand-drawn curve beside a printed cubic-bezier is two claims about one
+ * value, and the picture is the one nobody checks. Parsing it means the plot
+ * moves when the token moves, and a token that stops being a cubic-bezier fails
+ * the build here rather than rendering a curve that is no longer the easing.
+ * The y axis is flipped because SVG counts down from the top and an easing
+ * curve is read from the bottom left.
+ */
+function easingPath(value: string): string {
+  const found = /cubic-bezier\(([^)]+)\)/.exec(value);
+  const points = found ? found[1].split(',').map((part) => Number(part.trim())) : [];
+  if (points.length !== 4 || points.some((point) => !Number.isFinite(point))) {
+    throw new Error(
+      `_specimen: --motion-easing-standard is "${value}", which this page cannot plot. It draws the curve from the token's own control points, so an easing it cannot parse is one it must not draw.`
+    );
+  }
+  const [x1, y1, x2, y2] = points;
+  return `M 0 100 C ${x1 * 100} ${100 - y1 * 100}, ${x2 * 100} ${100 - y2 * 100}, 100 0`;
+}
+
+const EASING_PATH = easingPath(tokenValue('--motion-easing-standard'));
+
+const STRUCTURE = [
+  { token: '--layout-max', context: 'The page shell width. Every route sits inside it.' },
+  { token: '--layout-measure', context: 'The reading measure on prose. Set on the paragraph, never on the container.' },
+  { token: '--layout-table-min', context: 'Below this the index table scrolls rather than crushing its six columns.' },
+  { token: '--table-columns', context: 'The index table tracks, resolved once by the column labels and every row.' },
+  { token: '--record-columns', context: 'The Profile Record row tracks: id, title, dates, kind, chevron.' },
+  { token: '--proposal-columns', context: 'The resume review checklist tracks: kind, title, dates, status, chevron.' },
+  { token: '--provider-columns', context: 'The Settings provider row tracks: name, status, inline actions.' },
+  { token: '--text-underline-offset', context: 'Every underlined link on the site.' },
+  { token: '--breakpoint-phone', context: 'Rows become cards, tiles go two by two, bands stack.' },
+  { token: '--breakpoint-lap', context: 'The six column grid gives way and the header nav wraps.' },
+  { token: '--breakpoint-desk', context: 'The report figure sits two abreast at or above it.' },
+  { token: '--breakpoint-card', context: 'The social card releases its fixed height below its own raster width.' },
+  { token: '--breakpoint-shell', context: 'The shared header collapses to a menu button at or below it.' }
+] as const;
+---
+
+<BaseLayout
+  title="Token specimen"
+  description="Every token, in every documented context, at real sizes. The surface the contrast audit measures."
+  active="_specimen"
+  noindex
+>
+  <div class="shell spec">
+    <header class="spec-head">
+      <h1>Token specimen</h1>
+      <p class="spec-lede">
+        Every token this system defines, rendered doing the job it is defined for. The colour pairings and the type
+        roles come from the two approved canvases, at the size and weight they use them at; the ramps, the
+        mechanics and the measures come from each token's own description in the token files. Switch the theme in
+        the header to measure the other half. Nothing here is decorative: if a pairing is on this page the product
+        uses it, and if the build compiled a token it is named on this page, which a check inside the conformance
+        run asserts rather than trusts.
+      </p>
+      <p class="spec-meta mono">
+        SWEPT {stats.swept_at_utc}
+      </p>
+    </header>
+
+    <section class="spec-section" aria-labelledby="text-heading">
+      <h2 id="text-heading" class="mono-label">Text on surface</h2>
+
+      {
+        PANELS.map((panel) => {
+          const chrome = chromeFor(panel.bg);
+          return (
+            <div class="panel" data-bg={panel.bg} style={`background: var(--color-${panel.bg});`}>
+              <div class="panel-head">
+                <h3
+                  class="mono-label"
+                  data-token={chrome.fg}
+                  data-bg={panel.bg}
+                  data-role="text"
+                  style={`color: var(--color-${chrome.fg});`}
+                >
+                  {panel.title}
+                </h3>
+                <p
+                  class="panel-note"
+                  data-token={chrome.muted}
+                  data-bg={panel.bg}
+                  data-role="text"
+                  style={`color: var(--color-${chrome.muted});`}
+                >
+                  {panel.note}
+                </p>
+                <p
+                  class="panel-bg mono"
+                  data-token={chrome.quiet}
+                  data-bg={panel.bg}
+                  data-role="text"
+                  style={`color: var(--color-${chrome.quiet});`}
+                >
+                  --color-{panel.bg}
+                </p>
+              </div>
+
+              <ul class="rows">
+                {panel.samples.map((s) => (
+                  <li class="row">
+                    <span
+                      class:list={['spec-sample', s.voice === 'mono' && 'mono', s.caps && 'caps']}
+                      data-token={s.token}
+                      data-bg={panel.bg}
+                      data-role={s.role}
+                      data-truth={s.truth?.kind}
+                      data-truth-metric={s.truth?.kind === 'tile' ? s.truth.metric : undefined}
+                      data-truth-value={s.truth?.kind === 'tile' ? s.truth.value : undefined}
+                      data-truth-job={s.truth?.kind === 'fit' ? s.truth.job : undefined}
+                      data-truth-total={s.truth?.kind === 'fit' ? s.truth.total : undefined}
+                      style={`color: var(--color-${s.token}); font-size: var(--size-${s.size}); font-weight: var(--weight-${s.weight});`}
+                    >
+                      {s.sample}
+                    </span>
+                    <span
+                      class="row-meta mono" data-specimen="token"
+                      data-token={chrome.muted}
+                      data-bg={panel.bg}
+                      data-role="text"
+                      style={`color: var(--color-${chrome.muted});`}
+                    >
+                      --color-{s.token} / --size-{s.size} / --weight-{s.weight}
+                    </span>
+                    <span
+                      class="row-context" data-specimen="token"
+                      data-token={chrome.muted}
+                      data-bg={panel.bg}
+                      data-role="text"
+                      style={`color: var(--color-${chrome.muted});`}
+                    >
+                      {s.context}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })
+      }
+    </section>
+
+    <section class="spec-section" aria-labelledby="hatch-heading">
+      <h2 id="hatch-heading" class="mono-label">The verbatim placeholder hatch</h2>
+      <p class="spec-note">
+        The hatch marks a slot the machine has not filled. It is two low-contrast stripes on purpose: an empty
+        slot has to read as empty rather than as prose. Its label is measured against both stripes, because text
+        sitting over a 45 degree gradient touches both.
+      </p>
+      <div class="hatch" data-bg="hatch-a" data-bg-secondary="hatch-b">
+        <span class="hatch-label mono caps" data-token="muted" data-bg="hatch-b" data-role="text">
+          SOURCE DESCRIPTION RENDERS HERE, VERBATIM FROM THE FEED · NEVER PARAPHRASED, NEVER SUMMARIZED
+        </span>
+      </div>
+      {/* The two stripes named. The hatch is the only place either token is
+          used, and until this line the page drew them without saying which
+          they were, so a reader could see the texture and not name it. */}
+      <p class="spec-note mono">--color-hatch-a on --color-hatch-b, at 45 degrees, inverting to their dark pair on ink.</p>
+    </section>
+
+    <section class="spec-section" aria-labelledby="graphic-heading">
+      <h2 id="graphic-heading" class="mono-label">Non-text: lines, marks, disabled affordances</h2>
+      <p class="spec-note">
+        Judged at 3:1, not 4.5:1. These carry meaning without carrying words, so WCAG 1.4.11 is the threshold and
+        the audit reports them in their own table.
+      </p>
+
+      {
+        GRAPHIC_BGS.map((bg) => (
+          <div class="panel" data-bg={bg} style={`background: var(--color-${bg});`}>
+            <p class="panel-bg mono" data-token="muted" data-bg={bg} data-role="text">
+              --color-{bg}
+            </p>
+
+            <ul class="rows">
+              {LINES.map((line) => (
+                <li class="row">
+                  <span
+                    class="swatch-line"
+                    data-token={line.token}
+                    data-bg={bg}
+                    data-role="graphic"
+                    style={`border-color: var(--color-${line.token});`}
+                  />
+                  <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg={bg} data-role="text">
+                    --color-{line.token}
+                  </span>
+                  <span class="row-context" data-specimen="token" data-token="muted" data-bg={bg} data-role="text">
+                    {line.context}
+                  </span>
+                </li>
+              ))}
+
+              {MARKS.map((m) => (
+                <li class="row">
+                  <span class="swatch-mark" data-token={m.token} data-bg={bg} data-role="graphic">
+                    <Mark state={m.state} surface={MARK_SURFACE[bg]} />
+                  </span>
+                  <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg={bg} data-role="text">
+                    --color-{m.token}
+                  </span>
+                  <span class="row-context" data-specimen="token" data-token="muted" data-bg={bg} data-role="text">
+                    {m.context}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </section>
+
+    <section class="spec-section" aria-labelledby="legend-heading">
+      <h2 id="legend-heading" class="mono-label">The legend, as it ships</h2>
+      <p class="spec-note">
+        Standing rule 5: a mark is never more than one viewport from its meaning. This is the component every page
+        that renders a mark puts in its table footer, shown on each surface it can land on.
+      </p>
+      {
+        GRAPHIC_BGS.map((bg) => (
+          <div class="panel legend-panel" data-bg={bg} style={`background: var(--color-${bg});`}>
+            <MarkLegend surface={MARK_SURFACE[bg]} />
+            <p class="panel-bg mono" data-token="muted" data-bg={bg} data-role="text">
+              --color-{bg}
+            </p>
+          </div>
+        ))
+      }
+    </section>
+
+    <section class="spec-section" aria-labelledby="roles-heading">
+      <h2 id="roles-heading" class="mono-label">The type roles, at their measured sizes</h2>
+      <p class="spec-note">
+        Five roles, each rendered here at exactly what it computes to in the shipping build. These are not
+        proposals: every value was measured off the live tokenstoagents.ai and ported, which is why this section
+        exists at all. If a page sets a heading and it does not match the row below it, the page is wrong.
+      </p>
+
+      <div class="panel" data-bg="surface" style="background: var(--color-surface);">
+        <ul class="rows">
+          {
+            TYPE_ROLES.map((role) => (
+              <li class="row role-row">
+                <span
+                  class:list={['role-sample', role.className]}
+                  data-token="foreground"
+                  data-bg="surface"
+                  data-role="text"
+                >
+                  {role.sample}
+                </span>
+                <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface" data-role="text">
+                  {role.tokens}
+                </span>
+                <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface" data-role="text">
+                  {role.context}
+                </span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </section>
+
+    <section class="spec-section" aria-labelledby="scale-heading">
+      <h2 id="scale-heading" class="mono-label">The ramps</h2>
+      <p class="spec-note">
+        Both voices at every step of the house ramp, so the two faces can be compared at the same size. The mono
+        is set at Regular because that is the machine voice's own weight; the sans has no 600 cut, so a mono
+        element asking for bold gets the SemiBold file, which is the heaviest that exists.
+      </p>
+
+      <div class="panel" data-bg="surface-raised" style="background: var(--color-surface-raised);">
+        <ul class="rows">
+          {
+            ['050', '075', '100', '150', '200', '300', '400', '500', '600', '700'].map((step) => (
+              <li class="row ramp-row">
+                <span
+                  class="spec-sample"
+                  data-token="foreground"
+                  data-bg="surface-raised"
+                  data-role="text"
+                  style={`font-size: var(--size-${step});`}
+                >
+                  {/*
+                    Two sweep counts read out of the fixture, not typed. Each one
+                    is wrapped so gate 2 can resolve it against stats: the ramp
+                    prints this line ten times, and ten undeclared copies of the
+                    two headline counts is exactly the drift the coverage check
+                    watches for. The wrappers carry no styling and no data-token,
+                    so the audit still resolves both through closest().
+                  */}
+                  The Index verified{' '}
+                  <span data-truth="tile" data-truth-metric="verified_live" data-truth-value={String(stats.verified_live)}>
+                    {stats.verified_live}
+                  </span>{' '}
+                  of{' '}
+                  <span data-truth="tile" data-truth-metric="pulled" data-truth-value={String(stats.pulled)}>
+                    {stats.pulled}
+                  </span>
+                </span>
+                <span
+                  class="spec-sample mono"
+                  data-token="foreground"
+                  data-bg="surface-raised"
+                  data-role="text"
+                  style={`font-size: var(--size-${step});`}
+                >
+                  0123456789 02:14 UTC
+                </span>
+                <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  --size-{step}
+                </span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </section>
+
+    <section class="spec-section" aria-labelledby="space-heading">
+      <h2 id="space-heading" class="mono-label">The space ramp</h2>
+      <p class="spec-note">
+        Ten steps, each drawn at its own width. Spacing is the token family a design system loses first, because a
+        gap that is four pixels wrong looks like a judgment call rather than a defect, so the ramp is drawn here at
+        size beside the job each step does.
+      </p>
+
+      <div class="panel" data-bg="surface-raised" style="background: var(--color-surface-raised);">
+        <ul class="rows">
+          {
+            SPACE_STEPS.map(({ step, context }) => (
+              <li class="row space-row">
+                {/* The bar is the token doing its own job: its width is the step
+                    itself, so the row cannot claim a value it is not drawing. */}
+                <span
+                  class="space-bar"
+                  data-token="foreground"
+                  data-bg="surface-raised"
+                  data-role="graphic"
+                  style={`width: var(--space-${step});`}
+                />
+                <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  --space-{step} · {tokenValue(`--space-${step}`)}
+                </span>
+                <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  {context}
+                </span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </section>
+
+    <section class="spec-section" aria-labelledby="primitive-heading">
+      <h2 id="primitive-heading" class="mono-label">The primitives underneath</h2>
+      <p class="spec-note">
+        Every semantic colour above resolves to one of these, and the dark theme is that resolution done a second
+        way. Two steps carry no semantic token at all and the rows say so: a primitive with nothing pointing at it
+        is part of the ramp rather than part of the product, and pretending otherwise is how a palette grows tones
+        nobody chose.
+      </p>
+
+      <div class="panel" data-bg="surface-raised" style="background: var(--color-surface-raised);">
+        <ul class="rows">
+          {
+            GRAY_STEPS.map(({ step, semantic }) => (
+              <li class="row swatch-row">
+                <span
+                  class="swatch-fill"
+                  data-token={`gray-${step}`}
+                  data-bg="surface-raised"
+                  data-role="graphic"
+                  style={`background: var(--gray-${step});`}
+                />
+                <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  --gray-{step} · {tokenValue(`--gray-${step}`)}
+                </span>
+                <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  Points at it: {semantic}
+                </span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <p class="spec-note">
+        The two non-neutral pairs, and the whole of the break from the mothership, which states its own rule as no
+        accent colour, emphasis by inversion only. The Index cannot hold that line honestly, because it has to say
+        this was verified and this many died, so the ramp gains exactly two pairs and nothing else.
+      </p>
+
+      <div class="panel" data-bg="surface-raised" style="background: var(--color-surface-raised);">
+        <ul class="rows">
+          {
+            STATUS_PRIMITIVES.map(({ token, semantic, note }) => (
+              <li class="row swatch-row">
+                <span
+                  class="swatch-fill"
+                  data-token={token}
+                  data-bg="surface-raised"
+                  data-role="graphic"
+                  style={`background: var(--${token});`}
+                />
+                <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  --{token} · {tokenValue(`--${token}`)}
+                </span>
+                <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  {semantic}. {note}
+                </span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </section>
+
+    <section class="spec-section" aria-labelledby="voices-heading">
+      <h2 id="voices-heading" class="mono-label">The two voices, and the size they meet at</h2>
+      <p class="spec-note">
+        Standing rule 3: the humanist face carries editorial and interface, the mono carries machine assertions.
+        The two are set at one size here so the third token can be seen doing its job, which is holding the mono to
+        the sans it sits inside.
+      </p>
+
+      <div class="panel" data-bg="surface-raised" style="background: var(--color-surface-raised);">
+        <ul class="rows">
+          <li class="row voice-row">
+            <span class="voice-sample" data-token="foreground" data-bg="surface-raised" data-role="text">
+              Verified at source, last night
+            </span>
+            <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              --font-family-sans
+            </span>
+            <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              The human voice. Everything that is not a machine reading.
+            </span>
+          </li>
+          <li class="row voice-row">
+            <span class="voice-sample mono" data-token="foreground" data-bg="surface-raised" data-role="text">
+              02:14 UTC · 685D · LOW
+            </span>
+            <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              --font-family-mono
+            </span>
+            <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              Numbers, timestamps, statuses, scores, source names.
+            </span>
+          </li>
+          <li class="row voice-row">
+            <span class="voice-sample" data-token="foreground" data-bg="surface-raised" data-role="text">
+              Open <span class="num">685</span> days, killed <span class="num">Aug 17</span>
+            </span>
+            <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              --font-scale-mono · {tokenValue('--font-scale-mono')}
+            </span>
+            <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              A machine value inside a sentence takes the mono at this scale, not at the machine voice's own flat
+              size. The faces share their cap and x-heights, so the step compensates for the mono's wider set.
+            </span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="spec-section" aria-labelledby="weight-heading">
+      <h2 id="weight-heading" class="mono-label">Weight, tracking, leading, figures</h2>
+      <p class="spec-note">
+        The four families that shape a line rather than a box. Each row sets the same string at the step it names,
+        because a weight or a tracking value written in a table is a number and set on a line it is a decision.
+      </p>
+
+      <div class="panel" data-bg="surface-raised" style="background: var(--color-surface-raised);">
+        <ul class="rows">
+          {
+            WEIGHTS.map(({ step, context }) => (
+              <li class="row mechanic-row">
+                <span
+                  class="mechanic-sample"
+                  data-token="foreground"
+                  data-bg="surface-raised"
+                  data-role="text"
+                  style={`font-weight: var(--weight-${step});`}
+                >
+                  Verified this sweep
+                </span>
+                <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  --weight-{step} · {tokenValue(`--weight-${step}`)}
+                </span>
+                <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  {context}
+                </span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <div class="panel" data-bg="surface-raised" style="background: var(--color-surface-raised);">
+        <ul class="rows">
+          {
+            TRACKINGS.map(({ step, context }) => (
+              <li class="row mechanic-row">
+                <span
+                  class="mechanic-sample caps"
+                  data-token="foreground"
+                  data-bg="surface-raised"
+                  data-role="text"
+                  style={`letter-spacing: var(--tracking-${step});`}
+                >
+                  Kill list
+                </span>
+                <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  --tracking-{step} · {tokenValue(`--tracking-${step}`)}
+                </span>
+                <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  {context}
+                </span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <div class="panel" data-bg="surface-raised" style="background: var(--color-surface-raised);">
+        <ul class="rows">
+          {
+            LEADINGS.map(({ step, context }) => (
+              <li class="row leading-row">
+                {/* Leading only exists across two lines, so the sample is set in
+                    a narrow column and allowed to wrap rather than shown as a
+                    single line that would look identical at every step. */}
+                <span
+                  class="leading-sample"
+                  data-token="foreground"
+                  data-bg="surface-raised"
+                  data-role="text"
+                  style={`line-height: var(--leading-${step});`}
+                >
+                  A posting the machine read at source and found still live
+                </span>
+                <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  --leading-{step} · {tokenValue(`--leading-${step}`)}
+                </span>
+                <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  {context}
+                </span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <div class="panel" data-bg="surface-raised" style="background: var(--color-surface-raised);">
+        <ul class="rows">
+          <li class="row figures-row">
+            {/* Measured before it was written, and the measurement changed the
+                row. Neither shipped face carries a tnum table at all: with the
+                feature on and off, N27's 1 is 17.03px and its 8 is 24.06px at
+                40px, unchanged either way. So the left column here is not the
+                feature working, it is the mono's own fixed advance, and the
+                right column is what the same numbers do in the sans. The token
+                is declared and inert, which is a thing to say rather than a
+                thing to demonstrate with two identical columns. */}
+            <span class="figures-pair">
+              <span class="figures-col mono tabular" data-token="foreground" data-bg="surface-raised" data-role="text">
+                11.11<br />90.09<br />48.84
+              </span>
+              <span class="figures-col tabular" data-token="muted" data-bg="surface-raised" data-role="text">
+                11.11<br />90.09<br />48.84
+              </span>
+            </span>
+            <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              --feature-tabular · {tokenValue('--feature-tabular')}
+            </span>
+            <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              The machine voice on the left, the sans on the right, both asking for tabular figures. Neither face
+              ships the feature, so what holds the left column on one axis is the mono's own fixed advance, and the
+              right column does not hold at all. The second token in this set that is declared and inert, beside
+              weight.light, and it is why numerals in a column are mono here rather than merely asked to align.
+            </span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="spec-section" aria-labelledby="structure-heading">
+      <h2 id="structure-heading" class="mono-label">Boxes: borders, radius, marks, measures</h2>
+      <p class="spec-note">
+        The values that shape a box. The three drawn at the top cannot be shown as numbers: a hairline against a
+        heavy rule is a comparison, and a two pixel corner is either there or it is not.
+      </p>
+
+      <div class="panel" data-bg="surface-raised" style="background: var(--color-surface-raised);">
+        <ul class="rows">
+          <li class="row swatch-row">
+            <span
+              class="rule-sample rule-hairline"
+              data-token="line"
+              data-bg="surface-raised"
+              data-role="graphic"
+            />
+            <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              --border-hairline · {tokenValue('--border-hairline')}
+            </span>
+            <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              Every rule inside a panel. Fifty-four of the fifty-six borders on the index canvas are this one.
+            </span>
+          </li>
+          <li class="row swatch-row">
+            <span
+              class="rule-sample rule-heavy"
+              data-token="foreground"
+              data-bg="surface-raised"
+              data-role="graphic"
+            />
+            <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              --border-heavy · {tokenValue('--border-heavy')}
+            </span>
+            <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              Two in the whole system, under the header and above the ecosystem band. They are what separates
+              chrome from content.
+            </span>
+          </li>
+          <li class="row swatch-row">
+            <span class="radius-sample" data-token="line-strong" data-bg="surface-raised" data-role="graphic" />
+            <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              --radius · {tokenValue('--radius')}
+            </span>
+            <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              Sharp by default. It reaches the button reset and the focus ring, and it will stop being invisible
+              the first time a control takes a fill.
+            </span>
+          </li>
+          <li class="row swatch-row">
+            <span class="mark-size mark-size-inline" data-token="mark-live" data-bg="surface-raised" data-role="graphic">
+              <Mark state="verified" surface="raised" />
+            </span>
+            <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              --mark-inline · {tokenValue('--mark-inline')}
+            </span>
+            <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              A verification mark beside its text partner, in a row or a legend. A glyph box rather than a type
+              size, which is why it is not a step on the ramp.
+            </span>
+          </li>
+          <li class="row swatch-row">
+            <span class="mark-size mark-size-brand" data-token="foreground" data-bg="surface-raised" data-role="graphic">
+              <Mark state="verified" surface="raised" />
+            </span>
+            <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              --mark-brand · {tokenValue('--mark-brand')}
+            </span>
+            <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              The wordmark's mark in the header, and the only place the mark appears at this size.
+            </span>
+          </li>
+          {
+            STRUCTURE.map(({ token, context }) => (
+              <li class="row measure-row">
+                <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  {token} · {tokenValue(token)}
+                </span>
+                <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+                  {context}
+                </span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <p class="spec-note">
+        The five breakpoints are the one family in this system that a stylesheet cannot read as a token: a media
+        query is evaluated before the cascade that gives a custom property a value, so the width is written
+        literally in every query and the token above is the declared source it has to match. A check inside the
+        token build fails on any query width that is not one of these five. The shell step is the marketing
+        site's own value rather than this one's, because the header is shared and a seam would show at exactly
+        one width if the two halves disagreed about where it folds.
+      </p>
+    </section>
+
+    <section class="spec-section" aria-labelledby="motion-heading">
+      <h2 id="motion-heading" class="mono-label">Motion, at rest</h2>
+      <p class="spec-note">
+        Two durations and one curve. Nothing on this page moves, and that is deliberate rather than an omission:
+        the motion gate allows exactly one keyframe animation in the built site, the signature moment on the index,
+        and a specimen that animated to demonstrate itself would be a second one. So the curve is drawn and the
+        durations are printed.
+      </p>
+
+      <div class="panel" data-bg="surface-raised" style="background: var(--color-surface-raised);">
+        <ul class="rows">
+          <li class="row measure-row">
+            <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              --motion-duration-instant · {tokenValue('--motion-duration-instant')}
+            </span>
+            <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              Colour and border transitions on hover, and the theme change. Every one of them is declared inside a
+              reduced-motion query, so a reader who asks for stillness gets it.
+            </span>
+          </li>
+          <li class="row measure-row">
+            <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              --motion-duration-signature · {tokenValue('--motion-duration-signature')}
+            </span>
+            <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              The one signature moment, the verification rule drawing itself across the index table's assurance
+              band. Standing rule 6 caps motion under 400ms and the gate reads that strictly, so 400 itself fails.
+            </span>
+          </li>
+          <li class="row measure-row">
+            <span class="row-meta mono" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              --motion-easing-standard · {tokenValue('--motion-easing-standard')}
+            </span>
+            <span class="row-context" data-specimen="token" data-token="muted" data-bg="surface-raised" data-role="text">
+              One curve for everything. A second easing would be a second opinion about how this site moves.
+            </span>
+          </li>
+        </ul>
+
+        {/* The curve drawn from the token's own control points, so the picture
+            cannot disagree with the value printed above it. Hidden from the
+            accessibility tree: it is a restatement of the row beside it, and an
+            image that repeats its own caption is noise to a screen reader. */}
+        <div class="easing-frame">
+          <svg class="easing-plot" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+            <path class="easing-line" d={EASING_PATH} />
+          </svg>
+        </div>
+      </div>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .spec {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-700);
+    padding-block: var(--space-600) var(--space-800);
+  }
+
+  /* The measure sits on the prose, not on the container. A reading measure is
+     counted in the container's own body size, so leaving it here would clamp
+     the page title, which is now four times that size, into a body-width
+     column. */
+  .spec-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  .spec-lede {
+    font-size: var(--size-200);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  /* No size and no tracking: the .mono class is the machine voice and it owns
+     both. Only the tone is this page's business. */
+  .spec-meta {
+    color: var(--color-muted);
+  }
+
+  .spec-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .spec-section > h2 {
+    color: var(--color-foreground);
+    border-bottom: var(--border-heavy) solid var(--color-foreground);
+    padding-bottom: var(--space-200);
+  }
+
+  .spec-note {
+    font-size: var(--size-200);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+
+  .panel {
+    border: var(--border-hairline) solid var(--color-line-strong);
+    padding: var(--space-500) var(--space-600);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .panel-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+  }
+
+  /* Defaults for the panels whose background is never inverted. The text panels
+     override these inline, because there the chrome token has to follow the
+     surface. Stated here rather than inherited so no labelled node in this page
+     renders a colour its data-token does not name. */
+  .panel-note {
+    font-size: var(--size-200);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  /* The little "--color-surface-raised" stamp under each panel heading. It was
+     dim, so that the chrome naming a panel sat below the chrome describing it.
+     Now both are muted and the size and the voice carry the step down: 10px mono
+     and tracked, against 13px sans. */
+  .panel-bg {
+    font-size: var(--size-050);
+    letter-spacing: var(--tracking-loose);
+    color: var(--color-muted);
+  }
+
+  .rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  /* One row per pairing: the live sample, the token names that produced it, and
+     the product context. Three columns so the samples align vertically and a
+     32px numeral does not shove its neighbours out of line. */
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 22rem) minmax(0, 18rem) minmax(0, 1fr);
+    gap: var(--space-400);
+    align-items: baseline;
+    padding-block: var(--space-100);
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+
+  .ramp-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 12rem);
+  }
+
+  /* The roles section gets a wider first column and drops the baseline
+     alignment, because a 76px sample and a 10px meta line have nothing useful
+     to say to each other on one baseline. */
+  .role-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 20rem) minmax(0, 16rem);
+    align-items: start;
+  }
+
+  /* The ramp now reaches 4.75rem, where a ten digit mono string is 470px wide
+     and contains nothing a browser is willing to break. Without this the whole
+     page scrolls sideways on a phone to accommodate one sample. Breaking a
+     numeral mid-run is fine here and nowhere else: this row exists to show the
+     glyphs at a size, not to be read as a number. */
+  .spec-sample {
+    line-height: var(--leading-snug);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  /* ---------------------------------------------------------------------
+     The five type roles, each stated once, in tokens only.
+
+     These are duplicates of what global.css sets on h1, h2, body, .kicker and
+     .mono, and that is deliberate: the specimen has to be able to render a role
+     next to its own name without borrowing an element that carries other
+     meaning. If one of these ever drifts from the shell, the row will say so,
+     because the meta column names the tokens the row claims to be using.
+     --------------------------------------------------------------------- */
+  /* Grid children default to min-width:auto, which a 76px sample would use to
+     push its own column past the track. */
+  .role-sample {
+    min-width: 0;
+  }
+
+  .role-title {
+    font-size: var(--size-700);
+    line-height: var(--leading-display);
+    letter-spacing: var(--tracking-tight);
+    font-weight: var(--weight-bold);
+  }
+
+  .role-section {
+    font-size: var(--size-500);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    font-weight: var(--weight-bold);
+  }
+
+  .role-body {
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    font-weight: var(--weight-regular);
+  }
+
+  .role-kicker {
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    letter-spacing: var(--tracking-loose);
+    font-weight: var(--weight-medium);
+    text-transform: uppercase;
+  }
+
+  .role-mono {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    font-weight: var(--weight-regular);
+    font-synthesis: none;
+  }
+
+  .caps {
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-loose);
+  }
+
+  .row-meta {
+    font-size: var(--size-050);
+    color: var(--color-muted);
+  }
+
+  .row-context {
+    font-size: var(--size-075);
+    color: var(--color-muted);
+  }
+
+  .swatch-line {
+    display: block;
+    width: 100%;
+    height: 0;
+    /* A 2px rule so the audit has a real edge to sample, drawn in the line token
+       under test. Hairline tokens are 1px in product; doubling it here changes
+       nothing about the colour being measured. */
+    border-top: var(--border-heavy) solid;
+  }
+
+  .swatch-mark {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .legend-panel {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-500);
+  }
+
+  .hatch {
+    height: 9.375rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-400);
+    border: var(--border-hairline) solid var(--color-line);
+    background: repeating-linear-gradient(
+      45deg,
+      var(--color-hatch-a),
+      var(--color-hatch-a) 6px,
+      var(--color-hatch-b) 6px,
+      var(--color-hatch-b) 12px
+    );
+  }
+
+  .hatch-label {
+    font-size: var(--size-050);
+    color: var(--color-muted);
+    text-align: center;
+    max-width: 32rem;
+  }
+
+  /* ---------------------------------------------------------------------
+     The sections that render the rest of the system.
+
+     Every sample below is the token doing its own job rather than a picture of
+     it: a space step is a rule of that width, a weight is a line set at it, a
+     tracking step is the same three words spaced by it. That is what makes this
+     a specimen and not a table of values, and it is why none of these rules
+     hardcodes a dimension the token could have supplied.
+     --------------------------------------------------------------------- */
+
+  .space-row,
+  .swatch-row,
+  .voice-row,
+  .mechanic-row,
+  .leading-row,
+  .figures-row {
+    grid-template-columns: minmax(0, 16rem) minmax(0, 16rem) minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .measure-row {
+    grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+    align-items: baseline;
+  }
+
+  /* The bar IS the step: its width is the token, so the row cannot state a
+     value it is not drawing. The height is a hairline doubled, the same trick
+     .swatch-line uses, so a 4px step still has something to see. */
+  .space-bar {
+    display: block;
+    height: var(--space-200);
+    background: currentColor;
+    min-width: var(--border-hairline);
+  }
+
+  .swatch-fill {
+    display: block;
+    width: var(--space-800);
+    height: var(--space-500);
+    /* Bordered because the lightest steps are the page's own surface, and a
+       swatch that disappears into its panel proves nothing. */
+    border: var(--border-hairline) solid var(--color-line-strong);
+  }
+
+  .voice-sample,
+  .mechanic-sample {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  /* The inline machine value, at the scale token that exists for it. Same rule
+     methodology sets on its own inline numerals, restated here because a
+     specimen shows a role without borrowing an element that carries meaning. */
+  .num {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-scale-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .leading-sample {
+    display: block;
+    font-size: var(--size-200);
+    /* Narrow on purpose. Leading is a relationship between two lines and a
+       single line shows nothing, so the sample is made to wrap. */
+    max-width: 14rem;
+  }
+
+  .figures-pair {
+    display: flex;
+    gap: var(--space-500);
+  }
+
+  .figures-col {
+    font-size: var(--size-150);
+    line-height: var(--leading-snug);
+    font-variant-numeric: normal;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .rule-sample {
+    display: block;
+    width: 100%;
+    height: 0;
+  }
+
+  .rule-hairline {
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+
+  .rule-heavy {
+    border-top: var(--border-heavy) solid var(--color-foreground);
+  }
+
+  .radius-sample {
+    display: block;
+    width: var(--space-600);
+    height: var(--space-600);
+    border: var(--border-heavy) solid var(--color-line-strong);
+    border-radius: var(--radius);
+  }
+
+  .mark-size {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* The two mark sizes, set on the component's own box rather than described.
+     Mark.astro draws at 1em, so the size token belongs on the element around
+     it, which is exactly how the header and the row set it. */
+  .mark-size-inline {
+    font-size: var(--mark-inline);
+  }
+
+  .mark-size-brand {
+    font-size: var(--mark-brand);
+  }
+
+  /* The two axes are drawn as borders rather than as strokes inside the plot,
+     which is not a styling preference. The contrast audit judges an SVG shape at
+     3:1 under WCAG 1.4.11, on the reasoning that a mark is the only thing saying
+     a posting was checked, and reports a border edge without judging it, on the
+     reasoning that a rule you could delete without losing information is rhythm.
+     These axes are the second kind, so they are drawn as the second kind. */
+  .easing-frame {
+    width: var(--space-900);
+    margin-top: var(--space-400);
+    border-left: var(--border-hairline) solid var(--color-line);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  .easing-plot {
+    display: block;
+    width: 100%;
+    height: var(--space-900);
+    overflow: visible;
+  }
+
+  .easing-line {
+    fill: none;
+    stroke: var(--color-foreground);
+    stroke-width: 3;
+    vector-effect: non-scaling-stroke;
+  }
+
+  @media (max-width: 60rem) { /* --breakpoint-lap */
+    .row,
+    .ramp-row,
+    .role-row,
+    .space-row,
+    .swatch-row,
+    .voice-row,
+    .mechanic-row,
+    .leading-row,
+    .figures-row,
+    .measure-row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-100);
+    }
+  }
+</style>

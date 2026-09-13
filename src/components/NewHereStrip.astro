@@ -1,0 +1,317 @@
+---
+import Mark from './Mark.astro';
+
+/**
+ * The three-beat orientation strip, first visit anywhere, dismissed forever in
+ * one click.
+ *
+ * Verbatim from the approved canvas and from DESIGN-BRIEF.md's education layer:
+ * verified nightly at source, ghosts die automatically, fresh beats stale by the
+ * numbers. The copy takes no props. Seven pages composing this must render the
+ * same three sentences, and the way to guarantee that is to give them no way to
+ * write their own.
+ *
+ * TWO NOTES ON WHAT IS DRAWN HERE.
+ *
+ * The struck circle in the second beat is not a member of the verification mark
+ * family and must never be mistaken for one. The family is three states
+ * (verified, re-verified, closed) and closed is grey, because a closed posting
+ * is an honest archive record rather than an alarm. This glyph is an education
+ * icon meaning "killed by rule", it appears only in this strip, and it carries
+ * the loss colour for the same reason the kill tile does.
+ *
+ * "96H" is the canvas's shorthand for the odds window, not a statistic this
+ * strip is asserting. The sourced sentence it points at ("56% of applications
+ * land in the first 96 hours", St. Louis Fed) ships in the insight strip
+ * directly beneath this one on the index, so the number and its source are on
+ * screen together. If this strip is ever placed on a route where that fact is
+ * not licensed, the shorthand loses its citation and should be dropped rather
+ * than travelling alone.
+ */
+
+interface Props {
+  /** Which surface the strip sits on, passed through to the mark knockout. */
+  surface?: 'page' | 'raised' | 'hover';
+  storageKey?: string;
+  class?: string;
+  /**
+   * Render a plain descriptor line under each beat. Off by default, so the six
+   * routes that carry the compact strip stay byte for byte what they were. The
+   * index turns it on, because the third beat's descriptor names the 96 hour
+   * window, and the sourced fact that licenses that number (the insight strip's
+   * St. Louis Fed citation) sits directly beneath this strip only there. The
+   * component header's own rule: the 96H claim does not travel without its
+   * citation. The descriptors travel with it, and no further.
+   */
+  descriptors?: boolean;
+}
+
+const {
+  surface = 'raised',
+  storageKey = 'new-here',
+  class: className,
+  descriptors = false
+} = Astro.props;
+
+// The third beat drops its "by the numbers" tail when the descriptor line is
+// present: the descriptor is the numbers, so the tail would say twice what the
+// line below it already says once. The compact strip keeps the tail, because it
+// is the only hook it has.
+const freshLabel = descriptors ? 'Fresh beats stale' : 'Fresh beats stale, by the numbers';
+---
+
+<aside class:list={['new-here', descriptors && 'detailed', className]} data-new-here data-storage-key={storageKey} aria-label="New here">
+  <div class="beats">
+    <span class="beats-title">New here?</span>
+
+    {/*
+      Two shapes, one compact and one detailed, branched rather than restyled.
+      The compact beat renders exactly what it always did, glyph and label
+      straight in .beat, so the six routes that carry the compact strip stay
+      byte for byte what they were. Only the detailed strip wraps the pair in a
+      head and stacks a descriptor under it.
+    */}
+    <span class="beat">
+      {descriptors ? (
+        <>
+          <span class="beat-head">
+            <Mark state="verified" surface={surface} />
+            Verified nightly at source
+          </span>
+          <span class="beat-note">Each night we re-check every job against the company's own careers page.</span>
+        </>
+      ) : (
+        <>
+          <Mark state="verified" surface={surface} />
+          Verified nightly at source
+        </>
+      )}
+    </span>
+
+    <span class="beat">
+      {descriptors ? (
+        <>
+          <span class="beat-head">
+            {/* Not a verification mark. See the note in the component header. */}
+            <svg class="kill-glyph" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+              <circle cx="24" cy="24" r="19" fill="none" stroke="var(--color-stat-loss)" stroke-width="5"></circle>
+              <line x1="12" y1="36" x2="36" y2="12" stroke="var(--color-stat-loss)" stroke-width="5" stroke-linecap="round"></line>
+            </svg>
+            Ghosts die automatically
+          </span>
+          <span class="beat-note">When a posting comes down, it comes down here too. You never apply into a dead listing.</span>
+        </>
+      ) : (
+        <>
+          {/* Not a verification mark. See the note in the component header. */}
+          <svg class="kill-glyph" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+            <circle cx="24" cy="24" r="19" fill="none" stroke="var(--color-stat-loss)" stroke-width="5"></circle>
+            <line x1="12" y1="36" x2="36" y2="12" stroke="var(--color-stat-loss)" stroke-width="5" stroke-linecap="round"></line>
+          </svg>
+          Ghosts die automatically
+        </>
+      )}
+    </span>
+
+    <span class="beat">
+      {descriptors ? (
+        <>
+          <span class="beat-head">
+            <span class="window mono">96H</span>
+            {freshLabel}
+          </span>
+          <span class="beat-note">Most applications land in the first 96 hours. Being early is most of the game.</span>
+        </>
+      ) : (
+        <>
+          <span class="window mono">96H</span>
+          {freshLabel}
+        </>
+      )}
+    </span>
+  </div>
+
+  {/* The dismiss is gone, 2026-08-20, Ryan's call.
+
+      It was three words that offered to hide three words, on a strip a reader
+      reads once and then stops seeing anyway. The script below still guards for
+      the button and does nothing when it is absent, so a reader who dismissed
+      this before it was removed keeps that state rather than having the strip
+      reappear on them. */}
+</aside>
+
+{/*
+  Inline and immediately after the element, so a reader who dismissed this on a
+  previous visit never sees it flash on this one.
+*/}
+<script is:inline>
+  (() => {
+    const strips = document.querySelectorAll('[data-new-here][data-storage-key]:not([data-new-here-wired])');
+    for (const strip of strips) {
+      strip.setAttribute('data-new-here-wired', '');
+      const key = strip.getAttribute('data-storage-key');
+      let dismissed = false;
+      try {
+        dismissed = localStorage.getItem(key) === 'dismissed';
+      } catch {
+        // Storage blocked. Show it: an orientation strip nobody can dismiss
+        // beats one nobody ever sees.
+      }
+      if (dismissed) {
+        strip.hidden = true;
+        continue;
+      }
+      const button = strip.querySelector('[data-new-here-dismiss]');
+      if (!button) continue;
+      button.addEventListener('click', () => {
+        strip.hidden = true;
+        try {
+          localStorage.setItem(key, 'dismissed');
+        } catch {
+          // Dismissed for this page view only.
+        }
+      });
+    }
+  })();
+</script>
+
+<style>
+  .new-here {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-500);
+    flex-wrap: wrap;
+    padding: var(--space-300) var(--space-600);
+    background: var(--color-surface-raised);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  /* `display: flex` above outranks the browser's own [hidden] rule, which is a
+     bare attribute selector at the same specificity and comes earlier in the
+     cascade. Without this the dismiss button sets the attribute, writes the
+     flag, and the strip stays fully on screen, on this visit and on every
+     later one. Same fix as `.job-row[hidden]`, and it has to live beside the
+     display declaration that caused it. */
+  .new-here[hidden] {
+    display: none;
+  }
+
+  .beats {
+    display: flex;
+    align-items: center;
+    gap: var(--space-500);
+    flex-wrap: wrap;
+  }
+
+  .beats-title {
+    font-size: var(--size-200);
+    font-weight: var(--weight-bold);
+    white-space: nowrap;
+  }
+
+  /* Each beat is a glyph plus its text partner, never a glyph alone. Standing
+     rule 5, applied to the education layer as well as to the table. This is the
+     compact beat, unchanged: the detailed overrides live under .detailed below,
+     so a route that does not ask for descriptors renders exactly this. */
+  .beat {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200);
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+
+  /* The detailed strip stacks a descriptor under each label. The beat becomes a
+     top-aligned column, the head holds the glyph-and-label pair the compact beat
+     kept inline, and the label takes the foreground so it reads as the heading
+     over its descriptor. None of this is reached without the `detailed` class. */
+  .new-here.detailed {
+    align-items: flex-start;
+    padding-block: var(--space-400);
+  }
+
+  .new-here.detailed .beats {
+    align-items: flex-start;
+    gap: var(--space-600);
+  }
+
+  .new-here.detailed .beat {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-100);
+    flex: 1 1 0;
+    min-width: 15rem;
+    white-space: normal;
+  }
+
+  .new-here.detailed .beat-head {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200);
+    white-space: nowrap;
+    color: var(--color-foreground);
+    font-weight: var(--weight-medium);
+  }
+
+  .new-here.detailed .beat-note {
+    font-size: var(--size-075);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    text-wrap: pretty;
+    max-width: 34ch;
+  }
+
+  .kill-glyph {
+    width: var(--mark-inline);
+    height: var(--mark-inline);
+    flex: none;
+  }
+
+  .window {
+    font-weight: var(--weight-bold);
+    font-size: var(--size-075);
+    color: var(--color-foreground);
+  }
+
+  .dismiss {
+    font-family: var(--font-family-sans);
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    white-space: nowrap;
+    padding-block: var(--space-200);
+  }
+
+  .dismiss:hover {
+    color: var(--color-foreground);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .dismiss {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  /* At phone width the three beats stack into three lines, exactly as the
+     canvas's 375px sheet draws them, and the dismiss control sits at the end of
+     the block rather than beside the title. Left aligned with everything else:
+     a control floated to the right of a stacked list reads as belonging to the
+     last line rather than to the strip. */
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .new-here {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-200);
+      padding: var(--space-300) var(--space-400);
+    }
+
+    .beats {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-200);
+    }
+  }
+</style>

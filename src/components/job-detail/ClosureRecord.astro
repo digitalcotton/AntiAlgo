@@ -1,0 +1,60 @@
+---
+import KeyValueList from '../KeyValueList.astro';
+import Panel from '../Panel.astro';
+import { formatDate, sweptStamp, type Job } from '../../lib/data';
+import type { KeyValueRow } from '../../lib/ui';
+
+/**
+ * What the machine observed about a closure, beside the provenance panel rather
+ * than inside it.
+ *
+ * ProvenancePanel is shared by every page that shows a posting and it answers
+ * one question: where did this come from and when did we last look. A closure
+ * has three more answers that only exist on a closed record (when the closure
+ * was detected, when it was confirmed, and the reason of record), and adding
+ * them to the shared panel would put closed-only branches into a component
+ * thirty-seven live rows also render. So they live here, on the one page that
+ * has them.
+ *
+ * "Last seen live" is deliberately an absence. The canvas fills it in from an
+ * archive with several sweeps of history behind it; this record carries a first
+ * observation, a closure date and the sweep instant, and none of those is the
+ * last sweep that saw the posting open. Rendering the first observation there
+ * would answer a different question in the right-hand column, which is exactly
+ * the sort of near-miss a reader would never catch.
+ */
+
+interface Props {
+  job: Job;
+  class?: string;
+}
+
+const { job, class: className } = Astro.props;
+
+const rows: KeyValueRow[] = [
+  {
+    key: 'Last seen live',
+    value: null,
+    absence: 'Not recorded before the closure'
+  },
+  {
+    key: 'Closure detected',
+    value: formatDate(job.closed_on ?? null),
+    absence: 'No date shown'
+  },
+  { key: 'Confirmed', value: sweptStamp() },
+  {
+    key: 'Reason of record',
+    value: job.closed_reason ?? null,
+    absence: 'None recorded at source'
+  }
+];
+---
+
+<Panel
+  title="Closure record"
+  footnote="The reason is the source's own, quoted as the machine read it"
+  class={className}
+>
+  <KeyValueList rows={rows} />
+</Panel>

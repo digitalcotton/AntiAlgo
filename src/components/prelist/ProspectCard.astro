@@ -1,0 +1,328 @@
+---
+import KeyValueList from '../KeyValueList.astro';
+import { ABSENCE, type Job } from '../../lib/data';
+import type { KeyValueRow } from '../../lib/ui';
+
+/**
+ * One pre-posting company, the Pre-List's own row (RUN-FINISH 3.1,
+ * MASTER-SPEC F6).
+ *
+ * NO TITLE, EVER, AND THAT IS THE WHOLE POINT OF THIS COMPONENT. `job.title`
+ * is null on every row prospectRows() returns (src/lib/data.ts's own
+ * comment on PROSPECTS, and src/data/prospects.json's
+ * `_meta.no_invented_titles`), and this component reads no other field as a
+ * stand-in: no "Open role", no blank heading filled with the company name
+ * twice. There is nothing posted, so there is nothing named.
+ *
+ * THE FIVE FIT COMPONENTS RENDER FROM job.prospect.fit_components, NOT FROM
+ * fitComponents(job). That function (src/lib/data.ts, drawn on by
+ * FitBars.astro for a posted row) answers the posted rubric's own question
+ * and carries no basis text. Every pre-posting component carries its own
+ * `basis` string, sourced straight from the export
+ * (src/data/prospects.json's `_meta.one_rubric`), and the freshness basis is
+ * the one that states which of the two clocks fired: a posting's age against
+ * a 60 day window, or months since funding against a 12 month horizon
+ * (`_meta.two_clocks`). Reading fit_components directly, verbatim, is what
+ * keeps that distinction on the page instead of flattened into one number
+ * that would mean two different things depending on which row it sat next
+ * to.
+ */
+
+interface Props {
+  job: Job;
+  following: boolean;
+  followAction: string;
+  page: number;
+  class?: string;
+}
+
+const { job, following, followAction, page, class: className } = Astro.props;
+const prospect = job.prospect;
+
+if (!prospect) {
+  throw new Error(`ProspectCard: ${job.id} carries no prospect detail. This component only renders a pre-posting row.`);
+}
+
+const facts: KeyValueRow[] = [
+  { key: 'Stage', value: prospect.stage, absence: ABSENCE.value },
+  { key: 'Industry', value: prospect.industry, absence: ABSENCE.value },
+  { key: 'Team size', value: prospect.team_size !== null ? `${prospect.team_size} people` : null, absence: ABSENCE.value },
+  { key: 'Cohort', value: prospect.cohort, absence: ABSENCE.value },
+  { key: 'Investor', value: prospect.investor, absence: ABSENCE.value },
+  { key: 'Location', value: job.location !== 'Not stated' ? job.location : null, absence: 'Not stated' }
+];
+---
+
+<article class:list={['prospect-card', className]} aria-labelledby={`prospect-${job.slug}`}>
+  <header class="prospect-head">
+    <div class="prospect-heading">
+      <h3 id={`prospect-${job.slug}`} class="prospect-company">{job.company}</h3>
+      <p class="prospect-oneliner">{prospect.one_liner ?? ABSENCE.value}</p>
+    </div>
+
+    <div class="prospect-fit">
+      <span class="prospect-fit-value mono" data-truth="fit" data-truth-job={job.slug} data-truth-total={job.fit.total}>
+        Fit {job.fit.total}
+      </span>
+      <span class="prospect-fit-of mono-label">of 100</span>
+    </div>
+  </header>
+
+  <KeyValueList rows={facts} class="prospect-facts" />
+
+  <div class="prospect-components">
+    <p class="prospect-components-head mono-label">Why this score</p>
+    <ul class="components">
+      {
+        prospect.fit_components.map((component) => (
+          <li class="component">
+            <div class="component-head">
+              <span class="component-label">{component.label}</span>
+              <span
+                class="component-value mono"
+                data-truth="fit-component"
+                data-truth-job={job.slug}
+                data-truth-component={component.key}
+                data-truth-value={component.points}
+              >
+                {component.points}/{component.max}
+              </span>
+            </div>
+            <p class="component-basis">{component.basis}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  {
+    prospect.signals.length > 0 && (
+      <div class="prospect-signals">
+        <p class="prospect-signals-head mono-label">What we observed</p>
+        <ul class="signals">
+          {prospect.signals.map((signal) => (
+            <li class="signal">
+              <span class="signal-mark mono-label" aria-hidden="true">
+                {signal.direction === 'positive' ? '+' : '-'}
+              </span>
+              <span class="visually-hidden">{signal.direction === 'positive' ? 'Favorable: ' : 'Unfavorable: '}</span>
+              <span class="signal-observation">{signal.observation}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  <footer class="prospect-foot">
+    {
+      prospect.profile_url && (
+        <a class="prospect-link" href={prospect.profile_url} target="_blank" rel="noopener noreferrer">
+          Read the company's own page
+        </a>
+      )
+    }
+
+    <form class="prospect-follow" method="POST" action={followAction}>
+      <input type="hidden" name="prospectId" value={job.id} />
+      <input type="hidden" name="page" value={page} />
+      <input type="hidden" name="intent" value={following ? 'unfollow' : 'follow'} />
+      <button class="follow-button" type="submit" aria-pressed={following ? 'true' : 'false'}>
+        {following ? 'Followed' : 'Follow'}
+      </button>
+    </form>
+  </footer>
+</article>
+
+<style>
+  .prospect-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    padding: var(--space-500) var(--space-600);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    background: var(--color-surface);
+  }
+
+  .prospect-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+  }
+
+  .prospect-heading {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+    max-width: var(--layout-measure);
+  }
+
+  .prospect-company {
+    font-size: var(--size-300);
+    line-height: var(--leading-snug);
+  }
+
+  .prospect-oneliner {
+    font-size: var(--size-150);
+    color: var(--color-muted);
+    line-height: var(--leading-normal);
+  }
+
+  .prospect-fit {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-150);
+    white-space: nowrap;
+  }
+
+  .prospect-fit-value {
+    font-size: var(--size-200);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .prospect-fit-of {
+    color: var(--color-muted);
+  }
+
+  :global(.prospect-facts) {
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-300);
+  }
+
+  .prospect-components-head,
+  .prospect-signals-head {
+    color: var(--color-muted);
+    margin-block-end: var(--space-200);
+  }
+
+  .prospect-components {
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-300);
+  }
+
+  .components {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  .component {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-050);
+  }
+
+  .component-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-300);
+  }
+
+  .component-label {
+    font-size: var(--size-100);
+  }
+
+  .component-value {
+    color: var(--color-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .component-basis {
+    font-size: var(--size-075);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  .prospect-signals {
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-300);
+  }
+
+  .signals {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+
+  .signal {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-200);
+  }
+
+  .signal-mark {
+    color: var(--color-muted);
+    flex: none;
+  }
+
+  .signal-observation {
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+  }
+
+  .prospect-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-300);
+    flex-wrap: wrap;
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-300);
+  }
+
+  .prospect-link {
+    font-size: var(--size-100);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .prospect-link:hover {
+    color: var(--color-muted);
+  }
+
+  .prospect-follow {
+    margin-inline-start: auto;
+  }
+
+  .follow-button {
+    font-family: var(--font-family-sans);
+    font-size: var(--size-100);
+    font-weight: var(--weight-medium);
+    padding: var(--space-200) var(--space-400);
+    border: var(--border-hairline) solid var(--color-foreground);
+    background: none;
+    color: var(--color-foreground);
+    white-space: nowrap;
+  }
+
+  .follow-button[aria-pressed='true'] {
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border-color: var(--color-foreground);
+  }
+
+  .follow-button:hover {
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+  }
+
+  .follow-button[aria-pressed='true']:hover {
+    background: none;
+    color: var(--color-foreground);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .follow-button,
+    .prospect-link {
+      transition:
+        background-color var(--motion-duration-instant) var(--motion-easing-standard),
+        color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+</style>

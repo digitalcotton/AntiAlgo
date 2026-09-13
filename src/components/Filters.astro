@@ -1,0 +1,1199 @@
+---
+import type { FilterGroup } from '../lib/data';
+import { withBase } from '../../site.config.mjs';
+
+/**
+ * The filter row: one control per group, each a native select, plus two
+ * MASTER-SPEC F10 controls that live beside it: the seen dimmer and the
+ * applied-suppression recovery banner.
+ *
+ * WHY THE CANVAS'S FOUR GROUPS ARE THREE HERE. The canvas draws "Role family:
+ * All" and the data carries no role family. Deriving one by reading job titles
+ * would mean this repository inventing a classification and presenting it as
+ * the machine's finding, which is the same objection that blocked the kill
+ * list's reason taxonomy: the field is emitted upstream by the sweep, or the
+ * filter does not ship. What ships is Location, Comp and Freshness, each of
+ * which is a field the record actually holds. See DECISIONS.md.
+ *
+ * WHY NATIVE SELECTS RATHER THAN THE CANVAS'S DROPDOWN BUTTONS. A custom
+ * dropdown is a listbox, a focus trap, a set of arrow key handlers and a
+ * typeahead, all of which the platform already ships and none of which this
+ * product is in the business of rewriting. The control keeps the canvas's shape
+ * (a bordered chip reading "Location: Remote"), and on a phone it opens the
+ * operating system's own picker, which is better than anything drawn here.
+ *
+ * NO LAYOUT SHIFT ON CHANGE. A native select is as wide as whatever option is
+ * showing, so switching from "On-site or hybrid" to "All" would shrink the
+ * control and slide every control after it along the row. Each field is
+ * therefore sized by a hidden sizer holding its widest option, and the select
+ * is stacked in the same grid cell at full width. The row is then a fixed
+ * shape: choosing an option changes the table and moves nothing.
+ *
+ * The group counts come from filterGroups() and are recomputed from the rows,
+ * so an option that would return nothing says so before it is chosen rather
+ * than after.
+ *
+ * MASTER-SPEC F10, BOTH BULLETS, LIVE HERE. This component is the one place
+ * on the index a signed-in visitor is ever asked "who are you" (a fetch to
+ * /settings/filters; see the script below), so both of F10's bullets are
+ * built from it rather than from src/pages/index.astro, src/components/
+ * JobRow.astro or src/components/JobTable.astro, none of which this task can
+ * write. See this task's own report for the precise, small edits those three
+ * files would need to remove the one limitation that split creates: without
+ * them, suppression and the restored filter selection apply a beat after
+ * first paint (a fetch, not a flash of the wrong content) rather than being
+ * baked into the server-rendered HTML, and a page suppressing rows can show
+ * fewer than a full page of them if the suppressed rows and the page break
+ * land together, disclosed honestly in the banner's own count rather than
+ * hidden.
+ *
+ * DETERMINISTIC, NEVER A GUESS. Every value src/lib/filters.ts's
+ * normalizeFilterSelection() will not vouch for falls back to 'all', and
+ * suppressApplied() suppresses by id membership alone. Nothing here ranks,
+ * scores or reorders a row; MASTER-SPEC F10's own ban on that is the same
+ * ban whether the row is being filtered, suppressed or dimmed.
+ */
+
+interface Props {
+  groups: FilterGroup[];
+  /** Which value each group starts on, keyed by group key. */
+  selected?: Record<string, string>;
+  /**
+   * client (default): the selects announce index:filter events and a table
+   * controller in the page filters rows it already holds (/prelist).
+   * server (the board since 2026-09-11): the row is a GET form that submits
+   * to `action`; the address is the state and the server sends one page.
+   */
+  mode?: 'client' | 'server';
+  action?: string;
+  /** Server mode: the other settings the form carries so it keeps them. */
+  hidden?: readonly [string, string][];
+  /** Server mode: the search box's current text. */
+  query?: string;
+  class?: string;
+}
+
+const { groups, selected = {}, mode = 'client', action = '', hidden = [], query = '', class: className } = Astro.props;
+const accountFiltersUrl = withBase('/settings/filters');
+const serverMode = mode === 'server';
+// In server mode the control row IS the form: one element, so a select's
+// change submits it and a no-script reader's Apply button does the same.
+const Row = serverMode ? 'form' : 'div';
+
+/**
+ * What one option reads as: its label alone (2026-09-11). The count used to
+ * ride in the text ("Remote (412)"), which made the closed control read
+ * "LOCATION All (1,913)" where the strip wants "LOCATION All". The rule the
+ * count served, that an option which would empty the table looks dead before
+ * it is chosen, is kept by disabling that option instead: the platform greys
+ * it out in the open list and refuses the choice.
+ */
+const optionText = (label: string): string => label;
+const dead = (option: { value: string; count: number }, current: string | undefined): boolean =>
+  option.count === 0 && option.value !== 'all' && option.value !== current;
+
+/** The widest option text in a group, which is what sizes the control. */
+const widest = (group: FilterGroup): string =>
+  group.options.reduce((longest, option) => {
+    const text = optionText(option.label);
+    return text.length > longest.length ? text : longest;
+  }, '');
+---
+
+<div
+  class:list={['filters', className]}
+  data-filters
+  data-filters-mode={mode}
+  data-board-path={serverMode ? action : undefined}
+  data-account-filters-url={accountFiltersUrl}
+>
+  {/*
+    THE CONTROL STRIP. One row of cells divided by hairlines, edge to edge:
+    search, the group selects, the sort (passed in through the `sort` slot so
+    it sits inside the same strip), and the seen dimmer as the inverted cell
+    at the end. Each label is the machine's uppercase mono voice and its
+    value sits beside it, so the row reads "LOCATION All", "SORT Fit Comp
+    Age", "DIM SEEN on". The suppression banner below is not part of the
+    strip (it is a sentence, not a control) and stays a sibling.
+  */}
+  <Row class="filters-row" method={serverMode ? 'get' : undefined} action={serverMode ? action : undefined}>
+    {serverMode && hidden.map(([name, value]) => <input type="hidden" name={name} value={value} />)}
+    {/*
+      SEARCH. A plain text box that narrows the table to rows whose title or
+      company contains what you type. Deterministic and exact, a substring
+      test, never a ranking and never a chat box (MASTER-SPEC F10). In server
+      mode it is the form's q field and Enter submits; in client mode it
+      announces as you type. The glyph is decoration; the label is the
+      visible placeholder, which type=search keeps until text lands.
+    */}
+    <label class="filter filter-search">
+      <span class="search-glyph mono" aria-hidden="true">&#9906;</span>
+      <span class="visually-hidden">Search</span>
+      <input
+        type="search"
+        class="search-input mono"
+        data-job-search
+        name={serverMode ? 'q' : undefined}
+        value={serverMode ? query : undefined}
+        placeholder="Title or company"
+        autocomplete="off"
+        spellcheck="false"
+        enterkeyhint="search"
+      />
+    </label>
+    {
+      groups.map((group) => (
+        <label class="filter">
+          <span class="filter-label mono-label">{group.label}</span>
+          <span class="filter-field">
+            {/*
+              The sizer is the widest option, laid out and invisible. It gives the
+              control a width that does not depend on which option is chosen,
+              which is the whole no-layout-shift guarantee in one element.
+            */}
+            <span class="filter-sizer mono" aria-hidden="true">{widest(group)}</span>
+            <select
+              class="filter-select mono"
+              data-filter-group={group.key}
+              name={serverMode ? group.key : undefined}
+              data-autosubmit={serverMode ? '' : undefined}
+            >
+              {group.options.map((option) => (
+                <option
+                  value={option.value}
+                  selected={selected[group.key] === option.value}
+                  disabled={dead(option, selected[group.key])}
+                  data-count={option.count}
+                >
+                  {optionText(option.label)}
+                </option>
+              ))}
+            </select>
+          </span>
+        </label>
+      ))
+    }
+
+    {serverMode && (
+      /* The no-script way to apply what was set. With script every select
+         submits on change and Enter submits the search, so the script hides
+         this the moment it runs; without script it is the only way through. */
+      <button class="filter-apply mono-label" type="submit">Apply</button>
+    )}
+
+    <slot name="sort" />
+
+    {/*
+      THE SEEN DIMMER (MASTER-SPEC F10's first bullet). A real checkbox, not a
+      styled button, so it has a working label, a working default state and
+      working keyboard behaviour with no script at all; script only ever adds
+      the dimming itself. DEFAULT ON, PER THE SPEC'S OWN WORDING: `checked`
+      with no client-side branching (DEFAULT_SEEN_DIMMER_ENABLED in
+      src/lib/filters.ts is the same `true`). The cell inverts while it is on
+      and says so in a word, so the state is read, not inferred from a tick.
+    */}
+    <label class="filter filter-toggle">
+      <input type="checkbox" class="filter-toggle-input" data-seen-dimmer-toggle checked />
+      <span class="filter-label mono-label">Dim seen</span>
+      <span class="toggle-state mono" data-toggle-on aria-hidden="true">on</span>
+      <span class="toggle-state mono" data-toggle-off aria-hidden="true">off</span>
+      <span class="visually-hidden">Dim roles I have seen</span>
+    </label>
+  </Row>
+
+  {/*
+    APPLIED SUPPRESSION'S RECOVERY BANNER (MASTER-SPEC F10's first bullet: "A
+    suppressed row must be recoverable... say on the page that rows are being
+    suppressed and how many, derived, and give a way to see them"). Hidden by
+    default and revealed only once the account probe below actually answers
+    with a non-empty suppressed set, so a signed-out visitor, and a signed-in
+    one who has applied to nothing verifiedJobs() still lists, sees no banner
+    at all rather than one reporting zero. The count is written by script
+    from GET /settings/filters's own suppressedSlugs array, never typed here:
+    the number is the array's own length, exactly as derived as the rows it
+    names.
+
+    A SIBLING OF .filters-row, NOT ONE OF ITS CONTROLS. It is a sentence with
+    a recovery link, not a filter, so it sits below the one-line control row
+    on its own full-width line rather than competing for space, or scroll
+    room, inside the row it does not belong to.
+
+    NESTED INSIDE .filters, NOT A SIBLING OF IT, DELIBERATELY. index.astro
+    (which this task cannot edit) places this component inside a flex row
+    with SortControl, split by justify-content: space-between; a third,
+    variably-hidden flex child at that level would shift the gap between
+    those two every time the banner appeared or vanished. Inside .filters,
+    this line simply drops to its own row and touches nothing outside this
+    component's own box.
+  */}
+  <p class="suppression-note" data-suppression-note hidden>
+    <span data-suppression-count></span> hidden because you've applied.
+    <button type="button" class="suppression-toggle" data-suppression-toggle>Show them</button>
+  </p>
+</div>
+
+<script>
+  /**
+   * Three things, one script: the existing filter-change announcer, and
+   * MASTER-SPEC F10's two bullets layered onto the same event contract
+   * JobTable.astro already reads (index:filter) and already sends
+   * (index:rows). See this component's own header for why both bullets are
+   * built from here rather than from index.astro or JobTable.astro.
+   */
+
+  const FILTERS_KEY = 'ti-index-filters:v1';
+  const SEEN_KEY = 'ti-index-seen:v1';
+  const SEEN_DIMMER_KEY = 'ti-index-seen-dimmer:v1';
+
+  const root = document.querySelector<HTMLElement>('[data-filters]');
+  const selects = Array.from(document.querySelectorAll<HTMLSelectElement>('[data-filter-group]'));
+  // Server mode: the address is the state. The selects submit their form on
+  // change, a saved selection is restored by one navigation (below), and no
+  // table controller is listening for events.
+  const serverMode = root?.dataset.filtersMode === 'server';
+  const boardPath = root?.dataset.boardPath || '';
+  // Script is running, so the selects submit themselves and the Apply
+  // button is a duplicate; the stylesheet hides it on this attribute.
+  if (root) root.dataset.js = '';
+
+  /* -------------------------------------------------------------------------
+     THE MENU. A native <select> cannot draw the list the strip wants (label
+     on the left, the count on the right, the open cell outlined), so with
+     script each select gets a button and a listbox built from its own
+     options. The select stays the source of truth and the form's field:
+     choosing a row sets its value and fires its change event, so server mode
+     submits and client mode announces exactly as a native choice would.
+     Without script there is no menu and the select is what you see.
+     ------------------------------------------------------------------------- */
+  const menus: { cell: HTMLElement; menu: HTMLElement; trigger: HTMLButtonElement; select: HTMLSelectElement }[] = [];
+
+  function closeMenus(except?: HTMLElement): void {
+    for (const entry of menus) {
+      if (entry.cell === except) continue;
+      entry.menu.hidden = true;
+      entry.cell.removeAttribute('data-open');
+      entry.trigger.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  for (const select of selects) {
+    const cell = select.closest<HTMLElement>('.filter');
+    const field = select.closest<HTMLElement>('.filter-field');
+    if (!cell || !field) continue;
+    const group = select.getAttribute('data-filter-group') || 'filter';
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'filter-value mono';
+    trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.setAttribute('aria-label', `${group}: choose`);
+
+    const menu = document.createElement('div');
+    menu.className = 'menu';
+    menu.setAttribute('role', 'listbox');
+    menu.hidden = true;
+
+    const paintValue = () => {
+      trigger.textContent = select.options[select.selectedIndex]?.text ?? '';
+      for (const row of Array.from(menu.querySelectorAll<HTMLElement>('[role="option"]'))) {
+        row.setAttribute('aria-selected', row.dataset.value === select.value ? 'true' : 'false');
+      }
+    };
+
+    for (const option of Array.from(select.options)) {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'menu-option';
+      row.setAttribute('role', 'option');
+      row.dataset.value = option.value;
+      if (option.disabled) row.disabled = true;
+      const label = document.createElement('span');
+      label.className = 'menu-label';
+      label.textContent = option.text;
+      const count = document.createElement('span');
+      count.className = 'menu-count mono';
+      const n = Number(option.dataset.count);
+      count.textContent = Number.isFinite(n) ? n.toLocaleString() : '';
+      row.append(label, count);
+      row.addEventListener('click', () => {
+        if (select.value !== option.value) {
+          select.value = option.value;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        closeMenus();
+        paintValue();
+        trigger.focus();
+      });
+      menu.append(row);
+    }
+
+    trigger.addEventListener('click', () => {
+      const open = menu.hidden;
+      closeMenus(cell);
+      if (open && root) {
+        // The row scrolls sideways at desk width, and a menu inside a scroll
+        // container is clipped to its height. So the menu hangs off .filters
+        // (the column wrapper, position: relative) and is placed under its
+        // cell each time it opens, in the wrapper's own coordinates.
+        const rootBox = root.getBoundingClientRect();
+        const cellBox = cell.getBoundingClientRect();
+        menu.style.left = `${Math.max(0, cellBox.left - rootBox.left)}px`;
+        menu.style.top = `${cellBox.bottom - rootBox.top}px`;
+        menu.style.minWidth = `${cellBox.width}px`;
+      }
+      menu.hidden = !open;
+      cell.toggleAttribute('data-open', open);
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) menu.querySelector<HTMLElement>('[aria-selected="true"]')?.focus({ preventScroll: true });
+    });
+
+    menu.addEventListener('keydown', (event) => {
+      const rows = Array.from(menu.querySelectorAll<HTMLButtonElement>('[role="option"]:not(:disabled)'));
+      const at = rows.indexOf(document.activeElement as HTMLButtonElement);
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const next = event.key === 'ArrowDown' ? Math.min(rows.length - 1, at + 1) : Math.max(0, at - 1);
+        rows[next]?.focus({ preventScroll: true });
+      } else if (event.key === 'Escape') {
+        closeMenus();
+        trigger.focus();
+      }
+    });
+
+    field.append(trigger);
+    (root ?? cell).append(menu);
+    paintValue();
+    select.addEventListener('change', paintValue);
+    menus.push({ cell, menu, trigger, select });
+  }
+
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (target instanceof Element && (target.closest('.filter') || target.closest('.menu'))) return;
+    closeMenus();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeMenus();
+  });
+  if (serverMode) {
+    for (const select of document.querySelectorAll<HTMLSelectElement>('[data-filters] select[data-autosubmit]')) {
+      select.addEventListener('change', () => select.form?.requestSubmit());
+    }
+  }
+
+  /**
+   * Announces intent. The table owns the rows.
+   *
+   * A change event rather than input, because a select fires change once the
+   * choice is made and input on every keyboard arrow through the list, and
+   * re-filtering a table on every arrow press is work nobody asked for.
+   */
+  for (const select of selects) {
+    if (serverMode) break;
+    select.addEventListener('change', () => {
+      document.dispatchEvent(
+        new CustomEvent('index:filter', {
+          detail: { group: select.getAttribute('data-filter-group'), value: select.value }
+        })
+      );
+    });
+  }
+
+  /**
+   * The search box announces the same way: intent on the document, the table
+   * owns the rows. `input` rather than `change` here, unlike the selects,
+   * because a search box that only narrowed the table when it lost focus would
+   * feel broken; a person expects the list to react as they type. It is still
+   * cheap: the controller does one substring pass per keystroke over rows it
+   * already holds, no network and no re-render of anything but visibility.
+   */
+  const searchBox = document.querySelector<HTMLInputElement>('[data-job-search]');
+  if (searchBox && !serverMode) {
+    searchBox.addEventListener('input', () => {
+      document.dispatchEvent(
+        new CustomEvent('index:search', { detail: { query: searchBox.value } })
+      );
+    });
+  }
+
+  /* -------------------------------------------------------------------------
+     Storage helpers. A browser's own storage never gets to throw here: a
+     private-mode quota error or a malformed prior value both degrade to "act
+     as if nothing was ever stored", the same restraint src/lib/filters.ts's
+     parseStoredJSON() states for the pure half of this same read.
+     ------------------------------------------------------------------------- */
+
+  function readJSON(storage: Storage, key: string): unknown {
+    try {
+      const raw = storage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function writeJSON(storage: Storage, key: string, value: unknown): void {
+    try {
+      storage.setItem(key, JSON.stringify(value));
+    } catch {
+      /* Storage unavailable (private mode, quota). The control still works
+         for this page view; it just does not persist past it. */
+    }
+  }
+
+  /* -------------------------------------------------------------------------
+     MASTER-SPEC F10, second bullet: deterministic, stateful filters.
+     ------------------------------------------------------------------------- */
+
+  function currentSelection(): Record<string, string> {
+    const selection: Record<string, string> = {};
+    for (const select of selects) {
+      const group = select.getAttribute('data-filter-group');
+      if (group) selection[group] = select.value;
+    }
+    return selection;
+  }
+
+  /** Sets every select to a stored value and announces each change through
+      the same index:filter event a click would, so JobTable.astro applies a
+      restored selection through the one path it already trusts rather than
+      through a second, script-only entry point into its state. Values this
+      page's own selects do not offer (a stale save, a retired band) are
+      skipped rather than forced: the same "unknown falls back to what is
+      already showing" restraint normalizeFilterSelection() states for the
+      server-side half of this same validation. */
+  function applySelection(selection: unknown): void {
+    if (!selection || typeof selection !== 'object') return;
+    const source = selection as Record<string, unknown>;
+    if (serverMode) {
+      // ONE NAVIGATION, AND ONLY FROM A BARE ADDRESS. A saved selection means
+      // "start me where I left off", so it applies only when the reader has
+      // stated nothing in the address. Any search string at all, including an
+      // explicit location=all, is the reader's own word and wins. The forms
+      // always submit every facet, so a restore can never loop.
+      if (window.location.search !== '' || !boardPath) return;
+      const params = new URLSearchParams();
+      let any = false;
+      for (const select of selects) {
+        const group = select.getAttribute('data-filter-group');
+        const value = group ? source[group] : undefined;
+        if (typeof value !== 'string' || value === 'all') continue;
+        if (!Array.from(select.options).some((option) => option.value === value)) continue;
+        params.set(group as string, value);
+        any = true;
+      }
+      if (any) window.location.replace(`${boardPath}?${params.toString()}`);
+      return;
+    }
+    for (const select of selects) {
+      const group = select.getAttribute('data-filter-group');
+      const value = group ? source[group] : undefined;
+      if (typeof value !== 'string' || value === select.value) continue;
+      const hasOption = Array.from(select.options).some((option) => option.value === value);
+      if (!hasOption) continue;
+      select.value = value;
+      document.dispatchEvent(new CustomEvent('index:filter', { detail: { group, value } }));
+    }
+  }
+
+  function persistSelection(): void {
+    const selection = currentSelection();
+    writeJSON(window.localStorage, FILTERS_KEY, selection);
+    if (signedIn && accountFiltersUrl) {
+      // Fire-and-forget: a failed save leaves localStorage as the record of
+      // intent for this browser, and the next successful save (this one or
+      // any later one) catches the account back up. Nothing on this page
+      // blocks on the network for a control this small.
+      fetch(accountFiltersUrl, {
+        method: 'POST',
+        credentials: 'same-origin',
+        // keepalive: in server mode a change submits the form at once, and a
+        // save the navigation would otherwise cancel is a save that never
+        // happened.
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selection })
+      }).catch(() => {
+        /* See above: localStorage already holds the intent. */
+      });
+    }
+  }
+
+  for (const select of selects) {
+    select.addEventListener('change', persistSelection);
+  }
+
+  /* -------------------------------------------------------------------------
+     MASTER-SPEC F10, first bullet, browser half: the seen dimmer.
+
+     THE SEEN SET NEVER LEAVES THIS BROWSER. There is no fetch anywhere in
+     this block, on purpose: which postings a person has looked at is named
+     in this repository's own constraints canon as among the most sensitive
+     facts this product could hold, and the honest way to guarantee it never
+     reaches a server this task did not build a table for is to write no code
+     that could send it to one. Signed out, the set lives in sessionStorage,
+     cleared at the end of the browsing session, exactly as MASTER-SPEC F10
+     states ("Anonymous users get session-level dimming only"). Signed in, it
+     lives in localStorage instead, in the same browser, persisting across a
+     visit the way the rest of a signed-in reader's local state does, but
+     still never account-backed and still never sent anywhere: F10 asks for
+     account-backed FILTERS, not an account-backed record of every posting a
+     person opened, and this file does not build the second thing merely
+     because it was asked to build the first.
+     ------------------------------------------------------------------------- */
+
+  const dimmerToggle = document.querySelector<HTMLInputElement>('[data-seen-dimmer-toggle]');
+
+  function seenStorage(): Storage {
+    return signedIn ? window.localStorage : window.sessionStorage;
+  }
+
+  function readSeenSlugs(): string[] {
+    const raw = readJSON(seenStorage(), SEEN_KEY);
+    return Array.isArray(raw) ? raw.filter((value): value is string => typeof value === 'string') : [];
+  }
+
+  function markSeen(slug: string): void {
+    const seen = new Set(readSeenSlugs());
+    if (seen.has(slug)) return;
+    seen.add(slug);
+    writeJSON(seenStorage(), SEEN_KEY, Array.from(seen));
+  }
+
+  /** Applies (or lifts) the dimmed attribute on every row already marked
+      seen. Re-run after every JobTable update (index:rows), because
+      JobTable.astro's own controller reorders and reveals rows on every
+      filter, sort and page change, and an attribute this script set before
+      that reorder is still on the same DOM node afterwards, but a newly
+      revealed row needs the same pass run against it too. */
+  function applySeenDimming(): void {
+    const enabled = dimmerToggle ? dimmerToggle.checked : true;
+    const seen = new Set(readSeenSlugs());
+    for (const row of document.querySelectorAll<HTMLElement>('[data-job-row][data-slug]')) {
+      const slug = row.getAttribute('data-slug');
+      const shouldDim = enabled && slug !== null && seen.has(slug);
+      row.toggleAttribute('data-seen-dimmed', shouldDim);
+    }
+  }
+
+  if (dimmerToggle) {
+    const storedEnabled = readJSON(window.localStorage, SEEN_DIMMER_KEY);
+    dimmerToggle.checked = typeof storedEnabled === 'boolean' ? storedEnabled : true;
+
+    dimmerToggle.addEventListener('change', () => {
+      // The on/off preference itself is a UI setting, not a record of what
+      // was viewed, so it is kept in localStorage for every visitor rather
+      // than split by sign-in state the way the seen set above is: turning
+      // this off on a shared or signed-out browser is not a sensitive fact.
+      writeJSON(window.localStorage, SEEN_DIMMER_KEY, dimmerToggle.checked);
+      applySeenDimming();
+    });
+  }
+
+  // A row is marked seen when its own title link is opened, the same
+  // "actually looked at it" signal src/pages/desk/application.ts's click
+  // capture uses for an application: a click on the row's link, not a mere
+  // hover or an intersection observer guessing at reading time either of
+  // which would mark a row seen for scrolling past it.
+  document.addEventListener(
+    'click',
+    (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const row = target.closest<HTMLElement>('[data-job-row][data-slug]');
+      const link = target.closest('a[href]');
+      if (!row || !link) return;
+      const slug = row.getAttribute('data-slug');
+      if (!slug) return;
+      markSeen(slug);
+      applySeenDimming();
+    },
+    { capture: true }
+  );
+
+  document.addEventListener('index:rows', applySeenDimming);
+
+  /* -------------------------------------------------------------------------
+     MASTER-SPEC F10, first bullet, signed-in half: applied suppression.
+
+     REHIDING AFTER EVERY index:rows, NOT REMOVING ROWS UP FRONT. JobTable
+     .astro's own controller decides pagination and re-sets every row's
+     `hidden` attribute on every filter, sort and page change; a row this
+     script hid once would be un-hidden the next time that controller ran.
+     So this listens for the same index:rows report JobTable already sends
+     after every change and re-applies suppression on top of it, honestly:
+     the count in the banner is always exactly suppressedSlugs.length, but a
+     page can show fewer than a full page of rows when a suppressed row and
+     a page boundary land together, because this script cannot re-run
+     JobTable's own pagination math without becoming a second copy of it.
+     See this component's own header, and this task's report, for the
+     precise index.astro edit that removes this limitation by suppressing
+     rows before JobTable ever sees them.
+     ------------------------------------------------------------------------- */
+
+  const accountFiltersUrl = root?.getAttribute('data-account-filters-url') || '';
+  const suppressionNote = document.querySelector<HTMLElement>('[data-suppression-note]');
+  const suppressionCount = document.querySelector<HTMLElement>('[data-suppression-count]');
+  const suppressionToggle = document.querySelector<HTMLButtonElement>('[data-suppression-toggle]');
+
+  let signedIn = false;
+  let suppressedSlugs: string[] = [];
+  let showingSuppressed = false;
+
+  function suppressionLabel(count: number): string {
+    return count === 1 ? '1 role you\'ve applied to is' : `${count} roles you've applied to are`;
+  }
+
+  function applySuppression(): void {
+    if (suppressedSlugs.length === 0) return;
+    const suppressedSet = new Set(suppressedSlugs);
+    for (const row of document.querySelectorAll<HTMLElement>('[data-job-row][data-slug]')) {
+      const slug = row.getAttribute('data-slug');
+      if (slug !== null && suppressedSet.has(slug) && !showingSuppressed) {
+        row.hidden = true;
+      }
+    }
+  }
+
+  /* -------------------------------------------------------------------------
+     THE APPLIED TAG. Same fetch, same slug set, no second endpoint: a row is
+     tagged "Applied" exactly where it is a candidate for suppression above,
+     because suppressedSlugs already IS "postings this reader applied to".
+     One data attribute on the row, `data-applied`, in the same shape the
+     seen dimmer's own `data-seen-dimmed` uses: a boolean fact written onto
+     the row by script, and a CSS rule elsewhere reacts to its presence. The
+     row's own `hidden` state (owned by applySuppression above and by
+     JobTable's controller) is what actually keeps the tag off screen while a
+     reader has not asked to see their applied rows: this function does not
+     branch on showingSuppressed at all, because a tag on a hidden row is
+     already invisible, and the tag needs no un-tagging the moment the row is
+     revealed by the "Show them" click below.
+     ------------------------------------------------------------------------- */
+
+  function applyAppliedTag(): void {
+    if (suppressedSlugs.length === 0) return;
+    const appliedSet = new Set(suppressedSlugs);
+    for (const row of document.querySelectorAll<HTMLElement>('[data-job-row][data-slug]')) {
+      const slug = row.getAttribute('data-slug');
+      row.toggleAttribute('data-applied', slug !== null && appliedSet.has(slug));
+    }
+  }
+
+  if (suppressionToggle) {
+    suppressionToggle.addEventListener('click', () => {
+      showingSuppressed = !showingSuppressed;
+      suppressionToggle.textContent = showingSuppressed ? 'Hide them again' : 'Show them';
+      applySuppression();
+      if (showingSuppressed) {
+        // Un-hiding here rather than waiting for the next index:rows: the
+        // reveal is this click's own promise, and a reader who asked to see
+        // the hidden rows should see them on this click, not on the next
+        // filter change.
+        const suppressedSet = new Set(suppressedSlugs);
+        for (const row of document.querySelectorAll<HTMLElement>('[data-job-row][data-slug]')) {
+          const slug = row.getAttribute('data-slug');
+          if (slug !== null && suppressedSet.has(slug)) row.hidden = false;
+        }
+      }
+    });
+  }
+
+  document.addEventListener('index:rows', applySuppression);
+  document.addEventListener('index:rows', applyAppliedTag);
+
+  /* -------------------------------------------------------------------------
+     The one account probe both account-backed behaviours above wait on. A
+     401 here is read as "signed out", not as a failure: everything above
+     already has a complete, correct, browser-only behaviour that needs
+     nothing from this call, and this call only ever adds to it.
+     ------------------------------------------------------------------------- */
+
+  (async () => {
+    // Signed-out baseline first, unconditionally, so a slow or failed
+    // network never leaves the page showing the un-restored default select
+    // state for longer than a local read requires.
+    if (serverMode && window.location.search !== '') {
+      // The address states the selection; that is now the saved one.
+      writeJSON(window.localStorage, FILTERS_KEY, currentSelection());
+    } else {
+      applySelection(readJSON(window.localStorage, FILTERS_KEY));
+    }
+    applySeenDimming();
+
+    if (!accountFiltersUrl) return;
+
+    try {
+      const response = await fetch(accountFiltersUrl, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' }
+      });
+      if (!response.ok) return; // 401: signed out. The browser-only state above already stands.
+
+      const body = await response.json();
+      signedIn = true;
+
+      // The account's own selection wins over localStorage's once we know
+      // there is one: it is the more recently authoritative copy for a
+      // reader who has used this account on another device. A person with
+      // no saved selection yet (`selection: null`) keeps whatever the
+      // localStorage pass above already applied.
+      if (serverMode && window.location.search !== '') persistSelection();
+      else if (body && body.selection) applySelection(body.selection);
+
+      // The seen set moves from sessionStorage to localStorage the instant
+      // we learn this visitor is signed in, so a dimmer state built up
+      // earlier in this same page view before the probe answered is not
+      // lost, only relocated to the tier a signed-in visitor actually gets.
+      const sessionSeen = readJSON(window.sessionStorage, SEEN_KEY);
+      if (Array.isArray(sessionSeen) && sessionSeen.length > 0) {
+        writeJSON(window.localStorage, SEEN_KEY, sessionSeen);
+      }
+      applySeenDimming();
+
+      suppressedSlugs =
+        body && Array.isArray(body.suppressedSlugs)
+          ? body.suppressedSlugs.filter((value: unknown): value is string => typeof value === 'string')
+          : [];
+
+      // Tags before suppression: the tag only needs to know which slugs
+      // qualify, not whether the reader has chosen to reveal them, so it is
+      // written the moment the set is known rather than nested inside the
+      // banner's own non-empty check below.
+      applyAppliedTag();
+
+      if (suppressedSlugs.length > 0 && suppressionNote && suppressionCount) {
+        suppressionCount.textContent = suppressionLabel(suppressedSlugs.length);
+        suppressionNote.hidden = false;
+        applySuppression();
+      }
+    } catch {
+      // A network failure reads exactly like signed-out: the browser-only
+      // state already applied above is the honest, complete answer.
+    }
+  })();
+</script>
+
+<style>
+  /* THE STRIP. .filters stacks the row and the suppression note; the row is
+     the strip itself: cells edge to edge, divided by hairlines, no gaps and
+     no chips. Board.astro's .controls draws the strip's outer edges. */
+  .filters {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1 1 auto;
+    /* The open menu is positioned against this box (see the script). */
+    position: relative;
+  }
+
+  .filters-row {
+    display: flex;
+    align-items: stretch;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  /* At lap width and above the row stops wrapping and scrolls itself instead
+     (--breakpoint-lap, restated as a literal because a media query cannot
+     read a custom property; check-token-usage.mjs checks it matches). */
+  @media (min-width: 60rem) { /* --breakpoint-lap */
+    .filters-row {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+    }
+  }
+
+  /* One cell: label, then value, with the hairline on its left edge. The
+     first cell has no left edge because the strip's border draws it. */
+  .filter {
+    display: flex;
+    align-items: center;
+    gap: var(--space-200);
+    flex: none;
+    padding: var(--space-300) var(--space-500);
+    border-left: var(--border-hairline) solid var(--color-line);
+    white-space: nowrap;
+  }
+
+  .filter:first-child {
+    border-left: none;
+  }
+
+  .filter-label {
+    color: var(--color-muted);
+  }
+
+  /* Search takes the slack: it is the one cell whose value has no fixed
+     width, and the glyph marks it as the box you type in. */
+  .filter-search {
+    flex: 1 1 auto;
+    min-width: var(--space-900);
+    cursor: text;
+  }
+
+  .search-glyph {
+    color: var(--color-muted);
+    font-size: var(--size-100);
+  }
+
+  .search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--size-100);
+    padding: 0;
+    color: var(--color-foreground);
+    background: transparent;
+    border: none;
+  }
+
+  .search-input::placeholder {
+    color: var(--color-muted);
+  }
+
+  .search-input:focus-visible {
+    outline: none;
+  }
+
+  /* The sizer and the select share one grid cell, so the cell takes the width
+     of the widest option and the control never shifts as the choice changes. */
+  .filter-field {
+    display: inline-grid;
+  }
+
+  .filter-sizer,
+  .filter-select {
+    grid-area: 1 / 1;
+    font-size: var(--size-100);
+    padding: 0 var(--space-500) 0 0;
+    white-space: nowrap;
+  }
+
+  .filter-sizer {
+    visibility: hidden;
+  }
+
+  .filter-select {
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent var(--select-chevron) no-repeat right center;
+    background-size: var(--space-300) var(--space-300);
+    border: none;
+    color: var(--color-foreground);
+    cursor: pointer;
+  }
+
+  .filter-select:focus-visible {
+    outline: none;
+  }
+
+  /* THE ELEMENTS THE SCRIPT CREATES (.filter-value, .menu, .menu-option,
+     .menu-count) carry no Astro scope attribute, so every rule that reaches
+     them below goes through :global under an ancestor this component did
+     render. Without that the menu shipped unstyled once. */
+
+  /* Under script the select steps out of sight (it is still the form's
+     field and still hears the change event) and the button takes its cell. */
+  [data-filters][data-js] .filter-sizer {
+    display: none;
+  }
+
+  [data-filters][data-js] .filter-select {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .filter-field > :global(.filter-value) {
+    grid-area: 1 / 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-300);
+    font-size: var(--size-100);
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--color-foreground);
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  /* The chevron is its own element so the open state can turn it upward. */
+  .filter-field > :global(.filter-value)::after {
+    content: '';
+    flex: none;
+    width: var(--space-300);
+    height: var(--space-300);
+    background: var(--select-chevron) no-repeat center;
+    background-size: contain;
+  }
+
+  .filter-field > :global(.filter-value):focus-visible {
+    outline: none;
+  }
+
+  /* The open cell: a heavy outline drawn inward so the strip does not move,
+     and the chevron turned to point up. */
+  .filter {
+    position: relative;
+  }
+
+  .filter[data-open] {
+    outline: var(--border-heavy) solid var(--color-foreground);
+    outline-offset: calc(-1 * var(--border-heavy));
+  }
+
+  .filter[data-open] .filter-field > :global(.filter-value)::after {
+    transform: rotate(180deg);
+  }
+
+  /* The list: label on the left, the count on the right, the chosen row and
+     the hovered row on the hover surface, a dead option in the muted voice. */
+  .filters > :global(.menu) {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border: var(--border-hairline) solid var(--color-line-strong);
+  }
+
+  .filters > :global(.menu[hidden]) {
+    display: none;
+  }
+
+  .filters :global(.menu-option) {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-600);
+    align-items: baseline;
+    padding: var(--space-300) var(--space-400);
+    border: none;
+    border-top: var(--border-hairline) solid var(--color-line);
+    background: transparent;
+    color: var(--color-foreground);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .filters :global(.menu-option:first-child) {
+    border-top: none;
+  }
+
+  .filters :global(.menu-option:hover),
+  .filters :global(.menu-option:focus-visible),
+  .filters :global(.menu-option[aria-selected='true']) {
+    background: var(--color-hover-surface);
+    outline: none;
+  }
+
+  .filters :global(.menu-option:disabled) {
+    color: var(--color-muted);
+    cursor: default;
+    background: transparent;
+  }
+
+  .filters :global(.menu-count) {
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  /* Focus and hover are shown on the cell, in the foreground colour, since
+     the controls inside carry no box of their own any more. */
+  .filter:hover,
+  .filter:focus-within {
+    color: var(--color-foreground);
+  }
+
+  .filter:focus-within .filter-label {
+    color: var(--color-foreground);
+  }
+
+  /* The no-script Apply. Hidden the moment script marks the root. */
+  .filter-apply {
+    flex: none;
+    padding: var(--space-300) var(--space-500);
+    border: none;
+    border-left: var(--border-hairline) solid var(--color-line);
+    background: transparent;
+    color: var(--color-foreground);
+    cursor: pointer;
+  }
+
+  .filter-apply:hover {
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+  }
+
+  [data-filters][data-js] .filter-apply {
+    display: none;
+  }
+
+  /* The sort, passed in through the slot, wears the same cell box. Its own
+     stylesheet draws the label and the segments; this only places it. */
+  .filters-row > :global(.sort) {
+    border-left: var(--border-hairline) solid var(--color-line);
+  }
+
+  /* THE SEEN DIMMER: the inverted cell while it is on. The native checkbox
+     stays in the document for the label, the default state and the keyboard,
+     and is drawn out of sight; the cell's colours and the state word are the
+     visible control. */
+  .filter-toggle {
+    margin-left: auto;
+    cursor: pointer;
+  }
+
+  .filter-toggle:has(.filter-toggle-input:checked) {
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+  }
+
+  .filter-toggle:has(.filter-toggle-input:checked) .filter-label,
+  .filter-toggle:has(.filter-toggle-input:checked) .toggle-state {
+    color: var(--color-foreground-inverse);
+  }
+
+  .filter-toggle:has(.filter-toggle-input:focus-visible) {
+    outline: var(--border-heavy) solid var(--color-foreground);
+    outline-offset: calc(-1 * var(--border-heavy));
+  }
+
+  .filter-toggle-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .toggle-state {
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+  }
+
+  .filter-toggle [data-toggle-off] {
+    display: none;
+  }
+
+  .filter-toggle:has(.filter-toggle-input:not(:checked)) [data-toggle-on] {
+    display: none;
+  }
+
+  .filter-toggle:has(.filter-toggle-input:not(:checked)) [data-toggle-off] {
+    display: inline;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .filter,
+    .filter-toggle {
+      transition:
+        background-color var(--motion-duration-instant) var(--motion-easing-standard),
+        color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  /* THE SEEN DIMMER'S OWN VISUAL EFFECT, WRITTEN HERE RATHER THAN IN
+     JobRow.astro, WHICH THIS TASK CANNOT EDIT. `:global` reaches a row this
+     component does not own to change one state on it, the same narrow,
+     deliberate reach index.astro's own `:global(.tiles)` rule already uses
+     on a shared component's class; it does not change what a row is. The
+     opacity value matches src/pages/desk.astro's own `.app-row-archived`,
+     the one existing precedent in this codebase for dimming a row that is
+     still present and still real, just already dealt with. */
+  :global([data-job-row][data-seen-dimmed]) {
+    opacity: 0.6;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :global([data-job-row]) {
+      transition: opacity var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  /* Applied suppression's recovery line (MASTER-SPEC F10's own "must be
+     recoverable"). Sits below the controls, in the muted voice the rest of
+     the page's editorial asides already use, never in the mono machine
+     voice: this line states what THIS SITE did (hid some rows), not a fact
+     the sweep measured. .filters is a column flex container now (see its
+     own rule above), so this sits on its own row simply by being a sibling
+     of .filters-row rather than needing a flex-basis trick to escape a
+     wrapping row it used to share space in. */
+  .suppression-note {
+    font-size: var(--size-150);
+    color: var(--color-muted);
+    margin-block-start: var(--space-200);
+  }
+
+  .suppression-toggle {
+    font-family: var(--font-family-sans);
+    font-size: var(--size-150);
+    color: var(--color-foreground);
+    background: none;
+    border: none;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    cursor: pointer;
+  }
+
+  .suppression-toggle:hover {
+    color: var(--color-muted);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .suppression-toggle {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  /* On a phone the controls stack full width, which is what the canvas's
+     "Filters (4)" button collapses into once opened. Full width targets rather
+     than a row of chips: three chips on one line at 375px are three targets a
+     thumb misses. Targets .filters-row, not .filters: .filters only ever
+     stacks its two children (the row, the suppression note) top to bottom,
+     the same at every width, and it is the row's own chips that need to
+     drop from a wrapping line of chips to a full width column here. */
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .filters-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .filter,
+    .filter-apply,
+    .filters-row > :global(.sort) {
+      border-left: none;
+      border-top: var(--border-hairline) solid var(--color-line);
+    }
+
+    .filter:first-child {
+      border-top: none;
+    }
+
+    .filter-toggle {
+      margin-left: 0;
+    }
+  }
+</style>

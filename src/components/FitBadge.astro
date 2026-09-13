@@ -1,0 +1,73 @@
+---
+import type { Job } from '../lib/data';
+
+/**
+ * The fit score, wherever it is shown.
+ *
+ * It is a machine assertion, so it is mono, and it carries the markup contract
+ * gate 2 reads: data-truth="fit" plus the job slug and the total. That contract
+ * is not decoration. A page that renders scores and declares none of them is a
+ * page the truth gate verified nothing on, and the gate fails a route for
+ * exactly that.
+ *
+ * Two sizes, because the score does two jobs. In a table row it is a cell that
+ * has to sit inside 56px beside a "why" affordance. On a job detail page it is
+ * the headline of the reasoning panel and takes the /100 suffix, which the row
+ * does not: a column of scores establishes its own scale, a single score does
+ * not.
+ */
+
+interface Props {
+  job: Job;
+  /** 'row' is the index table cell. 'detail' is the reasoning panel headline. */
+  size?: 'row' | 'detail';
+  class?: string;
+}
+
+const { job, size = 'row', class: className } = Astro.props;
+---
+
+<span
+  class:list={['fit', `fit-${size}`, className]}
+  data-truth="fit"
+  data-truth-job={job.slug}
+  data-truth-total={job.fit.total}
+>
+  <span class="fit-value mono">{job.fit.total}</span>
+  {/* The suffix is the scale, not a machine reading, so it stays out of the
+      mono voice and is told apart from the numeral by size and weight, which
+      is ruling 3's second channel applied here. */}
+  {size === 'detail' && <span class="fit-scale">/100</span>}
+</span>
+
+<style>
+  .fit {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-100);
+  }
+
+  .fit-value {
+    font-weight: var(--weight-bold);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  /* The row score sits one step above the machine-voice default so it reads as
+     the first thing in the row without becoming a headline. */
+  .fit-row .fit-value {
+    font-size: var(--size-200);
+    line-height: var(--leading-tight);
+  }
+
+  .fit-detail .fit-value {
+    font-size: var(--size-400);
+    line-height: var(--leading-tight);
+  }
+
+  .fit-scale {
+    font-size: var(--size-100);
+    font-weight: var(--weight-regular);
+    color: var(--color-muted);
+  }
+</style>

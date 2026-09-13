@@ -1,0 +1,290 @@
+---
+/**
+ * Pagination, in the canvas's own shape: the page count, then previous and next.
+ *
+ * TWO MODES, ONE APPEARANCE.
+ *
+ *   Links. Pass prevHref and nextHref and the controls are anchors, one URL per
+ *   page, crawlable, working with scripting off. This is the right answer for
+ *   the index, where a static build can emit every page.
+ *
+ *   Island. Pass neither and the controls are buttons that announce intent on
+ *   the document, and the table listens. Use it where the rows are already all
+ *   in the page and reloading would be theatre.
+ *
+ * NO LAYOUT SHIFT ON CHANGE, and there are three separate reasons it holds.
+ * Both controls are always rendered, disabled rather than removed, so the row
+ * never loses an element and reflows. The count line is tabular, so "PAGE 1 OF
+ * 5" and "PAGE 4 OF 5" are the same width to the pixel. And the disabled state
+ * changes colour only, never border or padding, so a control that becomes
+ * unavailable does not resize.
+ *
+ * A disabled anchor is not a thing a keyboard can be told about, so link mode
+ * renders the unavailable end as a span with the same box. That is the same
+ * reasoning the header uses for "The Desk, soon": no anchor at all beats an
+ * anchor that promises something it cannot do.
+ */
+
+/** Link mode's page picker: a GET form that names the page and the size. */
+export interface PagePicker {
+  action: string;
+  /** The other settings the form carries (never `page`). */
+  hidden: readonly [string, string][];
+  per: number;
+  perOptions: readonly number[];
+  /** "Rows 1 to 50 of 1,913", already worded by the caller. */
+  span?: string;
+}
+
+interface Props {
+  /** 1 based, because it is a thing a reader is told. */
+  current: number;
+  total: number;
+  /** Link mode. Null means this end of the range. */
+  prevHref?: string | null;
+  nextHref?: string | null;
+  /** Link mode only: pick a page from a list, type one, choose rows per page. */
+  picker?: PagePicker;
+  class?: string;
+}
+
+const { current, total, prevHref, nextHref, picker, class: className } = Astro.props;
+const pageNumbers = picker ? Array.from({ length: Math.max(1, total) }, (_, i) => i + 1) : [];
+
+// Link mode is chosen by the caller passing either href, not by a flag, so the
+// two cannot disagree.
+const linkMode = prevHref !== undefined || nextHref !== undefined;
+const hasPrev = linkMode ? Boolean(prevHref) : current > 1;
+const hasNext = linkMode ? Boolean(nextHref) : current < total;
+---
+
+<nav class:list={['pagination', className]} aria-label="Pages" data-pagination data-current={current} data-total={total}>
+  <span class="page-count mono-label" data-page-count>Page {current} of {total}</span>
+
+  {
+    linkMode ? (
+      <>
+        {hasPrev && prevHref ? (
+          <a class="step" href={prevHref} rel="prev">
+            <span aria-hidden="true">&#8592;</span> Previous
+          </a>
+        ) : (
+          <span class="step step-off" aria-hidden="true">
+            <span>&#8592;</span> Previous
+          </span>
+        )}
+        {hasNext && nextHref ? (
+          <a class="step" href={nextHref} rel="next">
+            Next <span aria-hidden="true">&#8594;</span>
+          </a>
+        ) : (
+          <span class="step step-off" aria-hidden="true">
+            Next <span>&#8594;</span>
+          </span>
+        )}
+        {picker && (
+          /* THE PICKER, TWO FORMS. One chooses a page from the list and the
+             rows per page; the other takes a typed page number. Two forms so
+             two controls named "page" never travel together, and each has its
+             own Go so it works with no script; with script a select submits
+             on change. Hidden inputs carry every other setting. */
+          <>
+            <form class="picker" method="get" action={picker.action}>
+              {picker.hidden.map(([name, value]) => (
+                <input type="hidden" name={name} value={value} />
+              ))}
+              <label class="picker-field">
+                <span class="picker-label mono-label">Page</span>
+                <select class="picker-select mono" name="page" data-autosubmit>
+                  {pageNumbers.map((n) => (
+                    <option value={n} selected={n === current}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label class="picker-field">
+                <span class="picker-label mono-label">Rows per page</span>
+                <select class="picker-select mono" name="per" data-autosubmit data-resets-page>
+                  {picker.perOptions.map((n) => (
+                    <option value={n} selected={n === picker.per}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button class="step" type="submit">Go</button>
+            </form>
+            <form class="picker" method="get" action={picker.action}>
+              {picker.hidden.map(([name, value]) => (
+                <input type="hidden" name={name} value={value} />
+              ))}
+              <input type="hidden" name="per" value={picker.per} />
+              <label class="picker-field">
+                <span class="picker-label mono-label">Go to page</span>
+                <input class="picker-number mono" type="number" name="page" min="1" max={Math.max(1, total)} inputmode="numeric" required />
+              </label>
+              <button class="step" type="submit">Go</button>
+            </form>
+            {picker.span && <span class="page-span mono-label">{picker.span}</span>}
+          </>
+        )}
+      </>
+    ) : (
+      <>
+        <button class="step" type="button" data-page-step="-1" disabled={!hasPrev}>
+          <span aria-hidden="true">&#8592;</span> Previous
+        </button>
+        <button class="step" type="button" data-page-step="1" disabled={!hasNext}>
+          Next <span aria-hidden="true">&#8594;</span>
+        </button>
+      </>
+    )
+  }
+</nav>
+
+<script>
+  /**
+   * Island mode. Announces a step, then takes its own state from what the table
+   * reports back rather than from what it asked for, so the count line and the
+   * disabled ends always describe the rows actually on screen.
+   */
+  // Link mode's picker: a select submits its form on change. A new page size
+  // sends the reader to page one of the new size, since the old page number
+  // names rows that are no longer where they were.
+  for (const select of document.querySelectorAll<HTMLSelectElement>('[data-pagination] select[data-autosubmit]')) {
+    select.addEventListener('change', () => {
+      if (select.hasAttribute('data-resets-page')) {
+        const page = select.form?.querySelector<HTMLSelectElement>('select[name="page"]');
+        if (page) page.value = '1';
+      }
+      select.form?.requestSubmit();
+    });
+  }
+
+  for (const nav of document.querySelectorAll<HTMLElement>('[data-pagination]')) {
+    const steps = Array.from(nav.querySelectorAll<HTMLButtonElement>('button[data-page-step]'));
+    if (steps.length === 0) continue; // Link mode: the hrefs do the work.
+
+    const count = nav.querySelector<HTMLElement>('[data-page-count]');
+
+    for (const step of steps) {
+      step.addEventListener('click', () => {
+        const delta = Number(step.getAttribute('data-page-step'));
+        if (!Number.isFinite(delta)) return;
+        document.dispatchEvent(new CustomEvent('index:page', { detail: { delta } }));
+      });
+    }
+
+    document.addEventListener('index:rows', (event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail) return;
+      if (count) count.textContent = `Page ${detail.page} of ${detail.pages}`;
+      for (const step of steps) {
+        const delta = Number(step.getAttribute('data-page-step'));
+        step.disabled = delta < 0 ? detail.page <= 1 : detail.page >= detail.pages;
+      }
+    });
+  }
+</script>
+
+<style>
+  .pagination {
+    display: flex;
+    align-items: center;
+    gap: var(--space-300);
+    flex-wrap: wrap;
+  }
+
+  .page-count,
+  .page-span {
+    color: var(--color-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  /* The picker forms: chips in the row, the same hairline box the steps wear. */
+  .picker {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200);
+    flex-wrap: wrap;
+  }
+
+  .picker-field {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200);
+  }
+
+  .picker-label {
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+
+  .picker-select,
+  .picker-number {
+    font-size: var(--size-100);
+    padding: var(--space-200) var(--space-300);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-foreground);
+  }
+
+  .picker-select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: var(--space-600);
+    background: var(--color-surface) var(--select-chevron) no-repeat right var(--space-300) center;
+    background-size: var(--space-400) var(--space-400);
+    cursor: pointer;
+  }
+
+  .picker-number {
+    width: var(--space-900);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .step {
+    font-family: var(--font-family-sans);
+    font-size: var(--size-100);
+    padding: var(--space-200) var(--space-300);
+    border: var(--border-hairline) solid var(--color-foreground);
+    white-space: nowrap;
+    /* Anchors are inline by default and would sit a pixel off the buttons. */
+    display: inline-block;
+  }
+
+  .step:hover {
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+  }
+
+  /* The unavailable end. Colour only: the box, the border width and the padding
+     are identical to an available control, so nothing moves when the reader
+     reaches the first or last page. */
+  .step:disabled,
+  .step-off {
+    color: var(--color-muted);
+    border-color: var(--color-line);
+    cursor: default;
+  }
+
+  .step:disabled:hover,
+  .step-off:hover {
+    background: none;
+    color: var(--color-muted);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .step {
+      transition:
+        background-color var(--motion-duration-instant) var(--motion-easing-standard),
+        border-color var(--motion-duration-instant) var(--motion-easing-standard),
+        color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+</style>

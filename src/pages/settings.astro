@@ -1,0 +1,961 @@
+---
+/**
+ * /settings: the one machinery page. Three sections, in order: Account (name,
+ * email, resume email and handle, each a collapsed row that opens to its own
+ * form, see AccountRow.astro), Models and keys (the drafting toggle plus one
+ * unified row per provider combining its key and its writing model, see
+ * ProviderRows.astro), and Your data (download or delete). It reads as the
+ * same collapsed-row system the profile page uses: a setting is a fact with an
+ * edit behind it, not a form standing open.
+ *
+ * WHY THIS IS ONE FILE, NOT THREE. It used to be three pages: /account/
+ * settings (name, email, handle, the draft-on-apply toggle), /account/keys
+ * (the four provider-key panels), and /account (download and delete, plus a
+ * "your surfaces" hub the shared header and footer now cover on their own).
+ * A person turning drafting on and a person connecting the key that powers
+ * it were one errand split across two pages for no reason but history; this
+ * merge puts the toggle and the four provider panels in the same "Drafting"
+ * section so the sentence "turn this on, then connect a key" reads as one
+ * panel instead of a cross-link. The old /account hub's "your surfaces" nav
+ * is gone with it: that job now belongs to the shared chrome and to Profile,
+ * not to a page that also has to explain how to delete your account.
+ *
+ * GATED BY THE '/settings' PREFIX IN src/lib/entitlement.ts, COVERING THIS
+ * PAGE AND EVERY ENDPOINT UNDER IT BY PREFIX MATCH. No second ROUTE_POLICY
+ * entry is needed for settings/name.ts, settings/email.ts, settings/
+ * handle.ts, settings/generation.ts, settings/keys/save.ts, settings/keys/
+ * remove.ts, settings/export.ts, or settings/delete.ts: they all live under
+ * this one tree specifically so entitlement.ts needs one policy entry, not
+ * eight.
+ *
+ * WORKS WITHOUT JAVASCRIPT. Every form here is a plain POST to its own
+ * endpoint, redirecting back to this page with a query param this
+ * frontmatter reads to decide which message to show. The one script on this
+ * page (at the bottom) only makes the delete disclosure's Cancel button
+ * close it without a round trip; the disclosure closes exactly the same way
+ * with the script absent, by clicking its own summary again or tabbing away.
+ *
+ * WHY EMAIL AND NAME ARE TWO FORMS, NOT ONE. They post to two different
+ * endpoints with two entirely different failure shapes (name always
+ * succeeds or reveals a broken profile row; email starts a two-step
+ * confirmation Better Auth owns and can fail for session freshness, an
+ * unchanged address, or a disabled feature), so one submit button doing
+ * both would have to explain which of two unrelated things went wrong from
+ * one message. Two forms, two plain results.
+ *
+ * WHAT "REQUESTED" HONESTLY MEANS FOR EMAIL. This page never claims an
+ * email change has happened, because from this route's point of view it has
+ * not: see src/pages/settings/email.ts's own header for the full two-step
+ * sequence, verified against Better Auth's source rather than assumed. The
+ * copy below says "a confirmation is on its way to CURRENT ADDRESS", not
+ * "your email is changing", and names the address the confirmation goes to
+ * so a reader knows which inbox to check.
+ *
+ * THE HANDLE PANEL, MASTER-SPEC F8. This is where a person picks the value
+ * src/pages/u/[handle].astro later checks ownership against. Not the same
+ * discipline as the name panel above: RUN-FINISH 2.1's verbatim-storage
+ * rule is about a NAME, and a handle is a constrained-alphabet identifier,
+ * not free text someone is being quoted back. What this panel says about
+ * visibility is scoped to what is actually true today: RUN-MASTER
+ * amendment 6 keeps every classification above private dark this run, so
+ * the copy below says the handle is a private preview only its owner can
+ * open, not a promise about who can see it later.
+ *
+ * THE DRAFTING SECTION, FOLDED FROM TWO PAGES INTO ONE PANEL. The toggle
+ * writes db/011_generation_on_apply.sql's generate_on_apply column through
+ * src/lib/generation-preference-store.ts (getGenerationPreference() here,
+ * settings/generation.ts on write); turning it on does not, by itself,
+ * generate anything, and the copy says so, because it is one of four gates
+ * src/lib/generation-preference.ts's decideGenerationTrigger() checks, never
+ * a trigger by itself. THE COVENANT THIS PANEL DOES NOT TOUCH: nothing
+ * about this setting ever marks a click "applied"; see src/pages/desk/
+ * application.ts's own header for where that line is actually enforced.
+ * Below the toggle, one add-a-key form and a table of the keys already on
+ * file. The form is a provider dropdown (src/lib/keychain.ts PROVIDERS,
+ * labeled from src/lib/generation-providers.ts's PROVIDER_REGISTRY, the
+ * canonical names generation actually calls by, e.g. "Kimi (Moonshot AI)",
+ * not a second, locally-invented label map) and the key field itself. The
+ * table shows one row per connected provider: the provider, the last 4
+ * characters and the two dates keyMeta() returns (never the key itself), and a
+ * Remove control.
+ * One key per provider (db/007's primary key), so saving a provider already
+ * in the table replaces its key rather than adding a second row.
+ *
+ * THREE WAYS THE KEY PANELS REFUSE TO SHOW A FORM, AND ONLY TWO OF THEM
+ * STILL BLOCK ANYTHING HERE. keys.astro used to refuse for three reasons:
+ * not signed in, the `byok` flag off, or KEY_ENCRYPTION_SECRET unset. The
+ * first of those is now the whole page's own gate below (a signed-out
+ * reader never reaches the Drafting section, or any other section, because
+ * none of them exist without a session). The other two are real states a
+ * signed-in reader can be in, so they render as a quiet note inside this
+ * one section instead of hiding the rest of the page: a person whose
+ * deployment has byok off, or whose operator has not set an encryption
+ * secret, still gets to change their name, their email, their handle, and
+ * still gets to download or delete their data.
+ *
+ * ROUTES ARE WRITTEN THROUGH routeFor(), NOT withBase(), FOR EVERY FORM
+ * ACTION AND LINK BELOW EXCEPT THE HANDLE PREVIEW. Every endpoint this page
+ * points at (settings-name, settings-email, settings-handle, settings-
+ * generation, settings-keys-save, settings-keys-remove, settings-export,
+ * settings-delete) and the cross-link to Profile are registered static
+ * ROUTES entries in src/data/nav.ts, so routeFor() is what builds their
+ * paths. The one exception is the handle preview link, /u/<handle>: that is
+ * a dynamic route (src/pages/u/[handle].astro, key 'account-handle'), and
+ * routeFor() refuses to build a dynamic route on purpose, so this page
+ * calls withBase() directly for that one href, matching the parameterised
+ * paths jobPath() and killCardPath() build the same way.
+ *
+ * HOW A FAILED KEY SUBMISSION GETS BACK HERE. A 303 redirect carries no
+ * body, so settings/keys/save.ts and settings/keys/remove.ts relay the
+ * outcome through a short-lived, httpOnly cookie, the same technique
+ * record.astro's own relay uses. THE SUBMITTED KEY IS NEVER PART OF THAT
+ * PAYLOAD: the relay carries only which provider and what was wrong, in
+ * words, never the value that was typed. See the password field below for
+ * the other half of that same rule.
+ *
+ * THE DELETE DISCLOSURE, FOLDED IN FROM THE OLD /account HUB. A native
+ * <details>/<summary> needs no script to open, trap focus, or close, and is
+ * exactly as keyboard-operable as a link. The first click (on <summary>) is
+ * step one of the two-step confirmation: it reveals exactly what gets
+ * erased and what does not before the second, destructive control is
+ * anywhere on screen. The delete form itself is a plain POST; see
+ * src/pages/settings/delete.ts's own header for why that route accepts a
+ * native form submission with no script required for the action to work.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Panel from '../components/Panel.astro';
+import ProviderRows from '../components/settings/ProviderRows.astro';
+import AccountRow from '../components/settings/AccountRow.astro';
+import { routeFor } from '../data/nav';
+import { withBase } from '../../site.config.mjs';
+import { getHandle, getResumeEmailSettings, personName, HANDLE_MAX_LENGTH, HANDLE_MIN_LENGTH } from '../lib/record-store';
+import { getGenerationPreference } from '../lib/generation-preference-store';
+import { getAuth } from '../lib/auth';
+import { isOn } from '../lib/flags';
+import { PROVIDERS, keyStorageIsConfigured, type Provider } from '../lib/keychain';
+import { getWritingModel, keyMeta, type StoredKeyMeta } from '../lib/keychain-store';
+import { PROVIDER_REGISTRY } from '../lib/generation-providers';
+
+export const prerender = false;
+
+const verdict = Astro.locals.verdict;
+const allowed = verdict?.allow === true;
+const reason = verdict?.reason ?? 'signed-out';
+const viewer = Astro.locals.viewer;
+
+const name = allowed && viewer ? await personName(viewer.userId) : null;
+// See settings/email.ts's own header for why the email address has no
+// reader through record-store.ts: Better Auth owns `user.email` and this is
+// the one place inside this page's frontmatter that asks it directly.
+const session = allowed ? await getAuth().api.getSession({ headers: Astro.request.headers }) : null;
+const email = session?.user?.email ?? null;
+const handle = allowed && viewer ? await getHandle(viewer.userId) : null;
+const generateOnApply = allowed && viewer ? await getGenerationPreference(viewer.userId) : false;
+const resumeEmail = allowed && viewer ? await getResumeEmailSettings(viewer.userId) : { useLogin: true, custom: null };
+
+// The two key-panel refusal states that still matter once a reader has
+// already cleared the page-level gate above; see this file's own header for
+// why "not signed in" is no longer a third state checked here.
+const byokOn = isOn('byok');
+const keysReady = allowed && byokOn;
+const keysConfigured = keysReady ? keyStorageIsConfigured() : false;
+
+const params = Astro.url.searchParams;
+const nameUpdated = params.has('name-updated');
+const nameError = params.has('name-error');
+const emailRequested = params.has('email-requested');
+const emailError = params.get('email-error');
+const resumeEmailUpdated = params.has('resume-email-updated');
+const resumeEmailError = params.has('resume-email-error');
+const handleUpdated = params.has('handle-updated');
+const handleCleared = params.has('handle-cleared');
+const handleError = params.get('handle-error');
+const generationUpdated = params.has('generation-updated');
+const generationError = params.has('generation-error');
+const modelUpdated = params.has('model-updated');
+const modelError = params.has('model-error');
+const deleteFailed = params.has('delete-failed');
+
+const EMAIL_ERROR_MESSAGES: Record<string, string> = {
+  empty: 'Type the new address before submitting.',
+  'stale-session':
+    'This session has been open too long to change something this sensitive. Sign out and back in, then try again.',
+  'request-failed':
+    'The request did not go through. Check the address is different from your current one and looks like a real ' +
+    'email, then try again.'
+};
+
+const HANDLE_ERROR_MESSAGES: Record<string, string> = {
+  invalid: `Use ${HANDLE_MIN_LENGTH} to ${HANDLE_MAX_LENGTH} characters: lowercase letters, numbers and hyphens ` +
+    'only, starting and ending with a letter or number.',
+  taken: 'That handle is already taken. Try another; nothing about your account has changed.',
+  'no-profile': 'That did not save. Nothing has changed; try again, and if it keeps failing, contact ' +
+    'ryan@tokenstoagents.ai.'
+};
+
+/* ---------------------------------------------------------------------------
+   The keys relay cookie: what a failed add/replace carried back. Read once,
+   then deleted, so a reload never repeats it. Never carries the submitted
+   key, only which provider and a human-readable reason; see settings/keys/
+   save.ts's own header for the write side.
+   --------------------------------------------------------------------------- */
+
+interface KeysRelay {
+  provider: Provider;
+  message: string;
+}
+
+function parseKeysRelay(raw: string | undefined): KeysRelay | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<KeysRelay>;
+    if (typeof parsed.provider === 'string' && (PROVIDERS as readonly string[]).includes(parsed.provider) && typeof parsed.message === 'string') {
+      return parsed as KeysRelay;
+    }
+    return null;
+  } catch {
+    // A cookie that fails to parse is treated as absent, never as a thrown
+    // error: it can only mean the cookie was tampered with or truncated,
+    // and either way there is nothing here for this page to recover.
+    return null;
+  }
+}
+
+const RELAY_COOKIE_PATH = withBase('/settings');
+const keysRelay = parseKeysRelay(Astro.cookies.get('keys_form_relay')?.value);
+Astro.cookies.delete('keys_form_relay', { path: RELAY_COOKIE_PATH });
+
+function formatDate(date: Date): string {
+  const MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ] as const;
+  return `${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
+}
+
+// Every provider this person has a key on file for, in one ordered list the
+// keys table renders a row per. One key per provider by construction (db/007's
+// PRIMARY KEY), so this doubles as "which providers are connected".
+const connectedKeys: StoredKeyMeta[] = keysConfigured && viewer ? await keyMeta(viewer.userId) : [];
+
+/**
+ * The writing-model picker's rows: one per connected provider, carrying that
+ * provider's own curated list and this person's current choice.
+ *
+ * The labels and notes come from PROVIDER_REGISTRY, never a second map typed
+ * here: keys-page.render.test.ts already pins that regression for provider
+ * names, and a model list invented locally would drift from the one the
+ * drafting code actually calls.
+ */
+// One row per provider, keys and writing model unified the way the design mock
+// draws them (see ProviderRows.astro). Every provider is listed, connected or
+// not; a connected one carries its key facts, its chosen writing model, and the
+// copy tier it reads with. All model facts come from PROVIDER_REGISTRY, so the
+// list cannot drift from the one the drafting code calls.
+const providerRows =
+  keysConfigured && viewer
+    ? await Promise.all(
+        PROVIDERS.map(async (provider) => {
+          const def = PROVIDER_REGISTRY[provider];
+          const key = connectedKeys.find((row) => row.provider === provider) ?? null;
+          const connected = key !== null;
+          const chosen = connected
+            ? ((await getWritingModel(viewer.userId, provider)) ?? def.defaultWritingModel)
+            : def.defaultWritingModel;
+          const chosenModel = def.writingModels.find((model) => model.id === chosen);
+          // The copy tier is a raw id with no label of its own, but every
+          // provider's copyModel also appears in its writingModels (the cheapest
+          // tier is a writing option too), so its friendly name is read from
+          // there, with the id as a fallback.
+          const readModelLabel =
+            def.writingModels.find((model) => model.id === def.copyModel)?.label ?? def.copyModel;
+          return {
+            provider,
+            name: def.label,
+            connected,
+            tail: key?.last4 ?? null,
+            added: key ? formatDate(key.createdAt) : null,
+            replaced: key?.rotatedAt ? formatDate(key.rotatedAt) : null,
+            writingLabel: connected ? (chosenModel?.label ?? chosen) : null,
+            readModelLabel,
+            models: def.writingModels.map((model) => ({
+              id: model.id,
+              label: model.label,
+              note: model.note,
+              current: model.id === chosen
+            })),
+            relayError: keysRelay?.provider === provider ? keysRelay.message : null
+          };
+        })
+      )
+    : [];
+
+// When exactly one key is connected, the autodraft toggle can name the model a
+// draft will actually use; with several, each provider carries its own choice
+// and there is no single "active" one to name.
+const connectedRows = providerRows.filter((row) => row.connected);
+const soleWritingModel = connectedRows.length === 1 ? connectedRows[0] : null;
+
+// Which provider row is expanded, read from the query the row's own action
+// links set: `?model=<provider>` opens its writing-model picker, `?connect=
+// <provider>` opens its key field. Validated against the real provider list so
+// a hand-typed value opens nothing. ProviderRows also opens a key row on its
+// own relay error, independent of these.
+const settingsPath = routeFor('settings');
+const openModelParam = params.get('model');
+const openConnectParam = params.get('connect');
+const openModel = providerRows.some((row) => row.provider === openModelParam) ? openModelParam : null;
+const openKey = providerRows.some((row) => row.provider === openConnectParam) ? openConnectParam : null;
+
+const nameAction = routeFor('settings-name');
+const emailAction = routeFor('settings-email');
+const resumeEmailAction = routeFor('settings-resume-email');
+const handleAction = routeFor('settings-handle');
+const generationAction = routeFor('settings-generation');
+const modelAction = routeFor('settings-model');
+const keysSaveAction = routeFor('settings-keys-save');
+const keysRemoveAction = routeFor('settings-keys-remove');
+const exportHref = routeFor('settings-export');
+const deleteAction = routeFor('settings-delete');
+const profileHref = routeFor('profile');
+
+/* The collapsed-row values and open states for the Account section. A row
+   opens when its own save just happened, so its message and its form are both
+   in view on the reload. */
+const fullName = name && (name.firstName || name.lastName) ? `${name.firstName} ${name.lastName}`.trim() : 'Not set';
+const resumeEmailValue = resumeEmail.useLogin
+  ? 'Same as your login email'
+  : (resumeEmail.custom ?? 'Not set');
+const handleValue = handle ? `/u/${handle}` : 'Not set';
+const nameRowOpen = nameUpdated || nameError;
+const emailRowOpen = emailRequested || Boolean(emailError);
+const resumeEmailRowOpen = resumeEmailUpdated || resumeEmailError;
+const handleRowOpen = handleUpdated || handleCleared || Boolean(handleError);
+---
+
+<BaseLayout
+  title="Settings"
+  description="Name, email, handle, drafting with provider keys, and download or delete your data."
+  noindex
+>
+  <section class="settings-page">
+    <div class="shell settings-shell">
+      <span class="kicker">Account</span>
+
+      {
+        allowed ? (
+          <>
+            <h1>Settings</h1>
+
+            <Panel title="Account" class="settings-panel">
+              <AccountRow label="Name" value={fullName} open={nameRowOpen}>
+                <p class="settings-panel-line">
+                  Stored exactly as you type it: no capitalisation, no trimming, no cleanup of any kind. This
+                  is the name every outreach draft and every generated document uses.
+                </p>
+                {nameUpdated && <p class="settings-success" role="status">Your name is saved.</p>}
+                {nameError && (
+                  <p class="settings-error" role="alert">
+                    That did not save. Nothing has changed; try again, and if it keeps failing, contact{' '}
+                    <a href="mailto:ryan@tokenstoagents.ai">ryan@tokenstoagents.ai</a>.
+                  </p>
+                )}
+                <form class="settings-form" method="POST" action={nameAction}>
+                  <div class="field">
+                    <label class="field-label" for="settings-first-name">First name</label>
+                    <input class="field-input" id="settings-first-name" type="text" name="firstName" maxlength="120" value={name?.firstName ?? ''} />
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="settings-last-name">Last name</label>
+                    <input class="field-input" id="settings-last-name" type="text" name="lastName" maxlength="120" value={name?.lastName ?? ''} />
+                  </div>
+                  <button class="field-submit" type="submit">Save name</button>
+                </form>
+              </AccountRow>
+
+              <AccountRow label="Email" value={email ?? 'none on file'} open={emailRowOpen}>
+                <p class="settings-panel-line">
+                  Changing it takes two confirmations, both by email: one to this address, approving the
+                  request, then one to the new address, proving you can receive mail there. Nothing about your
+                  account changes until both are done.
+                </p>
+                {emailRequested && (
+                  <p class="settings-success" role="status">
+                    A confirmation is on its way to {email ?? 'your current address'}. Open it to continue;
+                    ignore it and nothing changes.
+                  </p>
+                )}
+                {emailError && (
+                  <p class="settings-error" role="alert">
+                    {EMAIL_ERROR_MESSAGES[emailError] ?? 'That did not go through. Nothing has changed.'}
+                  </p>
+                )}
+                <form class="settings-form" method="POST" action={emailAction}>
+                  <div class="field">
+                    <label class="field-label" for="settings-new-email">New email address</label>
+                    <input class="field-input" id="settings-new-email" type="email" name="newEmail" required maxlength="320" />
+                  </div>
+                  <button class="field-submit" type="submit">Request the change</button>
+                </form>
+              </AccountRow>
+
+              <AccountRow label="Resume email" value={resumeEmailValue} open={resumeEmailRowOpen}>
+                <p class="settings-panel-line">
+                  The email that shows on your resumes and cover letters. Separate from your login, so you can
+                  put a different address on what you send out.
+                </p>
+                {resumeEmailUpdated && <p class="settings-success" role="status">Saved.</p>}
+                {resumeEmailError && (
+                  <p class="settings-error" role="alert">That does not look like an email address. Nothing has changed.</p>
+                )}
+                <form class="settings-form" method="POST" action={resumeEmailAction}>
+                  <div class="field field-checkbox">
+                    <label class="field-checkbox-label" for="settings-resume-email-use-login">
+                      <input class="field-checkbox-input" id="settings-resume-email-use-login" type="checkbox" name="resumeEmailUseLogin" checked={resumeEmail.useLogin} />
+                      Use my login email on my resumes
+                    </label>
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="settings-resume-email">Custom resume email</label>
+                    <input class="field-input" id="settings-resume-email" type="email" name="resumeEmail" maxlength="320" value={resumeEmail.custom ?? ''} />
+                    <p class="field-hint">
+                      {resumeEmail.custom !== null
+                        ? 'Using your custom email again. Edit it or clear it anytime.'
+                        : 'The email that shows on your resumes. Your login stays what it is.'}
+                    </p>
+                  </div>
+                  <button class="field-submit" type="submit">Save</button>
+                </form>
+              </AccountRow>
+
+              <AccountRow label="Handle" value={handleValue} open={handleRowOpen}>
+                <p class="settings-panel-line">
+                  Reserves /u/{handle ?? 'your-handle'} for a public profile page. This run keeps every
+                  classification above private dark, so this is a private preview only you can open, not a
+                  public page anyone else can reach yet.
+                </p>
+                <p class="settings-panel-line">
+                  {HANDLE_MIN_LENGTH} to {HANDLE_MAX_LENGTH} characters: lowercase letters, numbers and
+                  hyphens only, starting and ending with a letter or number. Leave it blank and save to give
+                  the handle up.
+                </p>
+                {handleUpdated && <p class="settings-success" role="status">Your handle is saved.</p>}
+                {handleCleared && <p class="settings-success" role="status">Your handle is cleared.</p>}
+                {handleError && (
+                  <p class="settings-error" role="alert">
+                    {HANDLE_ERROR_MESSAGES[handleError] ?? 'That did not save. Nothing has changed.'}
+                  </p>
+                )}
+                {handle && (
+                  <p class="settings-panel-line">
+                    <a class="settings-link" href={withBase(`/u/${handle}`)}>Preview /u/{handle}</a>{' '}
+                    (only you can open it, this run).
+                  </p>
+                )}
+                <form class="settings-form" method="POST" action={handleAction}>
+                  <div class="field">
+                    <label class="field-label" for="settings-handle">Handle</label>
+                    <input class="field-input" id="settings-handle" type="text" name="handle" maxlength={HANDLE_MAX_LENGTH} autocomplete="off" spellcheck="false" value={handle ?? ''} placeholder="ryan-payne" />
+                  </div>
+                  <button class="field-submit" type="submit">Save handle</button>
+                </form>
+              </AccountRow>
+            </Panel>
+
+            <Panel title="Models and keys" class="settings-panel">
+              <span slot="aside" class="models-aside">
+                Your key, your bill · encrypted for you alone, read only at drafting time
+              </span>
+
+              <div id="keys" class="keys-anchor" />
+
+              {
+                !byokOn ? (
+                  <p class="keys-note">
+                    Bring-your-own-key generation is turned off for this deployment right now. Nothing here has
+                    been lost: this is a feature switch, not a fault, and no key can be added, replaced, or
+                    removed while it is off.
+                  </p>
+                ) : !keysConfigured ? (
+                  <p class="keys-note">
+                    Key storage is not configured on this deployment. The encryption secret this page needs to
+                    seal a key before storing it is not set, so adding, replacing, or removing a key is not
+                    possible right now. Nothing has been lost: no key has been read or written. This is an
+                    operator setting, not something you can fix from this page.
+                  </p>
+                ) : (
+                  <ProviderRows
+                    rows={providerRows}
+                    modelAction={modelAction}
+                    keysSaveAction={keysSaveAction}
+                    keysRemoveAction={keysRemoveAction}
+                    modelUpdated={modelUpdated}
+                    modelError={modelError}
+                    settingsPath={settingsPath}
+                    openModel={openModel}
+                    openKey={openKey}
+                  />
+                )
+              }
+
+              <div class="drafting-toggle">
+                {generationUpdated && <p class="settings-success" role="status">Saved.</p>}
+                {generationError && (
+                  <p class="settings-error" role="alert">
+                    That did not save. Nothing has changed; try again, and if it keeps failing, contact{' '}
+                    <a href="mailto:ryan@tokenstoagents.ai">ryan@tokenstoagents.ai</a>.
+                  </p>
+                )}
+                <form class="settings-form drafting-form" method="POST" action={generationAction}>
+                  <label class="drafting-label" for="settings-generate-on-apply">
+                    <input
+                      class="field-checkbox-input"
+                      id="settings-generate-on-apply"
+                      type="checkbox"
+                      name="generateOnApply"
+                      checked={generateOnApply}
+                    />
+                    <span class="drafting-copy">
+                      <span class="drafting-copy-main">Draft a resume and cover letter each time I apply.</span>{' '}
+                      <span class="drafting-copy-aside">
+                        Drafting starts in the background; by the time you are done applying, the draft is
+                        waiting.
+                        {connectedKeys.length === 0
+                          ? ' Paused until you connect a key above.'
+                          : soleWritingModel
+                            ? ` Uses your ${soleWritingModel.writingLabel} on ${soleWritingModel.name}.`
+                            : ' Uses the writing model you chose for each connected key.'}
+                      </span>
+                    </span>
+                  </label>
+                  <button class="field-submit" type="submit">Save</button>
+                </form>
+              </div>
+            </Panel>
+
+            <Panel title="Your data" class="settings-panel">
+              <p class="settings-panel-line">
+                Two things here: download a copy of everything on file about you, or delete your account and
+                everything in it.
+              </p>
+
+              {deleteFailed && (
+                <p class="settings-error" role="alert">
+                  The delete did not complete. Nothing has been reported as removed that was not actually
+                  removed; your account is unchanged. Try again, and if it keeps failing, contact{' '}
+                  <a href="mailto:ryan@tokenstoagents.ai">ryan@tokenstoagents.ai</a>.
+                </p>
+              )}
+
+              <a class="account-button" href={exportHref}>Download your data</a>
+              <p class="keys-note keys-note-quiet">It's a short file. That's the point.</p>
+
+              <details class="delete-disclosure" id="delete-disclosure">
+                <summary class="delete-summary">Delete your account</summary>
+                <div class="delete-body">
+                  <p class="settings-panel-line">This erases, permanently and with no undo:</p>
+                  <ul class="delete-list">
+                    <li>Your identity: name, email, and the fact that your address is verified.</li>
+                    <li>Your sign-in history and every active session, on every device.</li>
+                    <li>Your credential row and any lingering password-reset request.</li>
+                    <li>Your entitlement record: your tier and how you signed up.</li>
+                  </ul>
+                  <p class="settings-panel-line">This does not, and cannot, reach:</p>
+                  <ul class="delete-list">
+                    <li>
+                      A mailing-list subscription with beehiiv, if you have one. It is a separate identity
+                      with no link back to this account; cancel it from the link in any newsletter email.
+                    </li>
+                    <li>Delivery logs for email this site has already sent you, which live in Resend's own systems.</li>
+                  </ul>
+                  <form class="delete-form" method="POST" action={deleteAction}>
+                    <label class="delete-confirm-label" for="delete-confirm">
+                      Type DELETE to confirm.
+                    </label>
+                    <input
+                      class="field-input"
+                      id="delete-confirm"
+                      name="confirm"
+                      type="text"
+                      autocomplete="off"
+                      required
+                      pattern="DELETE"
+                    />
+                    <div class="delete-actions">
+                      <button class="account-button account-button-destructive" type="submit">
+                        Yes, delete my account
+                      </button>
+                      <button class="account-button-quiet" type="button" id="cancel-delete">
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </details>
+            </Panel>
+
+            <div class="settings-back">
+              <a class="settings-link" href={profileHref}>View your profile</a>
+            </div>
+          </>
+        ) : (
+          <>
+            <h1>Not available</h1>
+            {reason === 'email-unverified' ? (
+              <>
+                <p class="muted">Confirm your email and this page opens.</p>
+                <div class="account-links">
+                  <a class="account-link" href={withBase('/verify-email')}>Resend the link</a>
+                </div>
+              </>
+            ) : (
+              <>
+                <p class="muted">Sign in to manage your settings.</p>
+                <div class="account-links">
+                  <a class="account-link" href={withBase('/sign-in')}>Sign in</a>
+                  <a class="account-link" href={withBase('/sign-up')}>No account yet? Create one.</a>
+                </div>
+              </>
+            )}
+          </>
+        )
+      }
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  // Progressive enhancement only. Without this, "Cancel" is inert and the
+  // disclosure still closes the same way it opened: click the summary again,
+  // or move focus away. Nothing on this page depends on this script running.
+  const cancelButton = document.querySelector<HTMLButtonElement>('#cancel-delete');
+  const disclosure = document.querySelector<HTMLDetailsElement>('#delete-disclosure');
+  const summary = disclosure?.querySelector<HTMLElement>('summary');
+
+  cancelButton?.addEventListener('click', () => {
+    if (disclosure) disclosure.open = false;
+    summary?.focus();
+  });
+</script>
+
+<style>
+  .settings-page .settings-shell {
+    padding-block: var(--space-800) var(--space-1000);
+    /* No max-width: this page fills the shell to the same width as the Account
+       (profile) page, which caps nothing here and lets each block keep its own
+       measure. Matching them keeps the two account surfaces one width, and it
+       gives the provider rows the room the 70ch column was denying them (their
+       own container query now resolves to the full three-column table). */
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+  }
+  .kicker {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  h1 {
+    margin: var(--space-300) 0 0;
+    font-size: var(--size-600);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-display);
+  }
+  .muted {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+  }
+  .settings-panel {
+    margin-top: var(--space-200);
+  }
+  .settings-panel-line {
+    margin: 0 0 var(--space-300);
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .field-hint {
+    margin: 0;
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+  .settings-success {
+    margin: 0 0 var(--space-300);
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line);
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .settings-error {
+    margin: 0 0 var(--space-300);
+    padding: var(--space-300) var(--space-400);
+    border: 1px solid var(--color-line-strong);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+
+  /* Forms, matching sign-in.astro / sign-up.astro's field vocabulary; see
+     record.astro's own comment on this exact duplication for why each file
+     that renders a form carries its own scoped copy. Shared by the name,
+     email, handle, drafting-toggle and per-provider key forms below: one
+     definition, since every one of those forms already used the identical
+     ruleset before this page merged them. */
+  .settings-form,
+  .keys-form {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-400);
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    min-width: 0;
+    width: 100%;
+  }
+  .field-label {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .field-issue {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+  }
+  .field-checkbox {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: var(--space-300);
+  }
+  .field-checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-300);
+    font-family: var(--font-family-sans);
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .field-checkbox-input {
+    /* Sized with the same scale as the body copy it sits beside, rather
+       than left at the browser default, which reads as an afterthought
+       next to size-200 text. */
+    width: var(--size-200);
+    height: var(--size-200);
+    flex-shrink: 0;
+    accent-color: var(--color-foreground);
+  }
+  .field-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+
+  /* The #keys fragment target the /profile "Connect a key" button and the key
+     save/remove redirects all land on. The offset clears the sticky SiteHeader
+     (var(--hdr-h), with SiteHeader's own CSS fallback for the pre-script paint)
+     so the provider rows are not tucked under the bar. */
+  .keys-anchor {
+    scroll-margin-top: calc(var(--hdr-h, calc(var(--space-400) * 2 + 44px)) + var(--space-400));
+  }
+  /* The subtitle in the panel's own title band, right of the "Models and keys"
+     heading the way the mock draws it. */
+  .models-aside {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    text-align: right;
+  }
+  /* The drafting toggle, at the foot of the section the way the mock draws it:
+     a hairline sets it off from the provider rows above, and the checkbox sits
+     inline with one flowing sentence that names the active model. */
+  .drafting-toggle {
+    margin-top: var(--space-500);
+    padding-top: var(--space-400);
+    border-top: var(--border-hairline) solid var(--color-line);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+  .drafting-form {
+    gap: var(--space-400);
+  }
+  .drafting-label {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-300);
+    cursor: pointer;
+  }
+  .drafting-copy {
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .drafting-copy-main {
+    font-weight: var(--weight-medium);
+  }
+  .drafting-copy-aside {
+    color: var(--color-muted);
+  }
+  .keys-note {
+    margin: 0 0 var(--space-400);
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line);
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  /* When the box holds more than one paragraph, they carry the spacing the box
+     used to get from stacking two bordered boxes. */
+  .keys-note > p {
+    margin: 0 0 var(--space-300);
+  }
+  .keys-note > p:last-child {
+    margin-bottom: 0;
+  }
+  .keys-note-quiet {
+    margin: var(--space-400) 0 0;
+    padding: 0;
+    border: 0;
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+  }
+
+  /* Delete disclosure, shared shape for both the per-provider "remove this
+     key" reveal and the account-level "delete your account" reveal below;
+     the two used near-identical rulesets before this page merged them. */
+  .delete-disclosure {
+    margin-top: var(--space-400);
+    padding-top: var(--space-400);
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .delete-summary {
+    cursor: pointer;
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-150);
+    color: var(--color-foreground);
+    padding: var(--space-100) 0;
+  }
+  .delete-body {
+    margin-top: var(--space-300);
+    padding-top: var(--space-300);
+    border-top: var(--border-hairline) solid var(--color-line);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+  .delete-list {
+    margin: 0 0 var(--space-300);
+    padding-inline-start: var(--space-500);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .delete-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-300);
+  }
+  .account-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+  /* No alarm colour marks this destructive: the design tokens reserve their
+     one alarm colour, --color-stat-loss, for statistics, never a UI affordance
+     (see tokens/semantic.tokens.json). Emphasis here comes from the same
+     inversion every strong action on this site already uses, paired with the
+     extra structural weight of the confirmation step it sits behind, not from
+     a colour nothing else on the site would recognise as meaning "danger". */
+  .account-button-destructive {
+    border: var(--border-heavy) solid var(--color-foreground);
+  }
+  .account-button-quiet {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: var(--color-foreground);
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+
+  .settings-back {
+    margin-top: var(--space-300);
+  }
+  .settings-link {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    border-bottom: 1px solid var(--color-foreground);
+    padding-bottom: 2px;
+  }
+
+  .account-links {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    margin-top: var(--space-200);
+  }
+  .account-link {
+    align-self: flex-start;
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    border-bottom: 1px solid var(--color-foreground);
+    padding-bottom: 2px;
+  }
+</style>

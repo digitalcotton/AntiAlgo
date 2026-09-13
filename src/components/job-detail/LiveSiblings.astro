@@ -1,0 +1,148 @@
+---
+import FitBadge from '../FitBadge.astro';
+import Mark from '../Mark.astro';
+import Panel from '../Panel.astro';
+import { liveJobsAtCompany, markStateOf, sortJobs, type Job } from '../../lib/data';
+import { jobPath, routeFor } from '../../data/nav';
+
+/**
+ * The way out of a closed record: roles at the same company that were verified
+ * live on this same sweep.
+ *
+ * COMPUTED, NEVER TYPED. The list is the intersection of this company and the
+ * verified rows, read at build time, so it is right for whichever record is
+ * closed and stays right when the fixture is replaced by the nightly export.
+ * No company name appears in this file, which is the same discipline the kill
+ * list's both-lists cross-link is built on.
+ *
+ * WHAT IS DELIBERATELY MISSING, AND WHY. The canvas fills the empty case with a
+ * "same family, product design" list of three roles at other companies. This
+ * repository cannot build that list. It needs a role family, the records carry
+ * none, and deriving one by reading job titles would mean inventing a
+ * classification and presenting it as the machine's finding. That is the exact
+ * objection that blocked the kill list's reason taxonomy and the index's fourth
+ * filter, and it does not get a different answer here because the empty state
+ * would look better with something in it. The absence is stated plainly and the
+ * whole index is one link away, which is a real exit rather than a guessed one.
+ */
+
+interface Props {
+  job: Job;
+  class?: string;
+}
+
+const { job, class: className } = Astro.props;
+
+// Fit order, matching the index table's default, so a reader arriving from the
+// table sees the same ranking they left.
+const siblings = sortJobs(liveJobsAtCompany(job.company), 'fit').filter((row) => row.slug !== job.slug);
+const indexHref = routeFor('index');
+---
+
+<Panel title="Still hiring, verified this sweep" class={className}>
+  {
+    siblings.length > 0 ? (
+      <ul class="siblings">
+        {siblings.map((sibling) => (
+          <li class="sibling">
+            <span class="sibling-meta">
+              <Mark state={markStateOf(sibling)} surface="raised" />
+              <span class="sibling-company mono">{sibling.company}</span>
+              <span class="sibling-fit mono">Fit</span>
+              <FitBadge job={sibling} class="sibling-score" />
+            </span>
+            <a class="sibling-link" href={jobPath(sibling.slug)}>
+              {sibling.title}
+            </a>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      /* Sans, because this is us reporting what the sweep did not find, not the
+         machine stating a reading. */
+      <p class="siblings-absence">
+        At {job.company}: no other roles were verified live on this sweep.
+      </p>
+    )
+  }
+
+  <a class="siblings-index" href={indexHref} slot="footnote">Every role verified this sweep</a>
+</Panel>
+
+<style>
+  .siblings {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  .sibling {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+    min-width: 0;
+  }
+
+  .sibling-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-200);
+    flex-wrap: wrap;
+  }
+
+  .sibling-company,
+  .sibling-fit {
+    font-size: var(--size-050);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  /* The sibling score sits at the surrounding label size rather than FitBadge's
+     row size. A row in the index table needs its score to be the first thing
+     read; here the role is the thing being offered and the score is context, so
+     the badge is brought down to the line it sits on. :global because the
+     element belongs to FitBadge, and reaching into it by class rather than
+     forking the component keeps gate 2's marker exactly where it was. */
+  .sibling-meta :global(.sibling-score .fit-value) {
+    font-size: var(--size-050);
+    line-height: var(--leading-snug);
+  }
+
+  .sibling-link {
+    font-weight: var(--weight-medium);
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    text-decoration-color: var(--color-line-strong);
+  }
+
+  .sibling-link:hover {
+    text-decoration-color: var(--color-foreground);
+  }
+
+  .siblings-absence {
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  .siblings-index {
+    font-size: var(--size-100);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    text-decoration-color: var(--color-line-strong);
+  }
+
+  .siblings-index:hover {
+    text-decoration-color: var(--color-foreground);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .sibling-link,
+    .siblings-index {
+      transition: text-decoration-color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+</style>

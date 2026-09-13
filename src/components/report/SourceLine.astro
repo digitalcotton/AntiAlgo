@@ -1,0 +1,59 @@
+---
+import { factSource } from '../../lib/data';
+
+/**
+ * Who measured it, in the machine voice, under every figure on this page.
+ *
+ * The work order for the report is explicit: every figure carries its source
+ * line in mono. This is that line, and it renders the source verbatim from the
+ * fact's own `source` field rather than from anything a page typed, so the
+ * citation cannot drift from the statistic it certifies.
+ *
+ * data-truth="source" is the marker gate 2 reads. It matters because source
+ * strings have numbers in them: "~80M applications", "1,500 hiring managers",
+ * "July 2026". Those are descriptions of a study, not claims this site is
+ * making, and the marker is what keeps a byline year from being read as a
+ * statistic nobody sourced.
+ *
+ * A figure may name more than one source, and a figure that draws our own
+ * measurement beside somebody else's research is naming two different people's
+ * work. Each gets its own line rather than being joined with a comma into
+ * something that reads like one citation. No figure on the report does that
+ * today, and the reason is worth knowing: our numbers and the industry's are
+ * not two views of one measurement, so they are not put side by side at all.
+ */
+
+interface Props {
+  /** The id in src/data/facts.json whose source is being named. */
+  factId?: string;
+  /** A source string for a figure whose numbers come from the sweep itself. */
+  text?: string;
+  /** What this source is the source of, when a figure carries several. */
+  label?: string;
+  class?: string;
+}
+
+const { factId, text, label, class: className } = Astro.props;
+
+if (!factId && !text) {
+  throw new Error(
+    'SourceLine: needs either a factId (so the citation is read from facts.json) or an explicit text. A source line with nothing in it is worse than none, because it looks like the figure was checked.'
+  );
+}
+
+const cite = factId ? factSource(factId) : text;
+---
+
+<p class:list={['source-line', 'mono-label', className]} data-truth="source">
+  {label ? `${label}: ` : 'Source: '}{cite}
+</p>
+
+<style>
+  /* The citation sits below the machine-voice default size for the same reason
+     the insight strip's does: it names who measured, it does not measure. */
+  .source-line {
+    color: var(--color-muted);
+    line-height: var(--leading-snug);
+    text-wrap: pretty;
+  }
+</style>

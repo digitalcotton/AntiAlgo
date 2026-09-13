@@ -1,0 +1,566 @@
+---
+/**
+ * The capture module: one field, two consents, no account.
+ *
+ * This is the only place on the site that asks a reader for anything. It posts
+ * natively to /api/subscribe and ships no client JavaScript for the part that
+ * matters, so it works with scripting off, which is the same standard the why
+ * expander and the pagination hold themselves to.
+ *
+ * WHY TWO CONSENTS RATHER THAN ONE
+ *
+ * The property sends two different things. The weekly digest is a publication:
+ * new roles, the week's kills, one statistic. An instant alert is a machine
+ * event: one role, why it matched, one action. A reader can reasonably want
+ * either without the other, and a single "subscribe" box that quietly signs
+ * somebody up for both is the kind of default this site exists to argue against.
+ * The digest is checked because it is what the form is offering; the alerts box
+ * is not, because an alert is a standing instruction and a standing instruction
+ * should be given rather than inherited.
+ *
+ * WHY THE ALERTS BOX CAN BE INACTIVE
+ *
+ * An alert only means something alongside the filter that defines "matching".
+ * With the filters at their defaults, the instruction would be "mail me about
+ * every new role", which is a feed, and a feed is on the list of things this
+ * product does not build. So the box activates when the reader has actually
+ * filtered the table, and its label then names the filter it would store. The
+ * consent says what it does, which is standing rule 4 applied to a checkbox.
+ *
+ * WHERE THE FILTER STRING COMES FROM
+ *
+ * The island contract, unchanged: JobTable announces `index:rows` with the
+ * filter state after every change, and this listens. It reads the labels off the
+ * filter controls themselves rather than keeping a second copy of them, so the
+ * words in the consent are the words the reader just chose.
+ *
+ * THE FOUR OUTCOMES
+ *
+ * The endpoint redirects back with a fragment and CSS reveals the matching line.
+ * `#pending` is the honest one: no sending platform is connected yet, so nothing
+ * was stored, and the form says so instead of showing a success it did not earn.
+ * All four are built and photographed at /_states in the gated build, because a
+ * state a reader cannot reach on a static site is a state no gate reads.
+ *
+ * WHY THE FORM IS NOT ALWAYS HERE
+ *
+ * `SUBSCRIBE_ENDPOINT` in src/data/site.ts is null while there is nowhere to
+ * post an address, and this module renders no form when it is. That is not a
+ * half build, it is the same rule the age column and the kill list follow: where
+ * we do not hold something, the page says so. The form's action used to be typed
+ * into this file directly, which shipped a live POST on /desk to a path a static
+ * build never emits, so a submit was a 404 and none of the four states below
+ * could be reached at all. One constant now decides, both capture surfaces read
+ * it, and the announcement carries a mail path that works today.
+ *
+ * THE PANEL AROUND IT IS NOT THIS MODULE'S BUSINESS. The index dresses this in
+ * its own raised panel (components/index/DigestPanel.astro) and /desk composes it
+ * plain. One module asks for an address, so there is one promise about what
+ * happens to it.
+ */
+
+import { SITE, SUBSCRIBE_ENDPOINT } from '../data/site';
+
+interface Props {
+  /** Which surface carried the form. Travels to the endpoint as the placement. */
+  source?: 'site' | 'index' | 'desk' | 'kills' | 'report';
+  /** The one line above the field. Each page carries its own. */
+  lead?: string;
+  /** The heading above that, or none if the page provides its own. */
+  heading?: string;
+  /**
+   * Whether to watch the index filter island. True only on a page that renders
+   * Filters; elsewhere the alerts consent stays inactive and says why.
+   */
+  watchFilters?: boolean;
+  /**
+   * Force one outcome state open, for the review surface at /_states only.
+   *
+   * A reader reaches these through the endpoint's redirect fragment and `:target`,
+   * which can only ever light one of them and only after a real submit. The
+   * gated states route has to show all four at once so axe can read them, so it
+   * names the one it wants and this renders it open. No page a reader can load
+   * passes this.
+   */
+  state?: 'joined' | 'pending' | 'pick' | 'retry';
+  class?: string;
+}
+
+const { source = 'site', lead, heading, watchFilters = false, state, class: className } = Astro.props;
+
+// Null while there is nowhere to post. See SUBSCRIBE_ENDPOINT in src/data/site.ts.
+const endpoint = SUBSCRIBE_ENDPOINT;
+
+/**
+ * The mail path, with the subject filled in so a reply lands in one place.
+ * SITE.contact is a real mailbox as of 2026-08-19 and this module reads it from
+ * there, as every other surface does, rather than carrying a second address of
+ * its own. It inherited the blocker while there was one and now inherits the
+ * fix for free, which is the argument for defining it once.
+ */
+const mailHref = `mailto:${SITE.contact}?subject=The%20Index%20weekly%20digest`;
+---
+
+<section class:list={['capture', className]} data-capture data-watch-filters={watchFilters ? '' : undefined}>
+  {heading && <h2 class="capture-heading">{heading}</h2>}
+  {lead && <p class="capture-lead">{lead}</p>}
+
+  {/*
+    The four states. Hidden until the endpoint's redirect names one in the
+    fragment, which is the same :target pattern the mothership's signup uses and
+    it needs no script. role="status" so a screen reader is told what happened
+    on arrival rather than being left to find the line.
+
+    They render where the redirect can happen, which means where there is an
+    endpoint, plus the one the review surface names. A page with no form cannot
+    be redirected into any of them, and four permanently unreachable ids in the
+    document would be four states nothing can ever show.
+  */}
+  {(endpoint || state === 'joined') && (
+    <p id="joined" class:list={['capture-state', 'capture-joined', state === 'joined' && 'capture-state-shown']} role="status">
+      You are on the list. Click confirm in your inbox and the next digest lands on schedule.
+    </p>
+  )}
+  {(endpoint || state === 'pending') && (
+    <p id="pending" class:list={['capture-state', 'capture-pending', state === 'pending' && 'capture-state-shown']} role="status">
+      Nothing was stored. The sending platform is not connected yet, so this form has nowhere to put an
+      address, and saying you were subscribed would not be true. Mail
+      <a href={`mailto:${SITE.contact}`}>{SITE.contact}</a> and you go on the list by hand.
+    </p>
+  )}
+  {(endpoint || state === 'pick') && (
+    <p id="pick" class:list={['capture-state', 'capture-pick', state === 'pick' && 'capture-state-shown']} role="status">
+      Nothing was sent: pick the weekly digest, instant alerts, or both.
+    </p>
+  )}
+  {(endpoint || state === 'retry') && (
+    <p id="retry" class:list={['capture-state', 'capture-retry', state === 'retry' && 'capture-state-shown']} role="status">
+      That did not send. Try again, or mail <a href={`mailto:${SITE.contact}`}>{SITE.contact}</a>.
+    </p>
+  )}
+
+  {/*
+    The body renders for a reader. The review surface asks for one state and gets
+    that state alone, because a state sits above a form and a page with no form
+    has no state to sit above: drawing both would be a composition the site never
+    produces. The fifth block on /_states is this branch with no state asked for,
+    which is what ships today.
+  */}
+  {!state && (endpoint ? (
+  <form class="capture-form" method="POST" action={endpoint}>
+    <input type="hidden" name="source" value={source} />
+    {/*
+      The honeypot: hidden from people by CSS, from assistive technology by
+      aria-hidden, and from the tab order. The endpoint drops any submission
+      that fills it.
+    */}
+    <input class="capture-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+    <div class="capture-field">
+      <label class="capture-label" for="capture-email">Email address</label>
+      <input
+        class="capture-input"
+        id="capture-email"
+        type="email"
+        name="email"
+        required
+        autocomplete="email"
+        placeholder="you@company.com"
+      />
+    </div>
+
+    <fieldset class="capture-consents">
+      <legend class="capture-legend">What you get</legend>
+
+      <div class="capture-consent">
+        <input class="capture-check" id="capture-digest" type="checkbox" name="digest" value="yes" checked />
+        <label class="capture-consent-label" for="capture-digest">
+          <span class="capture-consent-name">Weekly digest</span>
+          <span class="capture-consent-note">New roles, the week's kills, one statistic. Once a week.</span>
+        </label>
+      </div>
+
+      <div class="capture-consent">
+        <input
+          class="capture-check"
+          id="capture-alerts"
+          type="checkbox"
+          name="alerts"
+          value="yes"
+          disabled
+          aria-describedby="capture-alerts-note"
+          data-alerts
+        />
+        <label class="capture-consent-label" for="capture-alerts">
+          <span class="capture-consent-name">Instant alerts</span>
+          <span class="capture-consent-note" id="capture-alerts-note" data-alerts-note>
+            {
+              watchFilters
+                ? 'Set a filter on the table above and this switches on, naming the filter it will store.'
+                : 'Set a filter on the Index and this switches on there, naming the filter it will store.'
+            }
+          </span>
+        </label>
+      </div>
+
+      {/*
+        The stored instruction. Empty until a filter is set, and the endpoint
+        drops it entirely when the alerts consent is absent, so a filter is never
+        kept against an address that did not ask for one.
+      */}
+      <input type="hidden" name="filters" value="" data-alerts-filters />
+    </fieldset>
+
+    <button class="capture-submit" type="submit">Subscribe</button>
+  </form>
+  ) : (
+    /*
+      The honest branch. No input, because there is nowhere to post one, and a
+      field that swallows an address is the one thing a site arguing against job
+      boards that swallow applications cannot ship. A disabled field would be no
+      better: it is a promise a keyboard cannot keep.
+
+      What a reader gets instead is the two things the list sends, stated in the
+      same words the consents use, and a mail path that works today with no
+      infrastructure behind it at all.
+    */
+    <div class="capture-soon">
+      <p class="capture-soon-line">
+        The list is not wired up yet. There is no sending platform behind this page, so there is no
+        field here to take an address we could not keep.{' '}
+        <a class="capture-soon-link" href={mailHref}>Mail {SITE.contact}</a> and you are on it the
+        day it sends.
+      </p>
+
+      <dl class="capture-offer">
+        <div class="capture-offer-item">
+          <dt class="capture-consent-name">Weekly digest</dt>
+          <dd class="capture-consent-note">New roles, the week's kills, one statistic. Once a week.</dd>
+        </div>
+        <div class="capture-offer-item">
+          <dt class="capture-consent-name">Instant alerts</dt>
+          <dd class="capture-consent-note">
+            One role, why it matched, one action. Switched on by a filter on the Index, once there is
+            a list for it to switch on.
+          </dd>
+        </div>
+      </dl>
+    </div>
+  ))}
+
+  {!state && (
+    <p class="capture-foot">
+      No account, no password, no profile. One address and two switches, and every email carries a link
+      to change either.
+    </p>
+  )}
+</section>
+
+<script>
+  /**
+   * Activates the alerts consent when the reader has actually filtered.
+   *
+   * Listens to the island contract and nothing else: JobTable announces
+   * `index:rows` after every change, carrying the filter state. A value of "all"
+   * is the default for a group, so a state with nothing but "all" in it is an
+   * unfiltered table and the consent stays inactive.
+   *
+   * The label text is read off the filter controls rather than stored here. Two
+   * copies of an option label is how a control and a consent end up describing
+   * the same choice with different words, and the consent is the one a reader
+   * will hold us to.
+   */
+  const module = document.querySelector<HTMLElement>('[data-capture][data-watch-filters]');
+  if (module) {
+    const box = module.querySelector<HTMLInputElement>('[data-alerts]');
+    const note = module.querySelector<HTMLElement>('[data-alerts-note]');
+    const store = module.querySelector<HTMLInputElement>('[data-alerts-filters]');
+    const idle = note?.textContent?.trim() ?? '';
+
+    /** The option a group is on, in the words the control shows, without its count. */
+    const labelFor = (group: string, value: string): string | null => {
+      const select = document.querySelector<HTMLSelectElement>(`[data-filter-group="${group}"]`);
+      if (!select) return null;
+      const option = Array.from(select.options).find((entry) => entry.value === value);
+      if (!option) return null;
+      const groupLabel = select.closest('label')?.querySelector('.filter-label')?.textContent?.trim();
+      // The count in "Remote (24)" belongs to the table, not to the instruction:
+      // it is true of this sweep and would be wrong by the next one.
+      const optionLabel = option.textContent?.replace(/\s*\(\d+\)\s*$/, '').trim();
+      if (!optionLabel) return null;
+      return groupLabel ? `${groupLabel}: ${optionLabel}` : optionLabel;
+    };
+
+    document.addEventListener('index:rows', (event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!box || !note || !store || !detail || typeof detail.filters !== 'object') return;
+
+      const set = Object.entries(detail.filters as Record<string, string>)
+        .filter(([, value]) => value !== 'all')
+        .map(([group, value]) => labelFor(group, value))
+        .filter((entry): entry is string => Boolean(entry));
+
+      if (set.length === 0) {
+        box.checked = false;
+        box.disabled = true;
+        store.value = '';
+        note.textContent = idle;
+        return;
+      }
+
+      const description = set.join(' · ');
+      box.disabled = false;
+      store.value = description;
+      // Naming the filter is the whole point: a consent that says "instant
+      // alerts" and stores something the reader cannot see is the pattern this
+      // module is written against.
+      note.textContent = `Mails you when a new role matches ${description}.`;
+    });
+  }
+</script>
+
+<style>
+  .capture {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .capture-heading {
+    margin: 0;
+    font-size: var(--size-400);
+    line-height: var(--leading-snug);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  .capture-lead {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+    max-width: 52ch;
+  }
+
+  /* The states, hidden until the endpoint's redirect names one. Success takes
+     the inverted surface, which is this system's only emphasis. The other three
+     stay quiet: none of them is good news and none of them should shout. */
+  .capture-state {
+    display: none;
+    margin: 0;
+    max-width: 60ch;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+  }
+  .capture-state:target {
+    display: block;
+  }
+  /* The review surface at /_states forces one open. No page a reader can load
+     carries this class, so it can never reveal a state a submit did not earn. */
+  .capture-state-shown {
+    display: block;
+  }
+  .capture-joined {
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    padding: var(--space-400) var(--space-500);
+  }
+  .capture-pending,
+  .capture-pick,
+  .capture-retry {
+    border-left: var(--border-heavy) solid var(--color-line-strong);
+    padding-left: var(--space-400);
+    color: var(--color-foreground);
+  }
+  .capture-state a {
+    color: inherit;
+  }
+
+  .capture-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+    max-width: 44ch;
+  }
+
+  .capture-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+
+  .capture-label {
+    font-family: var(--font-family-sans);
+    font-size: var(--size-100);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  .capture-trap {
+    display: none;
+  }
+
+  .capture-input {
+    background: transparent;
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-radius: var(--radius);
+    padding: var(--space-300) var(--space-400);
+    font-family: var(--font-family-sans);
+    font-size: var(--size-200);
+    color: var(--color-foreground);
+  }
+  .capture-input::placeholder {
+    color: var(--color-muted);
+    opacity: 1;
+  }
+
+  .capture-consents {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .capture-legend {
+    padding: 0;
+    font-family: var(--font-family-sans);
+    font-size: var(--size-100);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  .capture-consent {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-300);
+    align-items: start;
+  }
+
+  .capture-check {
+    margin: 0;
+    /* Sized against the body text it sits beside rather than left at the
+       browser default, which is 13px on every platform and reads as an
+       afterthought next to 17px copy. */
+    width: var(--size-200);
+    height: var(--size-200);
+    accent-color: var(--color-foreground);
+  }
+  /* An inactive consent is dimmed but its explanation is not: the sentence
+     saying why it is inactive is the one thing a reader needs to be able to
+     read here, so it keeps full contrast. */
+  .capture-check:disabled {
+    opacity: 0.5;
+  }
+
+  .capture-consent-label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+  }
+
+  .capture-consent-name {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-foreground);
+  }
+
+  .capture-consent-note {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  .capture-submit {
+    align-self: start;
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+
+  .capture-soon {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .capture-soon-line {
+    margin: 0;
+    max-width: 52ch;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+
+  .capture-soon-link {
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .capture-soon-link:hover {
+    color: var(--color-muted);
+  }
+
+  /* The same two rows the consents draw, without the checkboxes, because there
+     is nothing to consent to until there is a list. Same type, same tokens, so
+     the day the endpoint lands nothing about what is on offer changes shape. */
+  .capture-offer {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    max-width: 52ch;
+  }
+
+  .capture-offer-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+  }
+
+  .capture-offer dt,
+  .capture-offer dd {
+    margin: 0;
+  }
+
+  .capture-foot {
+    margin: 0;
+    max-width: 52ch;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+  }
+
+  /* Every transition on this property lives inside this block. Gate 6 fails any
+     transition with a non-zero duration under a reduce preference, and it is
+     right to: standing rule 6 says reduced motion is honoured, not mostly
+     honoured. */
+  @media (prefers-reduced-motion: no-preference) {
+    .capture-input,
+    .capture-submit,
+    .capture-soon-link {
+      transition: border-color var(--motion-duration-instant) var(--motion-easing-standard),
+        background-color var(--motion-duration-instant) var(--motion-easing-standard),
+        color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  .capture-input:focus-visible,
+  .capture-submit:focus-visible,
+  .capture-check:focus-visible {
+    outline: var(--border-heavy) solid var(--color-foreground);
+    outline-offset: var(--space-100);
+  }
+</style>

@@ -1,0 +1,130 @@
+---
+/**
+ * PostingReadState: the ways a person can still act on a posting the machine
+ * has not read: paste its text, or send the machine back for another try.
+ *
+ * It says nothing on its own. PostingProgress beside it tells the person what
+ * the machine is doing; this is the form under that telling. It renders only
+ * while there is something to act on (reading, queued, slow, unreadable) and
+ * nothing at all once the row is settled, so a settled page never carries a
+ * paste box for text it already has.
+ */
+import type { StoredPostingFetch } from '../../lib/posting-fetch-store';
+import { fetchDisplayState } from '../../lib/posting-fetch-store';
+
+interface Props {
+  row: StoredPostingFetch;
+  action: string;
+  nowMs: number;
+}
+
+const { row, action, nowMs } = Astro.props;
+const display = fetchDisplayState(row, nowMs);
+const showPaste = display === 'reading' || display === 'queued' || display === 'slow' || display === 'unreadable';
+const pasteOpen = display === 'unreadable';
+const ids = `paste-${row.applicationId}`;
+---
+
+{showPaste && (
+  <div class="read-state" data-read-state={display}>
+    <details class="paste-box" open={pasteOpen}>
+      <summary class="paste-summary">Paste the text instead</summary>
+      <form class="paste-form" method="POST" action={action}>
+        <input type="hidden" name="intent" value="paste" />
+        <input type="hidden" name="applicationId" value={row.applicationId} />
+        <label class="paste-label" for={`${ids}-text`}>Posting text</label>
+        <textarea class="field-input paste-text" id={`${ids}-text`} name="text" required maxlength="40000" rows="8"></textarea>
+        <label class="paste-label" for={`${ids}-title`}>Role</label>
+        <input class="field-input" id={`${ids}-title`} name="titleOverride" type="text" maxlength="500" />
+        <label class="paste-label" for={`${ids}-company`}>Company</label>
+        <input class="field-input" id={`${ids}-company`} name="companyOverride" type="text" maxlength="500" required />
+        <div class="paste-actions">
+          <button class="paste-submit" type="submit">Draft from this text</button>
+        </div>
+      </form>
+      {display === 'unreadable' && (
+        <form class="paste-retry" method="POST" action={action}>
+          <input type="hidden" name="intent" value="retry" />
+          <input type="hidden" name="applicationId" value={row.applicationId} />
+          <button class="app-action-quiet" type="submit">Try reading it again</button>
+        </form>
+      )}
+    </details>
+  </div>
+)}
+
+<style>
+  .read-state {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+  .paste-box {
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-200);
+  }
+  .paste-summary {
+    cursor: pointer;
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .paste-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    margin-top: var(--space-300);
+  }
+  .paste-label {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .paste-text {
+    min-height: var(--space-800);
+    font-family: var(--font-family-sans);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+  }
+  .paste-actions {
+    display: flex;
+    gap: var(--space-300);
+    align-items: center;
+  }
+  .paste-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-200) var(--space-400);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+  .paste-retry {
+    margin-top: var(--space-300);
+  }
+  .app-action-quiet {
+    background: transparent;
+    color: var(--color-foreground);
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-200) var(--space-400);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+</style>

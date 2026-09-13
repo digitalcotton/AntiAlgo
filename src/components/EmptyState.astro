@@ -1,0 +1,61 @@
+---
+/**
+ * Nothing to show, said plainly.
+ *
+ * Every state ships, and empty is the one that gets skipped. It is also the one
+ * that matters most on this site: a kill list with nothing on it is the product
+ * working, not the product broken, and the page has to say so without apology.
+ * The kill list's own wording for that, from the work order, is "nothing died
+ * this sweep, which happens and is worth saying plainly".
+ *
+ * There is no illustration and no encouragement. A reader who filtered
+ * themselves into an empty table wants the way back, so the action slot exists
+ * for exactly one control: clear the filters, widen the search, read the
+ * archive. Never two.
+ */
+
+interface Props {
+  /** What is empty, in the machine voice. "No roles match" is not a sentence. */
+  title: string;
+  /** One line of why, and what to do. Editorial voice. */
+  detail?: string;
+  class?: string;
+}
+
+const { title, detail, class: className } = Astro.props;
+---
+
+<div class:list={['state', className]} role="status">
+  <p class="state-title mono-label">{title}</p>
+  {detail && <p class="state-detail">{detail}</p>}
+  <slot name="action" />
+</div>
+
+<style>
+  .state {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-300);
+    padding: var(--space-700) var(--space-600);
+    background: var(--color-surface-raised);
+  }
+
+  .state-title {
+    color: var(--color-foreground);
+  }
+
+  .state-detail {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+    text-wrap: pretty;
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .state {
+      padding: var(--space-600) var(--space-400);
+    }
+  }
+</style>

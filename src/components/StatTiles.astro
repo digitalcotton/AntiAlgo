@@ -1,0 +1,226 @@
+---
+import Reading from './Reading.astro';
+import { routeFor } from '../data/nav';
+
+/**
+ * The four sweep numbers, as the approved canvas orders them: boards swept,
+ * verified live, kills on the record, and killed by rule this sweep. The third
+ * was "killed this sweep" until 2026-09-08; see the note above the props.
+ *
+ * Every tile reads src/data/stats.json through src/lib/readings.ts. None of
+ * them is typed. Each carries the markup contract gate 2 reads (data-truth
+ * plus the metric name and the value), so the gate compares what the reader
+ * sees against what the machine recorded rather than trusting that a number in
+ * a template was copied correctly. A tile that declares a metric and then
+ * prints something else fails the build, which is the failure this contract
+ * exists to make expensive.
+ *
+ * THE FOURTH TILE WAS THE GHOST RATE UNTIL 2026-08-19. It printed killed
+ * divided by pulled, which a reader reads as a deception rate, and no rule we
+ * had could evidence deception: every kill in the archive fired the evergreen
+ * rule, retired that day for inferring an employer's intent from a duration.
+ * Publishing that division would have been publishing an accusation resting on
+ * a rule we removed for being an accusation.
+ *
+ * What replaced it is narrower and defensible. "Killed by rule" counts the
+ * postings a named rule caught, with the rule breakdown one click away on the
+ * kill list. Today that number is zero, and zero beside a kill count is the
+ * most honest thing this site can currently say about itself: the machine
+ * closed rows, and none of the closures were a finding about anybody's
+ * behaviour. The ghost rate comes back when a deception rule produces one.
+ *
+ * Colour does one job here and only one. Green is the live count, red is the
+ * kill count and the rule count, and nothing else on the site is either colour.
+ * Per the legend canon, red is never a row mark: a closed posting is an honest
+ * archive record, not an alarm. It belongs to loss statistics, which is what
+ * these two tiles are.
+ *
+ * The numerals are machine assertions, so they are mono. The labels beneath
+ * them are editorial, so they are not. That split is standing rule 3 and it is
+ * the reason this page is legible as a set of measurements rather than a
+ * dashboard.
+ */
+
+interface Props {
+  /** Link the kill count to the kill list. Off on the kill list itself. */
+  linkKills?: boolean;
+  /**
+   * The board's own counts (src/lib/job-store.ts getBoardStats), for the index,
+   * where the tiles describe the tracked board and not the design sweep. When a
+   * value is passed the tile prints it plainly (no data-truth marker, because it
+   * is the board's count and not a stats.json metric gate 2 owns); when it is
+   * absent the tile reads the sweep through <Reading>, as /drop and /kills do.
+   */
+  boards?: number;
+  verifiedLive?: number;
+  /**
+   * The live truth check's name for the verified-live figure, e.g. board_rows
+   * (test/gates/truth.mjs --url holds every data-truth-metric="board_*" on the
+   * served board to /board/stats.json). Passed only by the server-rendered
+   * board, which the static dist gate never reads; a static page must never
+   * pass it, or gate 2 would look for board_rows in stats.json and refuse.
+   * Since 2026-09-12 this tile is the board's one checkable number: the
+   * graveyard section that used to declare three was removed.
+   */
+  liveMetric?: string;
+  class?: string;
+}
+
+/*
+ * THE KILL TILES TAKE NO OVERRIDE, since 2026-09-08. `killed` and
+ * `killedByRule` used to be props, and /board passed board_stats.killed,
+ * which the ingest writes as a literal 0 because the crawl runs no rules. So
+ * the page /jobs lands on said "0 Killed this sweep, 0 Killed by rule" on the
+ * night the sweep killed three, while /kills said 3. A zero that means "this
+ * pipeline does not measure that" is not a count and must not sit in a tile
+ * shaped like one. Kills come from one place, the sweep record, on every page.
+ *
+ * AND THE THIRD TILE IS THE RECORD, NOT THE NIGHT. "Killed this sweep" reads
+ * 0 on most nights, and on a page a reader opens once, 0 reads as "nothing,
+ * ever". The count that means something to a seeker is the one that persists:
+ * every kill still standing, from every sweep. That is kills_on_record, held
+ * to kills-archive.json by gate 2 like every other figure here. The night's
+ * own count is still stated, in the fourth tile and on the kill list itself.
+ */
+const { linkKills = true, boards, verifiedLive, liveMetric, class: className } = Astro.props;
+const killsHref = routeFor('kills');
+const byRuleHref = `${killsHref}#by-rule`;
+---
+
+<div class:list={['tiles', className]}>
+  <div class="tile">
+    {boards === undefined ? <Reading class="figure" metric="boards" /> : <span class="figure">{boards.toLocaleString()}</span>}
+    <span class="caption">Boards swept</span>
+  </div>
+
+  <div class="tile">
+    {
+      verifiedLive === undefined ? (
+        <Reading class="figure figure-live" metric="verified_live" />
+      ) : liveMetric ? (
+        <span
+          class="figure figure-live"
+          data-truth="tile"
+          data-truth-metric={liveMetric}
+          data-truth-value={String(verifiedLive)}
+        >
+          {verifiedLive.toLocaleString()}
+        </span>
+      ) : (
+        <span class="figure figure-live">{verifiedLive.toLocaleString()}</span>
+      )
+    }
+    <span class="caption">Verified live</span>
+  </div>
+
+  <div class="tile">
+    <Reading class="figure figure-loss" metric="kills_on_record" />
+    <span class="caption">
+      Kills on the record{linkKills ? ', ' : ''}
+      {linkKills && <a class="caption-link" href={killsHref}>every one kept, on the kill list</a>}
+    </span>
+  </div>
+
+  <div class="tile">
+    {/* The loss colour, because this tile counts loss. tokens/README.md's
+        legend canon and the token's own description both say the same thing:
+        --color-stat-loss belongs to the kill statistics, "which is why the
+        token is stat-loss and not mark-killed". */}
+    <Reading class="figure figure-loss" metric="killed_by_rule" />
+    <span class="caption">
+      Killed by rule this sweep{linkKills ? ', ' : ''}
+      {linkKills && <a class="caption-link" href={byRuleHref}>the breakdown, rule by rule</a>}
+    </span>
+  </div>
+</div>
+
+<style>
+  /* Four abreast on a wide screen, two by two on a phone. The canvas draws four
+     equal columns divided by hairlines; the last cell has no divider, which is
+     what the :last-child rule is for rather than a wrapper per tile. */
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-block: var(--border-hairline) solid var(--color-line);
+  }
+
+  .tile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+    padding: var(--space-400) var(--space-500) var(--space-300);
+    border-right: var(--border-hairline) solid var(--color-line);
+    min-width: 0;
+  }
+
+  .tile:last-child {
+    border-right: none;
+  }
+
+  /* The figures come from <Reading>, so they are a child component's elements
+     and this file's scoping does not reach them. Scoped to a descendant of
+     .tile rather than left loose: the :global escape is bounded by a class this
+     file owns, so it styles the numerals in these four tiles and nothing else
+     on the page. */
+  .tile :global(.figure) {
+    font-size: var(--size-500);
+    font-weight: var(--weight-bold);
+    line-height: var(--leading-tight);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .tile :global(.figure-live) {
+    color: var(--color-mark-live);
+  }
+
+  .tile :global(.figure-loss) {
+    color: var(--color-stat-loss);
+  }
+
+  .caption {
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    text-wrap: pretty;
+  }
+
+  .caption-link {
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .caption-link:hover {
+    color: var(--color-foreground);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .caption-link {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  /* Two by two below the tablet break. Four 36px numerals will not sit on one
+     line at 375px without either shrinking the figure, which would make the
+     headline numbers the quietest thing on the page, or wrapping. Wrapping is
+     the honest answer. */
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .tiles {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .tile {
+      padding: var(--space-300) var(--space-400);
+      border-bottom: var(--border-hairline) solid var(--color-line);
+    }
+
+    .tile:nth-child(even) {
+      border-right: none;
+    }
+
+    .tile:nth-child(3),
+    .tile:nth-child(4) {
+      border-bottom: none;
+    }
+  }
+</style>

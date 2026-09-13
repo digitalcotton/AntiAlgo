@@ -1,0 +1,228 @@
+---
+import BrandMark from '../../components/BrandMark.astro';
+import KillRow from '../../components/KillRow.astro';
+import { SITE, displayUrl } from '../../data/site';
+import { formatDate, sweptStamp, type Kill } from '../../lib/data';
+
+/**
+ * The share card template. One kill, its receipts, sized to be screenshotted.
+ *
+ * This is a template rather than a one-off layout because every kill gets one:
+ * /kills/[slug]/card renders this for all fourteen records, and the populated
+ * Brex instance the work order asks for is simply the first of them.
+ *
+ * THE TWO REQUIREMENTS IT IS DESIGNED AGAINST, in order:
+ *
+ *   1. IT MUST SURVIVE A STRANGER. Someone who has never seen this site should
+ *      be able to read the card and know what it claims, who measured it, when,
+ *      and where to check. So the card carries its own identity (the mark and
+ *      the wordmark), its own clock (the sweep stamp), and its own address (the
+ *      URL of the list). Nothing on it depends on the page around it.
+ *
+ *   2. IT MUST READ CROPPED. A screenshot rarely keeps all four edges. The
+ *      identity sits at the top and the address at the bottom, so a crop from
+ *      either end still leaves the card attributable, and the record itself sits
+ *      in the middle where a crop is least likely to reach.
+ *
+ * THE RECORD IS THE SHARED ROW, NOT A SECOND COPY OF IT. KillRow renders the
+ * company, the title, the observation, both dates, the duration bar and the
+ * both-lists cross-link. Building a card-shaped version of that markup would
+ * mean the card and the list disagreeing about a date the first time one of them
+ * was corrected, on the artifact most likely to be seen by someone who will
+ * never see the other. The bar carries the argument here exactly as it does on
+ * the list, and the reference caption is forced on, because a card arrives with
+ * no page around it to have explained the 9.8 day line already.
+ *
+ * The share link inside the row is off: this is the share surface.
+ */
+
+interface Props {
+  kill: Kill;
+  /** The path this card lives at, printed on the card so a screenshot is
+      traceable back to a page a reader can check. */
+  listPath: string;
+}
+
+const { kill, listPath } = Astro.props;
+
+// The date the record was killed, in the human date format the rest of the site
+// uses. Null renders as an absence, never as the sweep date standing in for it:
+// three records carry no killed_on and a card must not fill that gap.
+const killedOn = formatDate(kill.killed_on);
+
+// The address a reader types after seeing this in a screenshot. Host plus the
+// list path, both read from configuration, so a card cannot advertise a URL the
+// site does not serve.
+//
+// It did advertise one, on all 14 cards, from the day the site moved under a
+// base until 2026-08-18: SITE.url carries /jobs and listPath carries it too, so
+// this printed tokenstoagents.ai/jobs/jobs/kills. The vector card beside it,
+// card.og.svg.ts, printed the right address off the same data, which is the
+// worst version of the bug: the crawler saw one URL and the human screenshotting
+// the card saw another. displayUrl() is the one join now, and it strips the
+// scheme so this line does not do that by hand either. See src/data/site.ts.
+const address = displayUrl(listPath);
+---
+
+<article class="card" aria-label={`Killed posting: ${kill.company}, ${kill.title}`}>
+  <header class="card-head">
+    <p class="card-brand">
+      <BrandMark />
+      <span class="card-wordmark">The Index</span>
+      <span class="card-byline">by {SITE.parent.name}</span>
+    </p>
+
+    {/* The status stamp. Machine voice, because it is a state the machine
+        recorded, and in the loss colour, which on this site belongs to loss
+        statistics and never to a row mark. */}
+    <p class="card-stamp mono-label">
+      Killed
+      {killedOn ? <span class="card-stamp-date">{killedOn}</span> : <span class="card-stamp-absence">date not shown</span>}
+    </p>
+  </header>
+
+  <div class="card-record">
+    <ul class="card-record-list">
+      <KillRow kill={kill} referenceCaption shareLink={false} class="card-row" />
+    </ul>
+  </div>
+
+  <footer class="card-foot">
+    <p class="card-address mono-label">{address}</p>
+    <p class="card-swept mono-label">Swept {sweptStamp()}</p>
+  </footer>
+</article>
+
+<style>
+  /*
+    The card is a bounded rectangle rather than a page region, because it is
+    going to be cropped out of its context by a person with a screenshot tool.
+    The aspect ratio is the common social ratio; min-height keeps content in
+    charge if a long title or a long observation ever needs more room, so the
+    ratio is a floor rather than a clip. A card that cuts off its own evidence
+    to hold a shape would be the wrong trade on this page of all pages.
+  */
+  .card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: var(--space-500);
+    background: var(--color-surface-raised);
+    border: var(--border-heavy) solid var(--color-foreground);
+    padding: var(--space-600);
+    aspect-ratio: 1200 / 630;
+    min-height: max-content;
+  }
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    padding-bottom: var(--space-300);
+  }
+
+  .card-brand {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-200);
+  }
+
+  .card-wordmark {
+    font-size: var(--size-300);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  .card-byline {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+
+  /* Larger than the mono label register it inherits. This is the line that has
+     to survive a screenshot taken at whatever size a phone decided on, and it
+     is the only thing on the card that states the verdict in a word. */
+  .card-stamp {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-200);
+    font-size: var(--size-150);
+    color: var(--color-stat-loss);
+  }
+
+  .card-stamp-date {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  /* An absence is us saying what we do not know, so it drops the machine voice
+     and the alarm colour with it. Same rule as every other absence on the site. */
+  .card-stamp-absence {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-regular);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-normal);
+    text-transform: none;
+    color: var(--color-muted);
+  }
+
+  .card-record {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .card-record-list {
+    width: 100%;
+  }
+
+  /* The row is the shared component. On the card it is the whole content, so it
+     loses the list treatment it wears between other rows: no dividing rule, and
+     no padding, because the card already provides the margin. */
+  .card-record :global(.card-row) {
+    border-bottom: none;
+    padding: 0;
+    background: transparent;
+  }
+
+  .card-foot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-300);
+    color: var(--color-muted);
+  }
+
+  .card-address {
+    color: var(--color-foreground);
+  }
+
+  .card-swept {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  /*
+    Below the tablet break the ratio is dropped entirely. A card held to a wide
+    ratio on a phone is a strip of white with a headline in it, and this card has
+    to be readable on the device most people will actually open it on. The
+    content order and every value on it are identical; only the shape gives.
+  */
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .card {
+      aspect-ratio: auto;
+      padding: var(--space-400);
+      gap: var(--space-400);
+    }
+
+    .card-wordmark {
+      font-size: var(--size-200);
+    }
+  }
+</style>

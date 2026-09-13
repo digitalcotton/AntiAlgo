@@ -1,0 +1,81 @@
+---
+import { sweptStamp } from '../lib/data';
+
+/**
+ * Something did not work, said without blame and without theatre.
+ *
+ * The error state on this site has one extra job that most do not: it has to
+ * protect the claim. If a table cannot render, the correct thing to show is
+ * nothing plus an explanation, never a cached or partial set of rows that a
+ * reader would reasonably take as verified. So this component states what
+ * failed, states when the data it holds was last known good, and offers the one
+ * route out.
+ *
+ * It carries the sweep stamp rather than a time of its own. One clock: the last
+ * verified moment is a property of the sweep, and an error message is not a
+ * licence to invent a second timestamp.
+ *
+ * No apology copy and no exclamation. A reader who hits this wants to know
+ * whether the numbers they saw a minute ago are still trustworthy, and the
+ * answer is in the stamp.
+ */
+
+interface Props {
+  /** What failed, in the machine voice. */
+  title?: string;
+  /** One line of what it means for what the reader is looking at. */
+  detail?: string;
+  class?: string;
+}
+
+const {
+  title = 'This did not load',
+  detail = 'Nothing is shown rather than something unverified. The last sweep this page holds is stamped below.',
+  class: className
+} = Astro.props;
+---
+
+<div class:list={['state', className]} role="alert">
+  <p class="state-title mono-label">{title}</p>
+  <p class="state-detail">{detail}</p>
+  <p class="state-stamp mono-label">Last verified {sweptStamp()}</p>
+  <slot name="action" />
+</div>
+
+<style>
+  .state {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-300);
+    padding: var(--space-700) var(--space-600);
+    background: var(--color-surface-raised);
+    /* The only structural cue: the heavy rule the site already uses to separate
+       chrome from content, in the loss colour, on one edge. No icon, no tint
+       behind the text, nothing that would fail a contrast check to say
+       "problem" when a sentence says it better. */
+    border-left: var(--border-heavy) solid var(--color-stat-loss);
+  }
+
+  .state-title {
+    color: var(--color-stat-loss);
+  }
+
+  .state-detail {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+    text-wrap: pretty;
+  }
+
+  .state-stamp {
+    color: var(--color-muted);
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .state {
+      padding: var(--space-600) var(--space-400);
+    }
+  }
+</style>

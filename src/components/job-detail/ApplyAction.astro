@@ -1,0 +1,122 @@
+---
+import { applyLabel, type Job } from '../../lib/data';
+import { applyCaption } from './detail';
+
+/**
+ * The apply action, and the sentence under it that says where the click goes.
+ *
+ * THIS COMPONENT REFUSES TO RENDER ON A CLOSED RECORD. That is not a
+ * convenience: DESIGN-BRIEF.md page 2 says the closed variant offers "no false
+ * hope", BUILD.md phase 4 says "no apply path anywhere on a closed page", and
+ * the closed page's own announcement tells a reader that nothing on it accepts
+ * applications. A page that says that and still ships a button has lied in the
+ * most expensive way available. Throwing at build time means the rule cannot be
+ * broken by someone composing this in the wrong branch later.
+ *
+ * THE HOVER STATE IS AN INVERSION, NOT A SHADE. The canvas darkens the filled
+ * black button on hover, which needs a tone between ink and the hairline that
+ * no semantic token names, and inventing one would put a raw value on the one
+ * control a reader is most likely to click. Un-inverting instead is the
+ * mothership's own emphasis mechanism, it is correct in both themes without a
+ * second rule, and the border is present at rest so the box never changes size.
+ */
+
+interface Props {
+  job: Job;
+  class?: string;
+}
+
+const { job, class: className } = Astro.props;
+
+if (job.status === 'closed') {
+  throw new Error(
+    `ApplyAction: ${job.slug} is closed, and a closed record carries no apply path anywhere on its page. See BUILD.md phase 4. If this posting reopened, the machine says so by changing its status, not by a page rendering a button the record does not support.`
+  );
+}
+
+const label = applyLabel(job);
+const caption = applyCaption(job);
+---
+
+<div class:list={['apply', className]}>
+  {
+    job.apply_url ? (
+      <>
+        {/*
+          rel="nofollow" because we are not vouching for the destination's
+          ranking, only reporting that it exists. noopener because the tab
+          opens with a reference to this window otherwise, which an external
+          board has no business holding.
+        */}
+        <a class="apply-action" href={job.apply_url} rel="noopener nofollow" target="_blank">
+          {label}
+          <span aria-hidden="true">&#8599;</span>
+          <span class="visually-hidden">, opens in a new tab</span>
+        </a>
+        <p class="apply-caption mono-label">{caption}</p>
+      </>
+    ) : (
+      /*
+        The designed failure. A live row with no apply_url is a defect in the
+        export, and the honest rendering is to say the path is missing rather
+        than to draw a dead button or quietly drop the section. Sans, because
+        this is us reporting what we do not have.
+      */
+      <p class="apply-absence">
+        No apply path was recorded for this posting on this sweep. The source link above is the
+        record we hold.
+      </p>
+    )
+  }
+</div>
+
+<style>
+  .apply {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+
+  .apply-action {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: var(--space-200);
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-heavy) solid var(--color-foreground);
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    font-weight: var(--weight-bold);
+    font-size: var(--size-200);
+    text-align: center;
+  }
+
+  .apply-action:hover {
+    background: var(--color-surface-raised);
+    color: var(--color-foreground);
+  }
+
+  .apply-caption {
+    color: var(--color-muted);
+    text-align: center;
+    line-height: var(--leading-snug);
+  }
+
+  .apply-absence {
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  /* Gate 6 fails any transition with a non-zero duration under
+     prefers-reduced-motion: reduce, so every transition in this repository is
+     declared inside the no-preference block rather than switched off in a
+     second rule that someone can forget to write. */
+  @media (prefers-reduced-motion: no-preference) {
+    .apply-action {
+      transition:
+        background-color var(--motion-duration-instant) var(--motion-easing-standard),
+        color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+</style>

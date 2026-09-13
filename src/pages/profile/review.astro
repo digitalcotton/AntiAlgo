@@ -1,0 +1,216 @@
+---
+/**
+ * /profile/review: review the proposals from an uploaded resume, then confirm
+ * the ones to keep. The other half of the import flow whose first half is
+ * profile/import/parse.ts. Owner-only and per-request (prerender=false), the
+ * same shape the draft room (src/pages/desk/draft/[id].astro) holds: a person's
+ * parse is theirs, and this page reads only Astro.locals.viewer's own row.
+ *
+ * THREE STATES, the same pending/ready pattern the draft room uses:
+ *   - no parse at all: the person came here without uploading; send them back.
+ *   - pending: the background read is still running; a meta refresh polls until
+ *     the row turns ready, no client script.
+ *   - ready: render the proposal form (pre-filled, pre-checked), the provider
+ *     note or the honest fallback notice, and the notes. When the read found
+ *     nothing, an honest empty state instead of a form.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Panel from '../../components/Panel.astro';
+import EmptyState from '../../components/EmptyState.astro';
+import LoadingState from '../../components/LoadingState.astro';
+import ProposalForm from '../../components/profile/ProposalForm.astro';
+import { getParse } from '../../lib/resume-parse-store';
+import { listLinks, personName } from '../../lib/record-store';
+import { routeFor } from '../../data/nav';
+
+export const prerender = false;
+
+/** The same plain 404 the draft room and /u/[handle] return for "not yours or
+    not here", so this site has one house answer for it, not a second. */
+function notFound(): Response {
+  return new Response('Not found.', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+}
+
+const viewer = Astro.locals.viewer;
+if (!viewer) {
+  return notFound();
+}
+
+const parse = await getParse(viewer.userId);
+const outcome = parse?.status === 'ready' ? parse.outcome : null;
+
+// Whether to offer the name proposal: only when the person has set no name yet,
+// so an upload fills an empty identity but never quietly overwrites one they
+// chose. Read the current name only when there is a name proposal to weigh.
+const currentName = outcome?.proposals.name ? await personName(viewer.userId) : null;
+const hasName = currentName !== null && (currentName.firstName.trim().length > 0 || currentName.lastName.trim().length > 0);
+const nameProposal = outcome?.proposals.name && !hasName ? outcome.proposals.name : null;
+
+// The links already on this profile, so a link the resume repeats is shown as
+// already held rather than offered again. Read only when there is something to
+// compare it against.
+const heldLinkUrls = outcome ? (await listLinks(viewer.userId)).map((link) => link.url) : [];
+
+const proposals = outcome?.proposals ?? null;
+const hasSomething =
+  proposals !== null && (proposals.entries.length > 0 || proposals.links.length > 0 || nameProposal !== null);
+
+const profilePath = routeFor('profile');
+const settingsPath = routeFor('settings');
+const importAction = routeFor('profile-import');
+
+// The heading tracks the state: still reading, or ready to review. A static
+// "Reading your resume" would read as in-progress even on the ready screen.
+const pageHeading = parse?.status === 'pending' ? 'Reading your resume' : 'Review your resume';
+---
+
+<BaseLayout
+  title="Review your resume"
+  description="Check the entries, links, and name read from your uploaded resume, then confirm what to keep."
+  noindex
+>
+  <section class="review-page">
+    <div class="shell review-shell">
+      <span class="kicker">Profile</span>
+      <h1>{pageHeading}</h1>
+
+      {
+        parse === null && (
+          <EmptyState
+            title="Nothing to review"
+            detail="Upload a resume on your profile and its entries, links, and name show up here to review."
+          >
+            <a class="review-link" slot="action" href={profilePath}>
+              Back to your profile
+            </a>
+          </EmptyState>
+        )
+      }
+
+      {
+        parse?.status === 'pending' && (
+          <>
+            <meta http-equiv="refresh" content="2" />
+            <LoadingState label="Reading your resume and pulling out your roles, links, and name" />
+          </>
+        )
+      }
+
+      {
+        outcome && (
+          <>
+            {outcome.method === 'llm' && outcome.providerLabel && (
+              <p class="review-note">Read with your connected {outcome.providerLabel} key.</p>
+            )}
+            {outcome.fallbackReason && (
+              <p class="review-fallback" role="status">
+                {/* The stored reason names the specific failure (a status the
+                    provider answered, our own timeout, a cut-off reply): one
+                    sentence built only from facts this codebase minted, so
+                    showing it can never leak a key. A person whose key was
+                    refused and a person whose read timed out need different
+                    next moves, and one generic sentence was hiding which. */}
+                Your connected provider could not read this one: {outcome.fallbackReason}. The basic reader was
+                used instead. Check your key in <a class="review-link" href={settingsPath}>Settings</a>, or try
+                the upload again.
+              </p>
+            )}
+
+            {outcome.notes.map((note) => (
+              <p class="review-note-line">{note}</p>
+            ))}
+
+            {hasSomething ? (
+              <Panel title="What we read" class="review-panel">
+                <p class="review-note-line">
+                  Everything below is checked and ready to add. Uncheck what you do not want, open a row to fix
+                  anything read wrong, then add the rest. Nothing is saved until you do.
+                </p>
+                <ProposalForm
+                  entries={proposals?.entries ?? []}
+                  links={proposals?.links ?? []}
+                  nameProposal={nameProposal}
+                  existingLinkUrls={heldLinkUrls}
+                  action={importAction}
+                />
+              </Panel>
+            ) : (
+              <EmptyState
+                title="Nothing could be read"
+                detail="No roles, links, or name could be pulled from that file. Try a cleaner file, paste the text, or add entries by hand on your profile."
+              >
+                <a class="review-link" slot="action" href={profilePath}>
+                  Back to your profile
+                </a>
+              </EmptyState>
+            )}
+          </>
+        )
+      }
+
+      <div class="review-back">
+        <a class="review-link" href={profilePath}>Back to your profile</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .review-page .review-shell {
+    padding-block: var(--space-800) var(--space-1000);
+    /* No max-width: fills the shell to the same width as the Account (profile)
+       page, so the record surfaces read as one width. Prose caps its own
+       measure per block, the way profile does. */
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+  }
+  .kicker {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  h1 {
+    margin: var(--space-300) 0 0;
+    font-size: var(--size-600);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-display);
+  }
+  .review-note {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+  .review-note-line {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .review-fallback {
+    margin: 0;
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line);
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .review-link {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    border-bottom: 1px solid var(--color-foreground);
+    padding-bottom: 2px;
+  }
+  .review-back {
+    display: flex;
+    gap: var(--space-400);
+    margin-top: var(--space-300);
+  }
+</style>

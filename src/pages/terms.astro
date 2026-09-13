@@ -1,0 +1,317 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SITE } from '../data/site';
+import { withBase } from '../../site.config.mjs';
+
+/**
+ * /terms: the terms of use for the job index at tokenstoagents.ai/jobs.
+ *
+ * A SIBLING OF THE MOTHERSHIP'S, NOT A COPY OF IT. tokenstoagents.com's terms
+ * are a license-and-refund document for a paid developer pack sold through
+ * Polar. This product sells nothing yet: the terms it needs are the ones that
+ * govern using a free service that stores your data and drafts with your own
+ * key. So the clauses here are about the account, the content you own, the key
+ * you bring, acceptable use, and the plain fact that we are not your employer
+ * or recruiter and the postings we surface are observed, not guaranteed.
+ *
+ * The contact address is SITE.contact for the same PII-gate reason privacy.astro
+ * gives in its own header: the static build permits exactly the operator email
+ * declared in src/data/site.ts.
+ *
+ * TODO(ryan): counsel review before beta launch. A true, plain-language draft,
+ * not a lawyer's sign-off; the mothership's own terms carry the same marker.
+ */
+const LEGAL_ENTITY = 'Digital Cotton';
+const UPDATED = 'September 5, 2026';
+const contact = SITE.contact;
+const covenantHref = withBase('/covenant');
+const privacyHref = withBase('/privacy');
+
+const title = 'Terms of use';
+const description =
+  'The terms for using the job index: your account, the content you own, the provider key you bring, acceptable use, and the plain fact that we are not your employer or recruiter and the postings we surface are observed, not guaranteed.';
+---
+
+<BaseLayout active="terms" title={title} description={description} noindex={false}>
+  <div class="shell legal">
+    <header class="head">
+      <p class="stamp mono-label">Terms</p>
+      <h1 class="head-title">Terms of use</h1>
+      <p class="updated mono-label">Last updated {UPDATED}</p>
+    </header>
+
+    <aside class="summary" aria-label="Plain-words summary">
+      <p class="summary-label mono-label">Plain words, short version</p>
+      <p class="summary-body">
+        The job index is free to use in beta. Your account and your data are yours: export or delete them any time.
+        Use it lawfully, do not scrape it or abuse it, and remember we are not your employer or recruiter. The
+        postings we surface are read from public sources by a machine, so verify anything before you rely on it. The
+        service is provided as is.
+      </p>
+    </aside>
+
+    <div class="clauses">
+      <section class="clause">
+        <h2 class="clause-label mono-label">01 / Who this is between</h2>
+        <div class="clause-body">
+          <p>
+            These terms are between {LEGAL_ENTITY}, operating as tokens to agents ("we", "us"), and you. "The
+            service" means the job index at tokenstoagents.ai/jobs: the listings, the Desk, the Profile Record, and
+            the drafting tools. Using it means you accept these terms.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">02 / What the service is, and is not</h2>
+        <div class="clause-body">
+          <p>
+            We surface job postings a machine reads from public sources, and we help you track applications and draft
+            a resume and cover letter for them. We are not an employer, a recruiter, or an agent. We do not place you
+            in a job, do not pass your profile to employers on your behalf in this release, and do not promise a job,
+            a reply, or an interview.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">03 / The postings are observed, not guaranteed</h2>
+        <div class="clause-body">
+          <p>
+            A posting on this site is what the machine saw when it last swept: it can be out of date, changed, or
+            already closed, and the pay and details are the employer's, not ours. Verify a posting with the employer
+            before you rely on it. Applying, and deciding whether a role is real and right for you, is your call.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">04 / Your account</h2>
+        <div class="clause-body">
+          <p>
+            Keep your account details accurate and your access to your own inbox secure, since sign-in and recovery
+            run through your email. An account is for one person. You are responsible for what is done through your
+            account.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">05 / Your content stays yours</h2>
+        <div class="clause-body">
+          <p>
+            The Profile Record, resumes, and cover letters you add stay yours. You give us only the permission we
+            need to store and process them to run the service for you, and nothing more: we do not publish them to
+            others in this release, sell them, or train models on them. Remove any of it, or delete the account, and
+            the permission ends with it.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">06 / Bring your own key</h2>
+        <div class="clause-body">
+          <p>
+            Drafting uses your own AI provider key. If you connect one, you are responsible for its cost and for
+            following that provider's terms. We use the key only to draft for you, encrypted at rest, and you can
+            remove it at any time. We are not responsible for a provider's own pricing, availability, or output.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">07 / Acceptable use</h2>
+        <div class="clause-body">
+          <p>
+            Do not scrape or bulk-download the listings, hit the site with automated traffic, reverse engineer it, or
+            use it to build a competing dataset. Do not try to reach another person's account or data. Do not use the
+            service to break the law, to harass anyone, or to submit content you have no right to. We can suspend an
+            account that does.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">08 / Beta, and features that can change</h2>
+        <div class="clause-body">
+          <p>
+            The service is in beta. Features can change, pause, or be turned off, and some run behind switches we can
+            flip. We try not to lose your data when that happens, and your export and delete controls work regardless,
+            but we do not promise any particular feature will stay exactly as it is.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">09 / Price</h2>
+        <div class="clause-body">
+          <p>
+            The service is free to use today, aside from what you spend on your own provider key. If we ever charge
+            for a feature, we will say so before you pay, and a trial will expire rather than quietly become a
+            charge. That promise is stated in the <a class="legal-link" href={covenantHref}>covenant</a>.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">10 / As is, and limits on liability</h2>
+        <div class="clause-body">
+          <p>
+            The service is provided as is and as available, without warranties of any kind, to the fullest extent the
+            law allows. We are not liable for indirect, incidental, or consequential losses, or for a job you did or
+            did not get. Where liability cannot be excluded, it is limited to the amount you paid us for the service
+            in the twelve months before the claim, which in beta is zero. Nothing here limits liability that the law
+            does not allow us to limit.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">11 / Governing law</h2>
+        <div class="clause-body">
+          <p>
+            These terms are governed by the laws of the State of Georgia, USA, without regard to its conflict-of-law
+            rules, and the state and federal courts in Georgia have exclusive jurisdiction over any dispute. If you
+            are a consumer in the UK or the EEA, nothing here removes the protection of the mandatory consumer law of
+            the country you live in, or your right to bring a claim in your local courts.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">12 / Ending it</h2>
+        <div class="clause-body">
+          <p>
+            You can stop using the service and delete your account at any time from your settings. We can suspend or
+            end an account that breaks these terms. Deleting your account removes your data, as the
+            <a class="legal-link" href={privacyHref}>privacy policy</a> describes.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">13 / Changes, and how to reach us</h2>
+        <div class="clause-body">
+          <p>
+            If these terms change, the date above changes with them, and a material change will be noted on this
+            page. Questions go to <a class="legal-link" href={`mailto:${contact}`}>{contact}</a>. These terms are
+            current as of {UPDATED}.
+          </p>
+        </div>
+      </section>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .legal {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-700);
+    padding-block: var(--space-700) var(--space-900);
+  }
+
+  .head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  .stamp {
+    color: var(--color-muted);
+  }
+
+  .head-title {
+    max-width: 18ch;
+  }
+
+  .updated {
+    color: var(--color-muted);
+  }
+
+  .summary {
+    display: grid;
+    grid-template-columns: 14rem minmax(0, 1fr);
+    column-gap: var(--space-600);
+    max-width: var(--layout-measure);
+    border-left: var(--border-hairline) solid var(--color-line);
+    padding-left: var(--space-500);
+  }
+
+  .summary-label {
+    grid-column: 1;
+    color: var(--color-muted);
+  }
+
+  .summary-body {
+    grid-column: 2;
+    margin: 0;
+    font-size: var(--size-300);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+    font-weight: var(--weight-medium);
+  }
+
+  .clauses {
+    display: grid;
+    gap: var(--space-500);
+    max-width: var(--layout-measure);
+  }
+
+  .clause {
+    display: grid;
+    grid-template-columns: 14rem minmax(0, 1fr);
+    column-gap: var(--space-600);
+    align-items: start;
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-400);
+  }
+
+  .clause-label {
+    grid-column: 1;
+    color: var(--color-muted);
+    align-self: start;
+  }
+
+  .clause-body {
+    grid-column: 2;
+    display: grid;
+    gap: var(--space-300);
+  }
+
+  .clause-body p {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+    text-wrap: pretty;
+  }
+
+  .legal-link {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .legal-link:hover {
+    color: var(--color-muted);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .legal-link {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .legal {
+      gap: var(--space-600);
+      padding-block: var(--space-600) var(--space-800);
+    }
+    .summary,
+    .clause {
+      grid-template-columns: 1fr;
+      row-gap: var(--space-300);
+    }
+  }
+</style>

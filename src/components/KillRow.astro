@@ -1,0 +1,339 @@
+---
+import { plainKillSegments } from '../lib/kill-plain';
+import DurationBar from './DurationBar.astro';
+import FitBadge from './FitBadge.astro';
+import Mark from './Mark.astro';
+import {
+  ABSENCE,
+  closedRecordFor,
+  formatDate,
+  killSlug,
+  liveSiblingsOf,
+  type Kill
+} from '../lib/data';
+import { jobPath, killCardPath } from '../data/nav';
+
+/**
+ * One row of the kill list, and the same row the share card renders.
+ *
+ * Two routes show a kill: the list and /kills/[slug]/card. Building the row
+ * twice would mean the card and the list disagreeing about a date the first
+ * time one of them was corrected, on the artifact most likely to be
+ * screenshotted by someone who never sees the other. So it is one component and
+ * the card composes it.
+ *
+ * THE SPINE, WHICH IS NOT NEGOTIABLE: render observations, never intent. "Open
+ * 685 days" is a fact we measured. "Fake job" is an accusation about a state of
+ * mind no feed can show. Every string this row prints is either a date, a
+ * computed span, or the machine's observation prose from the fixture, which was
+ * itself cut back to observation on 2026-08-17. The reader draws the
+ * conclusion, and it lands harder for being theirs.
+ *
+ * FAIRNESS IS PART OF THE ROW, NOT A FOOTNOTE. Where the same company also
+ * holds a verified live posting in this sweep, the row says so and links to it.
+ * That set is computed from the data, never hardcoded: the work order named one
+ * company and the sweep actually holds four. It costs nothing, it is true, and
+ * it makes every other row on the page more credible.
+ *
+ * THE REASON TAXONOMY IS ABSENT ON PURPOSE. Grouping these rows into
+ * repost-churn, misrepresented, zombie, phantom and touched-not-refreshed needs
+ * `kill_rule`,
+ * which sweep.py's kill_reason() already knows and does not yet emit. Reading
+ * the rule back out of the prose would be this repository inventing a
+ * classification and printing it as the machine's finding. The field is on the
+ * record type, unpopulated, and the row renders it the moment it arrives.
+ */
+
+interface Props {
+  kill: Kill;
+  /** The shared bar scale. Leave unset and every bar uses the same one. */
+  scaleMax?: number;
+  /** Show the reference line's citation. Once per list; always on a card. */
+  referenceCaption?: boolean;
+  /** Offer the "share this" link. Off on the card, which is the share surface. */
+  shareLink?: boolean;
+  class?: string;
+}
+
+const { kill, scaleMax, referenceCaption = false, shareLink = true, class: className } = Astro.props;
+
+const slug = killSlug(kill);
+const siblings = liveSiblingsOf(kill);
+
+/* The archived posting this row is a record of, when the sweep still holds one.
+   Without this link the closed job page has no way in from anywhere on the
+   site: the index lists live rows only, and this row offered the share card
+   and nothing else. It is the row's own record, so it sits with the row's own
+   actions rather than beside the live siblings, which are a different claim. */
+const archived = closedRecordFor(kill);
+const plain = plainKillSegments(kill);
+---
+
+<li class:list={['kill-row', className]} data-kill-row data-slug={slug} data-company={kill.company}>
+  <div class="kill-head">
+    <span class="kill-company">{kill.company}</span>
+    <span class="kill-title">{kill.title}</span>
+  </div>
+
+  {
+    /* The finding in plain words, from the record's own evidence, above the
+       machine's sentence, which stays as the quoted evidence. Absent where the
+       record carries no evidence (exports before 2026-09-12). */
+    plain && (
+      <p class="kill-plain">
+        {plain.map((segment) =>
+          'figure' in segment ? <span data-truth="machine">{segment.figure}</span> : segment.text
+        )}
+      </p>
+    )
+  }
+  <p class:list={['kill-reason', { 'kill-reason-evidence': Boolean(plain) }]}>{kill.reason}</p>
+
+  <div class="kill-dates">
+    <span class="kill-date">
+      <span class="kill-date-key">First published</span>
+      {
+        kill.first_published ? (
+          <span class="mono kill-date-value">{formatDate(kill.first_published)}</span>
+        ) : (
+          <span class="kill-date-absence">{ABSENCE.date}</span>
+        )
+      }
+    </span>
+    <span class="kill-date">
+      <span class="kill-date-key">Killed</span>
+      {
+        kill.killed_on ? (
+          <span class="mono kill-date-value">{formatDate(kill.killed_on)}</span>
+        ) : (
+          <span class="kill-date-absence">{ABSENCE.date}</span>
+        )
+      }
+    </span>
+  </div>
+
+  <DurationBar kill={kill} scaleMax={scaleMax} referenceCaption={referenceCaption} class="kill-bar" />
+
+  {
+    siblings.length > 0 && (
+      /* Computed, never hardcoded. On this sweep it fires for four companies. */
+      <p class="kill-siblings">
+        {kill.company} also holds {siblings.length === 1 ? 'a verified live posting' : 'verified live postings'} in this sweep:{' '}
+        {siblings.map((job, index) => (
+          <>
+            {index > 0 && ', '}
+            <a class="sibling-link" href={jobPath(job.slug)}>
+              <Mark
+                state={job.status === 're_verified' ? 're-verified' : 'verified'}
+                surface="raised"
+              />
+              {job.title}
+            </a>
+            {/* The live sibling's own fit score, declared through FitBadge so
+                gate 2 resolves it against src/data/jobs.json. It is here for
+                the reader first: the cross-link exists to point at the role
+                that survived, and the score is the reason somebody follows it.
+                It also closes a real gate finding. This page names companies
+                from jobs.json and prints score-shaped numbers (the boards tile
+                is 62, which is also a fit total, and one kill's observation
+                prose contains 60), so gate 2's coverage check read it as a page
+                rendering job data with every score undeclared, and failed the
+                route. Putting a true, marked score on the page satisfies the
+                check with a statement rather than an exemption. */}
+            <FitBadge job={job} size="detail" class="sibling-score" />
+          </>
+        ))}
+      </p>
+    )
+  }
+
+  <div class="kill-actions">
+    {
+      archived && (
+        <a class="row-link" href={jobPath(archived.slug)}>
+          Read the archived posting
+        </a>
+      )
+    }
+    {
+      shareLink && (
+        <a class="row-link" href={killCardPath(slug)}>
+          Share this record
+        </a>
+      )
+    }
+  </div>
+</li>
+
+<style>
+  .kill-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    padding: var(--space-500) var(--space-600);
+    background: var(--color-surface-raised);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    --mark-knockout-fill: var(--color-surface-raised);
+  }
+
+  .kill-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+  }
+
+  /* The company is the subject of the record, so it leads, in the human voice
+     at label size. Not mono: a company is not a machine reading. */
+  .kill-company {
+    font-size: var(--size-100);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  .kill-title {
+    font-size: var(--size-400);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-snug);
+    text-wrap: pretty;
+  }
+
+  /* The observation. Set at reading size, because this is the sentence a
+     general counsel reads twice. */
+  .kill-plain {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-foreground);
+    text-wrap: pretty;
+  }
+
+  /* With a plain line above it, the sentence steps back to the evidence voice. */
+  .kill-reason-evidence {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+
+  .kill-reason {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    max-width: var(--layout-measure);
+    text-wrap: pretty;
+  }
+
+  .kill-dates {
+    display: flex;
+    gap: var(--space-500);
+    flex-wrap: wrap;
+  }
+
+  .kill-date {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+  }
+
+  .kill-date-key {
+    font-size: var(--size-050);
+    color: var(--color-muted);
+  }
+
+  .kill-date-value {
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  /* An absence is editorial, so it is not mono. Same rule as the index table. */
+  .kill-date-absence {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+
+  .kill-bar {
+    max-width: var(--layout-measure);
+  }
+
+  .kill-siblings {
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+    text-wrap: pretty;
+  }
+
+  .sibling-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200);
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  /* The score sits at the surrounding sentence's size rather than at the
+     badge's own headline size, which is tuned for the top of a job page and
+     would shout inside a sentence. The detail size is used rather than the row
+     size because it carries the "/100" partner, and a bare numeral after a job
+     title would read as part of the title. The element belongs to FitBadge, so
+     the rule reaches it through :global under a class this row owns. */
+  .kill-siblings :global(.sibling-score) {
+    margin-inline-start: var(--space-100);
+  }
+
+  .kill-siblings :global(.sibling-score .fit-value) {
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+  }
+
+  .kill-siblings :global(.sibling-score .fit-scale) {
+    font-size: var(--size-075);
+  }
+
+  /* The row's own actions, on one line and wrapping rather than stacking, so a
+     row with two of them does not read as two paragraphs. `gap` is the only
+     thing separating them: a middle dot here would be decorative text inside a
+     list of links, which is the pattern the contrast audit already flagged
+     elsewhere on this site. */
+  .kill-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-400);
+  }
+
+  .row-link {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    align-self: flex-start;
+    padding-block: var(--space-100);
+  }
+
+  .row-link:hover {
+    color: var(--color-foreground);
+    border-bottom-color: var(--color-foreground);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .row-link {
+      transition:
+        color var(--motion-duration-instant) var(--motion-easing-standard),
+        border-color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .kill-row {
+      padding: var(--space-400);
+      gap: var(--space-300);
+    }
+
+    .kill-title {
+      font-size: var(--size-300);
+    }
+  }
+</style>

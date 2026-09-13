@@ -1,0 +1,279 @@
+---
+import '../../styles/global.css';
+import BrandMark from '../../components/BrandMark.astro';
+import { sweptStamp } from '../../lib/data';
+import { formatReading, killedByRuleTotal } from '../../lib/readings';
+import { publicAsset, routeFor } from '../../data/nav';
+import { SITE, absoluteUrl } from '../../data/site';
+
+/**
+ * The report's social cover: one card, 1200 by 630, sized to be rasterised.
+ *
+ * WHY IT IS A ROUTE AND NOT AN IMAGE FILE. The card carries three numbers, and
+ * every number on this site has to be traceable to the sweep that produced it.
+ * A PNG checked into the repository is a screenshot of a claim: it cannot be
+ * verified by any gate, and it keeps saying 27% on the morning sweep 002 makes
+ * that false. Built as a route, it reads the same data layer as every other
+ * page, gate 2 checks its figures against src/data/stats.json like anything
+ * else, and the rasteriser has one job that does not involve retyping a number.
+ * This is the same reasoning that puts the kill list's share card at
+ * /kills/[slug]/card rather than in an image folder.
+ *
+ * WHY IT DOES NOT USE BaseLayout. A social card is the whole viewport: a site
+ * header above it and an ecosystem band below it would be in the crop. So this
+ * page is its own document. The three things it has to reproduce from the shell
+ * are the pre-paint theme resolution, the font faces, and the token sheets, and
+ * the first of those is duplicated below rather than imported because it has to
+ * be inline and first in the head to do its job at all.
+ *
+ * WHY IT FOLLOWS THE THEME RATHER THAN PINNING TO LIGHT. A card pinned to light
+ * would be the honest choice for a rasteriser and the wrong one for a reader,
+ * who arrives here in whichever theme they set. A route that misreports its own
+ * theme to look tidy in a crawler is the wrong trade on this site. A headless
+ * capture with no stored preference resolves to light, which is the card that
+ * ships.
+ *
+ * IT MUST READ CROPPED. Everything that carries meaning sits inside the middle
+ * band: the wordmark and the stamp at the edges are context, and losing either
+ * to a platform's crop costs nothing.
+ */
+
+// absoluteUrl, not `${SITE.url}${path}`: routeFor() already carries the base,
+// and this is the URL printed on the artifact meant to be rasterised. See
+// src/data/site.ts.
+const canonical = absoluteUrl(routeFor('report'));
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+
+    {/*
+      Duplicated verbatim from BaseLayout, and duplicated on purpose. It has to
+      run inline, before any stylesheet paints, so it cannot be imported as a
+      module or shared as a component without losing the only property that
+      makes it work. If BaseLayout's copy ever changes, this one changes with it.
+    */}
+    <script is:inline>
+      (() => {
+        let theme;
+        try {
+          theme = localStorage.getItem('theme');
+        } catch {
+          // Storage blocked. Fall through to the OS preference.
+        }
+        if (theme !== 'dark' && theme !== 'light') {
+          theme = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Report cover · The Index</title>
+    <meta name="description" content="The social cover for the report. One card, sized to be rasterised." />
+    {/* Not a page anyone should arrive at from a search result. */}
+    <meta name="robots" content="noindex, follow" />
+
+    <link rel="preload" as="font" type="font/woff2" crossorigin href={publicAsset('/fonts/n27-bold-latin.woff2')} />
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      crossorigin
+      href={publicAsset('/fonts/basiersquaremono-semibold-latin.woff2')}
+    />
+  </head>
+
+  <body>
+    <main class="stage">
+      <article class="cover">
+        <header class="cover-head">
+          <span class="cover-brand">
+            <BrandMark />
+            <span class="cover-wordmark">{SITE.name}</span>
+          </span>
+          <span class="cover-kicker mono-label">
+            State of the market
+          </span>
+        </header>
+
+        <div class="cover-body">
+          {/*
+            The figure sits inside the heading rather than above it. Read aloud,
+            "postings caught by a named rule this sweep" is a fragment, and a
+            card whose only heading is a fragment is a card that does not survive
+            being read rather than looked at. Inside, it is one sentence in both
+            directions.
+
+            The tile marker rides on the numeral: gate 2 resolves the rendered
+            glyphs against src/data/stats.json, so this card cannot go on saying
+            a number the sweep behind it stopped measuring. It printed a ghost
+            rate until 2026-08-19, which is exactly the failure the marker was
+            put here to catch and could not: the number was correct and the
+            claim it made was not ours to make.
+          */}
+          <h1 class="cover-title">
+            <span
+              class="cover-figure mono"
+              data-truth="tile"
+              data-truth-metric="killed_by_rule"
+              data-truth-value={killedByRuleTotal()}
+            >
+              {formatReading(killedByRuleTotal())}
+            </span>
+            postings were caught by a named rule this sweep.
+          </h1>
+
+          <p class="cover-statement">
+            Five rules ran against every posting we pulled. Each one publishes what it found, and the
+            ones that found nothing publish that.
+          </p>
+        </div>
+
+        <footer class="cover-foot">
+          <span class="cover-source mono-label" data-truth="source">
+            Source: The Index, read direct from company feeds
+          </span>
+          <span class="cover-stamp mono-label" data-truth="machine">Swept {sweptStamp()}</span>
+          <span class="cover-url mono-label">{canonical}</span>
+        </footer>
+      </article>
+    </main>
+  </body>
+</html>
+
+<style>
+  /* 1200 by 630 are the raster dimensions every social platform expects. They
+     are a property of the output format rather than of this design system, so
+     they are raw values here for the same reason the skip link's offset is: no
+     token should own a number that describes somebody else's crop. Everything
+     inside the card is on the ramp. */
+  .stage {
+    --cover-width: 1200px;
+    --cover-height: 630px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: var(--space-500);
+    background: var(--color-surface);
+  }
+
+  .cover {
+    width: var(--cover-width);
+    height: var(--cover-height);
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: var(--space-600);
+    padding: var(--space-700);
+    background: var(--color-surface-raised);
+    border: var(--border-heavy) solid var(--color-foreground);
+  }
+
+  .cover-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-500);
+  }
+
+  .cover-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-300);
+  }
+
+  .cover-wordmark {
+    font-size: var(--size-300);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  .cover-kicker {
+    color: var(--color-muted);
+  }
+
+  /* The middle band is the part that has to survive a crop, so it holds the
+     figure, the claim and the sourced sentence and nothing else. */
+  .cover-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  .cover-figure {
+    display: block;
+    margin-bottom: var(--space-300);
+    font-size: var(--size-700);
+    font-weight: var(--weight-bold);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-stat-loss);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  /* The h1 role in global.css is clamped against the viewport, which is the
+     right rule for a page and the wrong one for a fixed-size card: at 1400px
+     wide the clamp would set this whole sentence at the display step. Both
+     values here are ramp steps, chosen for the card rather than derived from the
+     window it happens to be open in. */
+  .cover-title {
+    font-size: var(--size-500);
+    line-height: var(--leading-snug);
+    max-width: 22ch;
+  }
+
+  .cover-statement {
+    font-size: var(--size-300);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+
+  .cover-foot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+    padding-top: var(--space-400);
+    border-top: var(--border-hairline) solid var(--color-line);
+    color: var(--color-muted);
+  }
+
+  /* Below the card's own width the fixed height stops being a raster spec and
+     starts being a box that clips its own text, so it is released. The card is
+     still legible; it is simply no longer the artifact a rasteriser wants. */
+  @media (max-width: 75rem) { /* --breakpoint-card */
+    .cover {
+      height: auto;
+      padding: var(--space-500);
+    }
+
+    .cover-figure {
+      font-size: var(--size-600);
+    }
+
+    .cover-title {
+      font-size: var(--size-400);
+    }
+
+    /* The canonical URL is one unbreakable token, and uppercase and tracked it
+       measures 409px. The footer is a wrapping flex row, but wrapping cannot
+       help an item that is wider than the whole line: at 320px this one string
+       pushed the document 89px past the viewport and the body scrolled
+       sideways. `anywhere` rather than `break-word` because only `anywhere`
+       lowers the item's minimum size, which is the thing that was forcing the
+       overflow. A URL that breaks across two lines is how every browser has
+       always rendered a long URL in running text. */
+    .cover-url {
+      overflow-wrap: anywhere;
+    }
+  }
+</style>

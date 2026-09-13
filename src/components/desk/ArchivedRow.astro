@@ -1,0 +1,113 @@
+---
+/**
+ * ArchivedRow.astro: one archived application, compacted to a single tight
+ * row per the 2026-08-25 screenshot review (UI-PUNCHLIST.md, "The Desk":
+ * "Archived card compact: title, company, archive date, unarchive on the
+ * right"). The full two-track card (You told us / We observed, the employer
+ * clock, the state-machine action buttons) belongs to an active application;
+ * an archived one has nothing further to do (src/pages/desk.astro's own
+ * app-terminal-note already says so for a closed or abandoned card), so this
+ * row states only what identifies it and when it left, plus the one action
+ * that still applies.
+ *
+ * POSTS TO THE SAME 'unarchive' INTENT src/pages/desk.astro's board view
+ * already used for this control; nothing about the write changes, only the
+ * markup around it.
+ */
+interface Props {
+  title: string;
+  company: string;
+  /** Already formatted (src/lib/data.ts's formatDate), or null when the
+      timestamp could not be read: this component renders text handed to it,
+      it does not compute a date. */
+  archivedAtLabel: string | null;
+  applicationId: number;
+  /** src/pages/desk/application.ts's own URL, resolved by the caller. */
+  action: string;
+  view: 'board' | 'table';
+}
+
+const { title, company, archivedAtLabel, applicationId, action, view } = Astro.props;
+---
+
+<li class="archived-row">
+  <div class="archived-row-info">
+    <p class="archived-row-title">{title}</p>
+    <p class="archived-row-company">{company}</p>
+  </div>
+  {archivedAtLabel && <p class="archived-row-date mono">{archivedAtLabel}</p>}
+  <form class="archived-row-form" method="POST" action={action}>
+    <input type="hidden" name="intent" value="unarchive" />
+    <input type="hidden" name="applicationId" value={applicationId} />
+    <input type="hidden" name="view" value={view} />
+    <button class="archived-row-button" type="submit">Unarchive</button>
+  </form>
+</li>
+
+<style>
+  .archived-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-400);
+    padding: var(--space-300) 0;
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+  .archived-row-info {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-300);
+    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
+  }
+  .archived-row-title {
+    margin: 0;
+    font-size: var(--size-150);
+    font-weight: var(--weight-medium);
+    color: var(--color-foreground);
+  }
+  .archived-row-company {
+    margin: 0;
+    font-size: var(--size-150);
+    color: var(--color-muted);
+  }
+  .archived-row-date {
+    margin: 0;
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+  .archived-row-form {
+    margin: 0;
+    flex-shrink: 0;
+  }
+  .archived-row-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-200) var(--space-400);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-foreground);
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .archived-row {
+      flex-wrap: wrap;
+    }
+    .archived-row-date {
+      order: 1;
+    }
+    .archived-row-form {
+      order: 2;
+      margin-left: auto;
+    }
+  }
+</style>

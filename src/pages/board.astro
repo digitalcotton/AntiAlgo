@@ -1,0 +1,213 @@
+---
+import AccountCta from '../components/AccountCta.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Board from '../components/Board.astro';
+import { facetGroupsFromCounts, loadStats, prospectRows, sweepDate, sweptStamp, type Job } from '../lib/data';
+import { isConfigured } from '../lib/db';
+import { getBoardStats, listBoardAges, listBoardFiltered, type BoardFilteredResult, type FacetCounts } from '../lib/job-store';
+import { boardRowToJob } from '../lib/board-jobs';
+import { boardHref, clampPage, parseBoardQuery } from '../lib/board-query';
+import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
+import { isOn } from '../lib/flags';
+import { routeFor } from '../data/nav';
+import { withBase } from '../../site.config.mjs';
+
+/**
+ * /board: the board, the site's main surface.
+ *
+ * IT LIVES HERE, NOT AT /, FOR A DEPLOYMENT REASON. The board is server
+ * rendered (its rows come from the job store), and with the site's /jobs base
+ * path the Astro Vercel adapter cannot route to a server-rendered index (it
+ * compiles the index to an unreachable route). Every server-rendered sub-route
+ * works, so the board lives at /board and / redirects here. The intended home
+ * is the bare /jobs; moving it back is a base-config change tracked separately.
+ *
+ * The board itself (tabs, strip, tiles, filters, sort, age plot, table, paging)
+ * is one component, src/components/Board.astro, shared with the Pre-List so the
+ * two tabs are the same surface. This page composes it with the header above
+ * and the account call below, and hands it one page of rows. The graveyard
+ * section and the Pre-List line that followed the board were removed on
+ * 2026-09-12 at the owner's ask; the kill list has its own page and the
+ * Pre-List its own tab. The live truth check's board_rows marker moved to
+ * the Verified live tile (StatTiles liveMetric).
+ *
+ * ONE PAGE PER REQUEST (since 2026-09-11). The address carries the page, the
+ * rows per page, the search, the three facets and the sort
+ * (src/lib/board-query.ts); the store filters, counts, sorts and slices in SQL
+ * (job-store.ts listBoardFiltered) and this page never holds more than one
+ * page of rows. A page past the end answers with a redirect to the last page,
+ * so the address a reader lands on always names a page that exists. The YC
+ * roles that used to be merged here from static data now arrive through the
+ * crawl like every other board (the mini reads Work at a Startup nightly), so
+ * every row on this table came through the same store.
+ */
+export const prerender = false;
+
+const stats = loadStats();
+const boardPath = routeFor('board');
+const parsed = parseBoardQuery(Astro.url.searchParams);
+
+// THE FIT SCORE IS A SIGNED-IN READING. A signed-out reader gets the board
+// without the Fit column, its why panels or the Fit sort, unless fit_public
+// is lit (flags.config.mjs). The address contract still defaults to `fit`,
+// so a reader who cannot see fit is served the age order instead: the sort
+// the control shows is the sort the rows are in, and the URL stays clean.
+// /board is public, so the middleware writes no verdict here; it resolves a
+// viewer only when the request carries a session cookie (src/middleware.ts,
+// SESSION_IF_COOKIE), which is the one fact this page needs.
+const viewer = Astro.locals.viewer;
+const signedIn = Boolean(viewer && viewer.emailVerified);
+const showFit = signedIn || isOn('fit_public');
+const query = parsed;
+// The address keeps its default (`fit`, unwritten) so every link stays bare;
+// only the store is handed the order the reader can actually see. Board.astro
+// underlines the same substitution on the sort control.
+const servedSort = !showFit && query.sort === 'fit' ? ('age' as const) : query.sort;
+
+const EMPTY_COUNTS: FacetCounts = { total: 0, location: {}, comp: {}, freshness: {} };
+const EMPTY_PAGE: BoardFilteredResult = { rows: [], total: 0, counts: EMPTY_COUNTS };
+// A store that will not answer is an empty board with the error in the log,
+// never a 500 on the site's main surface: the header and the tiles still
+// render, and the table says nothing matched.
+let served = EMPTY_PAGE;
+if (isConfigured()) {
+  try {
+    served = await listBoardFiltered({
+      q: query.q,
+      location: query.location,
+      comp: query.comp,
+      freshness: query.freshness,
+      ageMin: query.ageMin,
+      ageMax: query.ageMax,
+      sort: servedSort,
+      page: query.page,
+      perPage: query.per,
+      sweepDate: sweepDate()
+    });
+  } catch (error) {
+    console.error('board: the job store did not answer; rendering an empty board.', error);
+  }
+}
+
+const { page, pages } = clampPage(query.page, served.total, query.per);
+if (page !== query.page) {
+  return Astro.redirect(boardHref(boardPath, query, { page }), 302);
+}
+
+const jobs = served.rows.map(boardRowToJob);
+const groups = facetGroupsFromCounts(served.counts, query);
+// The age plot is a fact about the whole set, never about one page.
+let ageJobs: Job[] = [];
+if (isConfigured()) {
+  try {
+    ageJobs = (await listBoardAges()).map(boardRowToJob);
+  } catch (error) {
+    console.error('board: the age plot could not read the store; rendering without it.', error);
+  }
+}
+
+// The board's own counts, from the sweep. verified-live is the table's real
+// size, so it always matches what a reader can count.
+let boardStats: Awaited<ReturnType<typeof getBoardStats>> = null;
+if (isConfigured()) {
+  try {
+    boardStats = await getBoardStats();
+  } catch (error) {
+    console.error('board: the stats row could not be read.', error);
+  }
+}
+const verifiedCount = boardStats?.verified_live ?? served.total;
+
+const sweepLabel = sweptStamp();
+// THE STALENESS LINE LIVES IN THE HEADER NOW. The table's assurance band is
+// gone (2026-09-11), but the reader-facing half of the staleness pair
+// (scripts/prove-staleness-pair.mjs) is not: this eyebrow carries the sweep
+// instant and the window, and JobTable's inline script turns it amber and
+// rewrites it ("Last verified N hours ago") when a night is missed.
+const sweptIso = stats.swept_at_utc;
+const prospectCount = prospectRows().length;
+---
+
+<BaseLayout title="The Index" active="index">
+  <div class="shell index">
+    <header class="index-head">
+      <h1 class="index-title">Design and AI roles, verified last night.</h1>
+      <p class="index-lede">
+        A machine reads{' '}
+        <span>{(boardStats?.boards_swept ?? stats.boards).toLocaleString()}</span>{' '}
+        companies' job feeds direct from the source every night. It checks that every posting it
+        already knows about is still there, flags the ones that have sat too long, and drops the ones
+        that vanish. Every number on this site is an observation with a timestamp on it.
+      </p>
+    </header>
+
+    <Board
+      jobs={jobs}
+      mode="server"
+      page={{ total: served.total, page, pages, per: query.per }}
+      query={query}
+      groups={groups}
+      ageJobs={ageJobs}
+      boardPath={boardPath}
+      active="board"
+      prospectCount={prospectCount}
+      boards={boardStats?.boards_swept}
+      verifiedLive={boardStats ? verifiedCount : undefined}
+      hrefFor={(job: Job) => withBase(`/board/${job.slug}`)}
+      fit={showFit}
+      tabs={signedIn || isOn('prelist_tab_public')}
+      ariaLabel="This sweep"
+    >
+      {/* The sweep stamp sits right of the board tabs (Board.astro's stamp
+          slot). It is still the reader-facing half of the staleness pair:
+          data-swept and data-assurance-text are what the table's inline script
+          and scripts/prove-staleness-pair.mjs read, wherever the element sits. */}
+      <p slot="stamp" class="index-eyebrow mono" data-swept={sweptIso} data-fresh-hours={FRESH_WINDOW_HOURS}>
+        <span data-assurance-text>Verified this sweep · {sweepLabel}</span>
+      </p>
+    </Board>
+
+    <AccountCta source="index" />
+  </div>
+</BaseLayout>
+
+<style>
+  .index {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-700);
+    padding-block: var(--space-700) var(--space-800);
+  }
+
+  .index-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .index-eyebrow {
+    margin: 0;
+    color: var(--color-muted);
+  }
+
+  /* Amber, not red, past the window: a warning about our own freshness. */
+  .index-eyebrow[data-stale] {
+    color: var(--color-banner-stale);
+  }
+
+  .index-title {
+    max-width: 24ch;
+  }
+
+  .index-lede {
+    font-size: var(--size-300);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .index {
+      gap: var(--space-600);
+    }
+  }
+</style>

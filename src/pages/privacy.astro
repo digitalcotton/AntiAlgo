@@ -1,0 +1,337 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SITE } from '../data/site';
+
+/**
+ * /privacy: the privacy policy for the job index at tokenstoagents.ai/jobs.
+ *
+ * A SIBLING OF THE MOTHERSHIP'S, NOT A COPY OF IT. tokenstoagents.com already
+ * publishes a privacy policy, but it covers a different product (a developer
+ * pack sold through Polar, forms through Web3Forms) and names processors this
+ * product does not use. This one covers what the job index actually collects:
+ * an account, the Profile Record a person enters or imports, the resumes and
+ * cover letters they upload, the applications they track, and, when they bring
+ * their own provider key, that encrypted key. Every clause here is a statement
+ * about a mechanism that exists in this codebase, checkable by reading it, not
+ * a borrowed paragraph.
+ *
+ * WHY THE CONTACT ADDRESS IS SITE.contact AND NOT THE .com SUPPORT ADDRESS.
+ * This page is prerendered into the static build, and the PII gate
+ * (test/gates/pii.mjs) permits exactly one operator email in that build: the
+ * one declared in src/data/site.ts as SITE.contact. Rendering the .com support
+ * address here would be a person-table value to the gate and fail the build,
+ * so the one contact this page names is the one the site already owns.
+ *
+ * TODO(ryan): counsel review before beta launch. The mothership's own policy
+ * carries the same marker; this is a true, plain-language draft, not a
+ * lawyer's sign-off.
+ */
+const LEGAL_ENTITY = 'Digital Cotton';
+const UPDATED = 'September 5, 2026';
+const contact = SITE.contact;
+
+const title = 'Privacy policy';
+const description =
+  'What the job index collects and who processes it: your account, the Profile Record you enter, the resumes and cover letters you upload, and, if you connect one, your own AI provider key, encrypted. No data sold, no models trained on you.';
+---
+
+<BaseLayout active="privacy" title={title} description={description} noindex={false}>
+  <div class="shell legal">
+    <header class="head">
+      <p class="stamp mono-label">Privacy</p>
+      <h1 class="head-title">Privacy policy</h1>
+      <p class="updated mono-label">Last updated {UPDATED}</p>
+    </header>
+
+    <aside class="summary" aria-label="Plain-words summary">
+      <p class="summary-label mono-label">Plain words, short version</p>
+      <p class="summary-body">
+        We collect what you give us to build your profile and apply to jobs: your account, the work history you
+        enter or import, and the applications you track. If you connect your own AI provider key to draft
+        applications, we encrypt it and use it only for you. We do not sell your data and we do not train models on
+        it. You can export or delete everything, any time, from your settings.
+      </p>
+    </aside>
+
+    <div class="clauses">
+      <section class="clause">
+        <h2 class="clause-label mono-label">01 / Who controls your data</h2>
+        <div class="clause-body">
+          <p>
+            {LEGAL_ENTITY}, operating as tokens to agents, is the data controller for the job index at
+            tokenstoagents.ai/jobs. Questions, access requests, and deletion requests go to
+            <a class="legal-link" href={`mailto:${contact}`}>{contact}</a>.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">02 / Your account</h2>
+        <div class="clause-body">
+          <p>
+            When you create an account we store your email address, the name you give, and a handle if you claim
+            one. Your password is handled by our authentication provider and stored only as a hash; we never see it
+            in readable form and never store it ourselves. You can change your name, email, or handle, or delete the
+            account outright, from your settings.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">03 / Your Profile Record</h2>
+        <div class="clause-body">
+          <p>
+            The Profile Record is the work history, credentials, and links you enter or confirm. We store it so we
+            can show your profile to you and draft applications from it. You put it there and you can edit or remove
+            any entry at any time. Nothing in it is published to anyone else in this release.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">04 / Resumes and cover letters</h2>
+        <div class="clause-body">
+          <p>
+            When you upload or paste a resume, we read it to propose entries you then review and confirm. The resume
+            text itself is not stored: only the proposals you are shown, in one working buffer, and that buffer is
+            cleared the moment you act on it. A cover letter you save is kept on file as a writing sample, so a
+            drafted letter can match your own voice, until you remove it.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">05 / Your provider key, if you connect one</h2>
+        <div class="clause-body">
+          <p>
+            Drafting runs on your own AI provider key. If you connect an Anthropic, OpenAI, Kimi, or DeepSeek key,
+            it is encrypted at rest and decrypted only at the moment it is used to draft for you. We never log it and
+            never send it anywhere but the provider it belongs to. You can delete it at any time.
+          </p>
+          <p>
+            When you draft, the posting and the parts of your record the draft needs are sent to that provider under
+            the provider's own terms, and the cost is billed to your key, not to us. A key you have not connected
+            means no draft is ever sent anywhere.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">06 / Applications and the Desk</h2>
+        <div class="clause-body">
+          <p>
+            When you save a posting, track an application, record an outbound click, a status, or the pay you were
+            offered, we store it so the Desk can show two things side by side and never merged: what you did, and
+            what the machine observed. This is your own record of your own search.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">07 / Cookies</h2>
+        <div class="clause-body">
+          <p>
+            Signing in sets a session cookie through our authentication provider so the login works. After a form
+            submission that did not validate, we set a short-lived cookie that carries your entries and the error
+            back to the page so you can fix them; it expires in minutes. We set no advertising cookies and do not
+            track you across other sites.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">08 / What we do not do</h2>
+        <div class="clause-body">
+          <p>
+            No advertising trackers. No third-party ad networks. No selling or renting your data to anyone. We do
+            not use your data to train models. Nothing the machine observes about you is sold back to you. These are
+            the same lines the covenant states, and this is where they bind the data itself.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">09 / Who else handles it</h2>
+        <div class="clause-body">
+          <p>
+            Vercel hosts the site and Neon hosts the database. Both act as our processors, handling data only to
+            provide their service to us. When you draft with your own key, the AI provider you connected receives
+            that request as an independent controller under its own privacy policy, which is why the key and the
+            billing are yours and not ours.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">10 / Where it is stored</h2>
+        <div class="clause-body">
+          <p>
+            We operate from the United States and store data there. If you are outside the United States, your data
+            is transferred there. Where the UK GDPR or EU GDPR requires a transfer mechanism, our processors rely on
+            the European Commission's Standard Contractual Clauses. You may ask which mechanism applies to a given
+            processor.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">11 / How long we keep it</h2>
+        <div class="clause-body">
+          <p>
+            We keep your account and its data for as long as your account exists. Delete your account and its record,
+            saved postings, applications, cover letters on file, and any stored provider key are removed. You do not
+            have to ask us to do it: the control is in your settings.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">12 / Your rights</h2>
+        <div class="clause-body">
+          <p>
+            Wherever you live, you can ask for a copy of what we hold, correct it, delete it, or ask us to restrict a
+            particular use. Two of these are self-serve today: your settings page downloads everything we hold about
+            you as one file, and deletes your account outright. For anything else, email
+            <a class="legal-link" href={`mailto:${contact}`}>{contact}</a>. If you are in the UK or the EEA you also
+            have the right to object to processing and to complain to your local supervisory authority.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">13 / Children</h2>
+        <div class="clause-body">
+          <p>
+            This is a tool for people looking for work. It is not directed to children, and we do not knowingly
+            collect personal information from anyone under 16. If you believe a child has given us data, email us and
+            we will delete it.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">14 / Changes, and how to reach us</h2>
+        <div class="clause-body">
+          <p>
+            If this policy changes, the date above changes with it, and a material change will be noted on this page.
+            Questions, requests, and complaints go to
+            <a class="legal-link" href={`mailto:${contact}`}>{contact}</a>. This policy is current as of {UPDATED}.
+          </p>
+        </div>
+      </section>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .legal {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-700);
+    padding-block: var(--space-700) var(--space-900);
+  }
+
+  .head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  .stamp {
+    color: var(--color-muted);
+  }
+
+  .head-title {
+    max-width: 18ch;
+  }
+
+  .updated {
+    color: var(--color-muted);
+  }
+
+  .summary {
+    display: grid;
+    grid-template-columns: 14rem minmax(0, 1fr);
+    column-gap: var(--space-600);
+    max-width: var(--layout-measure);
+    border-left: var(--border-hairline) solid var(--color-line);
+    padding-left: var(--space-500);
+  }
+
+  .summary-label {
+    grid-column: 1;
+    color: var(--color-muted);
+  }
+
+  .summary-body {
+    grid-column: 2;
+    margin: 0;
+    font-size: var(--size-300);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+    font-weight: var(--weight-medium);
+  }
+
+  .clauses {
+    display: grid;
+    gap: var(--space-500);
+    max-width: var(--layout-measure);
+  }
+
+  .clause {
+    display: grid;
+    grid-template-columns: 14rem minmax(0, 1fr);
+    column-gap: var(--space-600);
+    align-items: start;
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-400);
+  }
+
+  .clause-label {
+    grid-column: 1;
+    color: var(--color-muted);
+    align-self: start;
+  }
+
+  .clause-body {
+    grid-column: 2;
+    display: grid;
+    gap: var(--space-300);
+  }
+
+  .clause-body p {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+    text-wrap: pretty;
+  }
+
+  .legal-link {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .legal-link:hover {
+    color: var(--color-muted);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .legal-link {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .legal {
+      gap: var(--space-600);
+      padding-block: var(--space-600) var(--space-800);
+    }
+    .summary,
+    .clause {
+      grid-template-columns: 1fr;
+      row-gap: var(--space-300);
+    }
+  }
+</style>

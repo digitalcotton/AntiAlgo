@@ -1,0 +1,120 @@
+---
+/**
+ * The verification mark family. Three states, drawn from the approved canvases
+ * on a 48x48 grid and rendered at 11px inline.
+ *
+ * The colour mapping is the legend canon from tokens/README.md, and it is not
+ * what the shapes suggest at a glance:
+ *
+ *   verified     ring + solid core, live green
+ *   re-verified  the same mark with the top of the ring punched out
+ *   closed       ring + hollow core, plain muted grey, never red
+ *
+ * Red is not a row mark at all. It belongs to the kill statistics,
+ * which is why that token is `stat-loss` and not `mark-killed`.
+ *
+ * The punch-out on re-verified is a knockout, not a dot: the small circle is
+ * filled with the surface behind the mark and clipped by the top of the viewBox,
+ * so what reads on screen is a notch in the ring rather than a badge. That only
+ * works if the fill matches the actual background, which is why `surface` is a
+ * required decision at every call site rather than a default that is right most
+ * of the time and invisibly wrong on a hovered row.
+ *
+ * Standing rule 5: a mark never stands alone. This component renders the glyph
+ * only. Whatever places it is responsible for the text partner beside it, or for
+ * sitting within one viewport of the legend.
+ */
+
+type State = 'verified' | 're-verified' | 'closed';
+
+/** Which surface the mark sits on. Only the knockout needs it, but taking it on
+    every state keeps call sites honest when a mark moves between contexts. */
+type Surface = 'page' | 'raised' | 'hover';
+
+interface Props {
+  state: State;
+  surface?: Surface;
+  /** The accessible name. Omit when a visible text partner already names the
+      mark, which is the common case: a duplicate name is noise in a screen
+      reader, and standing rule 5 guarantees the partner exists. */
+  label?: string;
+  class?: string;
+}
+
+const { state, surface = 'page', label, class: className } = Astro.props;
+
+const SURFACE_FILL: Record<Surface, string> = {
+  page: 'var(--color-surface)',
+  raised: 'var(--color-surface-raised)',
+  hover: 'var(--color-hover-surface)'
+};
+
+const stroke = state === 'closed' ? 'var(--color-mark-closed)' : 'var(--color-mark-live)';
+
+---
+
+<!--
+  Decorative when a text partner names it, an image with a name when asked.
+  The three a11y attributes are written inline rather than spread from an object
+  because Astro drops any attribute whose value is undefined, so the ternaries
+  express "one or the other, never both" without a union type that has to be
+  narrowed for the compiler.
+-->
+<svg
+  viewBox="0 0 48 48"
+  class:list={['mark', className]}
+  focusable="false"
+  role={label ? 'img' : undefined}
+  aria-label={label}
+  aria-hidden={label ? undefined : true}
+>
+  <circle cx="24" cy="24" r="19" fill="none" stroke={stroke} stroke-width="5" />
+
+  {
+    state === 'closed' ? (
+      <rect x="17" y="17" width="14" height="14" fill="none" stroke={stroke} stroke-width="4" />
+    ) : (
+      <rect x="16" y="16" width="16" height="16" fill={stroke} />
+    )
+  }
+
+  {
+    /*
+      The knockout fill takes an inheritable override with the declared surface
+      as its fallback.
+
+      The `surface` prop answers "what is behind this mark" correctly for every
+      static context, and there is one context where a static answer cannot be
+      right: a table row that changes background on hover. The mark sits on
+      `surface-raised` at rest and on `hover-surface` under the cursor, so a
+      single value is invisibly wrong in exactly the place DECISIONS.md flagged
+      as the one that matters. A custom property inherits, so the row sets
+      --mark-knockout-fill once and every mark inside it follows the row's own
+      background without this component learning about hover states.
+
+      The fallback means nothing changes for the call sites that do not set it,
+      and `surface` stays required rather than becoming a default that is right
+      most of the time.
+    */
+    state === 're-verified' && (
+      <circle
+        cx="24"
+        cy="4"
+        r="6"
+        fill={`var(--mark-knockout-fill, ${SURFACE_FILL[surface]})`}
+        stroke={stroke}
+        stroke-width="4"
+      />
+    )
+  }
+</svg>
+
+<style>
+  .mark {
+    width: var(--mark-inline);
+    height: var(--mark-inline);
+    /* The mark sits in a flex row beside its text partner and must never be the
+       thing that stretches or shrinks when the row is tight. */
+    flex: none;
+  }
+</style>

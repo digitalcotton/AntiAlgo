@@ -1,0 +1,123 @@
+---
+/**
+ * AccountRow.astro: one row of the Settings "Account" section, collapsed to a
+ * line (label, current value, an "Edit" affordance) that opens to its editing
+ * form. The design mock draws the whole Settings page this way, the same
+ * collapsed-row system the profile record and the provider rows use, so a
+ * setting reads as a fact with an edit behind it, not a form standing open.
+ *
+ * REPLACES THREE ALWAYS-OPEN PANELS (Your name, Your email, Your handle) with
+ * four rows in one panel, so the top of the page is a scannable list of what
+ * is on file, not a stack of forms.
+ *
+ * NO SCRIPT. It is a native <details>: the summary is the row, the panel is the
+ * form, and it opens with nothing running. `open` is set by the page when this
+ * field's own save just succeeded or failed, so the message and the form are
+ * both in view on the reload that follows.
+ *
+ * THE FORM IS THE CALLER'S. This component owns only the row shell and the
+ * collapse; the editing form, its endpoint, and its messages are slotted in, so
+ * every identity endpoint (name, email, resume email, handle) keeps its exact
+ * behaviour, including the two-step email change.
+ */
+interface Props {
+  label: string;
+  /** The current value, shown on the collapsed row. */
+  value: string;
+  /** A quieter aside after the value (e.g. "verified"). */
+  note?: string;
+  /** The affordance word on the right. "Edit" by default. */
+  action?: string;
+  /** Rendered open when this field's own save just happened, so its message
+      is in view. */
+  open?: boolean;
+  id?: string;
+}
+const { label, value, note, action = 'Edit', open = false, id } = Astro.props;
+---
+
+<details class="account-row" open={open} id={id}>
+  <summary class="account-row-head">
+    <span class="account-row-label mono-label">{label}</span>
+    <span class="account-row-value">
+      <span class="account-row-value-main">{value}</span>
+      {note && <span class="account-row-note"> · {note}</span>}
+    </span>
+    <span class="account-row-action">{action}</span>
+  </summary>
+  <div class="account-row-panel">
+    <slot />
+  </div>
+</details>
+
+<style>
+  .account-row {
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+  .account-row:last-child {
+    border-bottom: 0;
+  }
+  .account-row-head {
+    display: grid;
+    grid-template-columns: 11.875rem minmax(0, 1fr) auto;
+    gap: var(--space-400);
+    align-items: baseline;
+    padding: var(--space-400) var(--space-500);
+    cursor: pointer;
+    list-style: none;
+  }
+  .account-row-head::-webkit-details-marker {
+    display: none;
+  }
+  .account-row-head:hover {
+    background: var(--color-hover-surface);
+  }
+  .account-row-label {
+    color: var(--color-muted);
+  }
+  .account-row-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--size-200);
+    color: var(--color-foreground);
+  }
+  .account-row-value-main {
+    font-weight: var(--weight-medium);
+  }
+  .account-row-note {
+    color: var(--color-muted);
+  }
+  .account-row-action {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    white-space: nowrap;
+  }
+  .account-row[open] .account-row-action::after {
+    content: ' (close)';
+    text-decoration: none;
+  }
+  /* The open form aligns under the value column on a wide viewport, so the
+     panel reads as belonging to its row. */
+  .account-row-panel {
+    padding: 0 var(--space-500) var(--space-500) calc(11.875rem + var(--space-400) + var(--space-500));
+  }
+
+  @media (max-width: 60rem) {
+    .account-row-head {
+      grid-template-columns: minmax(0, 1fr) auto;
+      row-gap: var(--space-100);
+    }
+    /* Label on its own line above the value on a narrow viewport. */
+    .account-row-label {
+      grid-column: 1 / -1;
+    }
+    .account-row-panel {
+      padding-inline: var(--space-400);
+    }
+  }
+</style>

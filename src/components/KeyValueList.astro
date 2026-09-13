@@ -1,0 +1,120 @@
+---
+/**
+ * The key and value grid the provenance and ease panels are both made of.
+ *
+ * ONE RULE, AND IT IS THE MOST LOAD-BEARING TYPOGRAPHIC DECISION ON THE SITE.
+ * A value the machine measured renders in the machine voice. An absence renders
+ * in the human voice, because an absence is not a machine fact: it is us saying
+ * what we do not know. So "GREENHOUSE FEED, READ DIRECT" is mono and "No date
+ * shown at source" is not, and a reader can tell a measurement from a gap
+ * before reading either of them.
+ *
+ * That split is also what carries the hierarchy now that the contrast audit
+ * retired `dim` and the key and the value are both `muted`. The channel is the
+ * typeface, and it was doing that work before contrast came into it. See
+ * DECISIONS.md, ruling 3, instance 3.
+ *
+ * A definition list rather than a table, because that is what it is: terms and
+ * their definitions, in no particular order, with no column headings. The grid
+ * is CSS, so the dt and dd pairs stay a real dl in the accessibility tree.
+ */
+
+import type { KeyValueRow } from '../lib/ui';
+
+interface Props {
+  rows: KeyValueRow[];
+  class?: string;
+}
+
+const { rows, class: className } = Astro.props;
+
+/**
+ * A row's gate 2 declaration, flattened into attributes for the dd.
+ *
+ * Written here rather than at every call site so the attribute names are spelled
+ * once. `kind` becomes data-truth and everything else passes through, which is
+ * exactly the contract documented at the top of test/gates/truth.mjs.
+ */
+function truthAttrs(row: KeyValueRow): Record<string, string> {
+  if (!row.truth) return {};
+  const { kind, ...rest } = row.truth;
+  return { 'data-truth': kind, ...rest };
+}
+---
+
+<dl class:list={['kv', className]}>
+  {
+    rows.map((row) => (
+      <div class="kv-row">
+        <dt class="kv-key">{row.key}</dt>
+        {row.value === null ? (
+          <dd class="kv-absence">{row.absence ?? 'Not listed'}</dd>
+        ) : (
+          <dd class="kv-value mono" {...truthAttrs(row)}>
+            {row.value}
+          </dd>
+        )}
+      </div>
+    ))
+  }
+</dl>
+
+<style>
+  .kv {
+    display: grid;
+    /* The key column is as wide as its longest term and no wider, so the values
+       start in one place and the pairs read as a table without being one. */
+    grid-template-columns: max-content 1fr;
+    gap: var(--space-200) var(--space-400);
+    margin: 0;
+  }
+
+  /* Each pair is a grid item that lays its own two cells into the parent's
+     columns, which is what keeps a dl semantic and a grid aligned at once. */
+  .kv-row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: baseline;
+  }
+
+  .kv-key {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+
+  .kv-value {
+    margin: 0;
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    line-height: var(--leading-snug);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .kv-absence {
+    margin: 0;
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    line-height: var(--leading-snug);
+  }
+
+  /* Subgrid is the clean way to align two columns across many rows; where it is
+     not available the pairs stack, which is legible and loses only the
+     alignment. Stated rather than assumed, because a silent fallback to
+     overlapping cells would be worse than either. */
+  @supports not (grid-template-columns: subgrid) {
+    .kv {
+      grid-template-columns: 1fr;
+    }
+
+    .kv-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-200) var(--space-300);
+    }
+  }
+</style>

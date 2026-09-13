@@ -1,0 +1,134 @@
+---
+import { SITE } from '../data/site';
+import { isOn } from '../lib/flags';
+
+/**
+ * SponsorSlot.astro: one labeled sponsor placement, structurally apart from
+ * any list of postings.
+ *
+ * RUN-FINISH phase 6 (MASTER-SPEC F7, "The Ritual"): "one labeled sponsor
+ * slot, empty until sold, never among listings." The clause that shapes
+ * every decision in this file is "never among listings": a sponsor
+ * placement sitting inside a list of postings is an ad wearing a posting's
+ * clothes, and this site's whole argument is that every posting on it is
+ * ordered by observed data and never by who paid. So this component renders
+ * no row, no card and nothing shaped like a JobRow or a KillRow: it is one
+ * bordered block with its own label, meant to sit in its own section on
+ * whatever page uses it, outside any `<ul>` or `<Panel>` that holds
+ * listings. See src/pages/drop.astro's own header for the one page that
+ * uses it today and exactly where it sits.
+ *
+ * EMPTY IS NOT HIDDEN. The same brief: an unsold slot still renders,
+ * labeled "Sponsor slot" and stating plainly that it is unsold, because
+ * hiding it until the day it sells would make that day read as an
+ * editorial change rather than the commercial one it actually is. So this
+ * component has exactly two states, sold and unsold, and both render the
+ * same label; there is no third state that omits the block.
+ *
+ * NO PRICE, NO CHECKOUT, NO FORM THAT COLLECTS PAYMENT DETAILS. RUN-MASTER
+ * section 2 item 2 and RUN-MASTER amendment 2 keep checkout out of this run
+ * entirely. The unsold state names the site's own already-published contact
+ * address (SITE.contact) and nothing else: no figure, no plan name, no
+ * upgrade path.
+ *
+ * GATED ON `sponsor_slot` (flags.config.mjs), READ HERE AND NOT CHANGED.
+ * That flag is already lit in both editions this run ("MONETIZATION rails
+ * ship this run without a checkout"), so gating on it changes nothing about
+ * what a reader sees today; it means the one place this run's kill switch
+ * for the whole rail actually has an effect is this file, the same way
+ * `desk`'s flag governs whether /desk itself renders anything.
+ */
+
+interface Props {
+  /** True once a sponsor has actually bought the slot. Always false this
+      run: RUN-MASTER amendment 2 keeps checkout out of scope, so there is
+      no path that could ever set this true yet. See this file's own header. */
+  filled?: boolean;
+  /** The sponsor's own name, printed only when filled is true. */
+  sponsorName?: string;
+  class?: string;
+}
+
+const { filled = false, sponsorName, class: className } = Astro.props;
+const lit = isOn('sponsor_slot');
+---
+
+{
+  lit && (
+    <aside
+      class:list={['sponsor-slot', className]}
+      aria-labelledby="sponsor-slot-label"
+      data-sponsor-filled={filled}
+    >
+      <p id="sponsor-slot-label" class="sponsor-slot-label mono-label">
+        Sponsor slot
+      </p>
+      {filled ? (
+        <div class="sponsor-slot-body">
+          <p class="sponsor-slot-line">
+            {sponsorName ? `This slot is held by ${sponsorName}.` : 'This slot is sold.'}
+          </p>
+          <slot />
+        </div>
+      ) : (
+        <div class="sponsor-slot-body">
+          <p class="sponsor-slot-line">
+            This slot is unsold. One sponsor, labeled as one, and never placed among the postings above: nothing
+            on this site is ever ordered by who paid for it.
+          </p>
+          <p class="sponsor-slot-contact">
+            Interested?{' '}
+            <a class="sponsor-slot-link" href={`mailto:${SITE.contact}`}>
+              {SITE.contact}
+            </a>
+          </p>
+        </div>
+      )}
+    </aside>
+  )
+}
+
+<style>
+  .sponsor-slot {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    border: var(--border-hairline) solid var(--color-line);
+    padding: var(--space-400);
+    background: var(--color-surface-raised);
+  }
+
+  .sponsor-slot-label {
+    color: var(--color-muted);
+  }
+
+  .sponsor-slot-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+
+  .sponsor-slot-line {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+
+  .sponsor-slot-contact {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+  }
+
+  .sponsor-slot-link {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .sponsor-slot-link {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+</style>

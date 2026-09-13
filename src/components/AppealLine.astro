@@ -1,0 +1,64 @@
+---
+import { SITE } from '../data/site';
+
+/**
+ * The appeal.
+ *
+ * "Posting still live and we got it wrong? Tell us and we will re-verify
+ * tonight."
+ *
+ * One sentence, and it is the difference between a courtroom and a mob. The
+ * kill list makes public, dated, named accusations about companies on the
+ * strength of what a machine observed, and a process that makes those
+ * accusations with no way to answer them is not accountability, it is a pillory.
+ * The line costs nothing, it is true (the sweep runs nightly, so a correction
+ * really does land the same night), and it is the single cheapest thing on the
+ * page that makes every claim above it more credible.
+ *
+ * It ships as furniture rather than as copy a page writes, so that no page that
+ * renders a kill can render it without the appeal. That is the same reasoning
+ * that puts the mark legend inside the table.
+ *
+ * The wording is fixed and takes no props. A page rewording the appeal is a page
+ * softening it, and the sentence is load bearing exactly as written.
+ */
+
+interface Props {
+  /** Where the reply goes. Defaults to the site's own contact address. */
+  href?: string;
+  class?: string;
+}
+
+const { href = `mailto:${SITE.contact}`, class: className } = Astro.props;
+---
+
+<p class:list={['appeal', className]}>
+  Posting still live and we got it wrong? <a class="appeal-link" href={href}>Tell us</a> and we will re-verify tonight.
+</p>
+
+<style>
+  .appeal {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+    /* The heavy rule, in the foreground colour rather than the loss colour. This
+       is the one line on the kill list that is not an accusation, and painting
+       it in the alarm colour would make it read as part of the charge sheet. */
+    border-left: var(--border-heavy) solid var(--color-foreground);
+    padding: var(--space-200) var(--space-400);
+    text-wrap: pretty;
+  }
+
+  .appeal-link {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .appeal-link {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+</style>

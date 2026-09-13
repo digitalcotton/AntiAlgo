@@ -1,0 +1,902 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AppealLine from '../../components/AppealLine.astro';
+import KillRow from '../../components/KillRow.astro';
+import KillStates from './_KillStates.astro';
+import MarkLegend from '../../components/MarkLegend.astro';
+import Panel from '../../components/Panel.astro';
+import StatTiles from '../../components/StatTiles.astro';
+import Reading from '../../components/Reading.astro';
+import RuleTally from '../../components/RuleTally.astro';
+import {
+  formatDate,
+  heldKills,
+  killArchive,
+  killSlug,
+  killsOnRecord,
+  loadKills,
+  loadStats,
+  measuredByUs,
+  publishedRuleOf,
+  repeatOffenders,
+  sweptStamp,
+  unattributedKills,
+  type Kill,
+  type KillRule
+} from '../../lib/data';
+import { noRuleHasFired, ruleLabel } from '../../lib/readings';
+import { killCardPath, routeFor } from '../../data/nav';
+
+/**
+ * The kill list. The accountability artifact, and the page that makes the
+ * verified mark mean something by showing what it costs not to have one.
+ *
+ * THE SPINE, RESTATED HERE BECAUSE EVERY EDIT TO THIS FILE HAS TO PASS IT:
+ * render observations, never intent. "Open 685 days" is a span we measured.
+ * "Fake job" is an accusation about a state of mind no feed can show. Every
+ * string below is a date, a computed span, a count, or the machine's own
+ * observation prose out of the fixture. If a line here ever assigns motive, cut
+ * it: the dates land harder anyway, and they are the half a general counsel can
+ * check.
+ *
+ * WHAT THIS PAGE COMPOSES RATHER THAN BUILDS. The row, the duration bar, the
+ * reference line, the stat tiles, the insight strip, the legend and the appeal
+ * are all shared components, and every number they print is computed once in
+ * src/lib/data.ts. This page decides ordering, framing and furniture. It does
+ * not subtract two dates, and it does not type a statistic.
+ *
+ * FOUR THINGS THIS PAGE DELIBERATELY DOES NOT DO, each one logged in
+ * DECISIONS.md:
+ *
+ *   1. It does not classify a kill by reading its own prose. The taxonomy comes
+ *      from `kill_rule` on the record, emitted by the machine that fired it.
+ *      Reading the rule back out of the reason sentence would be this repository
+ *      classifying the kills and printing the result as the machine's finding.
+ *   2. It does not rank companies. Repeat kills are grouped and counted, in the
+ *      order the sweep recorded them, because a ranking at this sample size
+ *      would read as a finding the sample cannot support.
+ *   3. It does not name a company in code. The both-lists cross-link on each row
+ *      is the computed intersection of kill companies and companies holding a
+ *      verified live posting.
+ *   4. It does not publish a ghost rate. Killed over pulled reads as a deception
+ *      rate, and no rule this site runs has yet produced a finding it could rest
+ *      on. What it publishes instead is the count each named rule produced,
+ *      zeroes included.
+ */
+
+// ---------------------------------------------------------------------------
+// The rows, and the order they go in
+// ---------------------------------------------------------------------------
+
+const kills = loadKills();
+const stats = loadStats();
+const repeats = repeatOffenders();
+const repeatByCompany = new Map(repeats.map((entry) => [entry.company, entry]));
+
+/**
+ * The records the archive holds and this page does not publish.
+ *
+ * A held record is one whose central claim we cannot evidence as our own
+ * observation, so it renders no row here and gets no share card. The page still
+ * has to say so. This page publishes a count and a ghost rate, and a page that
+ * quietly drops a row while printing a total is doing the thing this site was
+ * built to name. The notice below is that sentence, and the two numerals in it
+ * are marked so gate 2 holds both to the data rather than to a template.
+ *
+ * WHY THE TILE STILL SAYS 14. The hold is a publication decision, not a
+ * measurement. The sweep killed what it killed, stats.killed counts it, and the
+ * ghost rate is that count over what was pulled. Editing the stat to match the
+ * rows would be correcting the measurement to fit the edit, which is backwards.
+ * So both numbers stand on the page, and the sentence explains the gap.
+ *
+ * THE REASON CLAUSE IS READ OFF THE RECORD, NOT REMEMBERED. The specific
+ * wording renders only while the record's own fields say what the sentence
+ * says: an outside-reported duration with no named source. Any other hold falls
+ * through to the rule itself. A sentence describing today's held record from
+ * memory would go on rendering, confidently and wrongly, the first time a
+ * different record is held.
+ *
+ * Both strings are flagged for Ryan's voice pass. See DECISIONS.md, 2026-08-19.
+ */
+const held = heldKills();
+const unattributed = unattributedKills();
+const heldForUnsourcedFigure =
+  held.length === 1 && held[0].duration_provenance === 'reported_elsewhere' && !held[0].duration_source;
+
+/**
+ * One entry in the rendered list: either a lone kill, or every kill at a company
+ * that appears more than once, grouped under a count.
+ */
+type Block =
+  | { kind: 'single'; kill: Kill }
+  | { kind: 'group'; company: string; count: number; kills: Kill[] };
+
+/**
+ * The order is the sweep's own, with one adjustment: a company that appears more
+ * than once has its records collected at the position of its first one.
+ *
+ * That adjustment is the whole of the repeat-offender treatment, and what it is
+ * NOT is the point. It is not a ranking: a group sits where the sweep first
+ * recorded that company, not at the top for having the most rows. Sorting by
+ * count would turn a dozen records into a league table, and at this sample size
+ * a league table states a finding the data cannot support. The count is
+ * printed because it is a fact about the sweep. The position is not, so the
+ * position is left alone.
+ */
+const blocks: Block[] = [];
+const grouped = new Set<string>();
+for (const kill of kills) {
+  const repeat = repeatByCompany.get(kill.company);
+  if (!repeat) {
+    blocks.push({ kind: 'single', kill });
+    continue;
+  }
+  if (grouped.has(kill.company)) continue;
+  grouped.add(kill.company);
+  blocks.push({ kind: 'group', company: repeat.company, count: repeat.count, kills: repeat.kills });
+}
+
+/**
+ * The reference line's citation renders once, under the first bar that has one.
+ *
+ * Every measured row draws the 9.8 day line, and repeating its source under
+ * every bar would turn a citation into wallpaper. It goes under the first
+ * one, which on any ordering is the first thing a reader meets. The share card
+ * carries it on every instance, because a card arrives with no page around it.
+ */
+const firstMeasured = kills.find((kill) => measuredByUs(kill)) ?? null;
+const captionSlug = firstMeasured ? killSlug(firstMeasured) : null;
+
+// ---------------------------------------------------------------------------
+// Which state renders
+// ---------------------------------------------------------------------------
+
+/**
+ * Every state ships, and three of the four cannot be reached by a reader today.
+ *
+ * The site is a static build of a fixed sweep, so on this route "loading" and
+ * "error" describe futures rather than a present, and "empty" describes a sweep
+ * that killed nothing. All three are real branches rendering the real shared
+ * components with no invented rows.
+ *
+ * WHERE THEY ARE MEASURED, WHICH IS THE HALF THIS PAGE USED TO GET WRONG. The
+ * override below still exists and still works:
+ *
+ *   KILLS_STATE=empty npm run dev
+ *   KILLS_STATE=loading npm run dev
+ *   KILLS_STATE=error npm run dev
+ *
+ * but on its own it meant none of the three ever reached `dist/`, so no gate
+ * ever read one and no baseline ever photographed one. They now also ship on
+ * `/_states`, the review route that is built into the tree the gates
+ * measure and injected out of a production build the same way `/_specimen` is.
+ * The copy for all three lives in `_KillStates.astro`, so the state a gate
+ * measures and the state this page would render are the same strings.
+ *
+ * The empty state is reachable now. It used to be dead for a second reason: the
+ * data layer threw on an empty kills array, because an empty array is how a
+ * failed load looks as well as how a clean sweep looks. That is fixed in
+ * src/lib/data-contract.ts, which tells the two apart by the key rather than by
+ * the length: a sweep that kills nothing is the product succeeding and must not
+ * fail the build.
+ *
+ * THE EMPTY TEST COUNTS THE ARCHIVE, NOT THE PUBLISHED ROWS, and the difference
+ * is a claim rather than a preference. That state says "nothing died this
+ * sweep", which is a statement about the sweep. A sweep whose every kill was
+ * held would have killed something and would render that sentence as a lie, so
+ * the branch is decided by what the machine recorded and the notice above the
+ * records is what accounts for the rows it does not show.
+ */
+type ViewState = 'list' | 'empty' | 'no-findings' | 'loading' | 'error';
+const OVERRIDE = process.env.KILLS_STATE;
+const state: ViewState =
+  OVERRIDE === 'empty' || OVERRIDE === 'loading' || OVERRIDE === 'error'
+    ? OVERRIDE
+    : killArchive().length === 0
+      ? 'empty'
+      : kills.length === 0
+        ? 'no-findings'
+        : 'list';
+
+/**
+ * THE RECORD, as against the news.
+ *
+ * Sorted here and not in data.ts, because the order is this page's editorial
+ * decision rather than a property of the data: newest first, so a reader who
+ * knows the last few nights can stop reading at the first row they recognise.
+ * Ties broken by the instant the machine first recorded the kill, which is the
+ * only field that can separate two findings made on the same day.
+ */
+const record = [...killsOnRecord()]
+  .sort((a, b) => {
+    const day = String(b.killed_on ?? '').localeCompare(String(a.killed_on ?? ''));
+    if (day !== 0) return day;
+    return String(b.first_killed_at_utc ?? '').localeCompare(String(a.first_killed_at_utc ?? ''));
+  })
+  // The rule is pulled off the record here rather than asserted at the point it
+  // renders. killsOnRecord() has already dropped anything without a published
+  // rule, so this filter removes nothing; what it does is give the row a rule
+  // the compiler knows is a rule, instead of a non-null assertion standing in
+  // for the guarantee. An assertion would still be there, and still be silent,
+  // the day that guarantee changed.
+  .map((kill) => ({ kill, rule: publishedRuleOf(kill) }))
+  .filter((row): row is { kill: (typeof row)['kill']; rule: KillRule } => row.rule !== null);
+
+
+const indexHref = routeFor('index');
+const methodologyHref = routeFor('methodology');
+/** How many records the table shows before the reader asks for the rest. */
+const RECORD_ROWS_SHOWN = 5;
+
+---
+
+<BaseLayout
+  title="Kill list"
+  active="kills"
+  description="Every posting the machine killed in this sweep, the rule it tripped, and the dates we read at source."
+>
+  <div class="shell kills">
+    <header class="kills-head">
+      <p class="kills-eyebrow mono">SWEPT {sweptStamp()}</p>
+      <h1 class="kills-title">What the machine killed, and the rule each one tripped.</h1>
+      <p class="kills-lede">
+        A posting is killed when it trips a rule: it contradicted itself, it outlived a deadline it printed
+        itself, it stopped existing where it was published, or it came back under a new address wearing a
+        fresh date. Nothing is killed for being old. Each record here carries what the machine observed and
+        when, and none of them says why a company did anything, because a job feed cannot show intent.
+      </p>
+    </header>
+
+    {/* The four sweep numbers, marked so gate 2 holds each one to the data. The
+        two that matter here are the kill count and the count a named rule
+        produced, and the gap between them is what the notice below explains.
+        linkKills is off: this is the kill list. */}
+    <StatTiles linkKills={false} class="kills-tiles" />
+
+
+
+    {
+      /* What the archive holds and this page does not print, said out loud and
+         in one place. It renders in every state because it is a fact about the
+         data rather than about the list, and every numeral in it carries a
+         truth marker, so the gate holds the published count to the records and
+         the sweep total to stats.json. None of them can be typed.
+
+         Two different admissions, kept apart. A HELD record is one whose own
+         claim we cannot evidence. An UNATTRIBUTED record is one whose claim we
+         can evidence and whose RULE we withdrew. Collapsing them into one
+         sentence would be the more comfortable copy and the less true one. */
+      (held.length > 0 || unattributed.length > 0) && (
+        <p class="held mono">
+          <Reading metric="kills_published" mono={false} /> of the <Reading metric="killed" mono={false} /> kills
+          this sweep are published below.{' '}
+          {unattributed.length > 0 && (
+            <>
+              <Reading metric="kills_unattributed" mono={false} /> of them were closed under the age rule this
+              site retired on 19 August 2026, which killed a posting for outliving a threshold. A duration is not
+              evidence about an employer, so those records stay in the archive and off this page rather than being
+              republished under a rule nobody stands behind.{' '}
+            </>
+          )}
+          {held.length > 0 &&
+            (heldForUnsourcedFigure
+              ? 'One further record is held back: it carries a figure that came from outside research rather than from our sweep, and nobody can name the source.'
+              : `${held.length === 1 ? 'One further record is held back' : `${held.length} further records are held back`} and kept in the archive, because we cannot evidence what they claim as our own observation.`)}
+        </p>
+      )
+    }
+
+    {
+      state === 'list' && (
+        <section class="records" aria-labelledby="records-heading">
+          <div class="records-head">
+            <h2 id="records-heading">The records</h2>
+            <p class="records-note">
+              In the order the sweep recorded them. Where a company appears more than once, its records are
+              collected together and counted. There is no ranking here: a company sits where the sweep first
+              found it, not where a total would put it.
+            </p>
+          </div>
+
+          {/* The wrapper is not decoration. Astro scopes a style rule to the
+              elements in this file's own template, so a real element here is
+              what lets the one rule below reach into the panel's body and
+              remove its gutter. The rows carry their own padding and their own
+              dividing rule, and a second gutter around them would stop those
+              rules meeting the panel edge. */}
+          <div class="records-panel">
+          <Panel title="Killed this sweep">
+            <p class="records-scale mono-label" slot="aside">One scale across every bar</p>
+
+            <ul class="kill-list">
+              {blocks.map((block) =>
+                block.kind === 'single' ? (
+                  <KillRow
+                    kill={block.kill}
+                    referenceCaption={killSlug(block.kill) === captionSlug}
+                  />
+                ) : (
+                  <li class="group">
+                    <p class="group-head">
+                      <span class="group-company">{block.company}</span>
+                      {/* A count of records in this sweep, so it is a machine
+                          assertion and takes the machine voice. Computed by
+                          repeatOffenders(), never typed. */}
+                      <span class="group-count mono" data-truth="machine">
+                        {block.count} kills this sweep
+                      </span>
+                    </p>
+                    <ul class="group-rows">
+                      {block.kills.map((kill) => (
+                        <KillRow kill={kill} referenceCaption={killSlug(kill) === captionSlug} />
+                      ))}
+                    </ul>
+                  </li>
+                )
+              )}
+            </ul>
+
+            <div class="records-foot" slot="footnote">
+              <MarkLegend surface="raised" />
+              <p class="records-footnote mono-label">
+                Bars are drawn to one scale on this page and on every share card, so a screenshot carries the
+                comparison with it
+              </p>
+            </div>
+          </Panel>
+          </div>
+        </section>
+      )
+    }
+
+    {
+      state === 'no-findings' && (
+        /* THE STATE THIS PAGE IS IN TONIGHT, AND IT IS THE BRAND RATHER THAN A
+           FAILURE. The sweep killed postings and not one of them was a finding
+           any rule this site still runs produced. Saying so plainly is the
+           whole argument: a page that would rather print nothing than print an
+           accusation it cannot evidence is the only kind of page whose
+           accusations are worth reading. Flagged for Ryan's voice pass. */
+        <section class="records" aria-labelledby="records-heading">
+          <div class="records-head">
+            <h2 id="records-heading">We have not published a ghost yet.</h2>
+          </div>
+          <div class="nothing">
+            <p class="nothing-lede">
+              Nothing on this sweep tripped a rule we stand behind, so there is nothing here to read.
+            </p>
+            <p class="nothing-body">
+              Proving that a posting is a ghost takes an archive, and ours is days old. The rules that can
+              prove it compare a posting against what the same posting looked like weeks ago, or against what
+              the employer printed on it themselves. Every one of them ran tonight. Every one of them found
+              nothing, and the counts below say so rule by rule.
+            </p>
+            <p class="nothing-body">
+              The alternative was available and it is what the rest of this market does: call anything that has
+              been open a while a ghost job and name the company. We will not accuse a company on a hunch. The
+              day a rule produces a finding, the finding will be here with the dates it rests on.
+            </p>
+          </div>
+        </section>
+      )
+    }
+
+    {
+      (state === 'empty' || state === 'loading' || state === 'error') && (
+        /* The three states this page can be in and a reader cannot reach on a
+           static build of one sweep. The copy is in _KillStates.astro so that
+           the state a reviewer looks at on /_states and the state this page
+           would render are one string rather than two that drift. */
+        <section class="records" aria-labelledby="records-heading">
+          <KillStates state={state} />
+        </section>
+      )
+    }
+
+    {
+      /*
+        THE RECORD. Every kill still standing, from every sweep, and the half of
+        this page that makes "every kill is kept" a fact rather than a promise.
+
+        WHY IT RENDERS IN EVERY STATE, INCLUDING THE EMPTY ONE. The states above
+        are about tonight: nothing died, nothing tripped a rule we stand behind,
+        the sweep has not landed. None of those is a statement about the nights
+        before, and on 2026-09-05 the difference stopped being theoretical: the
+        machine killed a Brex posting on the 4th, the sweep on the 5th found
+        nothing, and the kill disappeared from the site entirely. A reader
+        checking a company the day after a quiet sweep got a page that had
+        forgotten what it found.
+
+        WHY THIS IS A TABLE AND NOT THE KILL ROW. The row draws a duration bar
+        against one shared scale, and a scale that spans every sweep would
+        redraw every bar the night a longer one arrived, including the bars in
+        share cards already posted. The record is a ledger: what, when, which
+        rule, and the way through to the full record. The evidence lives on the
+        card, which is built from this same set and therefore cannot 404.
+
+        Rows are not deduplicated against tonight's list above. A posting killed
+        tonight is news AND record, and hiding it from the record to avoid
+        repeating it would make the record's own count unverifiable against the
+        rows under it.
+      */
+      record.length > 0 && (
+        /* FIVE ROWS, THEN THE REST ON REQUEST (2026-09-12, the owner's ask).
+           The table holds every record in the document, newest first; the
+           rows past the fifth arrive hidden and one control shows them. The
+           control is a button that script wires; a reader with no script gets
+           every row and no control, through the <noscript> rule below, so
+           nothing on the record is ever out of reach. Words, not a count, on
+           the control: the truth gate holds every numeral on this page to the
+           data file, and "show all" says what it does without one. */
+        <section class="on-record" aria-labelledby="on-record-heading" data-record-section>
+          <div class="records-head">
+            <h2 id="on-record-heading">On the record</h2>
+            <p class="records-note">
+              Newest first. A kill is a dated observation, so nothing here is withdrawn because a posting came
+              back: a reappearance is its own event, and the record keeps what was true on the night it was
+              read. A record leaves this table only when we withdraw the finding ourselves and say why.
+            </p>
+          </div>
+
+          <div class="record-table-wrap">
+            <table class="record-table">
+              <thead>
+                <tr>
+                  <th scope="col" class="mono-label">Killed</th>
+                  <th scope="col" class="mono-label">Posting</th>
+                  <th scope="col" class="mono-label">Rule</th>
+                  <th scope="col" class="mono-label">Found by</th>
+                  <th scope="col" class="mono-label"><span class="visually-hidden">Record</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {record.map(({ kill, rule }, index) => (
+                  <tr hidden={index >= RECORD_ROWS_SHOWN} data-record-rest={index >= RECORD_ROWS_SHOWN ? '' : undefined}>
+                    <td class="record-date mono">{formatDate(kill.killed_on)}</td>
+                    <td class="record-posting">
+                      <span class="record-company">{kill.company}</span>
+                      <span class="record-title">{kill.title}</span>
+                    </td>
+                    <td class="record-rule mono-label">{ruleLabel(rule)}</td>
+                    {/* Which machine read it: the verified sweep re-fetches ~80
+                        design roles a night; the wide crawl reads every posting
+                        on 79 boards with the same five rules. Same rules, same
+                        record, and the reader is told which one looked. */}
+                    <td class="record-pipeline mono-label">
+                      {kill.pipeline === 'crawl' ? 'Wide crawl' : 'Verified sweep'}
+                    </td>
+                    <td class="record-link">
+                      <a href={killCardPath(killSlug(kill))}>
+                        Record<span class="visually-hidden">
+                          {' '}for {kill.company}, {kill.title}
+                        </span>
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {record.length > RECORD_ROWS_SHOWN && (
+            <>
+              <button class="record-toggle" type="button" data-record-toggle aria-expanded="false">
+                Show all records
+              </button>
+              <noscript>
+                <style>
+                  .record-table tr[hidden] {
+                    display: table-row !important;
+                  }
+                  [data-record-toggle] {
+                    display: none !important;
+                  }
+                </style>
+              </noscript>
+            </>
+          )}
+        </section>
+      )
+    }
+
+    {/* The appeal sits directly under the records, which is where a reader who
+        has just read a page of dated accusations actually is. A courtroom has
+        an appeal. A mob does not. */}
+    <AppealLine class="kills-appeal" />
+
+    {/* The breakdown the stat tile links to, and the reason the tile can say
+        "killed by rule" at all. Every rule reports, including the four that
+        found nothing, because a rule missing from a summary reads as a rule
+        that was never run. The counts come from stats.killed_by_rule through
+        <Reading>, so gate 2 holds each one to the data file. */}
+    <section class="note note-wide" id="by-rule" aria-labelledby="taxonomy-heading">
+      <h2 id="taxonomy-heading">What each rule found</h2>
+      <p>
+        Five rules run against every posting both machines read. The count beside each rule is how many kills
+        on the record above it produced, by either machine, since the record began. Each rule states what it
+        observed rather than what it
+        concluded, because a job feed carries dates and words and never a reason. Two of them can only speak
+        once the archive is deep enough to compare against, and both say so under their own count rather than
+        in a footnote, because a zero from a rule that cannot yet see is a different fact from a zero from a
+        rule that looked.
+      </p>
+
+      <RuleTally class="rules-tally" count="record" />
+
+      <p>
+        A sixth rule used to sit at the top of this list. It was called evergreen, it killed any posting open
+        longer than a fixed age, and it fired on every kill this machine ever made. That is the tell: a rule
+        that is the only rule ever firing is not detecting anything, it is restating its own threshold. It was
+        retired on 19 August 2026, and the postings it had killed came back. Age is still measured, still shown
+        on every row of <a class="note-link" href={indexHref}>the index</a>, still sortable and still plotted.
+        What changed is who draws the conclusion from it.
+      </p>
+      <p>
+        We are not going to infer a rule from our own sentences. Reading a classification back out of prose we
+        wrote, and then printing it as the machine's finding, is exactly the kind of number this site exists to
+        refuse. The rule ships on the record or the grouping does not ship. How each rule works in full is on{' '}
+        <a class="note-link" href={methodologyHref}>methodology</a>.
+      </p>
+    </section>
+
+  </div>
+</BaseLayout>
+
+<style>
+  .kills {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-600);
+    padding-block: var(--space-700) var(--space-800);
+  }
+
+  .kills-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  /* The no-findings state. It is the page's main content tonight, so it is set
+     as content and not as a notice: the lede takes the same step as a section
+     lede elsewhere on the site, and the body sits at the reading measure. A
+     state that reads like an error message would teach a reader that an empty
+     kill list is a fault, and it is the opposite. */
+  .nothing {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    padding-top: var(--space-400);
+  }
+
+  .nothing-lede {
+    font-size: var(--size-300);
+    line-height: var(--leading-snug);
+    max-width: var(--layout-measure);
+  }
+
+  .nothing-body {
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+
+  .rules-tally {
+    padding-block: var(--space-400);
+  }
+
+  .kills-eyebrow {
+    color: var(--color-muted);
+  }
+
+  /* No size or weight here: the page title role lives on h1 in global.css. The
+     measure is counted in the title's own font size, so the line count holds as
+     the clamp moves that size between the section step and the display step. */
+  .kills-title {
+    max-width: 24ch;
+  }
+
+  .kills-lede {
+    font-size: var(--size-300);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  /* The strip runs full bleed inside the shell so it reads as a band rather
+     than a box floating in the column. The negative margin is the shell's own
+     gutter expression negated, not a guess at what that gutter currently
+     resolves to, so the two stay in step at every width. */
+
+
+
+
+  /*
+     The record's own furniture. A ledger, not a list of accusations: the
+     evidence is on the card, and the table's job is to let a reader find the
+     row they came for and get to it. Ruled rows rather than cards, because a
+     table that grows every night has to stay readable at fifty rows, and the
+     kill row's bar cannot survive a scale that spans every sweep.
+  */
+  .on-record {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    padding-top: var(--space-400);
+  }
+
+  /* The table is the one element on this page allowed to scroll sideways, and
+     only inside this box. A page that scrolls horizontally on a phone because
+     of one wide table is a broken page, not a wide table. */
+  .record-table-wrap {
+    overflow-x: auto;
+  }
+
+  .record-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-200);
+    text-align: left;
+  }
+
+  /* The header row takes the label register from the class in the markup, so
+     the only properties here are the ones the table itself owns. */
+  .record-table th {
+    color: var(--color-muted);
+    padding-block: var(--space-200);
+    border-bottom: var(--border-heavy) solid var(--color-line-strong);
+    white-space: nowrap;
+  }
+
+  .record-table td {
+    padding-block: var(--space-200);
+    padding-right: var(--space-300);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    vertical-align: baseline;
+  }
+
+  .record-table tr td:last-child {
+    padding-right: 0;
+  }
+
+  .record-date {
+    white-space: nowrap;
+    color: var(--color-muted);
+  }
+
+  .record-posting {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+    min-width: 18ch;
+  }
+
+  .record-company {
+    color: var(--color-foreground);
+  }
+
+  .record-title {
+    color: var(--color-muted);
+  }
+
+  .record-rule {
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+
+  .record-pipeline {
+    white-space: nowrap;
+    color: var(--color-muted);
+  }
+
+  .record-table tr[hidden] {
+    display: none;
+  }
+
+  .record-toggle {
+    align-self: flex-start;
+    margin-top: var(--space-400);
+    font-family: var(--font-family-sans);
+    font-size: var(--size-100);
+    padding: var(--space-200) var(--space-400);
+    border: var(--border-hairline) solid var(--color-foreground);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-foreground);
+    cursor: pointer;
+  }
+
+  .record-toggle:hover {
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+  }
+
+  .record-link {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .record-link a {
+    color: var(--color-foreground);
+  }
+
+  /* The one line on this page that is about the list rather than in it, so it
+     takes the machine voice and the same heavy left rule as the frame note
+     above it: the two are one band saying what set the reader is looking at.
+     Not the loss colour. A record we are holding back is a limit on us, not an
+     accusation against a company, and painting it in the alarm colour would
+     file it with the charges. */
+  .held {
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+    border-left: var(--border-heavy) solid var(--color-line-strong);
+    padding: var(--space-200) var(--space-400);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+    text-wrap: pretty;
+  }
+
+  .records {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .records-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  .records-note {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+
+  .records-scale {
+    color: var(--color-muted);
+  }
+
+  /* The rows carry their own padding and their own dividing rule, so the
+     panel's gutter is removed rather than doubled. This is the one place this
+     page reaches into a shared component's internals, and it is a layout
+     decision the panel cannot make for itself: a panel holding prose wants the
+     gutter and a panel holding full-bleed rows does not. */
+  .records-panel :global(.panel-body) {
+    padding: 0;
+  }
+
+  .kill-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* A repeat company reads as one block: the header states the company and the
+     count, and the records sit under it with a heavier left edge so the grouping
+     is visible without a box drawn around it. */
+  .group {
+    border-left: var(--border-heavy) solid var(--color-foreground);
+  }
+
+  .group-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-300);
+    flex-wrap: wrap;
+    padding: var(--space-300) var(--space-600);
+    background: var(--color-surface);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  .group-company {
+    font-size: var(--size-100);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+
+  .group-count {
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .group-rows {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .records-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .records-footnote {
+    color: var(--color-muted);
+    line-height: var(--leading-snug);
+    max-width: var(--layout-measure);
+  }
+
+  .note {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    max-width: var(--layout-measure);
+  }
+
+  /* The rule breakdown runs the full width of the page (2026-09-12, the
+     owner's ask): five rules with a count each read as a table, and a table
+     squeezed into the reading measure looked cramped, and its paragraphs
+     run with it. */
+  .note-wide {
+    max-width: none;
+  }
+
+  .note-wide > p {
+    max-width: none;
+  }
+
+  .note p {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  .note-link {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .note-link {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .kills {
+      gap: var(--space-500);
+      padding-block: var(--space-600) var(--space-700);
+    }
+
+    .kills-lede {
+      font-size: var(--size-200);
+    }
+
+    .group-head {
+      padding: var(--space-300) var(--space-400);
+    }
+
+    .records-foot {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: var(--space-300);
+    }
+  }
+</style>
+
+<script>
+  // The record's expander. Rows past the fifth ship hidden; this shows them
+  // and offers the way back. With no script the <noscript> rule shows every
+  // row and hides this control, so the button never promises something it
+  // cannot do.
+  const toggle = document.querySelector<HTMLButtonElement>('[data-record-toggle]');
+  const rest = Array.from(document.querySelectorAll<HTMLElement>('tr[data-record-rest]'));
+  if (toggle && rest.length > 0) {
+    toggle.addEventListener('click', () => {
+      const expanded = toggle.getAttribute('aria-expanded') === 'true';
+      for (const row of rest) row.hidden = expanded;
+      toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+      toggle.textContent = expanded ? 'Show all records' : 'Show the first five';
+    });
+  }
+</script>

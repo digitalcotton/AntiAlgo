@@ -1,0 +1,432 @@
+---
+/**
+ * /desk/job-draft/[slug]: the one-click button's result page (RUN-DRAFT.md
+ * phase 3). The resume and cover letter drafted for one verified posting,
+ * read back from db/022_job_draft.sql, never recomputed here.
+ *
+ * TIED TO THE POSTING, NOT AN APPLICATION. The apply-flow draft room
+ * (/desk/draft/[id]) is keyed to an application id; this one is keyed to the
+ * posting's slug (src/lib/generated-render-store.ts's getJobRenders), because
+ * pressing the button creates no application. Same table, same DraftDocuments,
+ * a different key.
+ *
+ * OWNER SCOPED, THE SAME RULE /desk/draft/[id] STATES. A signed-out visitor
+ * and an unknown slug both get the plain 404 below; the renders themselves are
+ * read scoped to the viewer's own id, so a slug alone never reads a stranger's
+ * draft. '/desk' is a gated prefix, so middleware walls a signed-in non-member
+ * before this file runs; a signed-out request falls through, and is 404'd here.
+ *
+ * NEVER PRERENDERED. Who owns a draft and whether it has finished are per-
+ * request facts.
+ *
+ * THE FIVE STATES RUN-DRAFT NAMES, all rendered, no dead ends:
+ *   - signed out: handled on the job detail page's button (a sign-in line); a
+ *     signed-out request that reaches here at all gets the plain 404.
+ *   - record empty or too thin: the render still completes deterministically,
+ *     carrying a gap report; this page surfaces it with a link to the Profile
+ *     editor (F3's gap pattern), above whatever sparse documents exist.
+ *   - no provider key: the draft is the deterministic writer's, and this page
+ *     says so with one quiet line pointing at Settings, rather than the apply
+ *     room's "your provider could not be used" notice, which would be untrue.
+ *   - drafting in progress: a calm state that polls itself.
+ *   - generation failure: a tried provider that could not deliver, or a render
+ *     the platform abandoned, lands the draft 'failed' (jobDraftState in
+ *     src/lib/generated-render-store.ts); this page names the reason and
+ *     offers a retry, never a partial document and never the built-in template
+ *     in a tried key's place.
+ */
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import EmptyState from '../../../components/EmptyState.astro';
+import LoadingState from '../../../components/LoadingState.astro';
+import DraftDocuments from '../../../components/tailor/DraftDocuments.astro';
+import { routeFor, boardDetailPath, jobDraftPdfPath } from '../../../data/nav';
+import { draftableJobBySlug } from '../../../lib/draft-job';
+import AddedPostingNote from '../../../components/desk/AddedPostingNote.astro';
+import { addedApplicationId, hostnameOf, isAddedSlug } from '../../../lib/added-posting';
+import { getPostingFetchByApplication, type StoredPostingFetch } from '../../../lib/posting-fetch-store';
+import { documentState, getJobRenders, jobDraftState } from '../../../lib/generated-render-store';
+import { coverHasBody, resumeHasBody } from '../../../lib/pdf-resume';
+import type { ResumeRender, CoverRender } from '../../../lib/tailor';
+import { FUNCTION_MAX_DURATION_S } from '../../../../site.config.mjs';
+
+export const prerender = false;
+
+function notFound(): Response {
+  return new Response('Not found.', {
+    status: 404,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+  });
+}
+
+const viewer = Astro.locals.viewer;
+if (!viewer) {
+  return notFound();
+}
+
+const slug = Astro.params.slug ?? '';
+// An added posting (added-<id>) has a read state before it has a draft. Its
+// row is read here so the room can say "reading" or offer the paste box; the
+// job itself resolves only once the text has landed.
+const addedId = isAddedSlug(slug) ? addedApplicationId(slug) : null;
+let fetchRow: StoredPostingFetch | null = null;
+if (addedId !== null) {
+  fetchRow = await getPostingFetchByApplication(viewer.userId, addedId);
+  if (!fetchRow) return notFound();
+}
+const job = slug ? await draftableJobBySlug(slug, viewer.userId) : null;
+if (!job && !fetchRow) {
+  return notFound();
+}
+const waiting = fetchRow !== null && job === null;
+// The posting's own page, for an added slug: the waiting room and the place to
+// paste, retry, rename and draft. This room only shows what was drafted.
+const postingHref = fetchRow ? boardDetailPath(slug) : null;
+
+const { resume, cover } = await getJobRenders(viewer.userId, slug);
+
+// Each document has its own state, so the room reveals the resume the moment it
+// is ready without waiting on the cover, and fails or retries each on its own.
+// The pair state (jobDraftState) is kept only for the "nothing yet" case; both
+// come from one shared function so the room and the rail can never disagree.
+const nowMs = Date.now();
+const ceilingMs = FUNCTION_MAX_DURATION_S * 1000;
+const resumeState = documentState(resume, nowMs, ceilingMs);
+const coverState = documentState(cover, nowMs, ceilingMs);
+const state = jobDraftState({ resume, cover }, nowMs, ceilingMs);
+const hasNoDraft = state === 'none';
+const bothFailed = resumeState === 'failed' && coverState === 'failed';
+const anyPending = resumeState === 'pending' || coverState === 'pending';
+const resumeFailureReason = resumeState === 'failed' ? (resume?.failureReason ?? 'it did not finish in time') : null;
+const coverFailureReason = coverState === 'failed' ? (cover?.failureReason ?? 'it did not finish in time') : null;
+// A muted line when one document is ready and the other is still drafting, so a
+// reader sitting on the resume knows the cover is still on its way.
+const oneReadyOnePending =
+  (resumeState === 'ready' && coverState === 'pending') || (coverState === 'ready' && resumeState === 'pending');
+
+// The render carries its own gap report (thin record) and its own provenance;
+// this page reads only what completeDraft() already stored. Cast, not re-
+// validated, the same as the apply draft room: the only writer of this column
+// is completeDraft(), handed a real ResumeRender/CoverRender. A document shows
+// as soon as ITS row is ready (a 'fallback' no-key row reads 'ready' too).
+const resumePayload = resumeState === 'ready' && resume ? (resume.payload as ResumeRender) : null;
+const coverPayload = coverState === 'ready' && cover ? (cover.payload as CoverRender) : null;
+const gaps = resumePayload?.gaps ?? null;
+
+// Whether each document actually has something to draw. A download is offered
+// only for a document with a body: the same guard the PDF route enforces (see
+// [doc].ts), applied here so the link is never handed out for a file that
+// would 404. The resume's body is its entry cores; the cover's is its bullets,
+// which a role with no description does not produce, so the cover is the one
+// that can come back empty on an otherwise populated record.
+const resumeDownloadable = resumePayload ? resumeHasBody(resumePayload) : false;
+const coverDownloadable = coverPayload ? coverHasBody(coverPayload) : false;
+
+// Show the documents surface once there is any document to show or fail on its
+// own; show the plain "drafting" state only in the first moment when neither
+// document has landed. Both failing is its own dead end, above.
+const showDocuments =
+  !hasNoDraft && !bothFailed && (!!resumePayload || !!coverPayload || resumeState === 'failed' || coverState === 'failed');
+const showBigLoading = anyPending && !showDocuments && !hasNoDraft && !bothFailed;
+
+// A provider was configured only when the row names one. A no-key draft is
+// deterministic by design (provider null, status fallback), which is a
+// different, quieter fact than "the provider we tried could not be used", so
+// the DraftDocuments fallback notice is shown only when a provider was actually
+// tried; the no-key line below covers the other case.
+const providerTried = resume?.provider != null || cover?.provider != null;
+const fellBack = (resume?.status === 'fallback') || (cover?.status === 'fallback');
+const deterministicByNoKey = (resumeState === 'ready' || coverState === 'ready') && !providerTried;
+
+const postingLabel = job ? (job.title ? `${job.title}, ${job.company}` : job.company) : (fetchRow?.title ?? hostnameOf(fetchRow?.url ?? ''));
+const settingsPath = routeFor('settings');
+const profilePath = routeFor('profile');
+const jobDraftEndpoint = routeFor('desk-job-draft');
+---
+
+<BaseLayout
+  title="Your draft for this role"
+  description="The resume and cover letter drafted for this posting, cited to your record."
+  noindex
+>
+  <section class="draft-page">
+    <div class="shell draft-shell">
+      <span class="kicker">Drafted for this role</span>
+      <h1>Your resume and cover letter</h1>
+      <p class="muted">Targeted at: {postingLabel}</p>
+
+      {fetchRow && !waiting && <AddedPostingNote row={fetchRow} />}
+
+      {
+        /* A bookmarked room for a posting the machine has not read yet: one
+           line, and the way to the page that is actually waiting for it. The
+           refresh is only here, for a reader who left this tab open. */
+        waiting && fetchRow && postingHref && (
+          <>
+            <meta http-equiv="refresh" content="4" />
+            <p class="muted">
+              The machine is still reading this posting. <a class="draft-link" href={postingHref}>Back to the posting</a>
+            </p>
+          </>
+        )
+      }
+
+      {
+        !waiting && hasNoDraft && (
+          <EmptyState
+            title="No draft yet"
+            detail="Nothing has been drafted for this posting. Draft a resume and cover letter for it now."
+          >
+            <form class="draft-start" slot="action" method="POST" action={jobDraftEndpoint}>
+              <input type="hidden" name="slug" value={slug} />
+              <button class="draft-button" type="submit">Draft my resume and cover letter for this role</button>
+            </form>
+          </EmptyState>
+        )
+      }
+
+      {anyPending && <meta http-equiv="refresh" content="3" />}
+
+      {
+        showBigLoading && (
+          <>
+            <LoadingState label="Drafting your resume and cover letter against this posting" />
+            <form class="draft-retry no-print" method="POST" action={jobDraftEndpoint}>
+              <input type="hidden" name="slug" value={slug} />
+              <p class="muted">
+                Taking too long? <button class="draft-inline-button" type="submit">Start the draft over</button>.
+              </p>
+            </form>
+          </>
+        )
+      }
+
+      {
+        oneReadyOnePending && (
+          <p class="muted">
+            {resumeState === 'ready'
+              ? 'Your resume is ready. Still drafting the cover letter.'
+              : 'Your cover letter is ready. Still drafting the resume.'}
+          </p>
+        )
+      }
+
+      {
+        bothFailed && (
+          <EmptyState
+            title="That draft did not finish"
+            detail={`The reason: ${coverFailureReason ?? resumeFailureReason}. Nothing partial was kept. Start it over and it is drafted fresh.`}
+          >
+            <form class="draft-start" slot="action" method="POST" action={jobDraftEndpoint}>
+              <input type="hidden" name="slug" value={slug} />
+              <button class="draft-button" type="submit">Start the draft over</button>
+            </form>
+          </EmptyState>
+        )
+      }
+
+      {
+        gaps && (
+          <div class="draft-gap no-print" role="note">
+            <p class="draft-gap-title">Your record is thin for a full draft</p>
+            <ul class="draft-gap-list">
+              {gaps.missing.map((line) => (
+                <li>{line}</li>
+              ))}
+            </ul>
+            <a class="draft-link" href={profilePath}>Add to your Profile Record</a>
+          </div>
+        )
+      }
+
+      {
+        deterministicByNoKey && (
+          <p class="draft-key-note no-print">
+            This draft used the built-in writer. Connect a provider key in{' '}
+            <a class="draft-link" href={settingsPath}>Settings</a> and a draft is written in stronger prose.
+          </p>
+        )
+      }
+
+      {
+        (resumeDownloadable || coverDownloadable) && (
+          <div class="draft-downloads no-print">
+            <span class="draft-downloads-label mono-label">Download as PDF</span>
+            {resumeDownloadable && (
+              <a class="draft-link" href={jobDraftPdfPath(slug, 'resume')} download>Resume</a>
+            )}
+            {coverDownloadable && (
+              <a class="draft-link" href={jobDraftPdfPath(slug, 'cover')} download>Cover letter</a>
+            )}
+          </div>
+        )
+      }
+
+      {
+        coverState === 'ready' && resumeDownloadable && !coverDownloadable && (
+          <p class="draft-key-note no-print">
+            Your cover letter needs a sentence or two under your roles to draw from. Add a description to a
+            role in your <a class="draft-link" href={profilePath}>Profile Record</a>, then draft again.
+          </p>
+        )
+      }
+
+      {
+        showDocuments && (
+          <DraftDocuments
+            resume={resumePayload}
+            cover={coverPayload}
+            provider={resume?.provider ?? cover?.provider ?? null}
+            model={resume?.model ?? cover?.model ?? null}
+            fallback={providerTried && fellBack}
+          >
+            <div slot="resume">
+              {resumeState === 'pending' && <LoadingState label="Drafting your resume against this posting" />}
+              {resumeState === 'failed' && (
+                <EmptyState
+                  title="The resume did not finish"
+                  detail={`The reason: ${resumeFailureReason}. Nothing partial was kept.`}
+                >
+                  <form class="draft-start" slot="action" method="POST" action={jobDraftEndpoint}>
+                    <input type="hidden" name="slug" value={slug} />
+                    <input type="hidden" name="kind" value="resume" />
+                    <button class="draft-button" type="submit">Draft the resume again</button>
+                  </form>
+                </EmptyState>
+              )}
+            </div>
+            <div slot="cover">
+              {coverState === 'pending' && <LoadingState label="Drafting your cover letter against this posting" />}
+              {coverState === 'failed' && (
+                <EmptyState
+                  title="The cover letter did not finish"
+                  detail={`The reason: ${coverFailureReason}. Nothing partial was kept.`}
+                >
+                  <form class="draft-start" slot="action" method="POST" action={jobDraftEndpoint}>
+                    <input type="hidden" name="slug" value={slug} />
+                    <input type="hidden" name="kind" value="cover" />
+                    <button class="draft-button" type="submit">Draft the cover letter again</button>
+                  </form>
+                </EmptyState>
+              )}
+            </div>
+          </DraftDocuments>
+        )
+      }
+
+      <div class="draft-back no-print">
+        {postingHref && <a class="draft-link" href={postingHref}>Back to the posting</a>}
+        <a class="draft-link" href={routeFor('desk')}>Back to the Desk</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .draft-page .draft-shell {
+    padding-block: var(--space-800) var(--space-1000);
+    /* No max-width: fills the shell to the same width as the Account (profile)
+       page, so moving between the record, the draft room, and settings does not
+       change the page width. Prose caps its own measure per block. */
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+  }
+  .kicker {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  h1 {
+    margin: var(--space-300) 0 0;
+    font-size: var(--size-600);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-display);
+  }
+  .muted {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+  }
+  .draft-button {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    color: var(--color-foreground-inverse);
+    background: var(--color-foreground);
+    border: var(--border-hairline) solid var(--color-foreground);
+    border-radius: var(--radius);
+    padding: var(--space-200) var(--space-400);
+    cursor: pointer;
+  }
+  .draft-button:hover {
+    background: var(--color-hover-surface);
+    color: var(--color-foreground);
+  }
+  .draft-inline-button {
+    font: inherit;
+    color: var(--color-foreground);
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--color-foreground);
+    padding: 0;
+    cursor: pointer;
+  }
+  .draft-gap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-200);
+    padding: var(--space-400);
+    border: var(--border-hairline) solid var(--color-line);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+  }
+  .draft-gap-title {
+    margin: 0;
+    font-weight: var(--weight-medium);
+    font-size: var(--size-200);
+  }
+  .draft-gap-list {
+    margin: 0;
+    padding-left: var(--space-500);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-150);
+    color: var(--color-muted);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+  }
+  .draft-key-note {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+  }
+  .draft-downloads {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--space-400);
+  }
+  .draft-downloads-label {
+    color: var(--color-muted);
+  }
+  .draft-link {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    border-bottom: 1px solid var(--color-foreground);
+    padding-bottom: 2px;
+  }
+  .draft-back {
+    display: flex;
+    gap: var(--space-400);
+    margin-top: var(--space-300);
+  }
+</style>

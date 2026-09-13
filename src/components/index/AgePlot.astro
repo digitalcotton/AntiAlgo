@@ -1,0 +1,587 @@
+---
+import { ageOf, formatAgeDuration, formatDays, type Job } from '../../lib/data';
+
+/**
+ * Every verified row's age on one axis, and two handles that turn the axis
+ * into a filter.
+ *
+ * WHAT IT WAS. Until 2026-09-13 this was a strip plot and nothing else: one
+ * tick per row at its measured age, a cited reference line, the extremes
+ * labelled. It stated the number and let the reader draw the conclusion.
+ *
+ * WHAT IT IS NOW (owner's design, "Age Strip 1D", 2026-09-13). The same strip,
+ * with a range on it. Two handles, youngest bound and oldest bound, each a
+ * real slider with keyboard steps and a label above it. Between them the axis
+ * is lit and a rail runs along the top; outside them the ticks dim. A line
+ * above the strip says how many roles the range keeps and what the range is,
+ * with a Reset beside it. Three faint edges sit at 2, 4 and 7 days, the
+ * arrival windows and the median posting life the research cites, and a
+ * handle snaps to them when it passes close.
+ *
+ * THE RANGE IS PART OF THE ADDRESS. A handle released, or a keyboard step
+ * settled, writes age_min and age_max into the board's URL (board-query.ts)
+ * and the server filters, counts and pages on it like any other facet. The
+ * script here only moves the handles, dims the ticks and keeps the count
+ * line current while a handle is in motion; the filtering itself is never
+ * done in the browser. Without scripting the handles stand where the address
+ * put them, the count line is right, and Reset is a plain link.
+ *
+ * THE SCALE IS SQUARE ROOT, as before and for the same reason: ages run from
+ * hours to years, linear collapses the young end, log cannot place a zero day
+ * row, and square root keeps zero, compresses the tail and keeps the ordering
+ * honest. The handles move on the same scale, so a day at the young end is a
+ * wider step than a day at the old end, which is the resolution a reader
+ * wants at each end.
+ *
+ * TWO BANDS, ONE CITED NUMBER. A tick at or under 7 days takes the live mark
+ * colour, and past it the sweep's own age-warning colour. Seven days is the
+ * median posting life (facts.json, Davis and Samaniego de la Parra); the band
+ * says which side of that figure a row sits, and nothing more. No row is
+ * called anything by it, and no count of rows past it is printed.
+ *
+ * ROWS WITH NO MEASURABLE AGE ARE NOT ON THE AXIS, and they are outside any
+ * range that is set, because a row with no position cannot be inside one.
+ */
+
+interface Props {
+  jobs: readonly Job[];
+  /** The range in the address, either end open. Undefined means no filter. */
+  range?: { min: number | null; max: number | null };
+  /** The board address for a range. Present only where the address is the state. */
+  hrefFor?: (min: number | null, max: number | null) => string;
+  class?: string;
+}
+
+const { jobs, range, hrefFor, class: className } = Astro.props as Props;
+
+/** One mark: a row, its measured age, and where it sits on the axis. */
+interface Mark {
+  slug: string;
+  company: string;
+  title: string;
+  days: number;
+  label: string;
+  /** Position along the axis, 0 to 100. */
+  at: number;
+}
+
+/** The days the research names: the two arrival windows and the median life. */
+const EDGE_DAYS = [2, 4, 7] as const;
+const BAND_DAYS = 7;
+
+const measured = jobs
+  .map((job) => ({ job, age: ageOf(job) }))
+  .filter((row): row is { job: Job; age: NonNullable<ReturnType<typeof ageOf>> } => row.age !== null);
+
+// The axis runs from zero to the oldest row, or to the last edge where every
+// row is younger than it, so the edges are always on the chart.
+const oldest = measured.reduce((most, row) => Math.max(most, row.age.days), 0);
+const axisMax = Math.max(oldest, BAND_DAYS);
+
+const position = (days: number): number =>
+  axisMax <= 0 ? 0 : (Math.sqrt(days) / Math.sqrt(axisMax)) * 100;
+
+const marks: Mark[] = measured
+  .filter(({ job }) => job.title !== null)
+  .map(({ job, age }) => ({
+    slug: job.slug,
+    company: job.company,
+    title: job.title as string,
+    days: age.days,
+    label: formatAgeDuration(job) ?? formatDays(age.days),
+    at: position(age.days)
+  }))
+  .sort((a, b) => a.days - b.days);
+
+const youngest = marks.at(0) ?? null;
+const eldest = marks.at(-1) ?? null;
+const showBothEnds = youngest !== null && eldest !== null && youngest.slug !== eldest.slug;
+
+// The range, clamped to the axis. An open end reads as the axis's own end.
+const interactive = hrefFor !== undefined;
+const lo = Math.min(axisMax, Math.max(0, range?.min ?? 0));
+const hi = Math.min(axisMax, Math.max(lo, range?.max ?? axisMax));
+const rangeSet = interactive && (range?.min !== null && range?.min !== undefined || range?.max !== null && range?.max !== undefined);
+const kept = marks.filter((mark) => mark.days >= lo && mark.days <= hi).length;
+const loAt = position(lo);
+const hiAt = position(hi);
+const resetHref = interactive ? hrefFor(null, null) : '';
+---
+
+{
+  marks.length > 0 && (
+    <figure
+      class:list={['ageplot', interactive && 'ageplot-filter', className]}
+      data-age-strip={interactive ? '' : undefined}
+      data-axis-max={axisMax}
+      data-lo={lo}
+      data-hi={hi}
+      data-edges={EDGE_DAYS.join(',')}
+      data-board-href={resetHref || undefined}
+      data-total={marks.length}
+    >
+      <figcaption class="head">
+        <span class="kicker mono-label">Age of every verified role</span>
+        {interactive ? (
+          <span class="status mono-label">
+            <span data-age-status>
+              Showing <span data-truth="machine">{kept.toLocaleString()}</span> of{' '}
+              <span data-truth="machine">{marks.length.toLocaleString()}</span> roles, {formatDays(lo)} to {formatDays(hi)}
+            </span>
+            {rangeSet && (
+              <a class="reset" href={resetHref} data-age-reset>
+                Reset
+              </a>
+            )}
+          </span>
+        ) : (
+          <span class="axis-note mono-label">Each mark is one verified role, placed by age.</span>
+        )}
+      </figcaption>
+
+      <div class="plot">
+        <div class="strip" data-age-axis>
+          <div
+            class="axis"
+            role="img"
+            aria-label={`${marks.length} verified roles by age, from the youngest at ${youngest?.label ?? formatDays(0)} to the oldest at ${eldest?.label ?? formatDays(0)}`}
+          >
+            {/* The three cited days, as faint edges a handle can snap to. */}
+            {EDGE_DAYS.filter((days) => days <= axisMax).map((days) => (
+              <span class="edge" style={`left: ${position(days).toFixed(3)}%;`} aria-hidden="true" />
+            ))}
+
+            {marks.map((mark) => (
+              <span
+                class:list={['tick', mark.days > BAND_DAYS && 'tick-past', (mark.days < lo || mark.days > hi) && 'tick-out']}
+                style={`left: ${mark.at.toFixed(3)}%;`}
+                data-age={mark.days}
+                title={`${mark.company}, ${mark.title}: ${mark.label}`}
+              />
+            ))}
+
+            {/* The shade over each filtered-out span, above the ticks: the
+                strip stays a strip end to end, and the part outside the
+                handles is the same strip under a much darker tint. */}
+            <span class="shade" style={`left: 0; width: ${loAt.toFixed(3)}%;`} data-age-shade="lo" aria-hidden="true" />
+            <span class="shade" style={`left: ${hiAt.toFixed(3)}%; right: 0;`} data-age-shade="hi" aria-hidden="true" />
+
+            {/* The rail along the top of the kept span. */}
+            <span class="rail" style={`left: ${loAt.toFixed(3)}%; width: ${(hiAt - loAt).toFixed(3)}%;`} data-age-rail aria-hidden="true" />
+          </div>
+
+          {interactive && (
+            <>
+              <button
+                type="button"
+                class="handle"
+                role="slider"
+                aria-label="Youngest bound"
+                aria-valuemin="0"
+                aria-valuemax={axisMax}
+                aria-valuenow={lo}
+                aria-valuetext={formatDays(lo)}
+                style={`left: ${loAt.toFixed(3)}%;`}
+                data-age-handle="lo"
+              >
+                <span class="handle-label mono" data-handle-label>{formatDays(lo)}</span>
+                <span class="handle-bar" aria-hidden="true"><span class="handle-notch" /></span>
+              </button>
+              <button
+                type="button"
+                class="handle"
+                role="slider"
+                aria-label="Oldest bound"
+                aria-valuemin="0"
+                aria-valuemax={axisMax}
+                aria-valuenow={hi}
+                aria-valuetext={formatDays(hi)}
+                style={`left: ${hiAt.toFixed(3)}%;`}
+                data-age-handle="hi"
+              >
+                <span class="handle-label mono" data-handle-label>{formatDays(hi)}</span>
+                <span class="handle-bar" aria-hidden="true"><span class="handle-notch" /></span>
+              </button>
+            </>
+          )}
+        </div>
+
+        <div class="ends" aria-hidden="true">
+          <span class="end mono" data-truth="machine">Youngest: {youngest?.label ?? formatDays(0)}</span>
+          {showBothEnds && <span class="end mono" data-truth="machine">Oldest: {eldest?.label ?? formatDays(0)}</span>}
+        </div>
+
+        <div class="legend mono-label" aria-hidden="true">
+          <span class="legend-item"><span class="swatch swatch-live" />{BAND_DAYS}d or younger</span>
+          <span class="legend-item"><span class="swatch swatch-past" />over {BAND_DAYS}d</span>
+        </div>
+      </div>
+    </figure>
+  )
+}
+
+<style>
+  .ageplot {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    margin: 0;
+    min-width: 0;
+    padding: var(--space-400) var(--space-600);
+    background: var(--color-surface-raised);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-200) var(--space-400);
+  }
+
+  .kicker {
+    color: var(--color-foreground);
+  }
+
+  .axis-note,
+  .status {
+    color: var(--color-muted);
+    text-transform: none;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .status {
+    display: inline-flex;
+    gap: var(--space-300);
+    align-items: baseline;
+  }
+
+  .reset {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .plot {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+
+  /* Room above the strip for the handle labels, only where there are handles. */
+  .strip {
+    position: relative;
+  }
+
+  .ageplot-filter .strip {
+    margin-top: var(--space-500);
+  }
+
+  /* The strip is one tone end to end. What marks the filtered-out spans is a
+     shade laid over them (below), not a change of ground: on ink the page
+     ground is barely darker than the panel behind the strip, so an unlit span
+     drawn in it read as the strip ending rather than as the strip darkened.
+     Owner's call 2026-09-13: the filtered-out span carries the much darker
+     tint, never the kept one. */
+  .axis {
+    position: relative;
+    height: var(--space-600);
+    background: var(--color-hover-surface);
+    overflow: hidden;
+  }
+
+  .shade {
+    position: absolute;
+    inset-block: 0;
+    background: var(--color-surface);
+    opacity: 0.78;
+    pointer-events: none;
+  }
+
+  .edge {
+    position: absolute;
+    inset-block: 0;
+    width: var(--border-hairline);
+    background: var(--color-line-strong);
+  }
+
+  /* A tick is a row. At or under the median life it takes the live mark's hue;
+     past it, the sweep's own age-warning hue. Neither is the loss colour. */
+  .tick {
+    position: absolute;
+    inset-block: 0;
+    width: var(--border-heavy);
+    background: var(--color-mark-live);
+    transform: translateX(calc(var(--border-heavy) * -0.5));
+    opacity: 0.65;
+    transition: opacity var(--motion-duration-instant) var(--motion-easing-standard);
+  }
+
+  .tick-past {
+    background: var(--color-banner-stale);
+  }
+
+  /* Under the shade a tick still shows, faintly: the shade does most of the
+     dimming, so the row is not erased twice. */
+  .tick-out {
+    opacity: 0.35;
+  }
+
+  .rail {
+    position: absolute;
+    top: 0;
+    height: var(--border-heavy);
+    background: var(--color-control);
+  }
+
+  /* The handle: a wide, transparent hit area around a thin bar, the label
+     above it. Positioned by its centre, on the same axis the ticks use. */
+  .handle {
+    position: absolute;
+    top: calc(var(--space-200) * -1);
+    height: calc(var(--space-600) + var(--space-400));
+    width: var(--space-600);
+    transform: translateX(-50%);
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: ew-resize;
+    touch-action: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    color: var(--color-foreground);
+  }
+
+  .handle:focus-visible {
+    outline: var(--border-heavy) solid var(--color-foreground);
+    outline-offset: var(--space-100);
+  }
+
+  .handle-label {
+    position: absolute;
+    top: calc(var(--space-500) * -1);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: var(--size-050);
+    letter-spacing: var(--tracking-wide);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .handle-bar {
+    width: var(--space-100);
+    height: 100%;
+    background: var(--color-control);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .handle-notch {
+    width: var(--border-heavy);
+    height: var(--space-300);
+    background: var(--color-surface);
+  }
+
+  .ends {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-300);
+  }
+
+  .end {
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-400);
+    color: var(--color-muted);
+  }
+
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200);
+  }
+
+  .swatch {
+    width: var(--space-300);
+    height: var(--space-300);
+  }
+
+  .swatch-live {
+    background: var(--color-mark-live);
+  }
+
+  .swatch-past {
+    background: var(--color-banner-stale);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tick {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  /**
+   * The handles. Everything here is presentation while a handle moves: its
+   * position, its label, the lit span, the rail, the dimmed ticks and the
+   * count line. The moment a drag ends or a keyboard step settles, the range
+   * is written into the address and the server does the filtering. Nothing
+   * here decides which rows a reader sees.
+   */
+  const strip = document.querySelector<HTMLElement>('[data-age-strip]');
+
+  if (strip) {
+    const axisMax = Number(strip.dataset.axisMax);
+    const total = Number(strip.dataset.total);
+    const edges = (strip.dataset.edges ?? '').split(',').map(Number).filter((n) => !Number.isNaN(n));
+    const boardHref = strip.dataset.boardHref ?? '';
+    const axis = strip.querySelector<HTMLElement>('[data-age-axis]');
+    const shadeLo = strip.querySelector<HTMLElement>('[data-age-shade="lo"]');
+    const shadeHi = strip.querySelector<HTMLElement>('[data-age-shade="hi"]');
+    const rail = strip.querySelector<HTMLElement>('[data-age-rail]');
+    const status = strip.querySelector<HTMLElement>('[data-age-status]');
+    const reset = strip.querySelector<HTMLAnchorElement>('[data-age-reset]');
+    const ticks = Array.from(strip.querySelectorAll<HTMLElement>('.tick'));
+    const handles = {
+      lo: strip.querySelector<HTMLButtonElement>('[data-age-handle="lo"]'),
+      hi: strip.querySelector<HTMLButtonElement>('[data-age-handle="hi"]')
+    };
+
+    const state = { lo: Number(strip.dataset.lo), hi: Number(strip.dataset.hi) };
+    const applied = { ...state };
+    let dragging: 'lo' | 'hi' | null = null;
+    let settle: number | undefined;
+
+    const position = (days: number) => (axisMax <= 0 ? 0 : Math.sqrt(days) / Math.sqrt(axisMax));
+    const daysAt = (t: number) => Math.round(Math.pow(Math.max(0, Math.min(1, t)) * Math.sqrt(axisMax), 2));
+    const fmt = (days: number) => `${days}d`;
+
+    function paint() {
+      const loAt = position(state.lo) * 100;
+      const hiAt = position(state.hi) * 100;
+      (['lo', 'hi'] as const).forEach((which) => {
+        const handle = handles[which];
+        if (!handle) return;
+        const value = state[which];
+        handle.style.left = `${position(value) * 100}%`;
+        handle.setAttribute('aria-valuenow', String(value));
+        handle.setAttribute('aria-valuetext', fmt(value));
+        const label = handle.querySelector<HTMLElement>('[data-handle-label]');
+        if (label) label.textContent = fmt(value);
+      });
+      if (shadeLo) shadeLo.style.width = `${loAt}%`;
+      if (shadeHi) shadeHi.style.left = `${hiAt}%`;
+      if (rail) {
+        rail.style.left = `${loAt}%`;
+        rail.style.width = `${hiAt - loAt}%`;
+      }
+      let kept = 0;
+      for (const tick of ticks) {
+        const days = Number(tick.dataset.age);
+        const out = days < state.lo || days > state.hi;
+        tick.classList.toggle('tick-out', out);
+        if (!out) kept += 1;
+      }
+      if (status) {
+        status.textContent = `Showing ${kept.toLocaleString()} of ${total.toLocaleString()} roles, ${fmt(state.lo)} to ${fmt(state.hi)}`;
+      }
+      if (reset) reset.hidden = state.lo <= 0 && state.hi >= axisMax;
+    }
+
+    function setHandle(which: 'lo' | 'hi', days: number) {
+      const value = Math.round(days);
+      if (which === 'lo') state.lo = Math.max(0, Math.min(value, state.hi));
+      else state.hi = Math.min(axisMax, Math.max(value, state.lo));
+      paint();
+    }
+
+    /** Write the range into the address. An open end is left out of it. */
+    function apply() {
+      if (!boardHref) return;
+      if (state.lo === applied.lo && state.hi === applied.hi) return;
+      const url = new URL(boardHref, window.location.href);
+      url.searchParams.delete('age_min');
+      url.searchParams.delete('age_max');
+      url.searchParams.delete('page');
+      if (state.lo > 0) url.searchParams.set('age_min', String(state.lo));
+      if (state.hi < axisMax) url.searchParams.set('age_max', String(state.hi));
+      window.location.assign(url.toString());
+    }
+
+    function dragTo(which: 'lo' | 'hi', clientX: number) {
+      if (!axis) return;
+      const box = axis.getBoundingClientRect();
+      if (box.width <= 0) return;
+      const t = Math.max(0, Math.min(1, (clientX - box.left) / box.width));
+      let days = daysAt(t);
+      // Snap to a cited edge when the pointer is within a few pixels of it.
+      for (const edge of edges) {
+        if (Math.abs(position(edge) - t) * box.width < 7) {
+          days = edge;
+          break;
+        }
+      }
+      setHandle(which, days);
+    }
+
+    (['lo', 'hi'] as const).forEach((which) => {
+      const handle = handles[which];
+      if (!handle) return;
+      handle.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        try {
+          handle.setPointerCapture(event.pointerId);
+        } catch {
+          /* an older pointer model; the move listener still follows the pointer */
+        }
+        dragging = which;
+      });
+      handle.addEventListener('pointermove', (event) => {
+        if (dragging !== which) return;
+        dragTo(which, event.clientX);
+      });
+      const end = () => {
+        if (dragging !== which) return;
+        dragging = null;
+        apply();
+      };
+      handle.addEventListener('pointerup', end);
+      handle.addEventListener('pointercancel', end);
+      handle.addEventListener('keydown', (event) => {
+        const step = event.shiftKey ? 7 : 1;
+        let delta = 0;
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') delta = -step;
+        else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') delta = step;
+        else if (event.key === 'Home') delta = -axisMax;
+        else if (event.key === 'End') delta = axisMax;
+        else if (event.key === 'Enter') {
+          event.preventDefault();
+          window.clearTimeout(settle);
+          apply();
+          return;
+        } else return;
+        event.preventDefault();
+        setHandle(which, state[which] + delta);
+        // A run of key presses settles into one address change.
+        window.clearTimeout(settle);
+        settle = window.setTimeout(apply, 600);
+      });
+    });
+
+    paint();
+  }
+</script>

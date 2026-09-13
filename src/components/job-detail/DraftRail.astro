@@ -1,0 +1,652 @@
+---
+/**
+ * DraftRail: draft a resume and cover letter for this posting, in the rail,
+ * without leaving the posting.
+ *
+ * THE FLOW THIS EXISTS TO SERVE. A reader decides on a job while looking at the
+ * record: the facts, the description, the provenance. Asking them to leave that
+ * page to make their documents, then find their way back to apply, breaks the
+ * decision in half. So the whole loop happens in this one column: press
+ * Generate, watch it draft, download the two PDFs, then press Apply, which is
+ * the existing link directly below this block and opens the employer's own
+ * application in a new window. The record stays on screen the entire time.
+ *
+ * THE ONE RING, AND WORDS BESIDE IT. Standing rule 6 caps motion at under
+ * 400ms and gate 6 fails any animation set to repeat forever, with one named
+ * exception: Spinner.astro's ring, allowed for work that is genuinely running
+ * and hidden the moment it lands. This uses that ring, and only beside the step
+ * in progress. The steps themselves are the narration: what the machine is
+ * drafting, from what, and which document is done, read back from the status
+ * endpoint per document rather than assumed from the click. A progress bar
+ * that cannot measure progress is a lie with a rounded end; a list of steps
+ * that ticks as each one lands is the truth at the resolution we have.
+ *
+ * IT WORKS WITH NO JAVASCRIPT. The control is a real form POSTing to
+ * /desk/job-draft, which drafts and then redirects to the draft room. The script
+ * below only upgrades that: it keeps the reader here instead, polling
+ * /desk/job-draft/<slug>/status until the documents are ready. Turn the script
+ * off and the feature still works, one navigation instead of none.
+ *
+ * WHAT IT NEVER DOES: claim a draft it does not have. Every state below is read
+ * back from the store rather than assumed from the click, so a failed render
+ * shows the retry the draft room shows, never a download link to a file that was
+ * never written.
+ *
+ * SIGNED OUT IS A SLOT, NOT A FORM. A server-rendered page that knows the reader
+ * is signed out (board/[slug].astro passes `signedIn`) gets the hatched slot the
+ * description uses for an absence: the same stripe, one line in the machine
+ * voice saying what renders here once there is an account. No textarea, no
+ * button that would only bounce to sign-in, and no session probe, because the
+ * server already answered. The same slot renders when the `tailor` flag is off,
+ * with a line that says so. A page that cannot know the reader (the prerendered
+ * /role page) leaves `signedIn` undefined and the script below asks, swapping
+ * the form for the sign-up line if the answer is no.
+ *
+ * ONE DOOR PER PAGE. The slot itself carries no link. The single sign-up line on
+ * a signed-out posting sits under the apply control in board/[slug].astro, so a
+ * reader is asked once, at the point of action, not twice in one column.
+ */
+import Spinner from '../Spinner.astro';
+import { jobDraftPath, routeFor } from '../../data/nav';
+import { withBase } from '../../../site.config.mjs';
+import { isOn } from '../../lib/flags';
+import type { Job } from '../../lib/data';
+
+interface Props {
+  job: Job;
+  /** Where to return after signing up: this posting's own path. */
+  returnTo: string;
+  /**
+   * What the server knows about the reader. `false` renders the slot, `true`
+   * the live rail, and `undefined` (a page with no viewer to read) the live
+   * rail with the script deciding.
+   */
+  signedIn?: boolean;
+  class?: string;
+}
+
+const { job, returnTo, signedIn, class: className } = Astro.props;
+
+const startEndpoint = routeFor('desk-job-draft');
+const statusEndpoint = `${jobDraftPath(job.slug)}/status`;
+const draftRoom = jobDraftPath(job.slug);
+const sessionUrl = withBase('/auth/get-session');
+const signUpHref = `${routeFor('sign-up')}?next=${encodeURIComponent(returnTo)}`;
+const settingsHref = routeFor('settings');
+
+// The description is what the tailor reads to aim the documents at this role.
+// Where the crawl captured none, the draft still runs, aimed at the title and
+// the company alone, and the reader is told so rather than handed a thinner
+// document with the same confidence as a full one.
+const untargeted = !job.description_html;
+
+const tailorOn = isOn('tailor');
+const slotOnly = !tailorOn || signedIn === false;
+const slotLine = tailorOn
+  ? 'A resume and cover letter, drafted from your record, render here once you have an account.'
+  : 'Drafting is switched off in this build.';
+---
+
+{slotOnly ? (
+  <section class:list={['draft-rail', className]} aria-label="Draft for this role">
+    <p class="draft-title mono-label">Your documents for this role</p>
+    <div class="draft-slot">
+      <p class="draft-slot-line mono-label">{slotLine}</p>
+    </div>
+  </section>
+) : (
+<section
+  class:list={['draft-rail', className]}
+  aria-label="Draft for this role"
+  data-draft-rail
+  data-status-url={statusEndpoint}
+  data-session-url={sessionUrl}
+  data-start-url={startEndpoint}
+>
+  <p class="draft-title mono-label">Your documents for this role</p>
+
+  <form class="draft-form" method="POST" action={startEndpoint} data-draft-form>
+    <input type="hidden" name="slug" value={job.slug} />
+    <label class="draft-reason">
+      <span class="draft-reason-label mono-label">Why this company (optional)</span>
+      <textarea
+        class="draft-reason-input"
+        name="reason"
+        rows="3"
+        maxlength="600"
+        placeholder="One or two lines, in your own words. They open the letter."
+      ></textarea>
+    </label>
+    <button class="draft-submit" type="submit">Generate resume and cover letter</button>
+  </form>
+
+  {untargeted && (
+    <p class="draft-note mono-label">
+      This posting carries no description, so the draft is aimed at the title and the company only.
+    </p>
+  )}
+
+  {/* Every revealed block uses the hidden attribute and a :not([hidden]) rule,
+      never a bare display, so a script that fails to run leaves a page that is
+      correct rather than one with a state stuck open. */}
+  <div class="draft-working" data-draft-working hidden role="status" aria-live="polite">
+    <p class="draft-working-label mono-label">Drafting against this posting, from your record</p>
+    <ol class="draft-steps">
+      <li class="draft-step" data-draft-step="resume" data-step-state="active">
+        <Spinner class="draft-step-ring" />
+        <span class="draft-step-text" data-step-active>
+          Drafting your resume from your record. Every line will cite one of your entries.
+        </span>
+        <span class="draft-step-text" data-step-done hidden>Resume ready.</span>
+        <span class="draft-step-text" data-step-failed hidden>The resume did not finish.</span>
+      </li>
+      <li class="draft-step" data-draft-step="cover" data-step-state="active">
+        <Spinner class="draft-step-ring" />
+        <span
+          class="draft-step-text"
+          data-step-active
+          data-text-reason="Writing the cover letter, opening with your reason."
+          data-text-no-reason="Writing the cover letter, opening with the posting's own words."
+        >
+          Writing the cover letter.
+        </span>
+        <span class="draft-step-text" data-step-done hidden>Cover letter ready.</span>
+        <span class="draft-step-text" data-step-failed hidden>The cover letter did not finish.</span>
+      </li>
+    </ol>
+  </div>
+
+  <div class="draft-ready" data-draft-ready hidden>
+    <p class="draft-ready-title mono-label">Ready to download</p>
+    <ul class="draft-files">
+      <li hidden data-draft-resume-item>
+        <a class="draft-file mono" data-draft-resume href={draftRoom} download>
+          Resume, PDF
+        </a>
+      </li>
+      <li hidden data-draft-cover-item>
+        <a class="draft-file mono" data-draft-cover href={draftRoom} download>
+          Cover letter, PDF
+        </a>
+      </li>
+    </ul>
+    <p class="draft-note mono-label" data-draft-cover-working hidden>
+      Still drafting the cover letter.
+    </p>
+    <p class="draft-note mono-label" data-draft-resume-working hidden>
+      Still drafting the resume.
+    </p>
+    <p class="draft-note mono-label" data-draft-cover-failed hidden>
+      The cover letter did not finish. <a href={draftRoom}>Open the draft room</a> to draft it again.
+    </p>
+    <p class="draft-note mono-label" data-draft-resume-failed hidden>
+      The resume did not finish. <a href={draftRoom}>Open the draft room</a> to draft it again.
+    </p>
+    <p class="draft-note mono-label" data-draft-deterministic hidden>
+      Drafted without a provider key, so this is the deterministic draft.
+      <a href={settingsHref}>Connect a key</a> to draft with a model.
+    </p>
+    <p class="draft-room-link mono-label">
+      <a href={draftRoom} data-draft-room>Read the full draft</a>
+    </p>
+  </div>
+
+  <p class="draft-failed mono-label" data-draft-failed hidden>
+    That draft did not finish. <a href={draftRoom}>Open the draft room</a> to try again.
+  </p>
+
+  <p class="draft-signin mono-label" data-draft-signin hidden>
+    <a href={signUpHref}>Sign up</a> to draft a resume and cover letter for this role from your record.
+  </p>
+</section>
+)}
+
+<style>
+  .draft-rail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    padding: var(--space-400);
+    border: var(--border-hairline) solid var(--color-line);
+    background: var(--color-surface-raised);
+  }
+
+  /* The signed-out slot: the same hatch DescriptionSlot draws for an absence,
+     in the same two tokens and the same stripe widths, so a reader who has
+     seen one empty box on this page reads this one the same way. */
+  .draft-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--space-1000);
+    padding: var(--space-400);
+    border: var(--border-hairline) solid var(--color-line);
+    background: repeating-linear-gradient(
+      45deg,
+      var(--color-hatch-a),
+      var(--color-hatch-a) var(--space-200),
+      var(--color-hatch-b) var(--space-200),
+      var(--color-hatch-b) var(--space-400)
+    );
+  }
+
+  .draft-slot-line {
+    margin: 0;
+    max-width: var(--layout-measure);
+    text-align: center;
+    text-transform: none;
+    letter-spacing: var(--tracking-wide);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  .draft-title {
+    color: var(--color-muted);
+  }
+
+  .draft-form {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  /* The optional reason field: the person's own words for the letter's opener.
+     Quiet, like the rest of the column; the label reads as machine chrome, the
+     field itself as plain input. */
+  .draft-reason {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+
+  .draft-reason-label {
+    color: var(--color-muted);
+  }
+
+  .draft-reason-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: var(--space-300);
+    background: var(--color-surface);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    color: var(--color-foreground);
+    font-family: var(--font-family-sans);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    resize: vertical;
+  }
+
+  .draft-reason-input::placeholder {
+    color: var(--color-muted);
+  }
+
+  .draft-reason-input:focus-visible {
+    outline: var(--border-hairline) solid var(--color-foreground);
+    outline-offset: var(--space-100);
+    border-color: var(--color-foreground);
+  }
+
+  /* The quiet outline control, not a filled one. The filled version of this
+     button shipped once and was reverted for being the loudest thing in a
+     deliberately quiet column; these are the values the aside's own secondary
+     control (Save to my Desk) already uses, so the rail reads as part of the
+     page rather than as an advertisement dropped into it. */
+  .draft-submit {
+    width: 100%;
+    padding: var(--space-300) var(--space-400);
+    background: transparent;
+    border: var(--border-hairline) solid var(--color-line-strong);
+    color: var(--color-foreground);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .draft-submit:hover {
+    border-color: var(--color-foreground);
+  }
+
+  .draft-submit[disabled] {
+    color: var(--color-muted);
+    border-color: var(--color-line);
+    cursor: default;
+  }
+
+  /* The waiting state: the machine voice saying what it is doing, beside the
+     shared turning ring (src/components/Spinner.astro, which carries the
+     motion-gate exemption and its terms). Hidden until a draft starts and
+     hidden again the moment the documents land, so it never turns over
+     nothing. */
+  .draft-working:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    padding: var(--space-300) 0;
+  }
+
+  .draft-working-label {
+    margin: 0;
+    color: var(--color-muted);
+  }
+
+  /* The steps: a plain list, one line each, the ring beside the one in
+     progress. Done steps keep their place and change their line, so the list
+     reads as a record of what happened rather than a queue that empties. */
+  .draft-steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .draft-step {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-200);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+  }
+
+  .draft-step[data-step-state='active'] {
+    color: var(--color-foreground);
+  }
+
+  .draft-step-text:not([hidden]) {
+    display: inline;
+  }
+
+  .draft-ready:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+
+  .draft-ready-title {
+    color: var(--color-muted);
+  }
+
+  .draft-files {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+
+  .draft-file {
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    text-decoration-color: var(--color-line-strong);
+  }
+
+  .draft-file:hover {
+    text-decoration-color: var(--color-foreground);
+  }
+
+  .draft-file::before {
+    content: '\2193\00a0';
+    color: var(--color-muted);
+  }
+
+  .draft-note,
+  .draft-room-link,
+  .draft-failed:not([hidden]),
+  .draft-signin:not([hidden]) {
+    margin: 0;
+    text-transform: none;
+    letter-spacing: var(--tracking-wide);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  .draft-note a,
+  .draft-room-link a,
+  .draft-failed a,
+  .draft-signin a {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    text-decoration-color: var(--color-line-strong);
+  }
+</style>
+
+<script>
+  /**
+   * The rail's enhancement. Without it the form still drafts and navigates to
+   * the draft room; with it the reader stays on the posting.
+   *
+   * THREE THINGS IT DOES, IN ORDER:
+   *   1. Asks who is reading. A signed-out reader gets the sign-in line instead
+   *      of a button that would bounce them to sign-in anyway.
+   *   2. Asks what already exists. A draft made on an earlier visit shows its
+   *      download links immediately, so pressing Generate again is a choice
+   *      rather than the only way to find work already done.
+   *   3. Starts a draft and watches for it. The POST is the same one the form
+   *      makes, with an Accept header that asks for JSON instead of a redirect.
+   *
+   * Every failure falls back to the honest state: any throw is treated as
+   * signed out or not ready, never as success.
+   */
+  const POLL_MS = 3000;
+  // Six minutes: past the platform's 300s function ceiling (site.config.mjs)
+  // with slack, so a slow but working render is never called failed by the
+  // rail before the server would. The server names a real failure sooner.
+  const POLL_LIMIT = 120;
+
+  const rail = document.querySelector<HTMLElement>('[data-draft-rail]');
+
+  if (rail) {
+    const form = rail.querySelector<HTMLFormElement>('[data-draft-form]');
+    const submit = rail.querySelector<HTMLButtonElement>('.draft-submit');
+    const working = rail.querySelector<HTMLElement>('[data-draft-working]');
+    const ready = rail.querySelector<HTMLElement>('[data-draft-ready]');
+    const failed = rail.querySelector<HTMLElement>('[data-draft-failed]');
+    const signin = rail.querySelector<HTMLElement>('[data-draft-signin]');
+    const deterministic = rail.querySelector<HTMLElement>('[data-draft-deterministic]');
+    const resumeLink = rail.querySelector<HTMLAnchorElement>('[data-draft-resume]');
+    const coverLink = rail.querySelector<HTMLAnchorElement>('[data-draft-cover]');
+    const resumeItem = rail.querySelector<HTMLElement>('[data-draft-resume-item]');
+    const coverItem = rail.querySelector<HTMLElement>('[data-draft-cover-item]');
+    const resumeWorking = rail.querySelector<HTMLElement>('[data-draft-resume-working]');
+    const coverWorking = rail.querySelector<HTMLElement>('[data-draft-cover-working]');
+    const resumeFailedNote = rail.querySelector<HTMLElement>('[data-draft-resume-failed]');
+    const coverFailedNote = rail.querySelector<HTMLElement>('[data-draft-cover-failed]');
+
+    const statusUrl = rail.dataset.statusUrl ?? '';
+    const sessionUrl = rail.dataset.sessionUrl ?? '';
+    const startUrl = rail.dataset.startUrl ?? '';
+
+    const show = (el: HTMLElement | null, on: boolean) => {
+      if (el) el.hidden = !on;
+    };
+
+    /** One reading of the draft's state, or null when it cannot be read. */
+    async function readStatus(): Promise<Record<string, unknown> | null> {
+      try {
+        const response = await fetch(statusUrl, {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' }
+        });
+        if (!response.ok) return null;
+        return (await response.json()) as Record<string, unknown>;
+      } catch {
+        return null;
+      }
+    }
+
+    const docStatus = (state: Record<string, unknown>, key: 'resume' | 'cover'): string | undefined => {
+      const doc = state[key];
+      return doc && typeof doc === 'object' ? (doc as Record<string, unknown>).status as string : undefined;
+    };
+
+    /** One step of the narration: the ring and the active line while the
+        document is pending, the done line once its row lands, the failed line
+        when it did not. Anything else (no row yet) reads as still to come. */
+    function paintStep(name: 'resume' | 'cover', status: string | undefined): void {
+      const step = rail?.querySelector<HTMLElement>(`[data-draft-step="${name}"]`);
+      if (!step) return;
+      const state = status === 'ready' ? 'done' : status === 'failed' ? 'failed' : 'active';
+      step.dataset.stepState = state;
+      show(step.querySelector<HTMLElement>('.draft-step-ring'), state === 'active');
+      show(step.querySelector<HTMLElement>('[data-step-active]'), state === 'active');
+      show(step.querySelector<HTMLElement>('[data-step-done]'), state === 'done');
+      show(step.querySelector<HTMLElement>('[data-step-failed]'), state === 'failed');
+    }
+
+    function paintSteps(state: Record<string, unknown>): void {
+      paintStep('resume', docStatus(state, 'resume'));
+      paintStep('cover', docStatus(state, 'cover'));
+    }
+
+    /** The cover letter's opening depends on whether the person wrote a reason;
+        the step says which, once the press tells us. Before that (a draft found
+        already running on load) it says the plain thing. */
+    function sayCoverOpening(withReason: boolean): void {
+      const line = rail?.querySelector<HTMLElement>('[data-draft-step="cover"] [data-step-active]');
+      if (!line) return;
+      const text = withReason ? line.dataset.textReason : line.dataset.textNoReason;
+      if (text) line.textContent = text;
+    }
+
+    /** Reveal each document on its own: a ready link the moment its row lands, a
+        "still drafting" line while its sibling catches up, a per-document failure
+        with a link to the room to retry it. The ready panel opens as soon as
+        EITHER document has something to show; the steps stay up beside it until
+        neither document is still drafting, so the narration finishes its sentence. */
+    function paintDocuments(state: Record<string, unknown>): void {
+      const r = docStatus(state, 'resume');
+      const c = docStatus(state, 'cover');
+      paintSteps(state);
+      if (resumeLink && typeof state.resumeUrl === 'string') resumeLink.href = state.resumeUrl;
+      if (coverLink && typeof state.coverUrl === 'string') coverLink.href = state.coverUrl;
+      show(resumeItem, r === 'ready');
+      show(coverItem, c === 'ready');
+      show(resumeWorking, r === 'pending');
+      show(coverWorking, c === 'pending');
+      show(resumeFailedNote, r === 'failed');
+      show(coverFailedNote, c === 'failed');
+      show(deterministic, state.deterministic === true);
+      const stillWorking = r === 'pending' || c === 'pending';
+      const anyShown = r === 'ready' || c === 'ready' || r === 'failed' || c === 'failed';
+      show(working, stillWorking);
+      if (anyShown) {
+        show(failed, false);
+        show(ready, true);
+      }
+      if (submit) submit.textContent = 'Draft again';
+      if (submit && !stillWorking) submit.disabled = false;
+    }
+
+    /** The whole draft failed with nothing to show (both documents down). */
+    function paintFailed(): void {
+      show(working, false);
+      show(ready, false);
+      show(failed, true);
+      if (submit) submit.disabled = false;
+    }
+
+    /** True while either document could still be working (or the pair state is
+        pending, covering the half-written moment before both rows exist). */
+    const stillPending = (state: Record<string, unknown>): boolean =>
+      state.status === 'pending' || docStatus(state, 'resume') === 'pending' || docStatus(state, 'cover') === 'pending';
+
+    function settle(state: Record<string, unknown>): void {
+      const r = docStatus(state, 'resume');
+      const c = docStatus(state, 'cover');
+      // Nothing landed and the pair failed: the blanket line. Otherwise show
+      // whatever is ready alongside the per-document failure.
+      if (r !== 'ready' && c !== 'ready') paintFailed();
+      else paintDocuments(state);
+    }
+
+    /** Poll until neither document is pending, painting each as it lands, or
+        until the limit says stop pretending. */
+    async function watch(): Promise<void> {
+      for (let attempt = 0; attempt < POLL_LIMIT; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        const state = await readStatus();
+        if (!state) continue;
+        paintDocuments(state);
+        if (!stillPending(state)) {
+          settle(state);
+          return;
+        }
+      }
+      paintFailed();
+    }
+
+    (async () => {
+      let signedIn = false;
+      try {
+        const response = await fetch(sessionUrl, { credentials: 'same-origin' });
+        const body = response.ok ? await response.json() : null;
+        signedIn = Boolean(body && body.user);
+      } catch {
+        signedIn = false;
+      }
+
+      if (!signedIn) {
+        show(form, false);
+        show(signin, true);
+        return;
+      }
+
+      const state = await readStatus();
+      if (!state) return;
+      if (!stillPending(state)) {
+        settle(state);
+      } else {
+        paintDocuments(state);
+        if (docStatus(state, 'resume') !== 'ready' && docStatus(state, 'cover') !== 'ready') show(working, true);
+        if (submit) submit.disabled = true;
+        void watch();
+      }
+    })();
+
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      show(ready, false);
+      show(failed, false);
+      const reasonField = form.querySelector<HTMLTextAreaElement>('[name="reason"]');
+      sayCoverOpening(Boolean(reasonField && reasonField.value.trim()));
+      paintStep('resume', 'pending');
+      paintStep('cover', 'pending');
+      show(working, true);
+      if (submit) submit.disabled = true;
+
+      try {
+        const response = await fetch(startUrl, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+          body: new FormData(form)
+        });
+        // A signed-out or walled request answers with a redirect or a 401; the
+        // honest move is to send them where the form would have sent them.
+        if (!response.ok) {
+          show(working, false);
+          show(signin, true);
+          if (submit) submit.disabled = false;
+          return;
+        }
+      } catch {
+        show(working, false);
+        show(failed, true);
+        if (submit) submit.disabled = false;
+        return;
+      }
+
+      void watch();
+    });
+  }
+</script>

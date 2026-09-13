@@ -1,0 +1,53 @@
+---
+import KeyValueList from './KeyValueList.astro';
+import Panel from './Panel.astro';
+import type { Job } from '../lib/data';
+import type { KeyValueRow } from '../lib/ui';
+
+/**
+ * How hard applying actually is, before a reader spends twenty minutes finding
+ * out.
+ *
+ * Four facts, and the fourth is the one nobody else prints: where the button
+ * sends you. An apply link that says "Apply now" is a click with the
+ * destination hidden inside it; naming Greenhouse or Work at a Startup or a
+ * founder's mailbox lets a reader decide before they commit, which is standing
+ * rule 4 applied to the one interaction that costs them real time.
+ *
+ * The time estimate is the only value on the site with a tilde, and it earns it:
+ * it is the machine's estimate rather than a measurement. The panel footnote
+ * says so once rather than the value carrying a qualifier that would eventually
+ * be read as part of the number. Where the machine has no estimate, the row
+ * says it has none. There is no default fifteen minutes.
+ */
+
+interface Props {
+  job: Job;
+  class?: string;
+}
+
+const { job, class: className } = Astro.props;
+
+/*
+  Null only on a pre-posting row, which has no role page and so never reaches
+  this panel. The guard is here so the type is honest rather than asserted away,
+  and so a future page that does render one of those rows fails visibly by
+  showing nothing rather than crashing the build.
+*/
+const ease = job.ease;
+
+const rows: KeyValueRow[] = ease === null ? [] : [
+  { key: 'Friction', value: ease.friction },
+  {
+    key: 'Estimated time',
+    value: typeof ease.minutes_estimate === 'number' ? `~${ease.minutes_estimate} min` : null,
+    absence: 'Not measured for this posting'
+  },
+  { key: 'Account', value: ease.account_required ? 'Required' : 'Not required' },
+  { key: 'Destination', value: ease.destination }
+];
+---
+
+<Panel title="Ease of apply" footnote="~ marks an estimate, not a measurement" class={className}>
+  <KeyValueList rows={rows} />
+</Panel>

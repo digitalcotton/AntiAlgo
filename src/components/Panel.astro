@@ -1,0 +1,105 @@
+---
+/**
+ * The bordered panel: one box, one optional title band, one optional footnote.
+ *
+ * It exists because five different surfaces on this site are the same object.
+ * The provenance panel, the ease of apply panel, the kill list table, the
+ * report's chart blocks and the share card all draw a raised rectangle with a
+ * hairline, a small caps machine-voice title, and a quiet line underneath. Built
+ * five times they would be five slightly different rectangles, and the
+ * difference would show most on the pages built last.
+ *
+ * The title is in the machine voice because it names a class of record
+ * ("Provenance", "Ease of apply") rather than saying something editorial. The
+ * footnote is the place for the qualifier that would otherwise get appended to
+ * a value and quietly become part of it: "~ marks estimated values" belongs to
+ * the panel, not to the number.
+ */
+
+interface Props {
+  /** Small caps machine-voice title. Omit for a panel with no band. */
+  title?: string;
+  /** The quiet line under the content. */
+  footnote?: string;
+  /** 'raised' sits above paper. 'page' sits flush with it. */
+  surface?: 'raised' | 'page';
+  class?: string;
+}
+
+const { title, footnote, surface = 'raised', class: className } = Astro.props;
+---
+
+<section class:list={['panel', `panel-${surface}`, className]}>
+  {
+    title && (
+      <header class="panel-band">
+        <span class="panel-title mono-label">{title}</span>
+        <slot name="aside" />
+      </header>
+    )
+  }
+
+  <div class="panel-body">
+    <slot />
+  </div>
+
+  {
+    (footnote || Astro.slots.has('footnote')) && (
+      <footer class="panel-foot">
+        {footnote && <span class="panel-footnote mono-label">{footnote}</span>}
+        <slot name="footnote" />
+      </footer>
+    )
+  }
+</section>
+
+<style>
+  .panel {
+    border: var(--border-hairline) solid var(--color-line);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .panel-raised {
+    background: var(--color-surface-raised);
+  }
+
+  .panel-page {
+    background: var(--color-surface);
+  }
+
+  .panel-band {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-300);
+    flex-wrap: wrap;
+    padding: var(--space-300) var(--space-400);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  .panel-title {
+    color: var(--color-foreground);
+  }
+
+  .panel-body {
+    padding: var(--space-400);
+    min-width: 0;
+  }
+
+  .panel-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-300);
+    flex-wrap: wrap;
+    padding: var(--space-300) var(--space-400);
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+
+  .panel-footnote {
+    color: var(--color-muted);
+    line-height: var(--leading-snug);
+  }
+</style>

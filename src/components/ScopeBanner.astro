@@ -1,0 +1,50 @@
+---
+/**
+ * The scope banner: the funnel, and only the funnel.
+ *
+ * It used to restate the boards count and the sweep stamp, which the tiles and
+ * the eyebrow already carry, and its numbers were the old design sweep's. All of
+ * that is cut. Its one job a reader cannot get anywhere else on the page is the
+ * scale: the crawl reads every posting these companies put up, and only some are
+ * design, AI or research roles, so a reader never mistakes the count on the board
+ * for the whole market. Both numbers come from the sweep (board_stats), passed in
+ * by the index, never typed.
+ */
+interface Props {
+  postingsObserved: number;
+  verifiedLive: number;
+}
+const { postingsObserved, verifiedLive } = Astro.props;
+---
+
+<aside class="scope-banner" aria-label="What this board is">
+  <p class="scope-text">
+    We read <span class="mono">{postingsObserved.toLocaleString()}</span> job postings last night.
+    <span class="mono">{verifiedLive.toLocaleString()}</span> are design, AI, or research roles. That's this
+    board: the slice worth your time, not a copy of the whole market.
+  </p>
+</aside>
+
+<style>
+  .scope-banner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    padding: var(--space-400) var(--space-500);
+    background: var(--color-surface);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  .scope-text {
+    max-width: var(--layout-measure);
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+
+  .scope-text .mono {
+    font-weight: var(--weight-medium);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+</style>

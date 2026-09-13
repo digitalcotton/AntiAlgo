@@ -1,0 +1,283 @@
+---
+/**
+ * PostingProgress: what the machine is doing with a posting a person added,
+ * told in plain words on the posting's own page.
+ *
+ * WHY IT NARRATES. The read takes a second on a board API and a minute or two
+ * through a browser, and a bare spinner over that gap is a page that has
+ * stopped talking. This lists the steps the machine follows, in the order it
+ * follows them, so the wait is spent learning what the machine is and the
+ * result reads as the last step landing rather than a page that changed.
+ *
+ * WHAT IT NEVER SAYS. Nothing here is a sweep fact: the read time is in words
+ * (readTook), never a number, and the one numeral that can appear (postings
+ * seen on a board the machine learned tonight) is the machine's own count and
+ * wears data-truth="machine". The steps describe the reader's plan, which is
+ * fixed (postfetch.py on the mini), not a live trace; the row's status is the
+ * only live fact, and it is read off the row.
+ *
+ * Four voices: reading (the plan, with the ring beside the step in progress),
+ * unreadable (what stopped it, in words), ready (how it was read and, when the
+ * mini said so, what became of the posting's board), pasted (nothing was read).
+ * The rename form appears in the settled voices when the page gave no role or
+ * no company, so the person can name them before drafting.
+ */
+import Spinner from '../Spinner.astro';
+import { fetchDisplayState, type FailureCode, type StoredPostingFetch } from '../../lib/posting-fetch-store';
+import { BOARD_SYSTEMS, hostnameOf, postingSource, readThrough, readTook } from '../../lib/added-posting';
+
+interface Props {
+  row: StoredPostingFetch;
+  nowMs: number;
+  /** The /desk/posting route, for the rename form. */
+  action: string;
+  /** The draft status endpoint the page's own poll reads; carried on the root
+      as data so the page script finds it without a second lookup. */
+  statusUrl: string;
+}
+
+const { row, nowMs, action, statusUrl } = Astro.props;
+const display = fetchDisplayState(row, nowMs);
+const host = hostnameOf(row.url);
+const source = postingSource(row.url);
+const inFlight = display === 'reading' || display === 'queued' || display === 'slow';
+
+/** The reader's plan, in the order the mini runs it. The first step differs by
+    where the posting lives: a board system is asked directly, a plain page is
+    read as a page. */
+const steps: string[] = [
+  source
+    ? `This posting lives on ${source.label}. Asking ${source.label} for it directly, the same way we read boards every night.`
+    : 'Reading the page itself: its structured data first, then the largest block of prose.',
+  source
+    ? 'If the board will not say, we open the page in a browser and read what it draws.'
+    : 'If the page draws its text with a script, we open it in a browser and read what it draws.',
+  'Then this page fills in: the role, the company, and the description as published.'
+];
+// The step in progress. Before the mini picks the row up, nothing has started
+// (the queue line says so); once claimed, the first step is the one running.
+const activeStep = row.status === 'claimed' ? 0 : -1;
+
+/** What stopped the read, in words a person can act on. */
+const FAILURE_LINES: Record<FailureCode, string> = {
+  refused_url: 'That address is not one the machine will read.',
+  http_error: 'The page answered with an error instead of the posting.',
+  timeout: 'The page took too long to answer.',
+  too_large: 'The page was too large to read.',
+  not_html: 'The link points at a file, not a page.',
+  no_content: 'The page drew nothing we could read, even in a browser.',
+  fetch_error: 'We could not reach the page.'
+};
+const failureLine = row.failureCode ? FAILURE_LINES[row.failureCode] : 'We could not read that page.';
+
+const through = readThrough(row);
+const took = readTook(row);
+const readLine = through ? `Read from ${host} through ${through}${took ? ` ${took}` : ''}.` : `Read from ${host}.`;
+
+const board = row.machineNotes.board;
+const boardAts = board?.ats ? ((BOARD_SYSTEMS as Record<string, string>)[board.ats] ?? board.ats.charAt(0).toUpperCase() + board.ats.slice(1)) : null;
+const boardName = board?.name ?? null;
+const showBoardAdded = board?.verdict === 'added' && boardName !== null && boardAts !== null;
+const showBoardKnown = board?.verdict === 'known' && boardName !== null && boardAts !== null;
+
+const needsNames = (display === 'ready' || display === 'pasted') && (!row.title || !row.company);
+const ids = `posting-progress-${row.applicationId}`;
+---
+
+<section
+  class="posting-progress"
+  data-posting-progress
+  data-progress-state={display}
+  data-status-url={statusUrl}
+  role="status"
+  aria-live="polite"
+  aria-labelledby={`${ids}-title`}
+>
+  {inFlight && (
+    <>
+      <h2 class="progress-title" id={`${ids}-title`}>Reading the posting from {host}</h2>
+      {display === 'queued' && (
+        <p class="progress-line">Still queued. The machine has not picked this up yet. You can paste the text instead.</p>
+      )}
+      {display === 'slow' && (
+        <p class="progress-line">Reading {host} is taking longer than usual. You can paste the text instead.</p>
+      )}
+      {display === 'reading' && row.status !== 'claimed' && (
+        <p class="progress-line">
+          <Spinner />
+          <span>Waking the machine. It picks this up within a few seconds.</span>
+        </p>
+      )}
+      <ol class="progress-steps">
+        {steps.map((step, index) => (
+          <li class="progress-step" data-step-state={index === activeStep ? 'active' : 'planned'}>
+            {index === activeStep && <Spinner />}
+            <span class="progress-step-text">{step}</span>
+          </li>
+        ))}
+      </ol>
+    </>
+  )}
+
+  {display === 'unreadable' && (
+    <>
+      <h2 class="progress-title" id={`${ids}-title`}>We could not read that page</h2>
+      <p class="progress-line">{failureLine}</p>
+      <p class="progress-line">
+        Paste the posting text below and we draft from it, marked as unverified. Or ask the machine to try again.
+      </p>
+    </>
+  )}
+
+  {display === 'ready' && (
+    <>
+      <h2 class="progress-title" id={`${ids}-title`}>What the machine did</h2>
+      <p class="progress-line">{readLine}</p>
+      {showBoardAdded && (
+        <p class="progress-line">
+          We had never read {boardName}'s {boardAts} board before you pasted this. It is on the nightly crawl from tonight
+          {board?.postingsSeen !== null && board?.postingsSeen !== undefined ? (
+            <>
+              : <span data-truth="machine">{board.postingsSeen}</span> {board.postingsSeen === 1 ? 'posting' : 'postings'} read on the first pass.
+            </>
+          ) : (
+            '.'
+          )}
+        </p>
+      )}
+      {showBoardKnown && (
+        <p class="progress-line">We already read {boardName}'s {boardAts} board every night.</p>
+      )}
+    </>
+  )}
+
+  {display === 'pasted' && (
+    <>
+      <h2 class="progress-title" id={`${ids}-title`}>From text you pasted</h2>
+      <p class="progress-line">Nothing here was read by the machine, so nothing here is verified by us.</p>
+    </>
+  )}
+
+  {needsNames && (
+    <form class="rename-form" method="POST" action={action}>
+      <input type="hidden" name="intent" value="rename" />
+      <input type="hidden" name="applicationId" value={row.applicationId} />
+      <p class="progress-line">
+        {!row.title && !row.company
+          ? 'The page did not name the role or the company. Name them so the letter can.'
+          : !row.title
+            ? 'The page did not name the role. Name it so the letter can.'
+            : 'The page did not name the company. Name it so the letter can.'}
+      </p>
+      {!row.title && (
+        <>
+          <label class="rename-label" for={`${ids}-title-field`}>Role</label>
+          <input class="field-input" id={`${ids}-title-field`} name="titleOverride" type="text" maxlength="500" required />
+        </>
+      )}
+      {!row.company && (
+        <>
+          <label class="rename-label" for={`${ids}-company-field`}>Company</label>
+          <input class="field-input" id={`${ids}-company-field`} name="companyOverride" type="text" maxlength="500" required />
+        </>
+      )}
+      <div class="rename-actions">
+        <button class="rename-submit" type="submit">Save the names</button>
+      </div>
+    </form>
+  )}
+</section>
+
+<style>
+  .posting-progress {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    padding: var(--space-400);
+    background: var(--color-surface-raised);
+    border: var(--border-hairline) solid var(--color-line);
+  }
+  .progress-title {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+  }
+  .progress-line {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-200);
+    margin: 0;
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+  }
+  /* The plan, numbered by the browser: a counter, not a numeral in the copy,
+     so the truth gate has nothing to hold to a data file. */
+  .progress-steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+  }
+  .progress-step {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-200);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+    counter-increment: step;
+  }
+  .progress-step::before {
+    content: counter(step) '.';
+    flex: none;
+    min-width: var(--space-400);
+    font-family: var(--font-family-mono);
+    color: var(--color-line-strong);
+  }
+  .progress-step[data-step-state='active'] {
+    color: var(--color-foreground);
+  }
+  .progress-step[data-step-state='active']::before {
+    color: var(--color-foreground);
+  }
+  .rename-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-300);
+  }
+  .rename-label {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .rename-actions {
+    display: flex;
+    gap: var(--space-300);
+    align-items: center;
+  }
+  .rename-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-200) var(--space-400);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+</style>

@@ -1,0 +1,233 @@
+---
+import {
+  factSource,
+  formatDays,
+  killDuration,
+  killsWithCards,
+  referenceDays,
+  type Kill
+} from '../lib/data';
+
+/**
+ * The kill list signature: how long a posting stayed open, drawn against one
+ * reference line at the median life of a job posting.
+ *
+ * Brex at 685 days beside that marker is the entire argument in one glance
+ * and needs no adjective, which is why there is no adjective. One hue, one
+ * reference line, direct labels, and nothing else. No axis, no gridlines, no
+ * legend: every piece of furniture a reader has to decode is a piece of the
+ * argument they are not reading.
+ *
+ * THE THREE STATES, AND WHY THEY ARE THREE.
+ *
+ *   observed_by_us      we hold a first_published date, so we measured the span
+ *                       ourselves. This is the only state that draws a bar.
+ *
+ *   reported_elsewhere  the figure came from outside research, not from our
+ *                       sweep. NO BAR. The bar is a measurement and we have
+ *                       none, and putting someone else's number in our own bar
+ *                       would launder it into our own observation on the one
+ *                       page whose entire authority is that we measured what we
+ *                       show. It renders as attributed text naming the source.
+ *                       Where the source has not been named to us, the claim
+ *                       does not render at all: the row ships with the
+ *                       observations we hold and waits for the citation.
+ *
+ *   no first_published  the slot renders as a truthful absence. Never a guessed
+ *                       length, never a zero-width bar that reads as "brief".
+ *
+ * See SESSION-07-KILL-LIST.md ruling 4 and DECISIONS.md, "Duration provenance is
+ * a field, not a footnote".
+ *
+ * THE SCALE IS SHARED BY DEFAULT, ON PURPOSE. Every bar on the site measures
+ * against the longest duration in the whole kill set, not against whatever
+ * happens to be on the current screen. A share card showing one kill at full
+ * width would make 137 days and 685 days look identical, and the card is the
+ * artifact most likely to be seen with no other row beside it.
+ */
+
+interface Props {
+  kill: Kill;
+  /**
+   * The value the bar's full width represents, in days. Defaults to the longest
+   * measured duration across every kill, so one scale holds everywhere.
+   */
+  scaleMax?: number;
+  /** Show the reference line's citation. One row on a list; always on a card. */
+  referenceCaption?: boolean;
+  class?: string;
+}
+
+/**
+ * The shared scale: the longest span among every kill this build can draw.
+ *
+ * READ OFF THE RECORD AND NOT OFF TONIGHT, and it had to be. This was
+ * `Math.max(...loadKills().map(...))`, and `Math.max()` of an empty list is
+ * -Infinity, so on a sweep that killed nothing the scale went negative, the
+ * `scaleMax > 0` test below failed for every row, and each bar fell through to
+ * the absence state whose sentence is "No first-published date at source". That
+ * sentence is false about a record that carries one. Nobody saw it while the
+ * only rows on the site came from tonight's file, because an empty file also
+ * meant no rows; the record made a bar and an empty sweep possible at once.
+ *
+ * killsWithCards() is exactly the set a bar can be drawn from in this build:
+ * tonight's rows and the record together, which is what /drop and every share
+ * card render. One scale across all of them, so the comparison a screenshot
+ * carries with it is the same comparison the page made.
+ *
+ * Seeded at 0 rather than spread into Math.max, so an empty set is a scale of
+ * zero and the rows say they have no scale, instead of a number that is less
+ * than every value it is compared against.
+ */
+const DEFAULT_SCALE = killsWithCards().reduce(
+  (longest, kill) => Math.max(longest, killDuration(kill)?.days ?? 0),
+  0
+);
+
+const { kill, scaleMax = DEFAULT_SCALE, referenceCaption = false, class: className } = Astro.props;
+
+const duration = killDuration(kill);
+const provenance = kill.duration_provenance ?? null;
+const reference = referenceDays();
+const referenceCite = factSource('posting-lifespan');
+
+// A bar is drawn only where we measured the span ourselves. Everything else
+// falls through to one of the two absence states below. `measured` is a
+// narrowed value rather than a boolean flag so the template reads the duration
+// without a non-null assertion talking the compiler out of a real check.
+const measured = provenance === 'observed_by_us' && scaleMax > 0 ? duration : null;
+
+const barPercent = measured ? Math.min(100, (measured.days / scaleMax) * 100) : 0;
+const referencePercent = scaleMax > 0 ? Math.min(100, (reference / scaleMax) * 100) : 0;
+
+// The label goes outside the bar when the bar is too short to hold it, which
+// is most of them: at a 732 day scale a 137 day bar is under a fifth of the
+// width. Inside-versus-outside is a legibility rule, not a data one.
+const labelInside = barPercent > 35;
+---
+
+<div class:list={['duration', className]}>
+  {
+    measured && (
+      <>
+        <div class="bar-row">
+          <div
+            class="track"
+            role="img"
+            aria-label={`Open ${measured.days} days, against a median posting life of ${reference} days`}
+          >
+            <div class="fill" style={`width: ${barPercent.toFixed(2)}%;`}>
+              {labelInside && <span class="label label-inside mono" data-truth="machine">Open {formatDays(measured.days)}</span>}
+            </div>
+            {/* The reference line is the only furniture on this chart. */}
+            <div class="reference" style={`left: ${referencePercent.toFixed(2)}%;`} aria-hidden="true"></div>
+          </div>
+          {!labelInside && <span class="label mono" data-truth="machine">Open {formatDays(measured.days)}</span>}
+        </div>
+
+        {referenceCaption && (
+          /* The figure never floats as a bare number. It is a cited number, so
+             the line carries its source in the machine voice beside it. */
+          <p class="reference-caption mono-label" data-truth="source">
+            Reference line: {reference} days, the median posting life · {referenceCite}
+          </p>
+        )}
+      </>
+    )
+  }
+
+  {
+    !measured && provenance === 'reported_elsewhere' && (
+      /* Attributed text, never a bar. The claim itself renders only once the
+         outside source is named; until then the row carries what we observed
+         and says plainly why the number is missing. Sans, because this is us
+         explaining an absence, not the machine stating a measurement. */
+      <p class="attributed">
+        {kill.duration_source ? (
+          <>Duration reported by {kill.duration_source}, not measured by us. No first-published date at source, so we have not timed this posting ourselves.</>
+        ) : (
+          <>No first-published date at source, so we have not timed this posting. A duration has been reported elsewhere and is held back until we can name that source.</>
+        )}
+      </p>
+    )
+  }
+
+  {
+    !measured && provenance !== 'reported_elsewhere' && (
+      <p class="absent">No first-published date at source, so there is no duration to show.</p>
+    )
+  }
+</div>
+
+<style>
+  .duration {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    min-width: 0;
+  }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-300);
+  }
+
+  .track {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: var(--space-500);
+    background: var(--color-hover-surface);
+  }
+
+  /* One hue. stat-loss is the site's only alarm colour and it belongs to loss
+     statistics, which is exactly what a duration-open figure is on this page.
+     It is never used for a row mark: a closed posting is an archive record, not
+     an alarm, and that distinction is the legend canon. */
+  .fill {
+    position: relative;
+    height: 100%;
+    background: var(--color-stat-loss);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: var(--border-heavy);
+  }
+
+  .label {
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .label-inside {
+    color: var(--color-foreground-inverse);
+    padding-inline: var(--space-200);
+  }
+
+  /* The reference line reads as a rule through the bar rather than a mark on
+     it, so it is the foreground colour at the structural weight: it is the one
+     thing on this chart carrying information other than the bar itself. */
+  .reference {
+    position: absolute;
+    inset-block: 0;
+    width: var(--border-heavy);
+    background: var(--color-foreground);
+    transform: translateX(calc(var(--border-heavy) * -0.5));
+  }
+
+  .reference-caption {
+    color: var(--color-muted);
+    line-height: var(--leading-snug);
+  }
+
+  .attributed,
+  .absent {
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+</style>

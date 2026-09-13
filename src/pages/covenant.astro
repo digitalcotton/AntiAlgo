@@ -1,0 +1,285 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { loadStats, sweptStamp } from '../lib/data';
+import { routeFor } from '../data/nav';
+import { withBase } from '../../site.config.mjs';
+
+/**
+ * /covenant: doctrine published as a promise, per MONETIZATION.md item 4 and
+ * FEATURES-FROM-THE-HATE.md, in the nine terms RUN-MASTER phase 8 names:
+ * no paid placement ever, no ranking for money, no selling seeker access, no
+ * view receipts, no synthetic occasions, sponsors always labeled, nothing
+ * observed about you is sold back to you, state-change-only notifications,
+ * trials that expire rather than convert.
+ *
+ * EACH PROMISE STATES ITS OWN STATUS, ON PURPOSE. Some of these nine are
+ * already true and checkable against real code in this build (the sponsor
+ * slot's label, the sort keys the index actually offers, the profiles_public
+ * flag locked dark). Two are not built yet at all: there is no notification
+ * system in this run and no billing in this run, so "notifications map to
+ * one fact" and "a trial expires" describe nothing that exists to test them
+ * against today. Rather than omit those two or quietly present them as
+ * already kept, each one says plainly that it is written before the feature
+ * rather than after, which is the same sequencing FEATURES-FROM-THE-HATE.md
+ * argues for in its own ninth entry (the AI-training opt-in, "the inverse
+ * sequencing, on purpose, in public"). A promise this page cannot yet check
+ * against running code is marked as exactly that, never dressed as one it can.
+ *
+ * NOTHING BELOW COMES FROM src/data/facts.json. No fact in that file is
+ * licensed to /covenant, so this page cites none of the eight statistics and
+ * makes no claim that would need one: every sentence here is a claim about
+ * this product's own mechanism, checkable by reading the mechanism, not a
+ * borrowed statistic about the market.
+ *
+ * NO PRICE, NO PLAN NAME, NO CHECKOUT. RUN-MASTER amendment 2 keeps checkout
+ * out of this run entirely, and a covenant page is the last place on the
+ * site that should ever need one: it exists to state what will never be for
+ * sale, not to sell anything itself.
+ */
+
+const stats = loadStats();
+const stamp = `Swept ${sweptStamp()}`;
+
+const methodologyHref = routeFor('methodology');
+const dataHref = withBase('/data');
+
+interface Covenant {
+  /** The checkable claim, stated specifically enough to be embarrassing to break. */
+  promise: string;
+  /** The explanation and, where one exists, the receipt: where in the running
+      product a reader can go and check this rather than trust it. */
+  detail: string;
+  /** True where the promise is already checkable against code shipping in
+      this build. False where it is a commitment written before the feature
+      it will bind, because nothing built yet could keep or break it. */
+  kept: boolean;
+}
+
+const COVENANTS: Covenant[] = [
+  {
+    promise: 'No paid placement, ever.',
+    detail:
+      'Nobody can buy a row, a boost, or a place inside the list of postings. The one commercial surface this site carries, the sponsor slot, is a single bordered block that sits outside every list, labeled "Sponsor slot" whether it is sold or not. An unsold slot still renders and still says so, because hiding it until the day it sells would make the sale read as an editorial change instead of the commercial one it actually is. Check it on any page that carries it: it never sits inside a row, a card, or a table of postings.',
+    kept: true
+  },
+  {
+    promise: 'No ranking for money.',
+    detail:
+      'The index sorts three ways: Fit, Comp, and Age. That is the whole list. None of the three reads what anyone paid, because none of them is wired to anything that would know a payment happened. A sort that could be bought would need a fourth key nobody has built, and none is planned.',
+    kept: true
+  },
+  {
+    promise: 'No selling seeker access to recruiters.',
+    detail:
+      'There is no employer-side search over people on this site, at all, to sell. The one feature that could someday expose a seeker to a stranger, a public profile page, ships private-only in this build: the switch that would widen that (the profiles_public flag) is built into the code and switched off, not merely unannounced. Flip it, and this sentence stops being true; until then it is a promise a build flag is already keeping rather than one this page is only asking you to trust.',
+    kept: true
+  },
+  {
+    promise: 'No view receipts, ever.',
+    detail:
+      'Nothing here tells anyone who looked at what: no notice that a stranger viewed a profile, no read marker on an application, no count that climbs while a stranger looks and then hides behind a charge. There is no code anywhere in this build that records a cross-person view of anything, on a profile or on a posting. An absence is the cleanest receipt there is: there is nothing to switch off, because nothing was ever built that could be switched on.',
+    kept: true
+  },
+  {
+    promise: 'No synthetic occasions.',
+    detail:
+      'No invented reason to bring you back that the machine did not actually observe: no birthdays, no work anniversaries, no streaks, no game. This site has exactly two kinds of page: the record of what the machine found last night, and the tools a seeker uses on their own search. Neither one has a manufactured reason to interrupt anybody.',
+    kept: true
+  },
+  {
+    promise: 'Sponsors always labeled.',
+    detail:
+      'The sponsor slot carries its own label in both states, sold and unsold, and the label is never the sponsor\'s own name standing in for the disclosure. A reader knows they are looking at a sponsor placement before they know who bought it, every time, because the label renders whether or not anyone has.',
+    kept: true
+  },
+  {
+    promise: 'Nothing observed about you is sold back to you.',
+    detail:
+      'Every fact the machine derives about a posting, or about a seeker\'s own application, when it was first seen, its lifecycle, its closure, stays free to the person it concerns, for as long as this site exists. Every feature behind sign-in in this build ships free today: nothing is gated behind a charge, because there is no charge yet to gate anything behind. The day one exists, this sentence is the first thing it has to answer to.',
+    kept: true
+  },
+  {
+    promise: 'Notifications map to one fact, never to manufactured urgency.',
+    detail:
+      'If this site ever sends a notification, it will name one thing the machine actually observed and nothing else: no "you appeared in searches," no invented streak, no marker with nothing behind it. There is no notification system anywhere in this build yet, so there is nothing running to check that claim against today. It is written down before the feature exists rather than after, on purpose, so the day one is built it already has to answer to a sentence rather than the other way around.',
+    kept: false
+  },
+  {
+    promise: 'Trials expire. They do not quietly become a charge.',
+    detail:
+      'A lapsed trial ends. It does not default into a renewal nobody chose. There is no billing anywhere in this build: every feature behind sign-in is free today, and the decision to ever charge for anything is explicitly deferred until there is a real dataset behind it. Written here first, before there is anything to renew, so the commitment is older than the feature it will eventually bind.',
+    kept: false
+  }
+];
+---
+
+<BaseLayout
+  active="covenant"
+  title="The covenant"
+  description="Nine things The Index will not do, stated specifically enough to be embarrassing to break: no paid placement, no ranking for money, no selling seeker access, no view receipts, no synthetic occasions, sponsors always labeled, nothing observed about you sold back to you, notifications that map to one fact, trials that expire rather than convert."
+>
+  <div class="shell covenant">
+    <header class="head">
+      <p class="stamp mono-label" data-truth="machine">{stamp}</p>
+      <h1 class="head-title">What we will not do.</h1>
+      <p class="lede">
+        Every job site publishes what it has. This page publishes what it refuses, in terms specific enough to be
+        checkable rather than merely sincere. Beside each promise, how to check it: today, where the code already
+        holds the line, or later, where the line is written before there is anything built yet to test it against.
+      </p>
+    </header>
+
+    <dl class="promises">
+      {
+        COVENANTS.map(({ promise, detail, kept }) => (
+          <div class="promise" data-covenant-kept={kept}>
+            <dt class="promise-term">
+              {promise}
+              <span class="promise-status mono-label">{kept ? 'Checkable today' : 'Written before the feature'}</span>
+            </dt>
+            <dd class="promise-detail">{detail}</dd>
+          </div>
+        ))
+      }
+    </dl>
+
+    <footer class="coda">
+      <p class="closer">
+        Everything above is checkable against the same product the rest of this site is built from, not against this
+        page's own word for it.
+      </p>
+
+      <p class="coda-links">
+        <a class="coda-link" href={dataHref}>What the dataset actually holds</a>
+        <span class="coda-sep" aria-hidden="true">&middot;</span>
+        <a class="coda-link" href={methodologyHref}>How the machine works</a>
+      </p>
+    </footer>
+  </div>
+</BaseLayout>
+
+<style>
+  .covenant {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-700);
+    padding-block: var(--space-700) var(--space-900);
+  }
+
+  .head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .stamp {
+    color: var(--color-muted);
+  }
+
+  .head-title {
+    max-width: 18ch;
+  }
+
+  .lede {
+    font-size: var(--size-300);
+    line-height: var(--leading-snug);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  .promises {
+    display: grid;
+    gap: var(--space-500);
+    margin: 0;
+    max-width: var(--layout-measure);
+  }
+
+  .promise {
+    display: grid;
+    gap: var(--space-200);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-400);
+  }
+
+  .promise-term {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-300);
+    font-size: var(--size-300);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  .promise-status {
+    color: var(--color-muted);
+    font-weight: var(--weight-medium);
+  }
+
+  /* The two not-yet-built promises take the quieter status colour they earn:
+     the promise itself is stated exactly as plainly as the seven that are
+     already checkable, because a covenant is not softer for being early, but
+     the tag beside it is not painted as an achievement either. */
+  .promise[data-covenant-kept='false'] .promise-status {
+    color: var(--color-muted);
+    font-style: italic;
+  }
+
+  .promise-detail {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+    text-wrap: pretty;
+  }
+
+  .coda {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-400);
+  }
+
+  .closer {
+    margin: 0;
+    max-width: var(--layout-measure);
+    font-size: var(--size-200);
+    color: var(--color-muted);
+  }
+
+  .coda-links {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-300);
+    align-items: center;
+  }
+
+  .coda-link {
+    font-size: var(--size-200);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .coda-link:hover {
+    color: var(--color-muted);
+  }
+
+  .coda-sep {
+    color: var(--color-muted);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .coda-link {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .covenant {
+      gap: var(--space-600);
+      padding-block: var(--space-600) var(--space-800);
+    }
+  }
+</style>

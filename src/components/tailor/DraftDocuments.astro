@@ -1,0 +1,570 @@
+---
+/**
+ * DraftDocuments.astro: the resume and cover letter render, as a component.
+ *
+ * EXTRACTED FROM THE OLD /account/tailor PAGE, WHICH THIS RUN DELETES. That
+ * page computed a render fresh on every request and threw it away; the
+ * draft room (src/pages/desk/draft/[id].astro) reads one back from
+ * db/012_drafting.sql's generated_render table instead. Nothing about how
+ * a render is DISPLAYED changed in that move, so nothing about this markup
+ * did either: the two <article> blocks below, their per-bullet provenance
+ * line, and the "Print or save as PDF" button (with the print stylesheet
+ * that IS the PDF export, RUN-MASTER section 3) are the same rendering the
+ * old page carried, given a name and a prop contract so the draft room, and
+ * only the draft room, can call it.
+ *
+ * WHAT THIS COMPONENT DOES NOT DO. It never calls renderResume() or
+ * renderCover(): resume and cover arrive as already-computed
+ * ResumeRender/CoverRender values (src/lib/tailor.ts), read back from
+ * storage by the caller. It never decides 'ready' vs 'fallback': that
+ * status is the caller's own read of db/012_drafting.sql's status column,
+ * collapsed to one boolean (`fallback`) before it reaches this component,
+ * because a document either shows the fallback notice or it does not; there
+ * is nothing else here that branches on 'pending' or 'ready' specifically.
+ *
+ * PROVENANCE, PROVIDER, AND FALLBACK. Every bullet's `Source: ...` line
+ * comes straight off `bullet.sourcePrfIds`, exactly as the old page printed
+ * it: this component holds no logic that decides which ids a bullet cites,
+ * only what the render already decided. `provider`/`model` name what was
+ * CONFIGURED for this draft; `fallback` is the plain fact of whether the
+ * deterministic writer stood in because the provider call failed.
+ *
+ * THE TWO NOTES ARE MUTUALLY EXCLUSIVE, NOT INDEPENDENT. An earlier version
+ * printed both lines whenever both facts were set, which put "Drafted using
+ * your connected Anthropic key" directly above "your connected AI provider
+ * could not be used", a flat contradiction a reader cannot resolve. A draft
+ * was written by the provider or it fell back to the built-in writer, never
+ * both, so exactly one line shows: the "drafted using" credit only when the
+ * provider actually produced the text (not fallback), and the fallback
+ * notice, which names the provider it tried, otherwise.
+ */
+import { PROVIDER_REGISTRY } from '../../lib/generation-providers';
+import type { ResumeRender, CoverRender, RenderEntry, RenderHeader, TargetSummary } from '../../lib/tailor';
+import { DESCRIPTION_KINDS } from '../../lib/tailor';
+import { groupResumeSection, type ResumeGroup } from '../../lib/resume-grouping';
+
+interface Props {
+  /** Each document is optional: the job-draft room reveals one the moment it is
+      ready and passes the other as null while it is still drafting or has
+      failed, filling the gap with a `resume` / `cover` slot (a loading or a
+      per-document failure state). The apply room passes both. */
+  resume?: ResumeRender | null;
+  cover?: CoverRender | null;
+  /** The provider id db/012_drafting.sql's generated_render.provider column
+      holds (e.g. 'anthropic'), or null when no provider was configured for
+      this draft (a deterministic-only account). */
+  provider: string | null;
+  model: string | null;
+  /** True when either document's stored status is 'fallback': the
+      deterministic writer produced what is shown, not the named provider. */
+  fallback: boolean;
+}
+
+const { resume, cover, provider, model, fallback } = Astro.props;
+
+// Names the provider that was tried, so the notice does not contradict the
+// "drafted using your X key" credit it now replaces (they never show together).
+// `provider` is always set when `fallback` is true: the caller only passes
+// fallback for a draft that named a provider and fell back (see [slug].astro's
+// providerTried && fellBack), so the built-in writer standing in is always "we
+// tried YOUR key and could not use it", never an anonymous failure.
+const fallbackNotice = provider
+  ? `Your connected ${providerLabel(provider)} key could not be used for this draft, so the built-in writer wrote it instead.`
+  : 'Your connected AI provider could not be used for this draft, so the built-in writer wrote it instead.';
+
+/** Defensive, not load-bearing: `provider` always names one of
+    PROVIDER_REGISTRY's four keys in practice (generation-preference-store.ts
+    only ever writes a Provider id there), but this component reads a plain
+    string prop, not the branded type, so an unrecognised value degrades to
+    showing the id itself rather than throwing. */
+function providerLabel(id: string): string {
+  return (PROVIDER_REGISTRY as Record<string, { label: string }>)[id]?.label ?? id;
+}
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+] as const;
+
+function formatDate(year: number, month: number | null): string {
+  return month === null ? String(year) : `${MONTH_NAMES[month - 1]} ${year}`;
+}
+
+function formatRange(entry: RenderEntry): string {
+  const start = formatDate(entry.core.start.year, entry.core.start.month);
+  const end = entry.core.end === null ? 'Present' : formatDate(entry.core.end.year, entry.core.end.month);
+  return `${start} to ${end}`;
+}
+
+/** The date range for a folded credential group (resume-grouping.ts): the same
+    shape as an entry's, from the group's own combined start and end. */
+function formatGroupRange(group: ResumeGroup): string {
+  const start = formatDate(group.start.year, group.start.month);
+  const end = group.end === null ? 'Present' : formatDate(group.end.year, group.end.month);
+  return `${start} to ${end}`;
+}
+
+/** Mirrors the old tailor.astro's own targetSummaryLine(), adapted to read
+    a render's own TargetSummary (target.title/target.company) rather than
+    the Target it was built from, since neither document holds a Target of
+    its own once it is a stored render: only the render's own summary of
+    it survives the round trip through db/012_drafting.sql's jsonb
+    payload column. */
+function targetSummaryLine(target: TargetSummary): string {
+  if (target.kind === 'verified_posting') {
+    return target.title ? `${target.title}, ${target.company}` : target.company;
+  }
+  return 'Free text you typed, not a verified posting';
+}
+
+/** True only when there is something to show: a name, a contact email, or at
+    least one link. A render stored before tailor.ts grew a header field reads
+    back with `header: undefined` (draft/[id].astro casts the jsonb payload with
+    no re-validation), which this narrows out the same as an explicit null, so
+    an old draft renders no empty contact box. The `!!header.email` clause also
+    tolerates an older payload whose header predates the email field, where
+    `header.email` reads back as undefined: it is treated exactly as an absent
+    email, never crashing the guard. The header prints: it is the top of the
+    resume, so unlike the notices above it carries no .no-print and the @media
+    print block below never hides it. */
+function hasContactHeader(header: RenderHeader | null | undefined): header is RenderHeader {
+  return !!header && (header.name !== null || header.links.length > 0 || !!header.email);
+}
+---
+
+{
+  provider && !fallback && (
+    <p class="draft-provider-note no-print">
+      Drafted using your connected {providerLabel(provider)}
+      {model && ` (${model})`} key.
+    </p>
+  )
+}
+
+{
+  fallback && (
+    <p class="draft-issue no-print" role="alert">
+      {fallbackNotice}
+    </p>
+  )
+}
+
+{resume ? (
+<article class="draft-document" aria-label="Resume">
+  {
+    hasContactHeader(resume.header) && (
+      <header class="doc-contact">
+        {resume.header.name && <p class="contact-name">{resume.header.name}</p>}
+        {resume.header.email && <p class="contact-email">{resume.header.email}</p>}
+        {resume.header.links.length > 0 && (
+          <p class="contact-links">
+            {resume.header.links.map((link, index) => (
+              <>
+                {index > 0 && <span class="contact-sep" aria-hidden="true">/</span>}
+                <a href={link.url} rel="noopener nofollow" target="_blank">{link.label}</a>
+              </>
+            ))}
+          </p>
+        )}
+      </header>
+    )
+  }
+
+  <header class="doc-head">
+    <h2>Resume</h2>
+    <p class="doc-target mono">Targeted at: {targetSummaryLine(resume.target)}</p>
+  </header>
+
+  {resume.sections.map((section) => (
+    <section class="doc-section">
+      <h3 class="doc-heading mono-label">{section.heading}</h3>
+      {groupResumeSection(section).map((row) => (
+        row.kind === 'entry' ? (
+          <div class="doc-entry">
+            <div class="entry-core">
+              <span class="entry-title">{row.entry.core.officialTitle}</span>
+              {row.entry.core.employerOrInstitution && <span class="entry-employer">{row.entry.core.employerOrInstitution}</span>}
+              <span class="entry-dates mono">{formatRange(row.entry)}</span>
+            </div>
+            {row.entry.bullets.length === 0 ? (
+              DESCRIPTION_KINDS.has(row.entry.kind) && (
+                <p class="entry-empty">No description on record for this entry.</p>
+              )
+            ) : (
+              row.entry.bullets.map((bullet) => (
+                <p class="entry-bullet">
+                  {bullet.text}
+                  <span class="bullet-provenance mono">Source: {bullet.sourcePrfIds.join(', ')}</span>
+                </p>
+              ))
+            )}
+          </div>
+        ) : (
+          <div class="doc-entry">
+            <div class="entry-core">
+              <span class="entry-title">{row.group.issuer}</span>
+              <span class="entry-dates mono">{formatGroupRange(row.group)}</span>
+            </div>
+            <p class="entry-bullet">
+              {row.group.titles.join(', ')}
+              <span class="bullet-provenance mono">Source: {row.group.prfIds.join(', ')}</span>
+            </p>
+          </div>
+        )
+      ))}
+    </section>
+  ))}
+
+  {resume.provenance.bulletCount > 0 && (
+    <p class="doc-receipts">
+      Every line traces to the record: {resume.provenance.bulletCount}{' '}
+      {resume.provenance.bulletCount === 1 ? 'line cites' : 'lines cite'}{' '}
+      {resume.provenance.citedPrfIds.length}{' '}
+      {resume.provenance.citedPrfIds.length === 1 ? 'record entry' : 'record entries'}.
+    </p>
+  )}
+</article>
+) : (
+  <slot name="resume" />
+)}
+
+{cover ? (
+<article class="draft-document" aria-label="Cover letter">
+  {
+    hasContactHeader(cover.header) && (
+      <header class="doc-contact">
+        {cover.header.name && <p class="contact-name">{cover.header.name}</p>}
+        {cover.header.email && <p class="contact-email">{cover.header.email}</p>}
+        {cover.header.links.length > 0 && (
+          <p class="contact-links">
+            {cover.header.links.map((link, index) => (
+              <>
+                {index > 0 && <span class="contact-sep" aria-hidden="true">/</span>}
+                <a href={link.url} rel="noopener nofollow" target="_blank">{link.label}</a>
+              </>
+            ))}
+          </p>
+        )}
+      </header>
+    )
+  }
+
+  <header class="doc-head">
+    <h2>Cover letter</h2>
+    <p class="doc-target mono">Targeted at: {targetSummaryLine(cover.target)}</p>
+  </header>
+
+  <p class="doc-salutation">{cover.salutation}</p>
+
+  {
+    /* A real cover letter is prose paragraphs (cover.paragraphs). A render
+       stored before the letter engine existed reads back with paragraphs
+       undefined, and falls to the legacy branch: the resume's own sections,
+       exactly as it rendered before, so an old draft never breaks. The
+       paragraph branch prints no headings, no entry cores, and no Source:
+       line: the letter is the document, and the receipts footer below still
+       reads the render's own provenance. */
+    cover.paragraphs
+      ? cover.paragraphs.map((paragraph) => <p class="doc-paragraph">{paragraph.text}</p>)
+      : cover.sections.map((section) => (
+          <section class="doc-section">
+            <h3 class="doc-heading mono-label">{section.heading}</h3>
+            {section.entries.map((entry) => (
+              <div class="doc-entry">
+                <div class="entry-core">
+                  <span class="entry-title">{entry.core.officialTitle}</span>
+                  {entry.core.employerOrInstitution && <span class="entry-employer">{entry.core.employerOrInstitution}</span>}
+                  <span class="entry-dates mono">{formatRange(entry)}</span>
+                </div>
+                {entry.bullets.length === 0 ? (
+                  DESCRIPTION_KINDS.has(entry.kind) && (
+                    <p class="entry-empty">No description on record for this entry.</p>
+                  )
+                ) : (
+                  entry.bullets.map((bullet) => (
+                    <p class="entry-bullet">
+                      {bullet.text}
+                      <span class="bullet-provenance mono">Source: {bullet.sourcePrfIds.join(', ')}</span>
+                    </p>
+                  ))
+                )}
+              </div>
+            ))}
+          </section>
+        ))
+  }
+
+  <p class="doc-closing">{cover.closing}</p>
+  {cover.paragraphs && cover.header?.name && <p class="doc-signoff-name">{cover.header.name}</p>}
+
+  {cover.provenance.bulletCount > 0 && (
+    <p class="doc-receipts">
+      Every line traces to the record: {cover.provenance.bulletCount}{' '}
+      {cover.provenance.bulletCount === 1 ? 'line cites' : 'lines cite'}{' '}
+      {cover.provenance.citedPrfIds.length}{' '}
+      {cover.provenance.citedPrfIds.length === 1 ? 'record entry' : 'record entries'}.
+    </p>
+  )}
+</article>
+) : (
+  <slot name="cover" />
+)}
+
+{(resume || cover) && (
+<div class="draft-actions no-print">
+  <button class="field-submit" type="button" id="draft-print">Print or save as PDF</button>
+  <p class="field-hint">
+    Or use your browser's own print command. Either way, what prints is the document or documents above:
+    no chrome, no provenance ids, no notices.
+  </p>
+</div>
+)}
+
+<script>
+  // Progressive enhancement only. Without this, the button is simply not
+  // there to click (see the no-script fallback line beside it): a person's
+  // browser print command (Ctrl+P / Cmd+P) reaches the exact same print
+  // stylesheet either way, because nothing about that stylesheet depends on
+  // how printing was invoked.
+  document.querySelector<HTMLButtonElement>('#draft-print')?.addEventListener('click', () => {
+    window.print();
+  });
+</script>
+
+<style>
+  .draft-provider-note {
+    margin: 0;
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line);
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .draft-issue {
+    margin: 0;
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-heavy) solid var(--color-foreground);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+
+  /* The two documents. Everything in here, and nothing outside it, is what
+     the print stylesheet below keeps on the printed page. */
+  .draft-document {
+    border: var(--border-hairline) solid var(--color-line);
+    background: var(--color-surface-raised);
+    padding: var(--space-500);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    margin-top: var(--space-400);
+  }
+  /* The person's own name and links, the top of the printed document.
+     Deliberately not .no-print: this is document content, not chrome. */
+  .doc-contact {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+  }
+  .contact-name {
+    margin: 0;
+    font-size: var(--size-300);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+    color: var(--color-foreground);
+  }
+  /* The contact email, a plain line under the name. Same muted-to-foreground
+     register as the links below it, not the bold name above: it is reference
+     detail, not the headline. Margin tokenized so global.css's own p defaults
+     never leak in. */
+  .contact-email {
+    margin: 0;
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .contact-links {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-200);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+  }
+  .contact-links a {
+    color: var(--color-foreground);
+  }
+  .contact-sep {
+    color: var(--color-muted);
+  }
+  .doc-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+    padding-bottom: var(--space-300);
+    border-bottom: var(--border-heavy) solid var(--color-foreground);
+  }
+  .doc-head h2 {
+    margin: 0;
+    font-size: var(--size-400);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+  }
+  .doc-target {
+    margin: 0;
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .doc-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+  .doc-heading {
+    margin: 0;
+    color: var(--color-muted);
+  }
+  .doc-entry {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-150);
+  }
+  .entry-core {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-200);
+  }
+  .entry-title {
+    font-size: var(--size-200);
+    font-weight: var(--weight-bold);
+    color: var(--color-foreground);
+  }
+  .entry-employer {
+    font-size: var(--size-150);
+    color: var(--color-foreground);
+  }
+  .entry-dates {
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    margin-left: auto;
+  }
+  .entry-empty {
+    margin: 0;
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    font-style: italic;
+  }
+  .entry-bullet {
+    margin: 0;
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-200);
+  }
+  .bullet-provenance {
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    letter-spacing: var(--tracking-normal);
+  }
+  .doc-salutation,
+  .doc-closing {
+    margin: 0;
+    font-size: var(--size-150);
+    color: var(--color-foreground);
+  }
+  /* The letter's own paragraphs, opener to close. Reading measure and normal
+     leading, the register of prose rather than the resume's tighter bullet
+     lines. */
+  .doc-paragraph {
+    margin: 0;
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  /* The typed name under "Sincerely," on a letter. */
+  .doc-signoff-name {
+    margin: 0;
+    font-size: var(--size-150);
+    color: var(--color-foreground);
+  }
+  .doc-receipts {
+    margin: 0;
+    padding-top: var(--space-300);
+    border-top: var(--border-hairline) solid var(--color-line);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  .draft-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-200);
+    margin-top: var(--space-400);
+  }
+  .field-hint {
+    margin: 0;
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+  .field-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+
+  /* This component's own print layout. Chrome-hiding (site header, footer,
+     skip link) lives in src/styles/global.css instead: those elements are
+     rendered by BaseLayout.astro, outside this component's own template, so
+     a style scoped here cannot reach them. .no-print (defined globally) is
+     applied throughout the markup above to everything that is a control
+     rather than document content; what remains is the two .draft-document
+     articles, which is the whole of what should print. */
+  @media print {
+    .draft-document {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      break-inside: avoid;
+    }
+    /* A page break may fall between entries, never inside one: a bullet
+       separated from its own title and dates by a page edge is unreadable
+       as a resume. */
+    .doc-entry {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .doc-section {
+      break-inside: avoid-page;
+    }
+    .bullet-provenance {
+      display: none;
+    }
+    .doc-receipts {
+      display: none;
+    }
+  }
+</style>

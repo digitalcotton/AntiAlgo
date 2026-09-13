@@ -1,0 +1,262 @@
+---
+/**
+ * /u/[handle]: MASTER-SPEC F8's public identifier, RUN-MASTER amendment 6's
+ * private-only cut of it. "Public profiles ship built, but visibility is
+ * locked to private-only this run. Anything above private ships flag-dark."
+ * flags.config.mjs's `profiles_public` is that lock, and it is locked
+ * false in every edition; read its own `why` field.
+ *
+ * OWNER OR 404, NOTHING ELSE, AND NOTHING IN BETWEEN. A signed-out visitor,
+ * a signed-in stranger, and a request for a handle nobody owns must all get
+ * the identical response, so that "private" and "does not exist" are
+ * indistinguishable to someone probing for handles. This file makes exactly
+ * one ownership decision, through src/lib/record-store.ts's
+ * decideHandleView() (see that function's own header for why it is pure
+ * and lives there, not here), and every branch that fails it returns the
+ * SAME notFound() call below: one literal Response, one status, one body,
+ * one Content-Type, built once and reused, not re-typed at each call site
+ * where a typo could quietly change one byte of one branch's answer.
+ *
+ * NO FLAG CHECK IN THIS FILE, AND THAT IS THE POINT. This page does not
+ * import isOn() or routeIsLit() from src/lib/flags.ts, and does not branch
+ * on `profiles_public` anywhere. That is deliberate, not an oversight: a
+ * condition shaped like `if (isOn('profiles_public') || isOwner)` is
+ * exactly the "public view that only a flag stands between" this task's
+ * brief forbids, because the day somebody flips that flag true, this page
+ * would start serving strangers with no other code changed. Owner-or-404 is
+ * the entire rule, unconditionally, so `profiles_public` being dark can
+ * mean nothing renders publicly, under any condition: there is no code
+ * path here that would show anyone but the owner a rendered profile no
+ * matter what the flag says.
+ *
+ * RENDERS THROUGH RecordView, THE SEAM IT WAS EXTRACTED FOR.
+ * src/components/profile/RecordView.astro's own header already names this
+ * exact page: "This is the seam phase 9's handle page renders through for
+ * a reader who is not the owner: same component, editable={false}, no
+ * rewrite." `editable={false}` is passed with no edit-related props at
+ * all, which is what keeps this route from needing any of
+ * record-relay.ts's cookie machinery: there is no form here to fail, so
+ * there is nothing to relay back.
+ *
+ * WHY THIS RESOLVES A REAL VIEWER AT ALL. '/u' is not a member-gated prefix
+ * in src/lib/entitlement.ts's GATED_PREFIXES: gating it there would mean a
+ * signed-out or non-member visitor gets bounced by the entitlement verdict
+ * before this file's own ownership check ever runs, which would make an
+ * unclaimed handle and a claimed one behave differently for a stranger (a
+ * tier verdict rather than a flat 404), the exact asymmetry this route
+ * exists to avoid. What this route needs instead is only for middleware to
+ * resolve Astro.locals.viewer at all: middleware.ts's own needsViewer()
+ * currently does that for a path only when it is gated OR listed in the
+ * SESSION_AWARE array, and '/u' is in neither today. Until '/u' is added
+ * to SESSION_AWARE, Astro.locals.viewer is unconditionally null on this
+ * route (middleware's own early-return branch for a path needsViewer()
+ * says no to), which makes decideHandleView() refuse even the real owner.
+ * This is not something this file can fix; middleware.ts is outside this
+ * task's file list. See this task's own report, HANDOFF section, for the
+ * exact one-line addition needed and why a addition to SESSION_AWARE (not
+ * GATED_PREFIXES) is the correct one.
+ *
+ * NEVER PRERENDERED. Ownership is a per-request fact (who is signed in,
+ * right now), so a build-time render could only ever be correct for
+ * whichever request happened to trigger it once.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Panel from '../../components/Panel.astro';
+import RecordView from '../../components/profile/RecordView.astro';
+import {
+  decideHandleView,
+  foldHandleCase,
+  listEntries,
+  listLinks,
+  ownerOfHandle,
+  personName
+} from '../../lib/record-store';
+import { linkPlatformLabel } from '../../lib/profile-links';
+import { routeFor } from '../../data/nav';
+
+export const prerender = false;
+
+/**
+ * One literal Response, called from every branch that is not the owner.
+ * Same status, same body, same header, every time: this is the mechanism
+ * that makes the three refusal cases byte-identical, not a promise kept by
+ * writing the same three values out three separate times and hoping they
+ * never drift apart. Matches the plain-text 404 src/middleware.ts already
+ * returns for a flag-dark route, so a reader (or a script comparing
+ * responses across this site) sees one house style for "nothing here",
+ * not a second one this route invented for itself.
+ */
+function notFound(): Response {
+  return new Response('Not found.', {
+    status: 404,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+  });
+}
+
+// foldHandleCase() before the lookup: /u/Ryan and /u/ryan are requests for
+// the same handle (see record-store.ts's own header on the case decision),
+// so both fold to the identical stored value before ownerOfHandle() ever
+// runs. A URL segment that folds to something validateHandleFormat() would
+// have refused (bad characters, wrong length) simply matches no row, the
+// same "unclaimed" answer any other unclaimed handle gets; this file does
+// not call validateHandleFormat() itself; a shape that could never have
+// been claimed and a shape that could have been but was not both correctly
+// end at ownerOfHandle() returning null.
+const rawHandle = Astro.params.handle ?? '';
+const handle = foldHandleCase(rawHandle);
+
+const ownerId = await ownerOfHandle(handle);
+const viewer = Astro.locals.viewer;
+const decision = decideHandleView(ownerId, viewer?.userId ?? null);
+
+if (decision === 'not-found') {
+  return notFound();
+}
+
+// decision === 'render' only when decideHandleView() found ownerId non-null
+// and equal to viewer.userId, so both are known-good from here on. The `!`
+// below documents that fact rather than re-deriving it with a second
+// runtime check decideHandleView() already made.
+const ownerUserId = ownerId!;
+const name = await personName(ownerUserId);
+const entries = await listEntries(ownerUserId);
+const links = await listLinks(ownerUserId);
+---
+
+<BaseLayout
+  title="Your profile"
+  description="Your handle, previewed exactly as it will read once visibility opens up."
+  noindex
+>
+  <section class="handle-page">
+    <div class="shell handle-shell">
+      <span class="kicker">Profile</span>
+      <h1>/u/{handle}</h1>
+
+      <p class="handle-note">
+        This is your own preview of this address. RUN-MASTER amendment 6 keeps every classification above
+        private dark this run, so nobody else can open /u/{handle}, whatever you choose per entry: a
+        signed-out visitor, anyone else's account, and a handle nobody has claimed all reach the identical
+        not-found page this one would show them too.
+      </p>
+
+      <Panel title="Identity" class="handle-panel">
+        <p class="handle-name">
+          {name && (name.firstName || name.lastName) ? `${name.firstName} ${name.lastName}`.trim() : 'No name on file'}
+        </p>
+      </Panel>
+
+      {links.length > 0 && (
+        <Panel title="Links" class="handle-panel">
+          <ul class="handle-links">
+            {links.map((link) => (
+              <li class="handle-links-item">
+                <span class="handle-links-where">{linkPlatformLabel(link.platform)}</span>
+                <a class="handle-link" href={link.url} rel="noopener nofollow" target="_blank">{link.url}</a>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      {
+        entries.length === 0 ? (
+          <Panel title="Nothing here yet" class="handle-panel">
+            <p class="handle-panel-line">
+              <a class="handle-link" href={routeFor('profile')}>Build your record</a> and it appears
+              here, in this same private preview.
+            </p>
+          </Panel>
+        ) : (
+          <RecordView entries={entries} editable={false} />
+        )
+      }
+
+      <div class="handle-back">
+        <a class="handle-link" href={routeFor('profile')}>Back to your profile</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .handle-page .handle-shell {
+    padding-block: var(--space-800) var(--space-1000);
+    max-width: 70ch;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+  }
+  .kicker {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  h1 {
+    margin: var(--space-300) 0 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-500);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-display);
+  }
+  .handle-note {
+    margin: 0;
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line);
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .handle-panel {
+    margin-top: var(--space-200);
+  }
+  .handle-panel-line {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .handle-name {
+    margin: 0;
+    font-size: var(--size-300);
+    font-weight: var(--weight-bold);
+    line-height: var(--leading-snug);
+    color: var(--color-foreground);
+  }
+  .handle-link {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    border-bottom: 1px solid var(--color-foreground);
+    padding-bottom: 2px;
+  }
+  .handle-back {
+    margin-top: var(--space-300);
+  }
+  .handle-links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+  .handle-links-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+    overflow-wrap: anywhere;
+  }
+  .handle-links-where {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+</style>

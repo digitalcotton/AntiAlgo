@@ -1,0 +1,611 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import CaptureModule from '../components/CaptureModule.astro';
+import Figure from '../components/report/Figure.astro';
+import KillStates from '../pages/kills/_KillStates.astro';
+import ImportBand from '../components/profile/ImportBand.astro';
+import ProposalForm from '../components/profile/ProposalForm.astro';
+import RecordView from '../components/profile/RecordView.astro';
+import ProviderRows, { type ProviderRow } from '../components/settings/ProviderRows.astro';
+import AccountRow from '../components/settings/AccountRow.astro';
+import DraftDocuments from '../components/tailor/DraftDocuments.astro';
+import { PROVIDER_REGISTRY } from '../lib/generation-providers';
+import { renderCover, renderResume, type ProfileRecord, type Target } from '../lib/tailor';
+import { routeFor } from '../data/nav';
+import { SUBSCRIBE_ENDPOINT } from '../data/site';
+import type { StoredEntry } from '../lib/record-store';
+import type { EntryProposal } from '../lib/resume-parse';
+
+/**
+ * The states review route, at /_states. Gated, never shipped.
+ *
+ * WHY IT EXISTS. BUILD.md's verifier list names silently skipped states as a
+ * failure mode this project has already had: "the design phase repeatedly
+ * shipped the desktop happy path and quietly dropped mobile, dark, empty,
+ * loading, and error." Mobile and dark are gated everywhere, because every
+ * route is photographed at two widths in two themes. Empty, loading and error
+ * were not, on the routes where no reader can reach them: a static build of one
+ * finished sweep has nothing loading and nothing failing, so those branches sat
+ * in the source behind an environment variable, absent from `dist/`, measured
+ * by nothing.
+ *
+ * This route is where they are measured. It is injected by astro.config.mjs
+ * under `astro dev` or `SPECIMEN=1 astro build`, which is what
+ * `npm run build:gated` emits into dist-review/, so axe reads these states and
+ * Lighthouse weighs them. A plain `astro build` does not emit it, and
+ * `test/route-census.mjs` proves both halves on every run, the same
+ * arrangement `/_specimen` already lives under.
+ *
+ * WHAT IT IS NOT. It is not a states gallery of the whole site, and it is not a
+ * design surface of its own. Every block below is the real component with the
+ * real copy, imported from the page that owns it: `_KillStates.astro` for the
+ * kill list, `Figure` for the report. Nothing here is written twice, so nothing
+ * here can drift from what a reader would see the night one of these states is
+ * true. And nothing here invents a row: an empty state is empty because there
+ * is nothing to draw, which is the only honest way to show one.
+ *
+ * WHERE A STATE IS ABSENT ON PURPOSE, IT IS NAMED BELOW RATHER THAN QUIETLY
+ * MISSING. A static document with no client-side fetch has no loading state and
+ * no error state to design, and drawing one would be theatre of the kind the
+ * manifesto next door is against.
+ */
+
+const killsHref = routeFor('kills');
+const reportHref = routeFor('report');
+const indexHref = routeFor('index');
+const deskHref = routeFor('desk');
+const profileHref = routeFor('profile');
+const settingsHref = routeFor('settings');
+
+// A real drafted resume and cover letter, rendered through the same engine and
+// the same DraftDocuments component the desk uses, so the gates photograph a
+// genuine letter (prose paragraphs, not the resume's sections) rather than a
+// hand-built mock. Deterministic, so the shot is stable.
+const DRAFT_ENTRIES: ProfileRecord = [
+  {
+    prfId: 'PRF-0001',
+    kind: 'role_held',
+    employerOrInstitution: 'Shopify',
+    officialTitle: 'Staff Product Designer',
+    start: { year: 2021, month: 3 },
+    end: null,
+    location: 'Remote',
+    description: 'Led the checkout redesign that lifted conversion 12 percent over the prior flow.\nRan the design system used across forty engineers.',
+    classification: 'private',
+    provenance: 'you_told_us',
+    artifacts: []
+  },
+  {
+    prfId: 'PRF-0002',
+    kind: 'project',
+    employerOrInstitution: null,
+    officialTitle: 'Type Specimen Tool',
+    start: { year: 2020, month: 1 },
+    end: { year: 2020, month: 8 },
+    location: null,
+    description: 'Built an open-source type tester used by 3000 designers.',
+    classification: 'public',
+    provenance: 'you_told_us',
+    artifacts: []
+  },
+  {
+    prfId: 'PRF-0003',
+    kind: 'skill',
+    employerOrInstitution: null,
+    officialTitle: 'Figma',
+    start: { year: 2018, month: 1 },
+    end: null,
+    location: null,
+    description: 'Daily driver for seven years.',
+    classification: 'public',
+    provenance: 'you_told_us',
+    artifacts: []
+  }
+];
+// The renderer reads only the job's company, title, description_html, id and
+// slug; the fuller Job shape is cast past here rather than filled with fields
+// no render touches, the same partial-Job shortcut the engine's own tests use.
+const DRAFT_TARGET = {
+  kind: 'verified_posting',
+  job: {
+    id: 'job-specimen',
+    slug: 'northwind-product-designer',
+    company: 'Northwind',
+    title: 'Product Designer',
+    description_html:
+      '<h3>What you will bring</h3><ul><li>You have shipped a checkout or onboarding flow end to end.</li><li>Five years of product design experience.</li><li>Strong Figma skills and a systems mindset.</li></ul>'
+  }
+} as unknown as Target;
+const DRAFT_HEADER = { name: 'Alex Rivera', email: 'alex@example.com', links: [{ label: 'Portfolio', url: 'https://example.com' }] };
+const draftResume = await renderResume(DRAFT_ENTRIES, DRAFT_TARGET, undefined, DRAFT_HEADER);
+const draftCover = await renderCover(DRAFT_ENTRIES, DRAFT_TARGET, undefined, null, DRAFT_HEADER, {
+  reason: 'I have wanted to design for a small, fast team since I first shipped on one.'
+});
+
+/* Made-up provider rows for the Settings section, built from the real registry
+   so labels, notes and the default cannot drift from what /settings renders.
+   Anthropic connected (writing at the default, Opus 5), OpenAI not connected. */
+function readTierLabel(def: (typeof PROVIDER_REGISTRY)[keyof typeof PROVIDER_REGISTRY]): string {
+  return def.writingModels.find((model) => model.id === def.copyModel)?.label ?? def.copyModel;
+}
+function modelsFor(def: (typeof PROVIDER_REGISTRY)[keyof typeof PROVIDER_REGISTRY], chosen: string) {
+  return def.writingModels.map((model) => ({
+    id: model.id,
+    label: model.label,
+    note: model.note,
+    current: model.id === chosen
+  }));
+}
+const anthropicDef = PROVIDER_REGISTRY.anthropic;
+const openaiDef = PROVIDER_REGISTRY.openai;
+const PROVIDER_ROWS: ProviderRow[] = [
+  {
+    provider: 'anthropic',
+    name: anthropicDef.label,
+    connected: true,
+    tail: 'wxyz',
+    added: 'March 3, 2026',
+    replaced: null,
+    writingLabel: anthropicDef.writingModels.find((m) => m.id === anthropicDef.defaultWritingModel)?.label ?? null,
+    readModelLabel: readTierLabel(anthropicDef),
+    models: modelsFor(anthropicDef, anthropicDef.defaultWritingModel),
+    relayError: null
+  },
+  {
+    provider: 'openai',
+    name: openaiDef.label,
+    connected: false,
+    tail: null,
+    added: null,
+    replaced: null,
+    writingLabel: null,
+    readModelLabel: readTierLabel(openaiDef),
+    models: modelsFor(openaiDef, openaiDef.defaultWritingModel),
+    relayError: null
+  }
+];
+
+/* The made-up record and the made-up read below. Invented, and they have to
+   be: /profile is signed in and per request, so there is no fixture sweep to
+   draw a real one from, the way the kill list and the report figures draw
+   theirs. Everything here is obviously fictional (one employer called Northwind,
+   one person called Alex Rivera) so nobody can mistake a review surface for
+   somebody's record. */
+const BLANK_ENTRY_VALUES = {
+  kind: '',
+  employerOrInstitution: '',
+  officialTitle: '',
+  startYear: '',
+  startMonth: '',
+  stillHere: false,
+  endYear: '',
+  endMonth: '',
+  location: '',
+  description: '',
+  classification: 'private'
+};
+
+const RECORD_STATE: StoredEntry[] = [
+  {
+    prfId: 'PRF-0001',
+    kind: 'role_held',
+    employerOrInstitution: 'Northwind Utilities',
+    officialTitle: 'Product Design and Strategy Manager, Platform',
+    start: { year: 2023, month: 6 },
+    end: null,
+    location: 'Atlanta, GA',
+    description:
+      'Led an eight-person design team across customer, employee and operational surfaces, owning direction, staffing and the craft bar.',
+    classification: 'private',
+    provenance: 'you_told_us',
+    artifacts: [{ id: 1, kind: 'case_study', url: 'https://example.com/case-study', label: 'The platform rebuild' }]
+  },
+  {
+    prfId: 'PRF-0002',
+    kind: 'role_held',
+    employerOrInstitution: 'Meridian Health',
+    officialTitle: 'Lead Product Designer',
+    start: { year: 2022, month: 7 },
+    end: { year: 2023, month: 6 },
+    location: 'Los Angeles, CA',
+    description: 'Redesigned patient onboarding across mobile and desktop.',
+    classification: 'private',
+    provenance: 'you_told_us',
+    artifacts: []
+  },
+  {
+    prfId: 'PRF-0003',
+    kind: 'recognition',
+    employerOrInstitution: null,
+    officialTitle: 'Design Sprint Master',
+    start: { year: 2019, month: null },
+    end: null,
+    location: null,
+    description: '',
+    classification: 'private',
+    provenance: 'you_told_us',
+    artifacts: []
+  }
+];
+
+const PROPOSAL_STATE: EntryProposal[] = [
+  {
+    candidate: {
+      kind: 'role_held',
+      employerOrInstitution: 'Bellweather',
+      officialTitle: 'Senior UX Designer',
+      start: { year: 2012, month: 3 },
+      end: { year: 2014, month: 10 },
+      location: 'Atlanta, GA',
+      description: 'Designed commerce experiences for retail clients, from concept through delivery.',
+      classification: 'private',
+      artifacts: []
+    },
+    sourceQuotes: { officialTitle: 'Senior UX Designer', employerOrInstitution: 'Bellweather' }
+  },
+  {
+    candidate: {
+      kind: 'education',
+      employerOrInstitution: 'State University',
+      officialTitle: 'BFA, Graphic Design',
+      start: { year: 2006, month: 9 },
+      end: { year: 2010, month: 5 },
+      location: null,
+      description: '',
+      classification: 'private',
+      artifacts: []
+    },
+    sourceQuotes: { officialTitle: 'BFA, Graphic Design' }
+  }
+];
+---
+
+<BaseLayout
+  title="Designed states"
+  description="The review surface for the empty, loading and error states no reader can reach on a static build of one sweep. Gated, never shipped."
+  noindex
+>
+  <div class="shell states">
+    <header class="states-head">
+      <p class="states-eyebrow mono">Review surface</p>
+      <h1 class="states-title">Every state that ships, including the ones nobody can reach.</h1>
+      <p class="states-lede">
+        This route is not part of the site. It is injected into the gated build so that the states
+        below are read by the accessibility gate, weighed by the performance gate and held to a
+        committed screenshot by the visual gate. A plain production build does not emit it, and the
+        route census fails if either half of that stops being true.
+      </p>
+    </header>
+
+    <section class="group" aria-labelledby="kills-states">
+      <h2 id="kills-states">The kill list, at <a class="group-link" href={killsHref}>/kills</a></h2>
+      <p class="group-note">
+        Three states, from `_KillStates.astro`, which is the same file the page renders under
+        <span class="mono">KILLS_STATE</span>. Empty is reachable by data: the night the machine
+        kills nothing, the list says so. Loading and error describe a future in which this page is
+        assembled in a browser rather than built.
+      </p>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">Empty</p>
+        <KillStates state="empty" heading={false} />
+      </div>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">Loading</p>
+        <KillStates state="loading" heading={false} />
+      </div>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">Error</p>
+        <KillStates state="error" heading={false} />
+      </div>
+    </section>
+
+    <section class="group" aria-labelledby="report-states">
+      <h2 id="report-states">The report figures, at <a class="group-link" href={reportHref}>/report</a></h2>
+      <p class="group-note">
+        A figure hands its plot area to the same three shared components. On sweep 001 every
+        predicate on that page is true, so all four figures draw, and these three paths ship as
+        code a reviewer could not otherwise see.
+      </p>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">Empty</p>
+        <Figure number={1} pattern="Trend" title="A figure whose series has no rows" state="empty">
+          <p slot="source" class="mono">Review surface, no series drawn</p>
+        </Figure>
+      </div>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">Loading</p>
+        <Figure number={2} pattern="Ranked bar" title="A figure waiting for its series" state="loading">
+          <p slot="source" class="mono">Review surface, no series drawn</p>
+        </Figure>
+      </div>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">Error</p>
+        <Figure number={3} pattern="Distribution" title="A figure whose series did not load" state="error">
+          <p slot="source" class="mono">Review surface, no series drawn</p>
+        </Figure>
+      </div>
+    </section>
+
+    <section class="group" aria-labelledby="capture-states">
+      <h2 id="capture-states">The capture module, at <a class="group-link" href={deskHref}>/desk</a> and on the index</h2>
+      <p class="group-note">
+        Four outcomes, from `CaptureModule.astro`, which is the same file both capture surfaces
+        compose. A reader reaches one of these by submitting the form and being redirected back to a
+        fragment, which `:target` then reveals, so only one can ever be lit at a time and only after
+        a real POST. This route asks for each in turn.
+      </p>
+      <p class="group-note">
+        {
+          SUBSCRIBE_ENDPOINT
+            ? 'There is an endpoint configured, so the form ships and these four are reachable in the site itself.'
+            : 'There is no endpoint configured, so no form ships and none of these is reachable in the site itself. That is the reason they are drawn here: a state that no page can enter is a state no gate reads, and this project has already shipped states nobody looked at. The module renders its announcement and a working mail path instead, and the fifth block below is that.'
+        }
+      </p>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">Joined</p>
+        <CaptureModule source="site" state="joined" />
+      </div>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">Pending</p>
+        <CaptureModule source="site" state="pending" />
+      </div>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">Pick one</p>
+        <CaptureModule source="site" state="pick" />
+      </div>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">Retry</p>
+        <CaptureModule source="site" state="retry" />
+      </div>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">No endpoint, which is what ships today</p>
+        <CaptureModule source="site" />
+      </div>
+    </section>
+
+    <section class="group" aria-labelledby="profile-states">
+      <h2 id="profile-states">The Profile Record, at <a class="group-link" href={profileHref}>/profile</a></h2>
+      <p class="group-note">
+        /profile is signed in and per request, so no gate had ever photographed a record row, an
+        import band or a resume review: none of them reaches <span class="mono">dist/client</span>.
+        These are the real <span class="mono">ImportBand</span>,
+        <span class="mono">RecordView</span> and <span class="mono">ProposalForm</span>, the same
+        three components that page renders, given a made-up record so the gates can read them. The
+        band's reading state is not below: a script reveals it when an upload starts, and a turning
+        ring is not something a screenshot can hold still.
+      </p>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">The import band, idle, with a key connected and a cover letter on file</p>
+        <ImportBand
+          state="idle"
+          hasProviderKey={true}
+          providerLabel="Anthropic"
+          parseAction={routeFor('profile-import-parse')}
+          reviewPath={routeFor('profile-review')}
+          profilePath={profileHref}
+          settingsPath={routeFor('settings')}
+          coverAction={routeFor('profile-import-cover')}
+          coverLetterOnFile={{ sourceName: 'ryan-payne-cover.pdf', addedLabel: 'March 3, 2026' }}
+        />
+      </div>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">The import band, with no key to read with</p>
+        <ImportBand
+          state="idle"
+          hasProviderKey={false}
+          parseAction={routeFor('profile-import-parse')}
+          reviewPath={routeFor('profile-review')}
+          profilePath={profileHref}
+          settingsPath={routeFor('settings')}
+        />
+      </div>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">The import band, after a confirm, with some entries left out</p>
+        <ImportBand
+          state="done"
+          receipt={{ created: 7, failed: 2, links: 1, name: true }}
+          hasProviderKey={true}
+          parseAction={routeFor('profile-import-parse')}
+          reviewPath={routeFor('profile-review')}
+          profilePath={profileHref}
+          settingsPath={routeFor('settings')}
+        />
+      </div>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">A record, one row per entry, one of them just imported</p>
+        <RecordView
+          entries={RECORD_STATE}
+          editable={true}
+          editParam={null}
+          newIds={['PRF-0003']}
+          editFormState={() => ({ values: BLANK_ENTRY_VALUES, issues: [] })}
+          artifactFormState={() => ({ kind: '', url: '', label: '', issues: [] })}
+          returnKey="profile"
+          recordPagePath={profileHref}
+          entryAction={routeFor('profile-entry')}
+          artifactActionPath={routeFor('profile-artifact')}
+        />
+      </div>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">A read waiting to be confirmed, one line per proposal</p>
+        <ProposalForm
+          entries={PROPOSAL_STATE}
+          links={[{ platform: 'github', url: 'https://github.com/example' }, { platform: 'linkedin', url: 'https://linkedin.com/in/example' }]}
+          nameProposal={{ first: 'Alex', last: 'Rivera' }}
+          existingLinkUrls={['https://linkedin.com/in/example']}
+          action={routeFor('profile-import')}
+        />
+      </div>
+    </section>
+
+    <section class="group" aria-labelledby="draft-states">
+      <h2 id="draft-states">The drafted documents, at <a class="group-link" href={deskHref}>/desk</a></h2>
+      <p class="group-note">
+        The draft room is signed in, so no gate had ever photographed a drafted resume or cover
+        letter. This is the real <span class="mono">DraftDocuments</span> the desk renders, given a
+        made-up record and posting run through the real engine. The cover letter is prose paragraphs
+        drawn from the record and the person's own reason, not a rendering of the resume: the defect
+        the letter engine was built to end.
+      </p>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">A drafted resume and cover letter, deterministic</p>
+        <DraftDocuments
+          resume={draftResume}
+          cover={draftCover}
+          provider={null}
+          model={null}
+          fallback={false}
+        />
+      </div>
+    </section>
+
+    <section class="group" aria-labelledby="settings-states">
+      <h2 id="settings-states">Models and keys, at <a class="group-link" href={settingsHref}>/settings</a></h2>
+      <p class="group-note">
+        /settings is signed in, so no gate had ever photographed this section. These are the real
+        <span class="mono">ProviderRows</span> the Settings page renders, given made-up rows so the gates
+        can read the key and model reveals. One provider connected, one not. Only the writing model is a
+        choice; the read tier is stated as fixed.
+      </p>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">The Account rows, one open for edit</p>
+        <AccountRow label="Name" value="Alex Rivera" action="Edit">
+          <p class="group-note">Stored exactly as you type it. Its edit form lives on the page.</p>
+        </AccountRow>
+        <AccountRow label="Email" value="alex@example.com" action="Edit" open={true}>
+          <p class="group-note">Open: the row expands to its own form, which settings.astro slots in.</p>
+        </AccountRow>
+        <AccountRow label="Handle" value="Not set" action="Edit" />
+      </div>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">One connected provider, one not</p>
+        <ProviderRows
+          rows={PROVIDER_ROWS}
+          modelAction={routeFor('settings-model')}
+          keysSaveAction={routeFor('settings-keys-save')}
+          keysRemoveAction={routeFor('settings-keys-remove')}
+          modelUpdated={false}
+          modelError={false}
+          settingsPath={settingsHref}
+          openModel="anthropic"
+          openKey="openai"
+        />
+      </div>
+    </section>
+
+    <section class="group" aria-labelledby="elsewhere">
+      <h2 id="elsewhere">States that live where a reader can reach them</h2>
+      <p class="group-note">
+        The index at <a class="group-link" href={indexHref}>/</a> carries its own three in the
+        document, each revealed by a real condition: empty when a reader filters past the last
+        match, loading when a control is used before the table's controller has arrived, error when
+        the controller never answers. They are not repeated here, because on that page they are
+        reachable, and a copy of a reachable state is a second thing to keep true.
+      </p>
+      <p class="group-note">
+        A job page, a share card, the manifesto and methodology ship no loading and no error state.
+        Each is a static document with nothing to fetch and nothing that can fail, so a skeleton or
+        an error panel there would be a drawing of a state the page cannot enter. That absence is a
+        decision, and it is in DECISIONS.md rather than left for somebody to find.
+      </p>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .states {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-700);
+    padding-block: var(--space-700) var(--space-800);
+  }
+
+  .states-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .states-eyebrow {
+    color: var(--color-muted);
+  }
+
+  .states-title {
+    max-width: 24ch;
+  }
+
+  .states-lede {
+    font-size: var(--size-300);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  .group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .group-note {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+
+  .group-link {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  /* Each specimen is labelled and boxed so a reviewer can tell where one state
+     ends and the next begins. The label is the machine voice because it names
+     the branch the code took, not a thing anybody wrote. */
+  .specimen {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    padding: var(--space-500);
+    background: var(--color-surface-raised);
+    border: var(--border-hairline) solid var(--color-line);
+  }
+
+  .specimen-label {
+    color: var(--color-muted);
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .states {
+      gap: var(--space-600);
+      padding-block: var(--space-600) var(--space-700);
+    }
+
+    .states-lede {
+      font-size: var(--size-200);
+    }
+
+    .specimen {
+      padding: var(--space-400);
+    }
+  }
+</style>

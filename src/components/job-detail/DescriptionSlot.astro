@@ -1,0 +1,229 @@
+---
+import { sourceLabel, type Job } from '../../lib/data';
+import { embedNote, renderableDescription } from '../../lib/description';
+
+/**
+ * The verbatim source description, or the slot where it will be.
+ *
+ * THIS IS THE MOST IMPORTANT EMPTY BOX ON THE SITE. The approved canvas draws
+ * it as a hatch with a line of machine voice across it, and decision 8H on that
+ * canvas picked option A: render the employer's own description in full,
+ * attributed to the feed, rather than write our own. `description_html` is null
+ * on all 38 records in this fixture, so what ships today is the slot, drawn as
+ * a slot.
+ *
+ * The alternative that must never happen is a page that fills the space with a
+ * summary of the role. It would read better, it would rank, and it would be us
+ * writing the employer's posting for them on the one page whose whole argument
+ * is that we only republish what we read. The hatch is the argument made
+ * visible: this is what an absence looks like when nobody is willing to guess.
+ *
+ * When the machine does fetch a description it arrives as markup and renders
+ * with set:html. That is deliberate and it is narrow: the string comes from the
+ * export script, which is the same trusted path the rest of the fixture takes,
+ * and rendering it as text would strip the paragraph breaks and lists that make
+ * a job description readable. Gate 3 lints the built HTML, so a fetched
+ * description carrying an em dash or a curly quote fails the build rather than
+ * shipping, which is the right place for that argument to happen.
+ *
+ * IT DOES NOT GO ON THE PAGE UNREAD. `renderableDescription()` in
+ * src/lib/description.ts removes remote embeds and renumbers the employer's
+ * heading levels so they nest under this section's own h2. Neither pass changes
+ * a word, and the argument for each is in that file. Where an embed is removed
+ * the fact is printed under the description in the machine voice, outside the
+ * employer's markup, because a page that quietly differs from the board it
+ * quotes is the thing this slot exists to refuse.
+ */
+
+interface Props {
+  job: Job;
+  class?: string;
+}
+
+const { job, class: className } = Astro.props;
+const source = sourceLabel(job);
+
+/* Base 3, because the section's own title above is an h2. */
+const description = renderableDescription(job.description_html, 3);
+const withheld = embedNote(description.removed);
+---
+
+<section class:list={['description', className]} aria-labelledby={`description-${job.slug}`}>
+  <h2 class="description-title mono-label" id={`description-${job.slug}`}>The description, as published</h2>
+
+  {
+    description.html ? (
+      <>
+        <div class="description-body" set:html={description.html} />
+        {withheld && <p class="description-withheld mono-label">{withheld}</p>}
+      </>
+    ) : (
+      <div class="description-slot">
+        <p class="description-note mono-label">
+          Nothing published in the feed we read. The description renders here verbatim from {source},
+          never paraphrased, never summarised.
+        </p>
+      </div>
+    )
+  }
+</section>
+
+<style>
+  .description {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-400);
+  }
+
+  .description-title {
+    color: var(--color-muted);
+  }
+
+  .description-body {
+    max-width: var(--layout-measure);
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+  }
+
+  /* The employer's own markup arrives through set:html, so it carries none of
+     this page's scope attribute; these rules reach it with :global, kept under
+     .description-body so they touch only the republished description and nothing
+     else on the page. The job: give the posting a reading hierarchy (headings
+     that separate sections, lists that read as lists, paragraphs with air)
+     without changing a word of it. The employer wrote the content; the site owns
+     how legibly it renders.
+
+     A first child needs no gap above it: the section's own border and title
+     already sit there. */
+  .description-body :global(> *:first-child) {
+    margin-block-start: 0;
+  }
+
+  /* Section headings. renderableDescription() renumbers the employer's headings
+     to nest under this section's h2, so the shallowest lands at h3; each level
+     is styled so a reader can tell a section break from a sub-point. The space
+     above is what separates one section from the paragraph before it, which is
+     the single change that turns the wall back into sections. */
+  .description-body :global(h3),
+  .description-body :global(h4),
+  .description-body :global(h5),
+  .description-body :global(h6) {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-bold);
+    line-height: var(--leading-snug);
+    letter-spacing: var(--tracking-tight);
+    margin-block: var(--space-600) var(--space-300);
+  }
+
+  .description-body :global(h3) {
+    font-size: var(--size-300);
+  }
+
+  .description-body :global(h4) {
+    font-size: var(--size-200);
+  }
+
+  .description-body :global(h5),
+  .description-body :global(h6) {
+    font-size: var(--size-100);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--color-muted);
+  }
+
+  .description-body :global(p) {
+    margin-block: 0 var(--space-300);
+  }
+
+  /* Lists read as lists again: an indent, a marker, and space between items,
+     which the site's own reset had stripped to nothing. */
+  .description-body :global(ul),
+  .description-body :global(ol) {
+    margin-block: 0 var(--space-400);
+    padding-inline-start: var(--space-500);
+  }
+
+  .description-body :global(ul) {
+    list-style: disc;
+  }
+
+  .description-body :global(ol) {
+    list-style: decimal;
+  }
+
+  .description-body :global(li) {
+    margin-block-end: var(--space-200);
+    line-height: var(--leading-normal);
+  }
+
+  /* The marker is furniture, not the employer's words, so it takes the muted
+     tone every other machine mark on this page takes. */
+  .description-body :global(li)::marker {
+    color: var(--color-muted);
+  }
+
+  .description-body :global(li:last-child) {
+    margin-block-end: 0;
+  }
+
+  .description-body :global(strong),
+  .description-body :global(b) {
+    font-weight: var(--weight-bold);
+  }
+
+  .description-body :global(a) {
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  /* The hatch, exactly as the canvas draws it: a 45 degree stripe in the two
+     hatch tokens. Both remap on dark, so the texture reads the same on ink. The
+     stripe widths are the one thing here that is not a colour, and they are on
+     the space ramp rather than the canvas's raw 6px and 12px. */
+  .description-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--space-1000);
+    padding: var(--space-400);
+    border: var(--border-hairline) solid var(--color-line);
+    background: repeating-linear-gradient(
+      45deg,
+      var(--color-hatch-a),
+      var(--color-hatch-a) var(--space-200),
+      var(--color-hatch-b) var(--space-200),
+      var(--color-hatch-b) var(--space-400)
+    );
+  }
+
+  /* The withheld note is our furniture, not their words, so it sits under the
+     body rather than inside it and takes the muted colour every other machine
+     aside on this page takes. Same treatment as .description-note below, and
+     for the same reason: it is a sentence about what is missing. */
+  .description-withheld {
+    margin: 0;
+    max-width: var(--layout-measure);
+    text-transform: none;
+    letter-spacing: var(--tracking-wide);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-200);
+  }
+
+  /* Sentence case rather than the canvas's all caps. The label is a sentence
+     about what we do not have, and mono-label's uppercase reads as a machine
+     assertion, which this is not. The class is kept for its family and tracking
+     because the line sits in the machine's own furniture. */
+  .description-note {
+    margin: 0;
+    max-width: var(--layout-measure);
+    text-align: center;
+    text-transform: none;
+    letter-spacing: var(--tracking-wide);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+</style>

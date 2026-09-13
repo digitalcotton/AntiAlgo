@@ -1,0 +1,957 @@
+---
+/**
+ * /board/[slug]: one tracked posting, server-rendered on demand.
+ *
+ * The design set prerenders a rich /role page per verified job; the tracker
+ * holds thousands, far too many to prerender, so a tracked posting gets this
+ * page instead, read from the store by slug at request time (prerender = false).
+ * It is the SAME page as /role in structure and order, so the site reads as one
+ * place: the role header, the facts as posted, the employer's description, then
+ * the fit reasoning in the reading column; provenance, the posting biography and
+ * the way to apply in the aside. It renders through the same components /role
+ * uses (ProvenancePanel, KeyValueList, DescriptionSlot, FitBars, PostingBiography)
+ * so the two surfaces cannot drift in field order or wording.
+ *
+ * Two honest differences from /role, both because the data differs, not the
+ * design: the reading column keeps its own two-column shell rather than /role's
+ * SEO-only orientation strip and arrival window (those are licensed to /role),
+ * and it carries the tracker's own extra where the record holds one, the Team
+ * row. Comp is compShort (the structured range), never raw comp_posted, which
+ * on a few rows is the whole posting text.
+ *
+ * A KILLED POSTING RENDERS CLOSED, THE WAY /role DOES IT. Since 2026-09-08 the
+ * crawl runs the same five kill rules as the sweep and the ingest ties every
+ * published kill to the board row it names (board_kills, db/030). A row the
+ * record names arrives here with status 'closed', closed_on and closed_reason,
+ * and renders /role's closed banner, ClosedHistory in place of the facts and
+ * ClosureRecord in the aside, with no apply control anywhere on the page. The
+ * page keeps resolving after the posting leaves the feed (the store falls back
+ * to the kill's own sticky slug). The possible-ghost note that used to sit here
+ * is gone with the flag behind it: "listed many days" was the retired evergreen
+ * rule under another name, and age is never a finding.
+ *
+ * A POSTING A MEMBER ADDED BY LINK RENDERS HERE TOO (slug `added-<id>`, since
+ * 2026-09-11). It is the same page in shape, and honest about what differs: no
+ * mark, no fit, no provenance panel or biography, because no sweep read it and
+ * no rule judged it. Before the mini has read the page, this IS the waiting
+ * room: PostingProgress narrates what the machine is doing, a small script
+ * polls the draft status endpoint and reloads once when the read lands, and a
+ * <noscript> meta refresh covers a reader with no script. Once read, the
+ * page carries the description as published and the draft rail, so the person
+ * writes why they want the job and drafts from here, the way they would on any
+ * posting. Owner or 404: middleware resolves a viewer for exactly this slug
+ * shape (src/middleware.ts), and the row is read scoped on their user id, so a
+ * stranger, a signed-out reader and a slug nobody owns all get the same 404.
+ *
+ * A missing slug, an unreachable store or an unknown posting all render the same
+ * honest not-found at HTTP 404.
+ */
+export const prerender = false;
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ClosedHistory from '../../components/job-detail/ClosedHistory.astro';
+import ClosureRecord from '../../components/job-detail/ClosureRecord.astro';
+import FitBadge from '../../components/FitBadge.astro';
+import FitBars from '../../components/FitBars.astro';
+import KeyValueList from '../../components/KeyValueList.astro';
+import Mark from '../../components/Mark.astro';
+import ProvenancePanel from '../../components/ProvenancePanel.astro';
+import PostingBiography from '../../components/job-detail/PostingBiography.astro';
+import DescriptionSlot from '../../components/job-detail/DescriptionSlot.astro';
+import DraftRail from '../../components/job-detail/DraftRail.astro';
+import PostingProgress from '../../components/desk/PostingProgress.astro';
+import PostingReadState from '../../components/desk/PostingReadState.astro';
+import AddedPostingNote from '../../components/desk/AddedPostingNote.astro';
+import {
+  ABSENCE,
+  ageOf,
+  applyLabel,
+  compShort,
+  formatDate,
+  formatDays,
+  markStateOf,
+  sourceLabel,
+  sweptStamp
+} from '../../lib/data';
+import type { KeyValueRow } from '../../lib/ui';
+import { statusStamp, summaryParts } from '../../components/job-detail/detail';
+import { boardDetailPath, jobDraftPath, routeFor } from '../../data/nav';
+import { isConfigured } from '../../lib/db';
+import { getBoardJobBySlug } from '../../lib/job-store';
+import { boardRowToJob, killPipelineLabel } from '../../lib/board-jobs';
+import { isOn } from '../../lib/flags';
+import { withBase } from '../../../site.config.mjs';
+import { POSTING_NOTICES, addedApplicationId, addedPostingToJob, hostnameOf, isAddedSlug } from '../../lib/added-posting';
+import { fetchDisplayState, getPostingFetchByApplication, type StoredPostingFetch } from '../../lib/posting-fetch-store';
+import { getApplication, type StoredApplication } from '../../lib/desk-store';
+
+const slug = decodeURIComponent(Astro.params.slug ?? '');
+const viewer = Astro.locals.viewer;
+const added = isAddedSlug(slug);
+
+// The added population: the owner's own row, or nothing. The flag, the store,
+// and the viewer all have to be there; any one missing reads as not found.
+let fetchRow: StoredPostingFetch | null = null;
+// The Desk card behind the added posting, for its state: the "I applied"
+// control below is the Desk's own confirm answer, offered here so the person
+// can say so without leaving the posting.
+let card: StoredApplication | null = null;
+if (added) {
+  const applicationId = addedApplicationId(slug);
+  if (applicationId !== null && isConfigured() && isOn('add_posting') && viewer) {
+    fetchRow = await getPostingFetchByApplication(viewer.userId, applicationId);
+    if (fetchRow) card = await getApplication(viewer.userId, applicationId);
+  }
+}
+// A card the person can still confirm as applied (the confirm loop's first
+// answer, src/lib/desk.ts: clicked -> applied, still_working -> applied), and
+// one they already have.
+const canConfirmApplied = card?.state === 'clicked' || card?.state === 'still_working';
+const alreadyApplied = card?.state === 'applied' || card?.state === 'interviewing' || card?.state === 'offer';
+const nowMs = Date.now();
+const display = fetchRow ? fetchDisplayState(fetchRow, nowMs) : null;
+const settled = display === 'ready' || display === 'pasted';
+const inFlight = display === 'reading' || display === 'queued' || display === 'slow';
+
+const row = !added && isConfigured() && slug ? await getBoardJobBySlug(slug) : null;
+const job = row ? boardRowToJob(row) : fetchRow && settled ? addedPostingToJob(fetchRow) : null;
+if (!job && !fetchRow) Astro.response.status = 404;
+const isClosed = job?.status === 'closed';
+
+const boardHref = withBase('/board');
+// This page's own path, so a reader sent to sign in comes back to the posting
+// they were reading rather than to the home page.
+const selfPath = boardDetailPath(slug);
+const postingAction = routeFor('desk-posting');
+const statusUrl = `${jobDraftPath(slug)}/status`;
+const host = fetchRow ? hostnameOf(fetchRow.url) : '';
+// A notice the posting route sent back with the redirect (an incomplete paste).
+const noticeKey = Astro.url.searchParams.get('posting');
+const noticeText = noticeKey ? (POSTING_NOTICES[noticeKey] ?? null) : null;
+
+// The added page's facts: what the row holds and where it came from. Never a
+// posted date, a location or a source system: the page did not read those, and
+// "Not stated" would claim a reading that never happened.
+const addedFacts: KeyValueRow[] = fetchRow
+  ? [
+      { key: 'Title', value: fetchRow.title, absence: 'Not found on the page' },
+      { key: 'Company', value: fetchRow.company, absence: 'Not found on the page' },
+      { key: 'Source', value: host },
+      { key: 'Added', value: formatDate(fetchRow.createdAt.toISOString().slice(0, 10)) },
+      fetchRow.origin === 'pasted'
+        ? { key: 'Read on', value: 'Pasted by you, not read by the machine' }
+        : { key: 'Read on', value: fetchRow.fetchedAt ? formatDate(fetchRow.fetchedAt.toISOString().slice(0, 10)) : null, absence: 'Not yet' }
+    ]
+  : [];
+const addedTitle = fetchRow ? (fetchRow.title ?? (inFlight ? `Reading a posting from ${host}` : `A posting from ${host}`)) : '';
+const source = job ? sourceLabel(job) : '';
+const age = job ? ageOf(job) : null;
+// The clean salary only, the same rule the board table follows: compShort reads
+// the structured range the ATS gave, never the raw comp_posted (which on a few
+// rows is the whole posting text the crawl captured). Pay or nothing, never a
+// wall of description.
+const pay = job ? compShort(job) : null;
+
+// The summary line, in /role's own order (comp, then location), but fed the
+// clean comp so a leaked comp_posted can never wall the line.
+const summary = job ? summaryParts({ ...job, comp_posted: pay }, null) : [];
+
+// The facts, as posted: /role's five rows in /role's order, with the Team row
+// appended where the tracker holds one, so the shared fields never move.
+const facts: KeyValueRow[] = job
+  ? [
+      { key: 'Title', value: job.title },
+      {
+        key: 'Compensation',
+        value: pay ? `${pay}, range posted at source` : null,
+        absence: `${ABSENCE.value} at source`
+      },
+      { key: 'Location', value: job.location },
+      {
+        key: 'Posted date',
+        value: formatDate(job.published_date),
+        absence: `${ABSENCE.date} at source`
+      },
+      { key: 'Source system', value: source },
+      ...(row?.department ? [{ key: 'Team', value: row.department }] : [])
+    ]
+  : [];
+
+const barStamp = job ? (isClosed ? `Archived record · swept ${sweptStamp()}` : `Swept ${sweptStamp()}`) : '';
+// The closed stamp, in /role's own words and order: the state, the night the
+// rule fired, and which machine read it. A board row's kill can come from the
+// verified sweep or the wide crawl, and the record says which.
+const closedStamp =
+  job && isClosed
+    ? ['Closed', job.closed_on ? `detected ${formatDate(job.closed_on)}` : null, `by ${killPipelineLabel(row?.kill_pipeline)}`]
+        .filter(Boolean)
+        .join(' · ')
+    : null;
+
+/**
+ * THE TRACK CONTROL, BEHIND board_actions. This page is server-rendered, so
+ * unlike the prerendered /role page it can read the viewer here and emit the
+ * one right control rather than shipping both and swapping in script. Applying
+ * to a tracked posting records the outbound click as an application through the
+ * existing /desk/application click intent (F4.2: a click is not an application;
+ * that intent only ever writes the "clicked" row). Save is not offered: /desk/
+ * save.ts is verified-only by design, so a tracker row has nothing to save.
+ *
+ * The flag gates the render. When it is off, or the reader is signed out, or
+ * the posting is closed, or there is no apply link, the aside falls back to the
+ * plain apply link exactly as before, so flipping board_actions off always
+ * leaves a correct page.
+ */
+// A crawled posting is public, so the middleware writes no verdict for it and
+// `verdict.allow` was never true here. It resolves a viewer when the request
+// carries a session cookie (src/middleware.ts, SESSION_IF_COOKIE), and a
+// verified viewer is what "signed in" means on this page. The added branch
+// above still reads its owner through the same viewer.
+const signedIn = Boolean(viewer && viewer.emailVerified);
+// The fit score is a signed-in reading unless fit_public is lit, the same
+// rule the board applies to its Fit column (see flags.config.mjs).
+const showFit = signedIn || isOn('fit_public');
+const boardActions = isOn('board_actions');
+const trackable = Boolean(job) && Boolean(job?.apply_url) && job?.status !== 'closed';
+const showTrack = boardActions && trackable && signedIn;
+const showTrackInvite = boardActions && trackable && !signedIn;
+const deskApplicationPath = routeFor('desk-application');
+const deskHref = routeFor('desk');
+// The one door on a signed-out posting. The draft rail above the apply control
+// renders as a hatched slot with no link, so this line is the only ask on the
+// page, at the point of action, and it names both things an account unlocks.
+const signUpHref = `${routeFor('sign-up')}?next=${encodeURIComponent(selfPath)}`;
+---
+
+<BaseLayout
+  title={fetchRow ? addedTitle : job ? (job.title ?? 'Job') : 'Job not found'}
+  description={fetchRow ? 'A posting you added to your Desk.' : 'A tracked job posting.'}
+  active="index"
+  noindex={added}
+>
+  <div class="shell">
+    <article class="detail">
+      <div class="detail-bar">
+        {fetchRow ? (
+          <a class="detail-back" href={deskHref}>Back to your Desk</a>
+        ) : (
+          <a class="detail-back" href={boardHref}>Back to all jobs</a>
+        )}
+        {fetchRow ? <p class="detail-stamp mono">Added by you</p> : job && <p class="detail-stamp mono">{barStamp}</p>}
+      </div>
+      {noticeText && <p class="posting-notice" role="status">{noticeText}</p>}
+
+      {
+        job && isClosed && (
+          /*
+            The announcement, /role's own. It states what the machine observed
+            and what this page will not do, and assigns no motive: the rule and
+            its reason are quoted in the history and the closure panel below.
+            data-truth="closure" carries the kill id so the live truth check
+            (test/gates/truth.mjs --url) can match this page to the record.
+          */
+          <header class="closed-banner" data-truth="closure" data-truth-kill={row?.kill_id ?? ''}>
+            <p class="closed-stamp mono">
+              <Mark state="closed" surface="raised" />
+              {closedStamp}
+            </p>
+            <h1 class="closed-title">This posting closed.</h1>
+            <p class="closed-lede">
+              The machine found this posting closed at source and archived the record. Nothing on
+              this page accepts applications, because a closed role that still takes them is a
+              resume black hole, and we do not operate one.
+            </p>
+          </header>
+        )
+      }
+
+      {
+        fetchRow && !job ? (
+          /* THE WAITING ROOM, AND THE UNREADABLE PAGE. One column: the machine's
+             own account of what it is doing (or what stopped it), then the ways
+             the person can act. Nothing about the posting is printed yet,
+             because nothing has been read. */
+          <div class="detail-grid detail-grid-empty">
+            <div class="detail-main">
+              <div class="detail-card">
+                <header class="role">
+                  <p class="role-meta mono">
+                    <span class="role-company">{host}</span>
+                  </p>
+                  <h1 class="role-title">{addedTitle}</h1>
+                </header>
+                <PostingProgress row={fetchRow} nowMs={nowMs} action={postingAction} statusUrl={statusUrl} />
+                <PostingReadState row={fetchRow} action={postingAction} nowMs={nowMs} />
+                {inFlight && (
+                  /* The no-script fallback only. With script, the poll below
+                     reloads once when the read lands; a bare meta refresh here
+                     would reload on its own clock as well and blink the page. */
+                  <noscript>
+                    <meta http-equiv="refresh" content="6" />
+                  </noscript>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : fetchRow && job ? (
+          /* THE SETTLED ADDED PAGE: the crawled page's shape, minus what would
+             be false. No mark, no status stamp, no age, no fit: none of that was
+             measured. The facts are the row's own, the description is as
+             published, and the aside carries the machine's account, the draft
+             rail, and the posting itself. */
+          <div class="detail-grid">
+            <div class="detail-main">
+              <div class="detail-card">
+                <header class="role">
+                  <p class="role-meta mono">
+                    <span class="role-added">Added by you</span>
+                    <span class="role-dot" aria-hidden="true">
+                      ·
+                    </span>
+                    <span class="role-company">{job.company}</span>
+                    <span class="role-dot" aria-hidden="true">
+                      ·
+                    </span>
+                    <span class="role-source">{host}</span>
+                  </p>
+                  <h1 class="role-title">{addedTitle}</h1>
+                </header>
+
+                <AddedPostingNote row={fetchRow} />
+
+                <section class="facts" aria-labelledby={`facts-${job.slug}`}>
+                  <h2 class="facts-title mono-label" id={`facts-${job.slug}`}>
+                    The facts, as read
+                  </h2>
+                  <KeyValueList rows={addedFacts} class="facts-list" />
+                </section>
+
+                <DescriptionSlot job={job} />
+              </div>
+            </div>
+
+            <aside class="detail-aside" aria-label="The machine's account and your documents">
+              <PostingProgress row={fetchRow} nowMs={nowMs} action={postingAction} statusUrl={statusUrl} />
+              <DraftRail job={job} returnTo={selfPath} />
+              <div class="added-actions">
+                {canConfirmApplied && (
+                  /* The Desk's own confirm answer, posted from here. A click is
+                     not an application (src/lib/desk.ts); this is the person
+                     saying they applied, and it moves the card to applied. */
+                  <form class="added-confirm" method="POST" action={deskApplicationPath}>
+                    <input type="hidden" name="intent" value="confirm" />
+                    <input type="hidden" name="applicationId" value={fetchRow.applicationId} />
+                    <input type="hidden" name="answer" value="applied" />
+                    <input type="hidden" name="returnTo" value="posting" />
+                    <button class="job-apply" type="submit">I applied</button>
+                  </form>
+                )}
+                {alreadyApplied && <p class="added-applied mono-label">Applied, on your Desk</p>}
+                <a class="job-apply job-apply-secondary" href={fetchRow.url} rel="noopener nofollow" target="_blank">
+                  Open the posting
+                </a>
+              </div>
+            </aside>
+          </div>
+        ) : job ? (
+          <div class="detail-grid">
+            <div class="detail-main">
+              <div class="detail-card">
+                <header class="role">
+                  <p class="role-meta mono">
+                    <Mark state={markStateOf(job)} surface="raised" />
+                    <span class="role-status-live">{statusStamp(job)}</span>
+                    <span class="role-dot" aria-hidden="true">
+                      ·
+                    </span>
+                    <span class="role-company">{job.company}</span>
+                    <span class="role-dot" aria-hidden="true">
+                      ·
+                    </span>
+                    <span class="role-source">{source}</span>
+                  </p>
+
+                  <h1 class="role-title">{job.title}</h1>
+
+                  <p class="role-summary mono">
+                    {summary.join(' · ')}
+                    {age && !isClosed && (
+                      <>
+                        {summary.length > 0 && (
+                          <span class="role-dot" aria-hidden="true">
+                            ·
+                          </span>
+                        )}{' '}
+                        <span data-truth="machine">{formatDays(age.days)}</span>
+                      </>
+                    )}
+                    {!isClosed && showFit && (
+                      <span class="role-fit-pair">
+                        <span class="role-dot" aria-hidden="true">
+                          ·
+                        </span>{' '}
+                        Fit <FitBadge job={job} class="role-fit" />
+                      </span>
+                    )}
+                  </p>
+                </header>
+
+                {isClosed ? (
+                  <ClosedHistory job={job} />
+                ) : (
+                  <>
+                    <section class="facts" aria-labelledby={`facts-${job.slug}`}>
+                      <h2 class="facts-title mono-label" id={`facts-${job.slug}`}>
+                        The facts, as posted
+                      </h2>
+                      <KeyValueList rows={facts} class="facts-list" />
+                    </section>
+
+                    <DescriptionSlot job={job} />
+
+                    {showFit && (
+                    <section class="fit" aria-labelledby={`fit-${job.slug}`}>
+                      <div class="fit-head">
+                        <h2 class="fit-title mono-label" id={`fit-${job.slug}`}>
+                          Fit reasoning, in full
+                        </h2>
+                        <FitBadge job={job} size="detail" />
+                      </div>
+
+                      <FitBars job={job} />
+
+                      <p class="fit-method">
+                        <a href={routeFor('methodology')}>How the rubric is scored</a>
+                      </p>
+                    </section>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            <aside class="detail-aside" aria-label={isClosed ? 'The record' : 'Provenance and applying'}>
+              <ProvenancePanel job={job} />
+              <PostingBiography job={job} />
+
+              {/* The documents, directly above the way to apply, so the reader
+                  drafts and then applies without leaving the record. Not on a
+                  closed record: there is nothing to apply to. */}
+              {!isClosed && <DraftRail job={job} returnTo={selfPath} signedIn={signedIn} />}
+
+              {isClosed ? (
+                <ClosureRecord job={job} />
+              ) : job.apply_url ? (
+                showTrack ? (
+                  /* Signed in, board_actions on, posting live: the apply control
+                     is a real form that opens the posting AND records the click
+                     as an application in one action. then=posting makes /desk/
+                     application redirect the new tab straight to the posting, so
+                     even with no JavaScript the posting still opens and the click
+                     is still tracked. The script at the foot of this file makes
+                     it smoother: it opens the tab, posts the click in the
+                     background, and swaps this control for the tracked notice in
+                     place. titleOverride/companyOverride fill the Desk label only
+                     when the server cannot match this apply_url back to a
+                     verified posting, per /desk/application's own contract. */
+                  <div class="apply-track" id="apply-track">
+                    <form
+                      class="apply-track-form"
+                      id="apply-track-form"
+                      method="POST"
+                      action={deskApplicationPath}
+                      target="_blank"
+                      data-apply-url={job.apply_url}
+                    >
+                      <input type="hidden" name="intent" value="click" />
+                      <input type="hidden" name="url" value={job.apply_url} />
+                      <input type="hidden" name="then" value="posting" />
+                      {job.title && <input type="hidden" name="titleOverride" value={job.title} />}
+                      <input type="hidden" name="companyOverride" value={job.company} />
+                      <button class="job-apply" type="submit">{applyLabel(job)}</button>
+                    </form>
+                    <p class="apply-track-caption mono-label">Opens the posting and tracks it on your Desk.</p>
+                    <p class="apply-tracked mono-label" id="apply-tracked" hidden>
+                      Tracking on your Desk. <a href={deskHref}>Open your Desk</a>
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <a class="job-apply" href={job.apply_url} rel="noopener nofollow" target="_blank">
+                      {applyLabel(job)}
+                    </a>
+                    {showTrackInvite && (
+                      <p class="apply-track-invite mono-label">
+                        <a href={signUpHref}>Sign up</a> to draft your documents for this role and track the application on your Desk.
+                      </p>
+                    )}
+                  </>
+                )
+              ) : (
+                <span class="job-apply-none mono-label">No apply link on file</span>
+              )}
+            </aside>
+          </div>
+        ) : (
+          <div class="detail-grid detail-grid-empty">
+            <div class="detail-main">
+              <div class="detail-card">
+                <h1 class="role-title">Job not found</h1>
+                <p class="job-notfound">
+                  This posting is not in the current tracking set, or the job store is not reachable
+                  right now.
+                </p>
+              </div>
+            </div>
+          </div>
+        )
+      }
+    </article>
+  </div>
+</BaseLayout>
+
+<script>
+  /**
+   * THE WAITING ROOM'S ONE RELOAD. While a posting the person added is still
+   * being read, ask the draft status endpoint (which carries the read state for
+   * an added slug) every few seconds, and reload this page once, the moment the
+   * state it reports differs from the state this page was rendered in. Never
+   * on a timer: a page that reloads itself every few seconds is the blink the
+   * Desk used to have, and the reason this page exists. A no-script reader has
+   * the <noscript> meta refresh instead. Capped so a read that never lands does
+   * not poll forever; the queued line on the next visit says what happened.
+   */
+  const progress = document.querySelector<HTMLElement>('[data-posting-progress]');
+  const rendered = progress?.dataset.progressState ?? '';
+  const pollUrl = progress?.dataset.statusUrl ?? '';
+  const WAITING = new Set(['reading', 'queued', 'slow']);
+  const READ_POLL_MS = 3000;
+  const READ_POLL_LIMIT = 200;
+  if (progress && pollUrl && WAITING.has(rendered)) {
+    (async () => {
+      for (let attempt = 0; attempt < READ_POLL_LIMIT; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, READ_POLL_MS));
+        try {
+          const response = await fetch(pollUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+          if (!response.ok) continue;
+          const body = (await response.json()) as { fetch?: { display?: string } | null };
+          const display = body.fetch?.display;
+          if (typeof display === 'string' && display !== rendered) {
+            location.reload();
+            return;
+          }
+        } catch {
+          // A missed poll is a missed poll; the next one asks again.
+        }
+      }
+    })();
+  }
+
+  /**
+   * The track control's progressive enhancement, and nothing this page needs
+   * to work. The form already opens the posting and records the click on its
+   * own (target=_blank plus then=posting, which /desk/application answers with a
+   * redirect to the posting), so with no JavaScript, a slow load, or a script
+   * error, the button is a real submit that still opens the posting and still
+   * tracks it. This only makes it smoother: it opens the tab, posts the click in
+   * the background, and swaps the control for the tracked notice in place, so
+   * the reader stays on the record they were reading.
+   *
+   * It is a no-op when the form is absent, which is every case board_actions is
+   * off, the reader is signed out, or the posting has no apply link or is closed.
+   */
+  const form = document.getElementById('apply-track-form') as HTMLFormElement | null;
+  if (form) {
+    const applyUrl = form.getAttribute('data-apply-url');
+    const caption = document.querySelector('.apply-track-caption') as HTMLElement | null;
+    const tracked = document.getElementById('apply-tracked');
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (applyUrl) window.open(applyUrl, '_blank', 'noopener');
+      fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { Accept: 'application/json' },
+        keepalive: true
+      })
+        .then((res) => {
+          // Only claim it was tracked when the server actually recorded it. A
+          // network failure still opened the posting; it just did not track,
+          // and saying otherwise would be the dishonest kind of notice.
+          if (res && res.ok) {
+            form.hidden = true;
+            if (caption) caption.hidden = true;
+            if (tracked) tracked.hidden = false;
+          }
+        })
+        .catch(() => {});
+    });
+  }
+</script>
+
+<style>
+  /* The two-column detail shell, the /role page's own so a tracked posting and a
+     verified one read as the same kind of page. The grid ratio, the card, and
+     the aside gutter are all /role's. */
+  .detail {
+    display: flex;
+    flex-direction: column;
+    margin-block: var(--space-500) var(--space-800);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    background: var(--color-surface);
+  }
+
+  .detail-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+    padding: var(--space-300) var(--space-600);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  .detail-back {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    text-decoration-color: var(--color-line-strong);
+  }
+
+  .detail-back::before {
+    content: '\2190\00a0';
+  }
+
+  .detail-back:hover {
+    color: var(--color-foreground);
+  }
+
+  .detail-stamp {
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin: 0;
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  }
+
+  .detail-grid-empty {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detail-main {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-600);
+    border-right: var(--border-hairline) solid var(--color-line);
+    min-width: 0;
+  }
+
+  /* The reading column is a card, the same card the aside's panels are. */
+  .detail-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-600);
+    padding: var(--space-400);
+    background: var(--color-surface-raised);
+    border: var(--border-hairline) solid var(--color-line);
+    min-width: 0;
+  }
+
+  .detail-aside {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+    padding: var(--space-600);
+    min-width: 0;
+  }
+
+  /* The role header, matching the /role page's own. */
+  .role {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  .role-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-200);
+    flex-wrap: wrap;
+    margin: 0;
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  /* The live status stamp is the one place on this page that carries the mark
+     colour in text: a machine state, beside its own mark. */
+  .role-status-live {
+    color: var(--color-mark-live);
+    font-weight: var(--weight-medium);
+  }
+
+  .role-company {
+    color: var(--color-foreground);
+    font-weight: var(--weight-medium);
+  }
+
+  /* The added stamp sits where the live status would: a state of the record,
+     in the muted voice, since "added by you" is a fact and not a verdict. */
+  .role-added {
+    font-weight: var(--weight-medium);
+  }
+
+  .posting-notice {
+    margin: 0;
+    padding: var(--space-300) var(--space-600);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+  }
+
+  .role-dot {
+    color: var(--color-line-strong);
+  }
+
+  .role-title {
+    margin: 0;
+    font-size: var(--size-500);
+    line-height: var(--leading-snug);
+    max-width: var(--layout-measure);
+  }
+
+  .role-summary {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--space-100);
+    margin: 0;
+    color: var(--color-muted);
+  }
+
+  /* The label and its numeral are one fact, so they never break across lines. */
+  .role-fit-pair {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-100);
+    white-space: nowrap;
+  }
+
+  .role-summary :global(.role-fit .fit-value) {
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+  }
+
+  /* The closed banner, /role's own, so a killed board row and a closed
+     verified role read as the same announcement. */
+  .closed-banner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    padding: var(--space-600);
+    background: var(--color-surface-raised);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  .closed-stamp {
+    display: flex;
+    align-items: center;
+    gap: var(--space-200);
+    margin: 0;
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  .closed-title {
+    margin: 0;
+    font-size: var(--size-500);
+    line-height: var(--leading-snug);
+  }
+
+  .closed-lede {
+    margin: 0;
+    max-width: var(--layout-measure);
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+  }
+
+  /* The facts, the description, the fit: each a section under its own hairline,
+     the same rhythm the /role card uses. */
+  .facts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-400);
+  }
+
+  .facts-title,
+  .fit-title {
+    color: var(--color-muted);
+  }
+
+  /* KeyValueList upper-cases its values for machine readings; here the values are
+     the employer's own strings under an "as posted" heading, so the case is
+     theirs, exactly as the /role card overrides it. */
+  .facts :global(.kv-value) {
+    text-transform: none;
+    letter-spacing: var(--tracking-normal);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+  }
+
+  .fit {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-400);
+  }
+
+  .fit-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-300);
+    flex-wrap: wrap;
+  }
+
+  .fit-method {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+
+  .fit-method a {
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    text-decoration-color: var(--color-line-strong);
+  }
+
+  .fit-method a:hover {
+    color: var(--color-foreground);
+    text-decoration-color: var(--color-foreground);
+  }
+
+  /* The apply control is an <a> on the plain fallback and a <button> inside the
+     track form; both wear this, so the border and cursor resets keep the button
+     shaped exactly like the link. */
+  .job-apply {
+    align-self: flex-start;
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: var(--border-hairline) solid var(--color-surface-inverse);
+    border-radius: var(--radius);
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .job-apply:hover {
+    background: var(--color-surface-raised);
+    color: var(--color-foreground);
+  }
+
+  /* The track control: the apply form, its caption, and the notice it becomes
+     once the click is tracked. The form carries no chrome of its own; it is
+     just the wrapper the enhancement script reads and hides. */
+  .apply-track,
+  .apply-track-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    align-items: flex-start;
+  }
+
+  .apply-track-caption,
+  .apply-tracked,
+  .apply-track-invite {
+    color: var(--color-muted);
+    line-height: var(--leading-snug);
+  }
+
+  .apply-tracked a,
+  .apply-track-invite a {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    text-decoration-color: var(--color-line-strong);
+  }
+
+  .apply-tracked a:hover,
+  .apply-track-invite a:hover {
+    text-decoration-color: var(--color-foreground);
+  }
+
+  .job-apply-none {
+    color: var(--color-muted);
+  }
+
+  /* The added page's two actions, side by side: the confirm answer first,
+     the posting itself second. The secondary wears the quiet variant so the
+     one that changes the record is the one that reads as primary. */
+  .added-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-300);
+  }
+
+  .added-confirm {
+    display: flex;
+  }
+
+  .job-apply-secondary {
+    background: transparent;
+    color: var(--color-foreground);
+    border-color: var(--color-line-strong);
+  }
+
+  .job-apply-secondary:hover {
+    background: var(--color-surface-raised);
+  }
+
+  .added-applied {
+    margin: 0;
+    color: var(--color-muted);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .job-apply {
+      transition:
+        background-color var(--motion-duration-instant) var(--motion-easing-standard),
+        color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  .job-notfound {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: var(--size-200);
+  }
+
+  /* One column below the lap breakpoint, the same place the /role page stacks. */
+  @media (max-width: 60rem) { /* --breakpoint-lap */
+    .detail-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .detail-main {
+      border-right: none;
+      border-bottom: var(--border-hairline) solid var(--color-line);
+    }
+  }
+</style>

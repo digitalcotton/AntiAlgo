@@ -1,0 +1,199 @@
+---
+/**
+ * RecordView.astro: the whole Profile Record, composed of EntryCards.
+ *
+ * PULLED OUT OF src/pages/account/record.astro (now merged into
+ * src/pages/profile.astro) ALONGSIDE EntryCard.astro; see that component's
+ * own header for why the split falls where it does (this file renders
+ * entries, profile.astro keeps the page chrome around them: the add-entry
+ * form, the resume import boost, the empty-record message).
+ *
+ * `editable={false}` renders every entry with no form and no control on any
+ * of them, the same contract EntryCard.astro itself carries: this component
+ * adds nothing of its own beyond composing EntryCards, so an owner-only
+ * concern that never made it into EntryCard cannot sneak back in here. This
+ * is the seam phase 9's handle page renders through for a reader who is not
+ * the owner: same component, `editable={false}`, no rewrite.
+ *
+ * WHY THE FUNCTIONS ARE PROPS. editFormState() and artifactFormState() both
+ * close over `relay`, the cookie-relayed failed-submission profile.astro
+ * reads once at the top of its own frontmatter (see that file's header for
+ * what the relay is and why it exists). Passing the two functions down,
+ * rather than the relay itself, keeps this component ignorant of the
+ * relay's shape entirely: it asks "what are this entry's current edit
+ * values and issues" and profile.astro is the only file that has to know
+ * why the answer might differ from the entry's own stored fields.
+ */
+import EntryCard from './EntryCard.astro';
+import { KIND_LABELS, type EntryFormValues } from './entry-presentation';
+import { ENTRY_KINDS, type ValidationIssue } from '../../lib/record';
+import type { StoredEntry } from '../../lib/record-store';
+
+interface EditFormState {
+  values: EntryFormValues;
+  issues: ValidationIssue[];
+}
+
+interface ArtifactFormState {
+  kind: string;
+  url: string;
+  label: string;
+  issues: ValidationIssue[];
+}
+
+interface Props {
+  entries: readonly StoredEntry[];
+  editable: boolean;
+  /** The entry currently open for edit (profile.astro's own `?edit=` query
+      param), or null when none is. Ignored when `editable` is false. */
+  editParam?: string | null;
+  editFormState?: (entry: StoredEntry) => EditFormState;
+  artifactFormState?: (entry: StoredEntry) => ArtifactFormState;
+  /** The one page these forms can return to, post-save. Typed as a key
+      rather than the literal '/profile' string for the same reason
+      EntryEditState's own returnKey is: see entry-presentation.ts. */
+  returnKey?: 'profile';
+  recordPagePath?: string;
+  entryAction?: string;
+  artifactActionPath?: string;
+  /** The prfIds an import just created, relayed by profile.astro from
+      import.ts's cookie. Those rows render marked and open. Empty on every
+      other render, which is every render but the one right after a confirm. */
+  newIds?: readonly string[];
+}
+
+const {
+  entries,
+  editable,
+  editParam = null,
+  editFormState,
+  artifactFormState,
+  returnKey,
+  recordPagePath,
+  entryAction,
+  artifactActionPath,
+  newIds = []
+} = Astro.props;
+
+/**
+ * True only when every prop an editable render needs is actually present.
+ * `editable` alone is not enough to build an EntryEditState: this is what
+ * keeps a caller that passes `editable: true` with an incomplete prop set
+ * from reaching a runtime error inside EntryCard, at the one cost of quietly
+ * falling back to the view state instead. A page that means to be editable
+ * and forgot a prop finds out from a missing "Edit" link in review, not from
+ * a thrown error in production.
+ */
+const canEdit =
+  editable &&
+  editFormState !== undefined &&
+  artifactFormState !== undefined &&
+  returnKey !== undefined &&
+  recordPagePath !== undefined &&
+  entryAction !== undefined &&
+  artifactActionPath !== undefined;
+
+/**
+ * The record, grouped by kind so a job and a certificate never read as the
+ * same class of thing. Roles held sit above recognition because ENTRY_KINDS is
+ * ordered career-substantive first; within a group the entries keep the order
+ * they arrived in (record-store.ts sorts them by date). A group renders only
+ * when it has entries.
+ *
+ * PRESENTATION ONLY. record.ts's own header forbids the DATA layer from
+ * grouping, counting, or ranking by kind, and nothing here reaches into it:
+ * this partitions an already-built list on the way to the markup. The kind
+ * label and its count are chrome, not a stored aggregate.
+ *
+ * The headers appear only when there is more than one group to tell apart. A
+ * single-kind record, or a `?kind=` filtered view (already one kind), renders
+ * as one plain run of rows, because a lone "Roles held" header over the only
+ * thing on the page says nothing the record band above has not already said.
+ */
+const groups = ENTRY_KINDS.map((kind) => ({
+  kind,
+  items: entries.filter((entry) => entry.kind === kind)
+})).filter((group) => group.items.length > 0);
+const showHeaders = groups.length > 1;
+---
+
+{
+  entries.length > 0 && (
+    <div class="record-groups">
+      {groups.map((group) => (
+        <section class="record-group" aria-label={KIND_LABELS[group.kind]}>
+          {showHeaders && (
+            <div class="record-group-head">
+              <span class="mono-label record-group-title">
+                {KIND_LABELS[group.kind]}, {group.items.length}
+              </span>
+            </div>
+          )}
+          <div class="record-entries">
+            {group.items.map((entry) => {
+              const isNew = newIds.includes(entry.prfId);
+              if (!canEdit) {
+                return <EntryCard entry={entry} editable={false} isNew={isNew} />;
+              }
+              const edit = editFormState!(entry);
+              const artifact = artifactFormState!(entry);
+              return (
+                <EntryCard
+                  entry={entry}
+                  editable={true}
+                  isNew={isNew}
+                  edit={{
+                    isEditing: editParam === entry.prfId,
+                    values: edit.values,
+                    issues: edit.issues,
+                    artifact,
+                    returnKey: returnKey!,
+                    recordPagePath: recordPagePath!,
+                    entryAction: entryAction!,
+                    artifactActionPath: artifactActionPath!
+                  }}
+                />
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+<style>
+  /* No gap: each EntryCard carries its own bottom hairline, so the rows meet
+     and the record reads as one continuous table rather than a stack of
+     separated cards. The gap this replaced is what made twelve entries read
+     as twelve objects instead of one record. */
+  .record-entries {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  /* The kind header: a quieter echo of the record band above, one per group,
+     so roles and certificates read as different sections at a glance. */
+  .record-group-head {
+    padding: var(--space-300) var(--space-500);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+  .record-group-title {
+    color: var(--color-muted);
+  }
+
+  /* Each group's rows meet with hairlines; only the very last row of the whole
+     record drops its trailing hairline, because the record section draws its
+     own closing border. Between two groups, the upper group's last-row hairline
+     is the divider under which the next header sits. */
+  .record-groups .record-group:last-child .record-entries :global(.record-row:last-child) {
+    border-bottom: 0;
+  }
+
+  @media (max-width: 60rem) {
+    .record-group-head {
+      padding-inline: var(--space-400);
+    }
+  }
+</style>

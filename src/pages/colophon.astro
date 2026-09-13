@@ -1,0 +1,949 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Panel from '../components/Panel.astro';
+import KeyValueList from '../components/KeyValueList.astro';
+import EmptyState from '../components/EmptyState.astro';
+import ErrorState from '../components/ErrorState.astro';
+import { killsWithCards, loadJobs, loadStats, sweptStamp } from '../lib/data';
+import type { KeyValueRow } from '../lib/ui';
+import { routeFor } from '../data/nav';
+// stripBase, from the one file that knows where this site is served, because
+// the census below compares served paths against base-free route ids. See the
+// note at `declared`.
+import { stripBase } from '../../site.config.mjs';
+import { RUN, type Verdict } from '../data/conformance-run';
+import { GATES } from '../../test/gates.config.mjs';
+import pkg from '../../package.json';
+
+/**
+ * /colophon: the receipts page.
+ *
+ * The product's argument is that a machine can publish claims a reader is able
+ * to check. This page turns that argument on the site itself. It documents the
+ * stack, the gates and what each one actually guarantees, the last recorded
+ * conformance run, and and the decision log.
+ *
+ * THE ONE RULE THAT MATTERS HERE. If a gate is red, this page says it is red.
+ * A colophon claiming green on a red gate would be the single most damaging
+ * file in the repository: every other page's credibility rests on the claim
+ * that nothing here is asserted without evidence, and this is the page that
+ * asserts it about the repository. So nothing below is typed as prose. The gate
+ * list comes from test/gates.config.mjs, which is the registry both runners
+ * import, and the verdicts come from src/data/conformance-run.ts, which is a
+ * transcript of one run rather than a summary of how the build usually goes.
+ *
+ * THREE MECHANISMS KEEP IT FROM AGEING INTO A LIE.
+ *
+ *   1. A gate in the registry with no recorded result renders as "not
+ *      recorded", in the loss colour. Omission cannot read as a pass.
+ *   2. The routes the run measured are compared against the routes this build
+ *      declares. When the tree has grown since the run, the page says so, at the
+ *      top, before any verdict. Seven pages are being built in parallel as this
+ *      one ships, so that is not a hypothetical.
+ *   3. No run recorded at all renders the empty state, not silence.
+ *
+ * ONE CLOCK, ON THIS PAGE TOO. There is no wall-clock time of the run anywhere
+ * below. Every instant this site renders is the sweep instant, and a build is
+ * an artifact of a sweep, so the run is stamped with the sweep it measured.
+ * That is the ruling gate 1's own published report already follows.
+ *
+ * NO STATISTIC APPEARS ON THIS PAGE. facts.json licenses each of the eight
+ * facts to named routes and licenses none of them here, which is why the
+ * decision-log summary below describes findings in words rather than restating
+ * numbers that belong to the report.
+ */
+
+/* ---------------------------------------------------------------------------
+   The stack.
+
+   Versions are read out of package.json rather than typed, so this section
+   cannot drift from what the repository actually installs. They are declared
+   ranges, not resolved versions, and the row says so: package-lock.json holds
+   what a given install resolved to, and printing a resolved version here would
+   be a claim about a machine rather than about this repository.
+   --------------------------------------------------------------------------- */
+
+const deps = { ...pkg.dependencies, ...pkg.devDependencies } as Record<string, string>;
+
+const STACK: KeyValueRow[] = [
+  { key: 'Framework', value: `Astro ${deps.astro}, static output` },
+  { key: 'Rendering', value: 'Build time only, no server, no client framework' },
+  { key: 'Node', value: pkg.engines.node },
+  { key: 'Design tokens', value: `Style Dictionary ${deps['style-dictionary']}, DTCG JSON` },
+  { key: 'Styling', value: 'CSS custom properties, no utility framework' },
+  { key: 'Type', value: 'N27 and Basier Square Mono, Latin subsets cut in this repo' },
+  { key: 'Accessibility engine', value: `axe-core ${deps['axe-core']}, pinned exactly` },
+  {
+    // The one version deliberately not printed. Playwright's pinned value
+    // contains a two-digit run that is also one of the sweep statistics, and the
+    // truth gate warns, correctly, whenever a number of that shape appears in
+    // copy with nothing tying it to the data. The gate is right to warn and the
+    // number is right to be pinned, so what gives way is the printing: the claim
+    // a reader needs is that it does not float, and package.json holds the
+    // value. See DECISIONS.md, "The colophon states the pin, not the number".
+    key: 'Browser automation',
+    value: 'Playwright, pinned exactly, no version range'
+  },
+  { key: 'Performance engine', value: `Lighthouse ${deps.lighthouse}, driven directly` },
+  { key: 'Continuous integration', value: 'GitHub Actions, one job named conformance' },
+  { key: 'Data', value: `Three JSON fixtures, swept ${sweptStamp()}` },
+  {
+    // A real absence, rendered the way every absence on this site is rendered:
+    // in the human voice, never guessed at. The provisional subdomain this build
+    // assumes is in the blocked list below, where it can be explained.
+    key: 'Production host',
+    value: null,
+    absence: 'Not decided'
+  }
+];
+
+/* ---------------------------------------------------------------------------
+   What each gate actually guarantees.
+
+   The registry owns the gate's number, its id and its one-phrase name. This map
+   owns the sentence that says what passing it buys, which is the thing a reader
+   of a colophon is here for: "accessibility" is a category, "zero axe
+   violations on every route in both themes at two widths" is a guarantee.
+
+   The build fails if the two ever disagree, in either direction. A gate with no
+   description would ship a blank cell on the proof page; a description with no
+   gate would describe a check nobody runs.
+   --------------------------------------------------------------------------- */
+
+const GUARANTEES: Record<string, string> = {
+  a11y:
+    'axe-core runs against every route in the built tree, in both themes, at 375 and at 1280, under WCAG 2.0 and 2.1 at levels A and AA. Zero violations, or the build does not ship. It drives a real browser because contrast and focus order are computed values that markup cannot show, and it writes its own report into the site it just checked.',
+  truth:
+    'Every stat tile equals the count in the data. Every fit score equals the sum of its own components. Every rendered timestamp equals the sweep instant. Every apply link answers below a 400 status. Every sentence with a number in it inside an education strip matches the canonical fact list character for character, and a paraphrase fails on purpose.',
+  copy:
+    'Em dashes, en dashes and curly quotes fail anywhere in the repository, whether they are written as characters or as HTML entities. The banned vocabulary fails in anything a reader can read, including component props and the human-readable attributes. A banned word inside a code comment warns instead, because the ban is on copy.',
+  perf:
+    'Lighthouse on an emulated phone: performance at least 95, accessibility 100. Then a static budget, computed from the built files rather than from one browser run, capping each route at 150 KiB of non-image transfer including every font face its stylesheets declare. A third check fails if the browser ever transfers more than that model predicted, because a budget the measurement can escape is not a budget.',
+  visual:
+    'One screenshot per route, per theme, per viewport, compared against baselines committed in this repository. Zero differing pixels. Nothing is masked, including the timestamps and the stat tiles, because a mask over the numbers would point the only pixel-level gate away from the pixels carrying the claim. A baseline may only change in the same commit as the change that caused it.',
+  motion:
+    'The one signature moment runs once, finishes under 400ms, and does not run at all when the reader has asked for reduced motion. Asserted from both ends: statically over the shipped CSS with token references resolved, and at runtime by recording every animation the document starts from its first frame, because a page-load animation is over before a single read could see it.',
+  pii:
+    'No account holder reaches a file. Every built file is read for an email address, and an address only passes if it was derived from somewhere it legitimately comes from: a recruiter address republished inside an employer posting, or this site saying how to reach its own operator. Both sets are read out of their source files, so neither is a list anyone can quietly extend. The column names of every person table fail as rendered text or as an attribute value, the tables themselves read out of the auth library rather than remembered, and so does anything shaped like a cookie or a bearer token. Then the other direction: a page that reads a signed-in reader, the auth layer, or the database has to be rendered per request, because a prerendered page that read a reader read one reader, once, at build time, and served that answer to everyone.',
+  provenance:
+    'The immutable core of a Profile Record entry, employer, title, and both dates, is read live off record.ts and checked against the ProfileEntry interface and against the columns declared on record_entry, so the three cannot silently disagree about what the core is. Source under src/ fails if a core field name is ever directly followed by a string transforming call: no trim, case fold, normalisation, replace, slice, or split reaches a value on its way to a reader. A fixture entry carrying a leading and trailing space, a smart quote, an em dash and other adversarial characters is then run through every exported function that can return an entry without opening a database connection, and every core field coming back has to match byte for byte. A second fixture proves the record accepts, rather than refuses, a core field carrying whitespace or a hidden character: nothing scans, strips, or warns about what a person put in their own record. A third, adversarial record and target are rendered through the real renderResume() and renderCover(), and every rendered core is checked two ways, byte-identical to a literal ledger and separately traceable to coreOf() of its own source entry, while nothing the target alone carries ever reaches a section, a bullet, or a gap. The fourth clause, that every generated bullet resolves the PRF ids it cites, runs against those same two renders.',
+  population:
+    'Every count on a page reconciles to one stated population. Four registered populations, each with a value recomputed here from the published files rather than trusted from the page, and each with a phrase a reader has to be able to see beside the number: postings observed on the boards, postings that reached a verdict, published rows, and boards swept. A number whose surrounding block does not carry its population\'s phrase fails even when the number itself is correct, because a figure a reader cannot attribute is not yet a fact to them. Where a page states two counts that sound like answers to one question, exactly one element has to tie them together: none is the silent version of the mistake this gate is named after, and more than one is two statements that will drift. A distinctive value printed with no declaration at all fails; a two-digit one warns, because this repository already learned from the truth gate that hard-failing on short common numbers finds coincidences rather than defects.',
+  fabrication:
+    '32 adversarial scenarios, each one an invented record, a target, and sometimes a writing-voice sample, run through the real renderResume() and renderCover(), one attack per scenario through one of four channels: the posting, the voice sample, the record itself, or the export path. Every render is held to the same four checks: no fact appears that is absent from the record, the immutable core stays byte-identical, every bullet resolves the PRF ids it cites, and every hidden or invisible character in the output traces to something already present in the record, the target, or a voice sample, so a character the generator introduced on its own fails while a character the person or an employer already wrote passes through untouched. This tool does not scan, strip, or refuse a person\'s own content; it only refuses to generate hidden text of its own.',
+  'parse-proof':
+    'A fixture record is rendered through the real tailor, drawn to a PDF by the site\'s own vanilla writer, and re-extracted with the same resume-extract.ts a person\'s upload passes through. Three things have to hold. Every field survives byte-intact: each name, official title, employer, and date range comes back out of the PDF as one unbroken run, and every bullet as the same words in the same order. No text is hidden: every glyph is black, at a readable size, positioned inside the page, so there is no white text, no off-page text, and no size a reader could not see. The metadata is only the four truthful facts, the person as author, this site\'s renderer as producer, the real date, and nothing else, no tool claiming authorship it does not have. The gate proves it can catch each of these failing on every run by planting the exact defect, a dropped role, an invisible-text plant, a metadata lie, and asserting the detector fires, because a gate that has never failed is decoration.'
+};
+
+for (const gate of GATES) {
+  if (!GUARANTEES[gate.id]) {
+    throw new Error(
+      `colophon.astro: gate "${gate.id}" is in test/gates.config.mjs and has no line in GUARANTEES. A gate this page cannot describe is a gate this page should not be publishing a verdict for.`
+    );
+  }
+}
+for (const id of Object.keys(GUARANTEES)) {
+  if (!GATES.some((gate) => gate.id === id)) {
+    throw new Error(
+      `colophon.astro: GUARANTEES describes "${id}", which is not a gate in test/gates.config.mjs. Either the gate was removed and this page still advertises it, or the id is a typo.`
+    );
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   The recorded run, matched against the registry.
+
+   A recorded id the registry does not have is a hard error: the record would be
+   publishing a verdict for a gate that does not exist. A registry gate the
+   record does not carry is NOT an error, it is a missing verdict, and it
+   renders as one. Those two cases are opposite failures and they get opposite
+   treatments on purpose.
+   --------------------------------------------------------------------------- */
+
+// Captured once, so the narrowing survives into every closure below. RUN is
+// nullable by design (no run recorded is a real state this page renders), and
+// TypeScript cannot see that a null check outside an arrow function still holds
+// inside it.
+const run = RUN;
+
+if (run) {
+  for (const result of run.gates) {
+    if (!GATES.some((gate) => gate.id === result.id)) {
+      throw new Error(
+        `conformance-run.ts records a result for "${result.id}", which is not a gate in test/gates.config.mjs. A record cannot report on a gate the repository does not run.`
+      );
+    }
+  }
+}
+
+type Row = {
+  number: number;
+  id: string;
+  name: string;
+  guarantee: string;
+  verdict: Verdict | 'not-recorded' | 'retired';
+  detail: string | null;
+  /** The date a retired gate stopped running, so the row can say when. */
+  retired: string | null;
+};
+
+const rows: Row[] = GATES.map((gate): Row => {
+  const result = run?.gates.find((entry) => entry.id === gate.id);
+  return {
+    number: gate.number,
+    id: gate.id,
+    name: gate.name,
+    guarantee: GUARANTEES[gate.id],
+    // A retired gate reports retirement and never a verdict, whatever a record
+    // still holds for it. It did not run, so it did not pass, and "not
+    // recorded" would read as a gate that should have run and did not. The row
+    // stays because this page goes on describing what the gate did while it ran.
+    verdict: gate.retired ? 'retired' : (result?.verdict ?? 'not-recorded'),
+    detail: gate.retired ? null : (result?.detail ?? null),
+    retired: gate.retired ?? null
+  };
+}).sort((a, b) => a.number - b.number);
+
+const VERDICT_LABEL: Record<Verdict | 'not-recorded' | 'retired', string> = {
+  pass: 'Pass',
+  fail: 'Fail',
+  'could-not-run': 'Could not run',
+  'not-recorded': 'Not recorded',
+  retired: 'Retired'
+};
+
+const passing = rows.filter((row) => row.verdict === 'pass').length;
+// Retired gates are not part of the denominator: a page that said "10 of 11"
+// while one of the eleven no longer exists would be understating itself against
+// a gate nobody runs.
+const live = rows.filter((row) => row.verdict !== 'retired').length;
+
+/* ---------------------------------------------------------------------------
+   Is the record behind the build?
+
+   The routes this build declares are read from the pages directory itself, so
+   no list here can go stale as later phases add pages. Astro's own rule
+   applies: a file whose name begins with the _ character is not a route.
+
+   A declared route the recorded run never measured means the record describes a
+   smaller site than the one being published, and the page says so before it
+   shows a single verdict. This is the mechanism the route census applies to the
+   gates, applied to the page that publishes their result.
+   --------------------------------------------------------------------------- */
+
+const pageFiles = Object.keys(import.meta.glob('./**/*.astro'));
+
+function patternFor(file: string): string | null {
+  const relative = file.replace(/^\.\//, '').replace(/\.astro$/, '');
+  const segments = relative.split('/');
+  if (segments.some((segment) => segment.startsWith('_'))) return null;
+  if (segments[segments.length - 1] === 'index') segments.pop();
+  return `/${segments.join('/')}`;
+}
+
+/** A dynamic pattern is satisfied by any measured route that fits its shape. */
+function measured(pattern: string, routes: string[]): boolean {
+  if (!pattern.includes('[')) return routes.includes(pattern);
+  const shape = new RegExp(`^${pattern.replace(/\[[^\]]+\]/g, '[^/]+')}$`);
+  return routes.some((route) => shape.test(route));
+}
+
+// This page's own route is added by hand, and the reason is a Vite detail worth
+// writing down: import.meta.glob never returns the module doing the globbing, so
+// the colophon is the one page missing from its own census of the pages
+// directory. Read from the route registry rather than typed, so a rename still
+// resolves. The Set is what keeps it from appearing twice the day that changes.
+//
+// stripBase, and this is the whole of the second bug. Everything else in this
+// list is a file path turned into a pattern, so it is base-free, exactly like
+// the route ids in RUN.routes. routeFor() is the one accessor here that returns
+// a served path, base and all. Mixing the two vocabularies in one array made
+// measured() ask whether the run had covered "/jobs/colophon", which it never
+// could, so this page published a banner saying it was behind the build, on the
+// build that measured it, directly above six PASS verdicts. It also dropped
+// itself from the itemised list below and counted itself as a route the build
+// no longer declares. src/lib/data.ts's routeMatches() is the same comparison
+// done correctly and is the pattern this call site should have copied.
+const declared = [
+  ...new Set([
+    ...pageFiles.map(patternFor).filter((pattern): pattern is string => pattern !== null),
+    stripBase(routeFor('colophon'))
+  ])
+].sort();
+
+/* ---------------------------------------------------------------------------
+   HOW MANY PAGES EACH DYNAMIC PATTERN ACTUALLY EMITS.
+
+   A pattern is only evidence of drift when the build has instances of it. This
+   build declares /kills/[slug]/card and emits none of it, because publishing a
+   kill row requires a rule this site still stands behind and no record in this
+   sweep carries one. Comparing the pattern against a route list would then
+   report a missing route on every run forever, and a banner that is always on is
+   a banner nobody reads.
+
+   Listed here rather than inferred, and the build throws on a dynamic pattern
+   that is not listed, which is the same discipline GUARANTEES applies to the
+   gate registry above. A route this page cannot count is a route it should not
+   be quietly assuming about. The counts come from the same accessors the route
+   files' own getStaticPaths call, so they cannot disagree.
+   --------------------------------------------------------------------------- */
+const DYNAMIC_INSTANCES: Record<string, number> = {
+  '/role/[slug]': loadJobs().length,
+  // The card route builds over the record and not over tonight, so this counts
+  // the same set its getStaticPaths does. Counting loadKills() here would report
+  // drift on every card the archive keeps alive past its own sweep.
+  '/kills/[slug]/card': killsWithCards().length,
+
+  /* A SERVER RENDERED ROUTE EMITS NO INSTANCES, AND ZERO IS THE HONEST COUNT.
+     These two carry `export const prerender = false`, so the build writes no
+     files for them: they are answered per request, because entitlement depends
+     on who is asking and Better Auth's handler exists to answer requests.
+
+     Zero is not a placeholder here. `emitted()` below treats a count of zero as
+     "this build has no instances to compare", which is precisely true of a
+     route that is never prerendered. Giving them a positive count would make
+     this page look for static files that will never exist and report drift on
+     every run forever, which is the banner-nobody-reads failure the comment
+     above describes. */
+  '/drafts/[slug]': 0,
+  '/auth/[...all]': 0,
+
+  /* Zero for the reason above, and for one more that is specific to this route.
+     /u/[handle] carries `export const prerender = false` because it answers
+     owner or 404, which cannot be decided at build time. It could not be
+     prerendered even if entitlement did not enter into it: the set of claimed
+     handles is a set of people, and writing a file per handle would publish the
+     existence of every handle to anyone who could list the built tree. A route
+     whose whole design is that a private profile and a nonexistent one are
+     indistinguishable must not leave a file behind that tells them apart. */
+  '/u/[handle]': 0,
+
+  /* Zero, and per-request for the same reason /desk itself is. /desk/draft/[id]
+     is the draft room: one application's drafted resume and cover, keyed to an
+     application id that exists only after a signed-in person clicks apply, and
+     readable only by that person. Nothing to prerender and nothing that could
+     be, the same footnote every gated per-request route here carries. */
+  '/desk/draft/[id]': 0,
+
+  /* Zero, per-request, for the same reason as /desk/draft/[id]. /desk/job-draft/[slug]
+     is the one-click button's result page: one posting's drafted resume and cover,
+     keyed to the posting slug and readable only by the signed-in person who drafted
+     it. Never prerendered (prerender = false), so the build writes no file for it. */
+  '/desk/job-draft/[slug]': 0,
+
+  /* Zero, per-request, like the result page it downloads from.
+     /desk/job-draft/[slug]/[doc] generates one drafted document as a PDF from
+     the stored render, owner scoped, prerender = false, so the build writes no
+     file for it. */
+  '/desk/job-draft/[slug]/[doc]': 0,
+
+  /* Zero, per-request, like the room whose state it reports.
+     /desk/job-draft/[slug]/status answers whether one posting's draft is
+     unstarted, drafting or ready, as JSON for the detail page's rail, owner
+     scoped, prerender = false, so the build writes no file for it. */
+  '/desk/job-draft/[slug]/status': 0,
+
+  /* Zero, per-request, for the reason every SSR route above is. /board/[slug] is
+     the unified board's job detail: it reads the job store by slug at request
+     time (prerender = false), so the build writes no file for it. */
+  '/board/[slug]': 0
+};
+
+for (const pattern of declared) {
+  if (pattern.includes('[') && !(pattern in DYNAMIC_INSTANCES)) {
+    throw new Error(
+      `colophon.astro: the pages directory declares the dynamic route "${pattern}" and DYNAMIC_INSTANCES does not count it. This page compares the recorded run against the routes the build emits, and it cannot do that for a pattern whose instance count nobody stated.`
+    );
+  }
+}
+
+const emitted = (pattern: string): boolean =>
+  pattern.includes('[') ? (DYNAMIC_INSTANCES[pattern] ?? 0) > 0 : true;
+
+const unmeasured = run
+  ? declared.filter((pattern) => emitted(pattern) && !measured(pattern, run.routes))
+  : declared.filter(emitted);
+
+/* ---------------------------------------------------------------------------
+   IS THE RECORD CURRENT? AND WHY THAT IS A DIFFERENT QUESTION FROM THE VERDICTS.
+
+   This page shipped six green PASS badges, "All 6 gates passed on the tree named
+   below" and "No gate was ever loosened to make a build pass", over a build where
+   npm run conform reported 1 of 6. It was not lying about the run: the record is
+   a faithful transcript of a run that really happened. It was lying by tense. A
+   recorded pass over a tree that no longer exists is a historical fact, and this
+   page was rendering it as the present state of the build, on the one page whose
+   whole argument is that we hold ourselves to the standard we ask of employers.
+
+   The banner that existed caught only half of it, and the quieter half. It
+   compared route lists, so it said "these routes were not in the tree the gates
+   read" and nothing at all about the verdicts, which is the part a reader takes
+   away. A visitor read a route-count caveat above six green stamps and reasonably
+   concluded the build was green.
+
+   So currency is now asked as its own question, with three conditions, and it
+   governs how every verdict on this page is presented:
+
+     1. Every route this build declares was in the tree the gates read.
+     2. Every route the run measured still exists in this build. A record covering
+        pages the site has deleted describes a different site.
+     3. The run's sweep is this build's sweep. conformance-run.ts said in its own
+        docstring that the colophon compared these and the colophon did not,
+        which is how a record of the sweep of 2026-08-17 sat on a build of
+        2026-08-19 without a word.
+
+   When the record is not current, no verdict on this page renders as a present
+   tense claim. The badges keep their recorded words and take the loss colour,
+   the summary line refuses to state a score for this build, and the banner names
+   all three conditions rather than only the route count.
+   --------------------------------------------------------------------------- */
+
+/**
+ * Routes the run measured that this build no longer declares.
+ *
+ * Dev-only routes are excluded, and the reason is Astro's own rule rather than a
+ * convenience: a path segment beginning with an underscore is not a route, so
+ * patternFor() drops /_specimen and /_states from `declared` by design. The
+ * gated build emits them anyway, on purpose, because they are the surfaces the
+ * contrast audit and the state gallery measure. Counting them here would report
+ * two vanished routes on every single run.
+ *
+ * The comparison is by shape, not by slug. Every role page comes from the data,
+ * so a record naming role slugs this sweep does not hold is a record of a
+ * different sweep, and the sweep stamp above says that in one line instead of
+ * three dozen. Listing every changed slug here would bury the reason under the
+ * symptom.
+ */
+const vanished = run
+  ? run.routes.filter(
+      (route) =>
+        !route.split('/').some((segment) => segment.startsWith('_')) &&
+        !declared.some((pattern) => measured(pattern, [route]))
+    )
+  : [];
+
+const siteSweep = loadStats().swept_at_utc;
+const recordSweep = run?.swept_at_utc ?? null;
+const sweepMatches = recordSweep === siteSweep;
+
+const current = run !== null && unmeasured.length === 0 && vanished.length === 0 && sweepMatches;
+
+/** Every reason the record is not current, in the order a reader should read them. */
+const staleReasons: string[] = [];
+if (run && !sweepMatches) {
+  // The two instants are named in the run facts below, once each, where gate 2
+  // holds the record's own instant to the file that carries it. Repeating a
+  // second instant in this sentence would put an undeclared timestamp on the
+  // page, and one clock is a rule about the page rather than about the panel.
+  staleReasons.push(
+    'It measured a different sweep than this build publishes, so the gates never read this data. Both sweeps are named in the run facts below.'
+  );
+}
+if (run && unmeasured.length > 0) {
+  staleReasons.push(
+    `It measured ${run.routes.length} routes. This build declares ${declared.length}, and these were not in the tree the gates read: ${unmeasured.join(', ')}.`
+  );
+}
+if (run && vanished.length > 0) {
+  staleReasons.push(
+    `It measured ${vanished.length} routes this build no longer declares: ${vanished.slice(0, 6).join(', ')}${vanished.length > 6 ? `, and ${vanished.length - 6} more` : ''}.`
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   What the run measured, by shape rather than by name.
+
+   The record stores every route in full, because that is the evidence the
+   banner above is computed from. This page renders the shapes instead, and the
+   reason is a gate rather than a preference: gate 2 reads any page carrying a
+   company name as a page rendering job data, and then holds every score-shaped
+   number on it to the fit markers. A colophon quoting three dozen job slugs is
+   exactly that page, and it would fail the truth gate for declaring scores it
+   does not have. Shapes carry the same information for a reader (how much site
+   was measured, and of what kind) and carry no employer's name at all.
+
+   The leftover count is not padding. A measured route that matches nothing this
+   build declares is the mirror of the banner above: the record covering a page
+   the site no longer has.
+   --------------------------------------------------------------------------- */
+
+
+const THEMES = [
+  {
+    title: 'Colour was resolved by measurement, not by preference',
+    body:
+      'One quiet grey in the palette failed AA everywhere it carried text, on both themes. Walking the ramp one step at a time showed that the tone it described does not exist on this paper: the nearest passing value is also the lightest passing value. The token was retired rather than redefined into a duplicate of its neighbour, and every place it had been carrying hierarchy was given a second channel, one instance at a time.'
+  },
+  {
+    title: 'No gate was ever loosened to make a build pass',
+    body:
+      'Two gates ran red for most of a day, on contrast and on the transfer budget, and both were left red until the design was fixed. No threshold was edited, no rule excluded, no selector skipped. Both went green afterwards with no change to any gate file, which is the outcome the refusal was betting on. The copy gate is the current test of the same rule, and it is a harder one: it forbids em dashes, en dashes and curly quotes, employers write all three, and this site republishes an employer\'s posting without editing a character of it. Two absolute rules disagree, the gate is red, and it stays red until the owner rules on which one governs quoted material. A red gate over a real collision is worth more than a green one over an edited quotation.'
+  }
+];
+
+/**
+ * Blocked, and the honest half of the page. Each entry is what is stuck, and
+ * what would unstick it, in one line each. Everything here is in DECISIONS.md
+ * with its full reasoning.
+ */
+---
+
+<BaseLayout
+  title="Colophon"
+  active="colophon"
+  description="How The Index was built: the stack, the gates and what each one guarantees, the last recorded conformance run, and the decision log."
+>
+  <div class="shell colophon">
+    <header class="head">
+      <p class="kicker-line mono-label">Colophon</p>
+      <h1 class="title">How this was built</h1>
+      <p class="lede">
+        Every page here argues that a machine can publish claims a reader is able to check. That standard applies to
+        the site as well as to the postings. This is the stack, the gates and what passing each one buys, the last
+        recorded conformance run, and and the decision log.
+      </p>
+    </header>
+
+    {
+      /*
+        The staleness alarm, first, before any verdict. A record that measured
+        fewer routes than the build declares is a record that has gone behind,
+        and a reader deserves to know that before reading a green stamp.
+      */
+      run !== null && !current && (
+        <ErrorState
+          title="This record does not describe this build"
+          detail={`${staleReasons.join(' ')} Nothing below is a statement about the build you are reading. It is the last run that was recorded, kept because deleting a record is worse than dating one. Run npm run conform and update src/data/conformance-run.ts to replace it.`}
+        />
+      )
+    }
+
+    <section class="section" aria-labelledby="stack">
+      <h2 id="stack">The stack</h2>
+      <p class="note">
+        Read out of package.json at build time, so this list cannot drift from what the repository installs. The
+        versions are the declared ranges. Two of them carry no range at all: the browser driver and the accessibility
+        engine are pinned exactly, because both decide gate results and neither decides them for a design reason. The
+        browser pin is the load-bearing one: it fixes the Chromium revision the visual baselines were photographed
+        against.
+      </p>
+
+      <Panel title="Stack" surface="raised">
+        <KeyValueList rows={STACK} />
+      </Panel>
+    </section>
+
+    <section class="section" aria-labelledby="gates">
+      <h2 id="gates">The gates, and what each one guarantees</h2>
+      <p class="note">
+        Read from the registry both runners import, so this page cannot advertise a gate the build does not run. A
+        gate exits passed, failed, or could not run, and the third is the one that matters: a gate that measured
+        nothing is never counted as one that passed.
+      </p>
+
+      <ol class="gate-list">
+        {
+          rows.map((row) => (
+            <li class="gate">
+              <div class="gate-head">
+                <p class="gate-id mono-label">
+                  Gate {row.number}, {row.id}
+                </p>
+                {/*
+                  A recorded pass over another tree is not a pass on this one, so
+                  it does not get the pass colour. The word stays, because the
+                  record is real and hiding it would be its own dishonesty, and
+                  the badge says which build it belongs to.
+                */}
+                <p class={`gate-verdict mono-label verdict-${current ? row.verdict : 'not-current'}`}>
+                  {current || row.verdict === 'not-recorded'
+                    ? VERDICT_LABEL[row.verdict]
+                    : `${VERDICT_LABEL[row.verdict]}, on an earlier build`}
+                </p>
+              </div>
+
+              <h3 class="gate-name">{row.name}</h3>
+              <p class="gate-guarantee">{row.guarantee}</p>
+
+              {/*
+                WHAT THE GATE ACTUALLY MEASURED, IN ITS OWN WORDS.
+
+                This was modelled, validated, styled, and never rendered. The
+                record has always carried a `detail` per gate, colophon.astro
+                has always had a `.gate-detail` rule, and no element ever used
+                it, so a reader saw the guarantee and the verdict and never the
+                denominator. RUN-FINISH 3.4 part 5 asks for exactly this and
+                asks for a reason: "the design is verified" has to carry a
+                denominator like every other number on this site. Gate 5 now
+                reports its route count and its fixture date, and that sentence
+                had nowhere to appear.
+              */}
+              {row.detail ? (
+                <p class="gate-detail">{row.detail}</p>
+              ) : (
+                <p class="gate-absence">
+                  No result recorded for this gate in the run below, so this page makes no claim about it.
+                </p>
+              )}
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <section class="section" aria-labelledby="run">
+      <h2 id="run">The conformance run</h2>
+
+      {
+        run === null ? (
+          <EmptyState
+            title="No run recorded"
+            detail="Nothing has been transcribed into src/data/conformance-run.ts yet, so this page has no verdict to publish. An empty record renders as an empty record rather than as a clean build."
+          />
+        ) : (
+          <>
+            <p class={`run-verdict mono-label ${current && passing === live ? 'verdict-pass' : 'verdict-fail'}`}>
+              {current
+                ? passing === live
+                  ? `All ${live} gates passed on the tree named below`
+                  : `${passing} of ${live} gates passed on the tree named below`
+                : `No current run. The last recorded run read ${passing} of ${live} gates green on a tree this build is not`}
+            </p>
+
+            <p class="note">
+              The command is below and it is the whole thing: anyone with the repository runs it and compares. The run
+              carries the sweep stamp rather than a time of its own, because a build is an artifact of a sweep and this
+              site has one clock. Before the gates run, a census asserts that the tree they are about to read contains
+              every route this repository declares, so a green summary cannot be green partly because a page was
+              missing.
+            </p>
+
+            <Panel title="Recorded run" footnote={`Build of the sweep swept ${sweptStamp()}`}>
+              <dl class="run-facts">
+                <div class="run-fact">
+                  <dt class="run-key">Command</dt>
+                  <dd class="run-value mono">{run.command}</dd>
+                </div>
+              <div class="run-fact">
+                <dt class="run-key">Routes measured</dt>
+                <dd class="run-value mono">{run.routes.length} routes</dd>
+              </div>
+              {/*
+                The one instant on this site that is not the sweep clock, and it
+                is declared as such. Gate 2 checks it against swept_at_utc in
+                src/data/conformance-run.ts rather than letting an attribute wave
+                it through, because an unchecked exception to one clock is just a
+                second clock. It prints in full rather than as a formatted date:
+                the reason the line exists is to let a reader see that the record
+                and this build are different sweeps.
+              */}
+              <div class="run-fact">
+                <dt class="run-key">Sweep measured</dt>
+                <dd class="run-value mono" data-truth="run-instant">{run.swept_at_utc}</dd>
+              </div>
+              <div class="run-fact">
+                <dt class="run-key">Sweep published here</dt>
+                <dd class="run-value mono">{siteSweep}</dd>
+              </div>
+              </dl>
+
+              <pre class="transcript mono" tabindex="0" aria-label="The conformance runner's summary, verbatim">{run.transcript.join('\n')}</pre>
+            </Panel>
+          </>
+        )
+      }
+
+      <p class="note">
+        The gates are also run against deliberately broken copies of the site, one per gate, and every one has to fail.
+        That run happens first in continuous integration, before the real build is judged, because a green result is
+        only worth something if the instruments can still go red. A gate that has never failed is decoration.
+      </p>
+    </section>
+
+    <section class="section" aria-labelledby="log">
+      <h2 id="log">The decision log</h2>
+      <p class="note">
+        Every call made without a human is written down with the date, the reasoning, and what would reverse it. The
+        full record lives in the repository. What follows is a map of it, and then the part that matters more.
+      </p>
+
+      <ol class="themes">
+        {
+          THEMES.map((theme) => (
+            <li class="theme">
+              <h3 class="theme-title">{theme.title}</h3>
+              <p class="theme-body">{theme.body}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+  </div>
+</BaseLayout>
+
+<style>
+  .colophon {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-800);
+    padding-block: var(--space-700) var(--space-800);
+  }
+
+  .head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .kicker-line {
+    color: var(--color-muted);
+  }
+
+  .title {
+    max-width: 16ch;
+  }
+
+  .lede {
+    font-size: var(--size-300);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  .section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-500);
+  }
+
+  .note {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  /* Two columns of gates on a desktop, one on a phone. Six items read as a
+     reference table rather than as a wall when they sit two abreast, and every
+     card is the same height because nothing inside one is decorative. */
+  .gate-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-500);
+  }
+
+  .gate {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    border-top: var(--border-heavy) solid var(--color-foreground);
+    padding-top: var(--space-300);
+    min-width: 0;
+  }
+
+  .gate-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-300);
+    flex-wrap: wrap;
+  }
+
+  .gate-id {
+    color: var(--color-muted);
+  }
+
+  /* The verdict is a machine assertion about a run, so it takes the machine
+     voice. Colour is the second channel and never the only one: the word itself
+     says pass or fail, which is what a reader who cannot see the difference
+     between the two colours is reading. */
+  .verdict-pass {
+    color: var(--color-mark-live);
+  }
+
+  .verdict-fail,
+  .verdict-could-not-run,
+  .verdict-not-current,
+  .verdict-not-recorded {
+    color: var(--color-stat-loss);
+  }
+
+  .gate-name {
+    font-size: var(--size-300);
+    line-height: var(--leading-snug);
+    text-wrap: balance;
+  }
+
+  .gate-guarantee {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  .gate-detail {
+    color: var(--color-foreground);
+  }
+
+  /* An absence is editorial, so it is not in the machine voice. Same rule the
+     key and value list follows: a measurement is mono, a gap is not. */
+  .gate-absence {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-stat-loss);
+  }
+
+  .run-verdict {
+    font-size: var(--size-100);
+  }
+
+  .run-facts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--space-200) var(--space-400);
+    margin: 0 0 var(--space-400);
+  }
+
+  .run-fact {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: baseline;
+  }
+
+  .run-key {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+
+  .run-value {
+    margin: 0;
+    color: var(--color-foreground);
+    word-break: break-word;
+  }
+
+  /* The runner's own output, verbatim. It scrolls inside its own box rather
+     than setting the width of the page, and it is focusable so a keyboard can
+     reach the scroll. */
+  .transcript {
+    margin: 0;
+    padding: var(--space-400);
+    background: var(--color-surface);
+    border: var(--border-hairline) solid var(--color-line);
+    overflow-x: auto;
+    font-size: var(--size-050);
+    line-height: var(--leading-snug);
+    color: var(--color-foreground);
+    white-space: pre;
+  }
+
+  .routes {
+    margin-top: var(--space-100);
+  }
+
+  /* A control, so it reads like one: the site's underline treatment, and the
+     browser's own disclosure triangle rather than a drawn substitute. */
+  .routes-summary {
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .shapes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+    margin-top: var(--space-300);
+  }
+
+  .shape {
+    color: var(--color-muted);
+  }
+
+  .run-notes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    margin-top: var(--space-400);
+  }
+
+  .run-note {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+
+  .themes {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-500) var(--space-600);
+  }
+
+  .theme {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-300);
+    min-width: 0;
+  }
+
+  .theme-title {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    text-wrap: balance;
+  }
+
+  .theme-body {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  .blocked {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    max-width: var(--layout-measure);
+  }
+
+  /* The loss colour on the rule, not on the words. The list is a statement of
+     what is stuck, and painting nine paragraphs red would make the page read as
+     an alarm rather than as an inventory. */
+  .blocked-item {
+    border-left: var(--border-heavy) solid var(--color-stat-loss);
+    padding: var(--space-200) var(--space-400);
+  }
+
+  .blocked-what {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    font-weight: var(--weight-medium);
+  }
+
+  .blocked-unblocks {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  @media (max-width: 60rem) { /* --breakpoint-lap */
+    .gate-list,
+    .themes {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .colophon {
+      gap: var(--space-700);
+    }
+
+    .transcript {
+      padding: var(--space-300);
+    }
+  }
+</style>

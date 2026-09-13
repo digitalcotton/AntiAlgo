@@ -1,0 +1,725 @@
+---
+import FitBadge from './FitBadge.astro';
+import FitBars from './FitBars.astro';
+import Mark from './Mark.astro';
+import {
+  ABSENCE,
+  AGE_BASIS_LABEL,
+  ageOf,
+  applyLabel,
+  compShort,
+  compTop,
+  easeSegments,
+  facetsOf,
+  firstSeen,
+  firstSeenVisible,
+  formatAge,
+  formatDate,
+  locationShort,
+  markStateOf,
+  sourceLabel,
+  sweptStamp,
+  workplaceOf,
+  type Job,
+  type SortRanks
+} from '../lib/data';
+import { jobPath } from '../data/nav';
+
+/**
+ * One row of the index table, to the approved canvas: fit with its why
+ * expander, the role as posted with its company and mark, comp as posted,
+ * location, age, apply.
+ *
+ * WHAT A ROW PROMISES.
+ *
+ * Every cell is the source's own words or a number the machine measured. The
+ * title is not tidied, the location keeps its hedges ("SF or NYC, city
+ * unconfirmed"), and the comp string keeps its equity notes and zone
+ * qualifiers, because "as posted" is the column heading and a cleaned up value
+ * would make this table a summary of postings rather than a record of them.
+ *
+ * ONE NAMED EXCEPTION. The location cell renders locationDisplay(job.location)
+ * rather than job.location itself: a redundant "United States" is dropped
+ * from what is DISPLAYED, never from the stored field, the facet a filter
+ * reads, or anything else that touches the record. See that function's own
+ * header in src/lib/data.ts for the full argument; the short version is that
+ * naming the reader's own country adds no information a US reader did not
+ * already have, so removing it changes no meaning, and every other country is
+ * left exactly as posted because removing one of those would.
+ *
+ * Where the source gave nothing, the cell says so in the human voice: "Not
+ * listed" and "No date shown" are editorial statements about our knowledge, not
+ * machine readings, so they are never set in mono. That is standing rule 3 doing
+ * real work: a reader can tell a measurement from an absence by the typeface
+ * alone, before reading a word.
+ *
+ * THE AGE CELL carries its own basis. An age computed from the date the source
+ * published gets "Posted <date>"; an age computed from the sweep we first saw
+ * it gets "First seen <date>", and only ever on rows where that date is not
+ * today. Rows with no date to count from show the absence, which on this sweep
+ * is five of the 37. See DECISIONS.md, "The age column: two different facts".
+ *
+ * THE VERIFICATION LINE is the scoped label MASTER-SPEC F10 asks every row to
+ * carry: which feed the posting was observed on, and when we last verified it.
+ * It used to live only in the Mark's aria-label, which a sighted reader on
+ * this row never saw: a screen reader announced "Verified against the
+ * Greenhouse source" and everyone else got a colored glyph with no partner.
+ * That also meant a row rendered anywhere other than inside JobTable, which is
+ * the only place that prints the sweep stamp as a page-level banner, carried
+ * no verification statement of its own at all. Standing rule 5 says a mark
+ * never stands alone, so the Mark below is passed no `label`: the visible line
+ * is the text partner now, said once, in one shape, on every row regardless of
+ * status or where the row is mounted. Re-verified status used to live a second
+ * place too, nested inside the age cell's `age &&` branch, so a re-verified
+ * row with no measurable age silently dropped the word "re-verified"
+ * altogether. Stating it here, unconditionally, is the fix: one row, one
+ * verification fact, in one place.
+ *
+ * THE DATA ATTRIBUTES are the filter and sort island's whole interface. Writing
+ * the facets here means filtering never has to ship the data to the browser: the
+ * rows already know which buckets they are in, and the controls only have to
+ * read attributes. Nothing here is decorative, so nothing here is optional.
+ */
+
+interface Props {
+  job: Job;
+  /** Which surface the row sits on, passed to the mark for its knockout. */
+  surface?: 'page' | 'raised' | 'hover';
+  /**
+   * Where the title links. Defaults to jobPath (the /role page the design set
+   * prerenders). The unified board passes its own resolver so a tracked row
+   * links to its /board page instead, without this component knowing which
+   * surface it is on.
+   */
+  hrefFor?: (job: Job) => string;
+  /**
+   * This row's position under each of the three sorts, from sortRanks().
+   * Supplied by JobTable when the sort control is an island: the browser then
+   * orders rows by an integer instead of re-deriving what "sort by comp" means.
+   */
+  ranks?: SortRanks;
+  /** Pre-hidden because it belongs to a later page. Keeps the first paint and
+      the island's first state identical, so nothing moves on load. */
+  hidden?: boolean;
+  /**
+   * Whether this reader sees the fit score. False drops the fit cell and its
+   * why panel from the markup (flags.config.mjs fit_public, dark for a
+   * signed-out reader); the data attributes stay, because they describe the
+   * row and not who is looking at it.
+   */
+  fit?: boolean;
+  class?: string;
+}
+
+const { job, surface = 'raised', ranks, hidden = false, fit = true, class: className, hrefFor } = Astro.props;
+const titleHref = hrefFor ? hrefFor(job) : jobPath(job.slug);
+
+const age = ageOf(job);
+const observed = firstSeen(job);
+const facets = facetsOf(job);
+const panelId = `why-${job.slug}`;
+const isClosed = job.status === 'closed';
+const top = compTop(job);
+const place = locationShort(job.location);
+// The verification, on the mark's accessible label rather than a visible line.
+const verificationLabel = `${
+  isClosed ? 'Closed, confirmed' : job.status === 're_verified' ? 'Re-verified' : 'Verified'
+} on the ${sourceLabel(job)} source, ${sweptStamp()}`;
+---
+
+<li
+  class:list={['job-row', isClosed && 'job-row-closed', className]}
+  data-job-row
+  data-slug={job.slug}
+  data-company={job.company}
+  data-status={job.status}
+  data-fit={job.fit.total}
+  data-comp-top={top === null ? '' : top}
+  data-age={age === null ? '' : age.days}
+  data-facet-location={facets.location}
+  data-facet-comp={facets.comp}
+  data-facet-freshness={facets.freshness}
+  data-facet-stage={facets.stage}
+  data-rank-fit={ranks?.fit}
+  data-rank-comp={ranks?.comp}
+  data-rank-age={ranks?.age}
+  hidden={hidden}
+>
+  {fit && (
+    <div class="cell cell-fit">
+      <span class="visually-hidden">Fit score</span>
+      <FitBadge job={job} />
+      {/*
+        The expander is a real button with a real aria-expanded, and it controls a
+        panel that already exists in the markup. JobTable ships a noscript rule
+        that opens every panel and hides every toggle, so a reader without
+        scripting gets the reasoning rather than a control that does nothing.
+      */}
+      <button class="why" type="button" aria-expanded="false" aria-controls={panelId} data-why-toggle>
+        why
+        <span class="why-caret" aria-hidden="true">&#9662;</span>
+      </button>
+    </div>
+  )}
+
+  <div class="cell cell-role">
+    <span class="visually-hidden">Role, as posted</span>
+    {
+      /*
+        TITLE FIRST. The role a person is scanning for is the headline of the
+        row, so it leads the cell, with the company and the verification receipt
+        below it. This is the reading order a job board is expected to have; the
+        machine's provenance (which board, verified when) is the fine print that
+        earns the headline, not the other way round.
+
+        A pre-posting row has no title and gets no link, because there is no
+        role page to link to and no posting to name. It says what is true, in
+        the human voice the table already uses for an absence, and then says
+        what the machine did observe: how many roles that company has open and
+        that none of them is a design role. That sentence is the whole reason
+        the row is on the list.
+      */
+      job.title !== null && titleHref ? (
+        <a class="title" href={titleHref}>
+          {job.title}
+        </a>
+      ) : (
+        <span class="title-absent">
+          <span class="absence">No role posted yet</span>
+          {job.prospect?.one_liner && <span class="one-liner">{job.prospect.one_liner}</span>}
+        </span>
+      )
+    }
+    <span class="row-source">
+      {/* The verification travels on the mark's own label now, not a visible
+          line per row. Every row carried "Observed on <source>, verified <the
+          same sweep stamp>", which repeated the top banner's stamp on every row
+          and named a source the Apply button already names. It clutters the
+          overview and belongs on the detail page, so the row keeps the mark and
+          hands a screen reader the full statement through its label (standing
+          rule 5: the mark still never stands without its meaning). */}
+      <Mark state={markStateOf(job)} surface={surface} label={verificationLabel} />
+      <span class="company mono">{job.company}</span>
+      {/*
+        THE APPLIED TAG (client side, like the seen dimmer beside it in
+        Filters.astro). Always in the markup, hidden by CSS by default: the
+        index is a prerendered static page and cannot know at build time
+        which reader is looking at it or what they have applied to, so there
+        is no server-rendered state to branch on here. Filters.astro's own
+        script already fetches this reader's applied set from GET
+        /settings/filters to run applied suppression; once it knows the
+        answer it sets data-applied on this row's own <li> (the same shape
+        it already uses for data-seen-dimmed), and the sibling selector
+        below is the only thing that ever reveals this span. Text, not a bare
+        colour swatch, so the fact survives for a screen reader and for a
+        reader who cannot distinguish the one accent colour this
+        monochrome site allows itself from the page around it.
+      */}
+      <span class="applied-tag" data-applied-tag>Applied</span>
+    </span>
+  </div>
+
+  <div class="cell cell-comp">
+    <span class="visually-hidden">Pay</span>
+    {/* The clean range only. A posting that writes its pay as a page of
+        location-conditional bands would break this cell, so the row shows the
+        one number from the structured range and the full text lives on the
+        detail page. See compShort() in src/lib/data.ts. */}
+    {
+      compShort(job) ? (
+        <span class="comp mono">{compShort(job)}</span>
+      ) : (
+        <span class="absence">{ABSENCE.value}</span>
+      )
+    }
+  </div>
+
+  <div class="cell cell-location">
+    <span class="visually-hidden">Location</span>
+    {/* The primary place only, with a "+N more" when the posting lists
+        several. locationShort() (src/lib/data.ts) drops the redundant home
+        country and regroups a run of comma-separated cities, so a posting
+        listing a dozen locations does not break the row. The full list is on
+        the detail page. job.location itself is never touched, so the facet the
+        filter reads still sees the employer's own string. */}
+    <span class="location mono">
+      {place.primary}
+      {place.more > 0 && <span class="location-more"> +{place.more} more</span>}
+    </span>
+    {
+      /* How the role is worked, under the where. Remote and On-site come from
+         the posting's own remote flag; Hybrid appears only when the employer's
+         location text says so. See workplaceOf() in src/lib/data.ts for why
+         this is not a free three-way and why On-site is a default, not an
+         observed fact. A pre-posting row returns null and renders nothing. */
+      workplaceOf(job) && <span class="workplace mono-label">{workplaceOf(job)}</span>
+    }
+  </div>
+
+  <div class="cell cell-age">
+    <span class="visually-hidden">Age</span>
+    {
+      age ? (
+        <span class="age-line">
+          <span class="age mono" data-truth="machine">{formatAge(job)}</span>
+        </span>
+      ) : (
+        <span class="absence">{ABSENCE.date}</span>
+      )
+    }
+
+    {/* The basis, so the number above it is never a figure a reader has to take
+        on trust. Rendered only where there is a number to explain. */}
+    {
+      age && (
+        <span class="age-basis mono-label">
+          {AGE_BASIS_LABEL[age.basis]} {formatDate(age.from)}
+        </span>
+      )
+    }
+
+    {/* The First seen column, built and gated on an observation rather than on a
+        count of nights. It stays dark while most rows were first seen on the
+        sweep that rendered them, because a column of identical dates would imply
+        every posting appeared overnight. Once the archive is deeper than the
+        sweep it becomes the column no competitor has, since it comes from our
+        archive rather than from the employer. The gate used to be
+        stats.sweep_number >= 3; that field was dropped on 2026-08-19 and the
+        proxy went with it. */}
+    {
+      firstSeenVisible() && observed && (
+        <span class="age-basis mono-label">First seen {formatDate(observed)}</span>
+      )
+    }
+  </div>
+
+  <div class="cell cell-apply">
+    <span class="visually-hidden">Apply</span>
+    {
+      job.kind === 'pre_posting' ? (
+        /* Nothing to apply to, so the cell does not offer one. The link goes to
+           the company's own profile, labelled for what it is. Writing "Apply"
+           here would be the site inventing an application flow that does not
+           exist, which is the same objection as inventing a title. */
+        <>
+          <span class="absence">No posting to apply to</span>
+          {job.prospect?.profile_url && (
+            <a class="apply-link" href={job.prospect.profile_url} rel="noopener nofollow">
+              See the company
+              <span aria-hidden="true">&#8599;</span>
+            </a>
+          )}
+        </>
+      ) : isClosed ? (
+        /* No apply path anywhere on a closed record. The row states what
+           happened and links to the page that holds the history. */
+        <>
+          <span class="ease mono">Closed{job.closed_reason ? `, ${job.closed_reason.toLowerCase()}` : ''}</span>
+          <a class="apply-link" href={jobPath(job.slug)}>See the record</a>
+        </>
+      ) : (
+        <>
+          {/* One element per fact, so a narrow column breaks the line between
+              facts and never inside one. As a single string this wrapped as
+              "no" / "account", which reads like two things. */}
+          <span class="ease mono">
+            {easeSegments(job).map((part, i) => (
+              <>
+                {i > 0 && <span class="ease-sep" aria-hidden="true"> &#183; </span>}
+                <span class="ease-part">{part}</span>
+              </>
+            ))}
+          </span>
+          <a class="apply-link" href={job.apply_url} rel="noopener nofollow">
+            {applyLabel(job)}
+            <span aria-hidden="true">&#8599;</span>
+          </a>
+        </>
+      )
+    }
+  </div>
+
+  {fit && (
+    <div class="why-panel" id={panelId} hidden data-why-panel>
+      <FitBars job={job} heading={`Why ${job.fit.total}`} />
+    </div>
+  )}
+</li>
+
+<style>
+  .job-row {
+    display: grid;
+    grid-template-columns: var(--table-columns);
+    gap: var(--space-400);
+    align-items: center;
+    padding: var(--space-300) var(--space-600);
+    background: var(--color-surface-raised);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    /* The knockout on a re-verified mark is filled with the row's real
+       background, and the row has two. Setting the property here and again on
+       hover means the mark follows the row without knowing what a row is. */
+    --mark-knockout-fill: var(--color-surface-raised);
+  }
+
+  /* `display: grid` above outranks the browser's own [hidden] rule, which is at
+     the same specificity and comes earlier, so a hidden row would stay on
+     screen. This is the fix, and it has to live beside the grid declaration
+     that caused it. */
+  .job-row[hidden] {
+    display: none;
+  }
+
+  .job-row:hover {
+    background: var(--color-hover-surface);
+    --mark-knockout-fill: var(--color-hover-surface);
+  }
+
+  /* Focus inside a row lifts the whole row, so a keyboard reader sees the same
+     context a cursor reader does rather than a single lit link in a flat list. */
+  .job-row:focus-within {
+    background: var(--color-hover-surface);
+    --mark-knockout-fill: var(--color-hover-surface);
+  }
+
+  .cell {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+  }
+
+  .cell-fit {
+    align-items: flex-start;
+  }
+
+  .why {
+    font-family: var(--font-family-sans);
+    font-size: var(--size-050);
+    color: var(--color-muted);
+    border-bottom: var(--border-hairline) solid var(--color-muted);
+    white-space: nowrap;
+    padding-block: var(--space-100);
+  }
+
+  .why:hover {
+    color: var(--color-foreground);
+    border-bottom-color: var(--color-foreground);
+  }
+
+  /* The caret turns to point down when the panel is open. A transform, not a
+     second glyph, so the character in the accessibility tree never changes. */
+  .why-caret {
+    display: inline-block;
+  }
+
+  .why[aria-expanded='true'] .why-caret {
+    transform: rotate(180deg);
+  }
+
+  .row-source {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200);
+    min-width: 0;
+  }
+
+  .company {
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* THE APPLIED TAG. Off by default, and revealed only once this row's own
+     <li> carries data-applied, which Filters.astro's script sets from the
+     account's suppressedSlugs set (see this element's own comment in the
+     markup above). This is the one accent colour a monochrome site allows
+     itself: "applied" is a state a reader put the row into, not a
+     decoration this site chose, and --color-mark-live is the live/verified
+     green the row's own Mark and verification line already carry that
+     meaning in, reused here rather than a new hex value invented for one
+     tag. Sharp corners, not a pill: --radius is this site's one rounding
+     value everywhere else, and a badge that rounds further than a button or
+     a chip would be the one shape on the page nothing else uses. */
+  .applied-tag {
+    display: none;
+    font-family: var(--font-family-sans);
+    font-size: var(--size-050);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    line-height: var(--leading-tight);
+    color: var(--color-foreground-inverse);
+    background: var(--color-mark-live);
+    border-radius: var(--radius);
+    padding: var(--space-100) var(--space-200);
+    white-space: nowrap;
+  }
+
+  .job-row[data-applied] .applied-tag {
+    display: inline-block;
+  }
+
+  .title {
+    font-size: var(--size-200);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-snug);
+    text-wrap: pretty;
+  }
+
+  .title:hover {
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .comp,
+  .age {
+    font-size: var(--size-075);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  /* The age is one short machine reading and always fits its track, so it holds
+     one line. The comp is the source's own sentence and does not, so it wraps
+     between parts and never inside one. Two rows on this sweep need the second
+     line; the rest are unchanged, and a row was already free to grow because a
+     long title wraps in the column beside it. */
+  .age {
+    white-space: nowrap;
+  }
+
+  .comp {
+    white-space: normal;
+  }
+
+  .comp-part {
+    white-space: nowrap;
+  }
+
+  .location {
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    line-height: var(--leading-snug);
+  }
+
+  /* The "+N more" hint after the primary place. Lower case and dimmer, so it
+     reads as a count of what is on the detail page rather than another place. */
+  .location-more {
+    text-transform: none;
+    letter-spacing: normal;
+    opacity: 0.75;
+  }
+
+  /* The workplace label under the location. Same muted small-caps register the
+     verification line and age basis already use for a machine reading, so it
+     reads as fine print about the where rather than a second headline. */
+  .workplace {
+    display: block;
+    color: var(--color-muted);
+    line-height: var(--leading-snug);
+    margin-block-start: var(--space-100);
+  }
+
+  .age-line {
+    display: inline-flex;
+    align-items: baseline;
+    white-space: nowrap;
+  }
+
+  .age-basis {
+    color: var(--color-muted);
+    line-height: var(--leading-snug);
+  }
+
+  /* An absence is editorial, so it is never mono. A reader can tell a
+     measurement from a gap by the typeface before reading the words. */
+  .absence {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+
+  /* The role cell on a pre-posting row: the absence, then the company's own
+     one line description of itself, which is the closest thing to a role
+     description that exists before a role does. */
+  .title-absent {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+  }
+  .one-liner {
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  /* Each fact holds together; the line breaks between them. */
+  .ease-part {
+    white-space: nowrap;
+  }
+
+  .ease {
+    font-size: var(--size-050);
+    color: var(--color-muted);
+    line-height: var(--leading-snug);
+  }
+
+  .apply-link {
+    font-size: var(--size-100);
+    border-bottom: var(--border-hairline) solid var(--color-foreground);
+    align-self: flex-start;
+    white-space: nowrap;
+  }
+
+  .apply-link:hover {
+    background: var(--color-foreground);
+    color: var(--color-foreground-inverse);
+  }
+
+  /* The reasoning panel spans every column. It is in the markup at all times and
+     hidden by the `hidden` attribute, which is what lets the noscript rule in
+     JobTable reveal it without a script ever running. */
+  .why-panel {
+    grid-column: 1 / -1;
+    padding-top: var(--space-300);
+    border-top: var(--border-hairline) solid var(--color-line);
+    max-width: var(--layout-measure);
+  }
+
+  /* A closed row keeps its place in the record and loses its emphasis. Grey,
+     never red: a closed posting is an honest archive entry, and the loss colour
+     belongs to statistics. */
+  .job-row-closed .title {
+    color: var(--color-muted);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .job-row,
+    .why,
+    .apply-link,
+    .title {
+      transition:
+        background-color var(--motion-duration-instant) var(--motion-easing-standard),
+        border-color var(--motion-duration-instant) var(--motion-easing-standard),
+        color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  /* ---------------------------------------------------------------------------
+     Phone. The row becomes the card the 375px canvas draws: the company and its
+     mark with the score opposite, the title at reading size under them, comp
+     and location on one line, then the age and the apply action.
+
+     Named grid areas rather than source order, because the DOM order is the
+     reading order a screen reader gets at both widths and it should not change
+     to suit a layout.
+     --------------------------------------------------------------------------- */
+  @media (max-width: 60rem) { /* --breakpoint-lap */
+    .job-row {
+      grid-template-columns: 1fr auto;
+      grid-template-areas:
+        'role fit'
+        'comp location'
+        'age age'
+        'apply apply'
+        'why why';
+      gap: var(--space-200) var(--space-400);
+      padding: var(--space-400);
+      align-items: start;
+    }
+
+    .cell-fit {
+      grid-area: fit;
+      align-items: flex-end;
+    }
+    .cell-role {
+      grid-area: role;
+    }
+    .cell-comp {
+      grid-area: comp;
+    }
+    .cell-location {
+      grid-area: location;
+    }
+    .cell-age {
+      grid-area: age;
+    }
+    .cell-apply {
+      grid-area: apply;
+    }
+    .why-panel {
+      grid-area: why;
+    }
+
+    .title {
+      font-size: var(--size-300);
+    }
+
+    .location {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .apply-link {
+      /* A thumb target, and the padding is vertical only so the underline still
+         sits tight under the words. */
+      padding-block: var(--space-200);
+    }
+  }
+
+  /* ---------------------------------------------------------------------------
+     Phone proper. The card above pairs comp and location on one line, and that
+     pairing cannot hold at phone widths. It was measured, not guessed:
+
+       The two tracks are `1fr auto`. `auto` is a max-content track, so it is
+       sized by the WIDEST thing in the right-hand column, and on this sweep
+       that is a location reading "SF or NYC, 4 days in office, city
+       unconfirmed", whose max-content is 388.88px. On a 414px phone the whole
+       card is 348px wide, so that one track claims more than the card has, the
+       `1fr` track collapses toward zero, and `.cell`'s `min-width: 0` (which
+       the six-column desktop table needs, so it stays) means the starved
+       column does not push back: its text simply paints outside its own box.
+
+       The result is not "tight". It is overprinted. At 414px the salary
+       "$172k-$258k" is drawn directly on top of "FULLY REMOTE IF BEYOND
+       COMMUTE OF S...", and both become unreadable. The same happens at 320,
+       375 and 480. Row 1 of sweep 001 happens to have a short location, which
+       is why the first screen looks fine and page 2 does not.
+
+     So below the phone breakpoint every fact takes the full card width. This is
+     what --breakpoint-phone's own description already promises ("every
+     multi-column band stacks") and it is the only arrangement that is safe for
+     any location string a source can post, rather than safe for the strings
+     this sweep happened to return.
+
+     The location also drops its ellipsis here. On one shared line truncation
+     was the lesser evil; on its own line there is nothing to truncate for, and
+     a location is a posted fact that should render whole.
+
+     The paired card above still stands from 48rem to 60rem, where it was
+     measured clean.
+     --------------------------------------------------------------------------- */
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .job-row {
+      grid-template-areas:
+        'role fit'
+        'comp comp'
+        'location location'
+        'age age'
+        'apply apply'
+        'why why';
+    }
+
+    .location {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+    }
+  }
+</style>

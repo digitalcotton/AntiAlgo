@@ -1,0 +1,153 @@
+---
+import { firstSeen, firstSeenShowable, formatDate, sweptStamp, type Job } from '../../lib/data';
+
+/**
+ * The full history of a closed posting, oldest first.
+ *
+ * EVERY ENTRY IS A DATE THE RECORD HOLDS. The canvas draws three; this builds
+ * whichever of them the record can evidence, and the first one is the
+ * interesting case. On sweep 001 the archive is one sweep deep, so the first
+ * observation is suppressed for the same reason the index table's First seen
+ * column is: printing it would say the posting appeared the day we started
+ * watching. The entry still renders, undated, saying that earlier observations
+ * are in the archive. That is the canvas's own wording and its own point. An
+ * entry that vanishes teaches a reader nothing; an entry that says "we have
+ * this and are not showing it yet" teaches them how the archive works.
+ *
+ * The closure entry carries the source's reason verbatim. The confirmation
+ * entry carries the sweep stamp, which is the same instant every other
+ * timestamp on this site carries, because there is one clock.
+ */
+
+interface Props {
+  job: Job;
+  class?: string;
+}
+
+const { job, class: className } = Astro.props;
+
+interface Entry {
+  /** The machine voice line. Null where the record holds no date for it. */
+  stamp: string | null;
+  event: string;
+  note?: string;
+  /** The last entry is the current state and is marked as such. */
+  current?: boolean;
+}
+
+const observed = firstSeen(job);
+// The same predicate the provenance panel and the markdown twin read. A closed
+// record's first-observed date predates the sweep by construction, so this
+// history prints it rather than saying it is held back on the page that also
+// prints it in the panel above.
+const showObserved = firstSeenShowable(job);
+const entries: Entry[] = [];
+
+if (job.published_date) {
+  entries.push({
+    stamp: formatDate(job.published_date),
+    event: 'Published at source',
+    note: 'The date the posting itself showed. Not our observation, theirs.'
+  });
+}
+
+entries.push({
+  stamp: showObserved ? formatDate(observed) : null,
+  event: showObserved ? 'First observed in the feed' : 'Observed live before the closure',
+  note: 'Earlier observations are held in the archive. No dates are guessed here.'
+});
+
+entries.push({
+  stamp: formatDate(job.closed_on ?? null),
+  event: 'Closure detected at source',
+  note: job.closed_reason ? `Reason of record: ${job.closed_reason}` : undefined
+});
+
+entries.push({
+  stamp: sweptStamp(),
+  event: 'Confirmed closed, archived',
+  note: 'The record stays public. Closures are part of the index, not deletions from it.',
+  current: true
+});
+---
+
+<section class:list={['history', className]} aria-labelledby={`history-${job.slug}`}>
+  <h2 class="history-title mono-label" id={`history-${job.slug}`}>Full history</h2>
+
+  <ol class="entries">
+    {
+      entries.map((entry) => (
+        <li class:list={['entry', entry.current && 'entry-current']}>
+          {entry.stamp ? (
+            <span class="entry-stamp mono">
+              {entry.stamp} · {entry.event}
+            </span>
+          ) : (
+            /* No stamp to show, so the line is not a machine reading and does
+               not take the machine voice. Standing rule 3, and the reason a
+               reader can tell an observation from a gap without reading it. */
+            <span class="entry-undated">{entry.event}</span>
+          )}
+          {entry.note && <p class="entry-note">{entry.note}</p>}
+        </li>
+      ))
+    }
+  </ol>
+</section>
+
+<style>
+  .history {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  .history-title {
+    color: var(--color-muted);
+  }
+
+  .entries {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-400);
+  }
+
+  /* A rule down the left rather than dots on a rail. Same construction as the
+     provenance timeline, so the two read as one idea seen twice on one page
+     instead of two timeline treatments that happen to sit near each other. */
+  .entry {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+    padding-left: var(--space-300);
+    border-left: var(--border-heavy) solid var(--color-line-strong);
+  }
+
+  .entry-current {
+    border-left-color: var(--color-foreground);
+  }
+
+  .entry-stamp {
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+
+  .entry-current .entry-stamp {
+    font-weight: var(--weight-medium);
+  }
+
+  .entry-undated {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+
+  .entry-note {
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+</style>

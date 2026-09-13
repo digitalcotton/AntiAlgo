@@ -1,0 +1,208 @@
+---
+import EmptyState from '../EmptyState.astro';
+import LoadingState from '../LoadingState.astro';
+import ErrorState from '../ErrorState.astro';
+
+/**
+ * One figure on the report: a numbered block holding one chart, its direct
+ * labels, and the source line every figure on this page is required to carry.
+ *
+ * IT IS A TEMPLATE FIRST AND AN ISSUE SECOND. DESIGN-BRIEF.md asks for a monthly
+ * template plus one worked issue, so the pattern name ("Trend", "Ranked bar")
+ * renders on the figure itself in the machine voice. A reader gets a small piece
+ * of legibility out of that, and the next issue gets a form to fill in rather
+ * than a layout to redesign.
+ *
+ * THE SOURCE SLOT IS NOT OPTIONAL, and the component says so out loud: a figure
+ * built with nothing in its `source` slot throws at build time. Every figure on
+ * this page carries its source in mono, per the work order, and a rule that is
+ * only followed while somebody remembers it is not a rule. Failing here rather
+ * than in gate 2 means the message can name the figure.
+ *
+ * THE FOUR STATES ARE REAL CODE PATHS, NOT A GALLERY. A figure whose series has
+ * no rows renders EmptyState, and the page decides that from the data rather
+ * than from a prop somebody set by hand. Loading and error exist for the same
+ * reason they exist everywhere else on this site: the report is a static build
+ * today and will be a fetched surface the first time an issue is assembled in a
+ * browser, and the component that arrives that day should not be invented then.
+ */
+
+interface Props {
+  /** Which figure this is, in reading order. Printed, so a caption can cite it. */
+  number: number;
+  /** The chart pattern, from the four the work order names. Machine voice. */
+  pattern: 'Trend' | 'Distribution' | 'Ranked bar' | 'Hero number';
+  /** The figure's own title. Editorial voice, describes what is measured. */
+  title: string;
+  /** Anchor, so another page can link straight to one figure. */
+  id?: string;
+  /**
+   * Which path to render. `ready` draws the chart in the default slot. The other
+   * three hand the plot area to the shared state components, unchanged.
+   */
+  state?: 'ready' | 'empty' | 'loading' | 'error';
+  /** Empty state copy. Machine voice for the title, editorial for the detail. */
+  emptyTitle?: string;
+  emptyDetail?: string;
+  /** Let one figure run the full width of the grid. */
+  wide?: boolean;
+  /**
+   * How the plot and the caption sit together. `stacked` puts the caption under
+   * the chart, which is what a chart with a horizontal axis needs. `split` puts
+   * them side by side, which is what a figure whose plot is a single number
+   * needs: a display figure with a column of empty paper beside it reads as a
+   * layout that ran out of content.
+   */
+  layout?: 'stacked' | 'split';
+  class?: string;
+}
+
+const {
+  number,
+  pattern,
+  title,
+  id,
+  state = 'ready',
+  emptyTitle = 'No series to draw',
+  emptyDetail,
+  wide = false,
+  layout = 'stacked',
+  class: className
+} = Astro.props;
+
+if (!Astro.slots.has('source')) {
+  throw new Error(
+    `Figure ${number} ("${title}") has nothing in its source slot. Every figure on the report carries its source line in mono, because a chart without one is a shape a reader has to take on trust and this site does not ask for trust. Pass a <SourceLine slot="source" /> naming who measured it.`
+  );
+}
+---
+
+<figure
+  class:list={['figure', wide && 'figure-wide', `figure-${layout}`, className]}
+  id={id}
+>
+  <header class="figure-head">
+    <p class="figure-tag mono-label">Figure {number} · {pattern}</p>
+    <h3 class="figure-title">{title}</h3>
+  </header>
+
+  {/* figcaption is a direct child of figure, which the HTML parser requires:
+      wrapping the two in a div to lay them out would have made the caption stop
+      being the figure's caption. The split layout is done with grid areas on the
+      figure itself instead. */}
+  <div class="figure-plot">
+    {state === 'ready' && <slot />}
+    {state === 'empty' && <EmptyState title={emptyTitle} detail={emptyDetail} />}
+    {state === 'loading' && <LoadingState label="Reading the archive" />}
+    {state === 'error' && <ErrorState title="This figure did not load" />}
+  </div>
+
+  <figcaption class="figure-caption">
+    {/* The statement is the sourced sentence this figure exists to draw. It is
+        quoted from facts.json by the page, never written here. */}
+    <slot name="statement" />
+    <slot name="source" />
+    <slot name="note" />
+  </figcaption>
+</figure>
+
+<style>
+  .figure {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+    padding: var(--space-500);
+    border: var(--border-hairline) solid var(--color-line);
+    background: var(--color-surface-raised);
+    min-width: 0;
+  }
+
+  .figure-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+
+  /* The pattern name is the machine's label for the shape, not a heading, so it
+     takes the mono small-caps register every column key and status stamp on the
+     site uses. */
+  .figure-tag {
+    color: var(--color-muted);
+  }
+
+  /* h3 already carries the size role from global.css. The only thing this page
+     decides is how many words go on a line, counted in the title's own size so
+     the line count holds if the ramp ever moves. */
+  .figure-title {
+    max-width: 28ch;
+  }
+
+  .figure-plot {
+    min-width: 0;
+  }
+
+  .figure-caption {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    max-width: var(--layout-measure);
+  }
+
+  /* Side by side, and only where there is room for two columns of text. Below
+     that the split figure is a stacked figure, which is the same order in the
+     same document with no content moved. */
+  @media (min-width: 64rem) { /* --breakpoint-desk */
+    .figure-split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-areas:
+        'head head'
+        'plot caption';
+      column-gap: var(--space-600);
+      align-items: start;
+    }
+
+    .figure-split .figure-head {
+      grid-area: head;
+    }
+
+    .figure-split .figure-plot {
+      grid-area: plot;
+    }
+
+    .figure-split .figure-caption {
+      grid-area: caption;
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .figure {
+      padding: var(--space-400);
+      gap: var(--space-400);
+    }
+  }
+
+  /* A figure split across two sheets separates a bar from the source line that
+     certifies it, which on this page is the one thing that must not happen. The
+     rule lives here rather than in the page's print block because Astro scopes
+     selectors with an attribute, and a page-level `.figure` would lose to this
+     component's own scoped rules. Last in the block so it wins the tie with the
+     width query above, which also matches when a browser lays out for paper. */
+  @media print {
+    .figure {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    /* The card keeps its fill on paper. The empty half of every track on this
+       page is drawn in the hover surface, which is one step off the page
+       surface and would all but disappear if the card went transparent. The
+       white card is what makes "this is how much of the bar is empty" readable
+       in print at all. */
+    .figure-split {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-500);
+    }
+  }
+</style>

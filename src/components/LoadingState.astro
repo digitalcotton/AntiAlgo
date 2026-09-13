@@ -1,0 +1,61 @@
+---
+/**
+ * Waiting, without pretending.
+ *
+ * The site is a static build, so nothing on a first paint is ever loading. This
+ * exists for the one honest case: a control that re-sorts or re-filters a long
+ * table and needs to say something while it works, and any future surface that
+ * fetches. It is a real component the pages use rather than a mockup, so that
+ * when the case arrives nobody invents a spinner.
+ *
+ * NO SKELETON, AND THAT IS THE DESIGN. A skeleton draws rows and columns of
+ * grey that resemble content which may turn out not to exist, on a site whose
+ * entire argument is that it never shows you something it has not verified.
+ * What ships instead is the machine voice saying what it is doing, and a rule
+ * that fills to show progress is deliberately absent too: a progress bar that
+ * cannot measure progress is a lie with a rounded end.
+ *
+ * The motion budget is spent here on nothing. Standing rule 6 caps motion at
+ * 400ms and requires it be functional; a permanent pulse is neither, and gate 6
+ * fails any keyframe animation outside the one declared signature moment.
+ */
+
+interface Props {
+  /** What is being waited for, in the machine voice. */
+  label?: string;
+  class?: string;
+}
+
+const { label = 'Working', class: className } = Astro.props;
+---
+
+<div class:list={['state', className]} role="status" aria-live="polite" aria-busy="true">
+  <span class="state-label mono-label">{label}</span>
+</div>
+
+<style>
+  .state {
+    display: flex;
+    align-items: center;
+    gap: var(--space-300);
+    padding: var(--space-600);
+    background: var(--color-surface-raised);
+  }
+
+  .state-label {
+    color: var(--color-muted);
+  }
+
+  /* The one visual cue: a short rule in the foreground colour, static. It marks
+     the line as machine output rather than page copy, which is the only thing a
+     reader needs to know while they wait. */
+  .state-label::before {
+    content: '';
+    display: inline-block;
+    width: var(--space-400);
+    height: var(--border-heavy);
+    margin-right: var(--space-200);
+    vertical-align: middle;
+    background: var(--color-foreground);
+  }
+</style>

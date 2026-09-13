@@ -1,0 +1,799 @@
+---
+/**
+ * EntryCard.astro: one Profile Record entry, rendered as one row.
+ *
+ * PULLED OUT OF THE OLD RECORD EDITOR (now merged into src/pages/profile.astro),
+ * PHASE 9 SEAM BUILT THEN. That page used to render every entry inline, both
+ * the view state and the edit state, in one long file that also owned the page
+ * chrome around it.
+ * This component is just the entry: title, dates, location, description,
+ * classification, artifacts, and (when `editable`) the controls to change or
+ * remove any of it. record.astro later merged into src/pages/profile.astro,
+ * which still owns the page around it (the "Add an entry" panel, the resume
+ * import boost, the empty-record message): those are things you do TO a
+ * record, not the record itself, and a reader on somebody else's handle page
+ * (phase 9, not built this run) has no business seeing a form to add an
+ * entry to a record that is not theirs.
+ *
+ * `editable={false}` IS THE WHOLE POINT OF THE EXTRACTION. It renders the
+ * identical view state this component already has for a non-editing entry,
+ * with no `<form>`, no `<button>`, and no edit/delete/artifact-remove
+ * affordance anywhere in the output: the `edit` prop is entirely absent, and
+ * every branch below that renders a form is gated on `editable && edit`, never
+ * on `editable` alone. That is what lets phase 9's handle page render this
+ * exact component for a reader who is not the owner without a rewrite: build
+ * the seam now, not later.
+ *
+ * ONE ROW, COLLAPSED, AND NOTHING OPEN THAT WAS NOT ASKED FOR. This used to be
+ * a Panel with every part of the entry visible at once, including an empty
+ * add-artifact form under every single entry, on a page that already carried
+ * an add-entry form and a resume upload. A record of twelve entries rendered
+ * twelve empty forms nobody asked for, and the record stopped reading as a
+ * record. It is now a <details>: the summary is the row (id, title and
+ * employer, dates, kind), and location, description, classification,
+ * artifacts, edit and delete are behind it. The add-artifact form is behind a
+ * second disclosure inside that, because it is the one form here that is empty
+ * by default.
+ *
+ * NO SCRIPT, ON PURPOSE. The disclosure is native <details>, so the row opens
+ * and closes with JavaScript disabled, and `?edit=` still works exactly as it
+ * did: profile.astro reads the query param, RecordView passes `isEditing`, and
+ * a row that is being edited renders open. Same for a row whose add-artifact
+ * form came back with a validation issue, and for a row the reader just
+ * imported.
+ *
+ * THE WORDING LIVES NEXT DOOR, IN entry-presentation.ts. KIND_LABELS,
+ * ARTIFACT_KIND_LABELS, CLASSIFICATION_LABELS, MONTH_NAMES, formatDate,
+ * formatRange and the form-state types are imported from there rather than
+ * declared and exported here. They were exported from this frontmatter once
+ * and it did not build; see that file's own header for what went wrong and
+ * why frontmatter is the wrong place for a module.
+ */
+import { ARTIFACT_KINDS, CEILINGS, CLASSIFICATIONS, ENTRY_KINDS } from '../../lib/record';
+import type { StoredEntry } from '../../lib/record-store';
+
+import {
+  ARTIFACT_KIND_LABELS,
+  CLASSIFICATION_LABELS,
+  KIND_LABELS,
+  MONTH_NAMES,
+  formatRange,
+  issueMessage,
+  type EntryEditState
+} from './entry-presentation';
+
+interface Props {
+  entry: StoredEntry;
+  editable: boolean;
+  /** Required when `editable` is true; ignored otherwise. Typed optional
+      rather than a discriminated union so a caller cannot construct a state
+      where TypeScript accepts `editable: true` with no `edit`, then have
+      this component silently render the view state anyway; see the guard
+      below, which treats a missing `edit` the same as `editable: false`. */
+  edit?: EntryEditState;
+  /** True when this row was created by the import the page is currently
+      reporting on. Marks the row and opens it, so an upload visibly fills the
+      page it sits on rather than adding something out of sight below the
+      fold. Purely presentational: it changes no data and no control. */
+  isNew?: boolean;
+}
+
+const { entry, editable, edit, isNew = false } = Astro.props;
+const canEdit = editable && edit !== undefined;
+const isEditing = canEdit && edit!.isEditing;
+const disclosureId = `delete-entry-${entry.prfId}`;
+
+/* An add-artifact form that came back with something in it came back from a
+   rejected submission, so it opens rather than hiding the reason it failed. */
+const artifactOpen =
+  canEdit && (edit!.artifact.issues.length > 0 || edit!.artifact.url !== '' || edit!.artifact.label !== '');
+---
+
+{/* data-signature-moment only on a row that just arrived. Gate 6's contract
+    is that every keyframe animation on a page sits inside an element carrying
+    this attribute, runs once, finishes under 400ms and does not exist under
+    prefers-reduced-motion. The arrival flash is the only animation this
+    component has, and this is the moment it marks: what you just imported,
+    appearing in your record. A row that did not just arrive carries neither
+    the attribute nor the animation. */}
+<article
+  class:list={['record-row', isNew && 'record-row-new']}
+  id={`entry-${entry.prfId}`}
+  data-signature-moment={isNew ? '' : undefined}
+>
+  <details class="record-details" open={isEditing || artifactOpen || isNew}>
+    <summary class="record-summary">
+      <span class="record-summary-id">{entry.prfId}</span>
+      {/* The expression containers sit hard against the closing tag before
+          them on purpose. A newline between two inline elements is a text
+          node, and it printed "Staff Designer , Acme" with a space in front
+          of the comma. */}
+      <span class="record-summary-name">
+        <span class="record-summary-title">{entry.officialTitle}</span>{
+          entry.employerOrInstitution && (
+            <span class="record-summary-employer">, {entry.employerOrInstitution}</span>
+          )
+        }{isNew && <span class="record-summary-new">New</span>}
+      </span>
+      <span class="record-summary-dates">{formatRange(entry)}</span>
+      <span class="record-summary-kind">{KIND_LABELS[entry.kind]}</span>
+      <span class="record-summary-chevron" aria-hidden="true" />
+    </summary>
+
+    <div class="record-body">
+      {!isEditing ? (
+        <>
+          <p class="record-entry-meta">
+            {entry.location && <span>{entry.location}</span>}
+            <span>Classification: {CLASSIFICATION_LABELS[entry.classification]}
+              {entry.classification !== 'private' && ' (not visible to anyone yet)'}
+            </span>
+          </p>
+          {entry.description && <p class="record-entry-detail">{entry.description}</p>}
+        </>
+      ) : (
+        <form class="record-form" method="POST" action={edit!.entryAction}>
+          <input type="hidden" name="return" value={edit!.returnKey} />
+          <input type="hidden" name="intent" value="update" />
+          <input type="hidden" name="prfId" value={entry.prfId} />
+
+          <div class="field">
+            <label class="field-label" for={`edit-kind-${entry.prfId}`}>Kind</label>
+            <select class="field-input" id={`edit-kind-${entry.prfId}`} name="kind" required>
+              {ENTRY_KINDS.map((kind) => (
+                <option value={kind} selected={edit!.values.kind === kind}>
+                  {KIND_LABELS[kind]}
+                </option>
+              ))}
+            </select>
+            {issueMessage(edit!.issues, 'kind') && <p class="field-issue">{issueMessage(edit!.issues, 'kind')}</p>}
+          </div>
+
+          <div class="field">
+            <label class="field-label" for={`edit-employer-${entry.prfId}`}>Employer or institution</label>
+            <input
+              class="field-input"
+              id={`edit-employer-${entry.prfId}`}
+              type="text"
+              name="employerOrInstitution"
+              maxlength={CEILINGS.employerOrInstitution}
+              value={edit!.values.employerOrInstitution}
+            />
+            {issueMessage(edit!.issues, 'employerOrInstitution') && (
+              <p class="field-issue">{issueMessage(edit!.issues, 'employerOrInstitution')}</p>
+            )}
+          </div>
+
+          <div class="field">
+            <label class="field-label" for={`edit-title-${entry.prfId}`}>Official title</label>
+            <input
+              class="field-input"
+              id={`edit-title-${entry.prfId}`}
+              type="text"
+              name="officialTitle"
+              required
+              maxlength={CEILINGS.officialTitle}
+              value={edit!.values.officialTitle}
+            />
+            {issueMessage(edit!.issues, 'officialTitle') && (
+              <p class="field-issue">{issueMessage(edit!.issues, 'officialTitle')}</p>
+            )}
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label" for={`edit-start-year-${entry.prfId}`}>Start year</label>
+              <input
+                class="field-input field-input-narrow"
+                id={`edit-start-year-${entry.prfId}`}
+                type="number"
+                name="startYear"
+                required
+                min="1900"
+                max="2100"
+                value={edit!.values.startYear}
+              />
+            </div>
+            <div class="field">
+              <label class="field-label" for={`edit-start-month-${entry.prfId}`}>Start month</label>
+              <select class="field-input field-input-narrow" id={`edit-start-month-${entry.prfId}`} name="startMonth">
+                <option value="" selected={edit!.values.startMonth === ''}>Unknown</option>
+                {MONTH_NAMES.map((name, index) => (
+                  <option value={index + 1} selected={edit!.values.startMonth === String(index + 1)}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div class="field field-checkbox">
+            <input
+              class="field-check"
+              id={`edit-still-here-${entry.prfId}`}
+              type="checkbox"
+              name="stillHere"
+              checked={edit!.values.stillHere}
+            />
+            <label class="field-label field-label-inline" for={`edit-still-here-${entry.prfId}`}>Still there</label>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label" for={`edit-end-year-${entry.prfId}`}>End year</label>
+              <input
+                class="field-input field-input-narrow"
+                id={`edit-end-year-${entry.prfId}`}
+                type="number"
+                name="endYear"
+                min="1900"
+                max="2100"
+                value={edit!.values.endYear}
+              />
+            </div>
+            <div class="field">
+              <label class="field-label" for={`edit-end-month-${entry.prfId}`}>End month</label>
+              <select class="field-input field-input-narrow" id={`edit-end-month-${entry.prfId}`} name="endMonth">
+                <option value="" selected={edit!.values.endMonth === ''}>Unknown</option>
+                {MONTH_NAMES.map((name, index) => (
+                  <option value={index + 1} selected={edit!.values.endMonth === String(index + 1)}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {issueMessage(edit!.issues, 'end') && <p class="field-issue">{issueMessage(edit!.issues, 'end')}</p>}
+
+          <div class="field">
+            <label class="field-label" for={`edit-location-${entry.prfId}`}>Location</label>
+            <input class="field-input" id={`edit-location-${entry.prfId}`} type="text" name="location" maxlength={CEILINGS.location} value={edit!.values.location} />
+          </div>
+
+          <div class="field">
+            <label class="field-label" for={`edit-description-${entry.prfId}`}>Description</label>
+            <textarea class="field-input field-textarea" id={`edit-description-${entry.prfId}`} name="description" maxlength={CEILINGS.description} rows="4">{edit!.values.description}</textarea>
+            {issueMessage(edit!.issues, 'description') && <p class="field-issue">{issueMessage(edit!.issues, 'description')}</p>}
+          </div>
+
+          <fieldset class="field-fieldset">
+            <legend class="field-legend">Classification</legend>
+            {CLASSIFICATIONS.map((value) => (
+              <div class="field-radio">
+                <input
+                  class="field-check"
+                  type="radio"
+                  id={`edit-classification-${entry.prfId}-${value}`}
+                  name="classification"
+                  value={value}
+                  checked={edit!.values.classification === value}
+                />
+                <label class="field-label field-label-inline" for={`edit-classification-${entry.prfId}-${value}`}>
+                  {CLASSIFICATION_LABELS[value]}
+                </label>
+              </div>
+            ))}
+          </fieldset>
+
+          <div class="record-entry-actions">
+            <button class="field-submit" type="submit">Save changes</button>
+            <a class="record-link" href={edit!.recordPagePath}>Cancel</a>
+          </div>
+        </form>
+      )}
+
+      <div class="record-artifacts" id={`artifacts-${entry.prfId}`}>
+        <span class="record-artifacts-heading mono-label">Artifacts, {entry.artifacts.length}</span>
+
+        {entry.artifacts.length > 0 && (
+          <ul class="record-artifact-list">
+            {entry.artifacts.map((artifact) => (
+              <li class="record-artifact">
+                <span class="record-artifact-kind">{ARTIFACT_KIND_LABELS[artifact.kind]}</span>
+                <a class="record-link" href={artifact.url}>{artifact.label || artifact.url}</a>
+                {canEdit && (
+                  <form class="record-artifact-remove" method="POST" action={edit!.artifactActionPath}>
+                    <input type="hidden" name="return" value={edit!.returnKey} />
+                    <input type="hidden" name="intent" value="remove" />
+                    <input type="hidden" name="prfId" value={entry.prfId} />
+                    <input type="hidden" name="artifactId" value={artifact.id} />
+                    <button class="field-submit-quiet" type="submit">Remove</button>
+                  </form>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {canEdit && (
+          <details class="artifact-add-disclosure" open={artifactOpen}>
+            <summary class="artifact-add-summary">Add artifact</summary>
+            <form class="record-form record-artifact-add" method="POST" action={edit!.artifactActionPath}>
+              <input type="hidden" name="return" value={edit!.returnKey} />
+              <input type="hidden" name="intent" value="add" />
+              <input type="hidden" name="prfId" value={entry.prfId} />
+
+              <div class="field-row">
+                <div class="field">
+                  <label class="field-label" for={`artifact-kind-${entry.prfId}`}>Kind</label>
+                  <select class="field-input" id={`artifact-kind-${entry.prfId}`} name="kind" required>
+                    <option value="" disabled selected={edit!.artifact.kind === ''}>Choose a kind</option>
+                    {ARTIFACT_KINDS.map((kind) => (
+                      <option value={kind} selected={edit!.artifact.kind === kind}>
+                        {ARTIFACT_KIND_LABELS[kind]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div class="field field-grow">
+                  <label class="field-label" for={`artifact-url-${entry.prfId}`}>URL</label>
+                  <input
+                    class="field-input"
+                    id={`artifact-url-${entry.prfId}`}
+                    type="url"
+                    name="url"
+                    required
+                    maxlength={CEILINGS.artifactUrl}
+                    value={edit!.artifact.url}
+                  />
+                </div>
+              </div>
+              <div class="field">
+                <label class="field-label" for={`artifact-label-${entry.prfId}`}>Label (optional)</label>
+                <input
+                  class="field-input"
+                  id={`artifact-label-${entry.prfId}`}
+                  type="text"
+                  name="label"
+                  maxlength={CEILINGS.artifactLabel}
+                  value={edit!.artifact.label}
+                />
+              </div>
+              <p class="field-hint">One link that proves this entry. Example: Case study, https://yoursite.com/project-name.</p>
+              {edit!.artifact.issues.map((issue) => (
+                <p class="field-issue">{issue.message}</p>
+              ))}
+              <button class="field-submit-quiet" type="submit">Add artifact</button>
+            </form>
+          </details>
+        )}
+      </div>
+
+      {canEdit && !isEditing && (
+        <div class="record-entry-actions">
+          <a class="record-link" href={`${edit!.recordPagePath}?edit=${encodeURIComponent(entry.prfId)}`}>
+            Edit
+          </a>
+        </div>
+      )}
+
+      {canEdit && (
+        <details class="delete-disclosure" id={disclosureId}>
+          <summary class="delete-summary">Delete this entry</summary>
+          <div class="delete-body">
+            <p class="record-panel-line">
+              This removes {entry.prfId} and every artifact attached to it, permanently. There is
+              no undo.
+            </p>
+            <form class="delete-form" method="POST" action={edit!.entryAction}>
+              <input type="hidden" name="return" value={edit!.returnKey} />
+              <input type="hidden" name="intent" value="delete" />
+              <input type="hidden" name="prfId" value={entry.prfId} />
+              <button class="account-button account-button-destructive" type="submit">
+                Yes, delete this entry
+              </button>
+            </form>
+          </div>
+        </details>
+      )}
+    </div>
+  </details>
+</article>
+
+<style>
+  /* The row. One hairline under each, so a record reads as a table without
+     being one: these are <article>s, not <tr>s, because each carries its own
+     forms and a table row is the wrong container for that. */
+  .record-row {
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    min-width: 0;
+  }
+
+  /* The arrival moment: a row the reader just imported flashes once and
+     stops. Standing rule 6 caps motion at 400ms and gate 6 asserts it runs
+     once, so this is one pass of the signature duration, and it does not
+     exist at all under prefers-reduced-motion, where the New tag alone
+     carries the meaning. */
+  @media (prefers-reduced-motion: no-preference) {
+    .record-row-new {
+      animation: record-arrive var(--motion-duration-signature) var(--motion-easing-standard) 1;
+    }
+  }
+  @keyframes record-arrive {
+    from {
+      background: var(--color-hover-surface);
+    }
+    to {
+      background: transparent;
+    }
+  }
+
+  .record-details {
+    min-width: 0;
+  }
+
+  .record-summary {
+    display: grid;
+    grid-template-columns: var(--record-columns);
+    align-items: baseline;
+    gap: var(--space-400);
+    padding: var(--space-400) var(--space-500);
+    cursor: pointer;
+    list-style: none;
+    min-width: 0;
+  }
+  /* Safari still draws the disclosure triangle without this, and a grid whose
+     first cell is a browser-drawn marker is one column out of true. */
+  .record-summary::-webkit-details-marker {
+    display: none;
+  }
+  .record-summary:hover {
+    background: var(--color-hover-surface);
+  }
+
+  .record-summary-id {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    font-feature-settings: var(--feature-tabular);
+  }
+  .record-summary-name {
+    min-width: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+  }
+  .record-summary-title {
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-tight);
+  }
+  .record-summary-employer {
+    color: var(--color-muted);
+  }
+  .record-summary-new {
+    display: inline-block;
+    margin-left: var(--space-300);
+    border: var(--border-hairline) solid var(--color-foreground);
+    padding: 0 var(--space-200);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-050);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-foreground);
+  }
+  .record-summary-dates {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    font-feature-settings: var(--feature-tabular);
+  }
+  .record-summary-kind {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-050);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .record-summary-chevron {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    text-align: right;
+  }
+  .record-summary-chevron::after {
+    content: '+';
+  }
+  .record-details[open] .record-summary-chevron::after {
+    content: '-';
+  }
+
+  /* Everything behind the row, on the row's own gutter rather than indented
+     to the title column: the indent would have to restate the id track's
+     width, and a second copy of a grid track is exactly what record.columns
+     is a token to prevent. */
+  .record-body {
+    padding: 0 var(--space-500) var(--space-500);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    min-width: 0;
+  }
+
+  .record-entry-meta {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-400);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+  }
+  .record-entry-detail {
+    margin: 0;
+    max-width: var(--layout-measure);
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .record-panel-line {
+    margin: 0;
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .record-entry-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-400);
+  }
+  .record-link {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    border-bottom: 1px solid var(--color-foreground);
+    padding-bottom: 2px;
+  }
+
+  /* Forms, matching sign-in.astro / sign-up.astro's field vocabulary, the
+     same duplication profile.astro's own copy of this block already
+     explains: each file that renders a form carries its own copy, scoped by
+     Astro to that file, rather than a shared stylesheet no file here uses. */
+  .record-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    min-width: 0;
+  }
+  .field-grow {
+    flex: 1;
+  }
+  .field-row {
+    display: flex;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+  }
+  .field-label {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .field-label-inline {
+    text-transform: none;
+    letter-spacing: var(--tracking-normal);
+    font-size: var(--size-150);
+    color: var(--color-foreground);
+  }
+  .field-issue {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+  }
+  .field-checkbox,
+  .field-radio {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-200);
+  }
+  .field-check {
+    margin: 0;
+    width: var(--size-200);
+    height: var(--size-200);
+    accent-color: var(--color-foreground);
+  }
+  .field-fieldset {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+  .field-legend {
+    padding: 0;
+    font-family: var(--font-family-sans);
+    font-size: var(--size-075);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .field-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+  .field-submit-quiet {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    background: transparent;
+    color: var(--color-foreground);
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-200) var(--space-400);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+
+  /* Artifacts. */
+  .record-artifacts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    align-items: stretch;
+    width: 100%;
+    padding-top: var(--space-400);
+    border-top: var(--border-hairline) solid var(--color-line);
+    /* The #artifacts-<prfId> target the add/remove redirects land on. Clear
+       the sticky SiteHeader, the same offset the profile #links and settings
+       #keys anchors use. */
+    scroll-margin-top: calc(var(--hdr-h, calc(var(--space-400) * 2 + 44px)) + var(--space-400));
+  }
+  .record-artifacts-heading {
+    color: var(--color-muted);
+  }
+  .record-artifact-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+  .record-artifact {
+    display: flex;
+    align-items: center;
+    gap: var(--space-300);
+    flex-wrap: wrap;
+  }
+  .field-hint {
+    margin: 0;
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+  .record-artifact-kind {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-loose);
+  }
+  .record-artifact-remove {
+    margin-left: auto;
+  }
+
+  /* The one form on this component that is empty by default, so the one form
+     that has to be summoned. */
+  .artifact-add-summary {
+    cursor: pointer;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    list-style: none;
+  }
+  .artifact-add-summary::-webkit-details-marker {
+    display: none;
+  }
+  /* The same plus and minus the row chevron uses, rather than the browser's
+     triangle, which sits hard against a tracked uppercase mono label with no
+     space between them. Decorative: the accessible name is the summary's own
+     text either way. */
+  .artifact-add-summary::before {
+    content: '+ ';
+  }
+  .artifact-add-disclosure[open] .artifact-add-summary::before {
+    content: '- ';
+  }
+  .artifact-add-summary:hover {
+    color: var(--color-foreground);
+  }
+  .record-artifact-add {
+    margin-top: var(--space-300);
+  }
+
+  /* Delete disclosure, the same shape and reasoning as the settings page's own
+     delete-account control, restated per entry with a unique id. */
+  .delete-disclosure {
+    padding-top: var(--space-400);
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .delete-summary {
+    cursor: pointer;
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-150);
+    color: var(--color-foreground);
+    padding: var(--space-100) 0;
+  }
+  .delete-body {
+    margin-top: var(--space-300);
+    padding-top: var(--space-300);
+    border-top: var(--border-hairline) solid var(--color-line);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+  .account-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+  .account-button-destructive {
+    border: var(--border-heavy) solid var(--color-foreground);
+  }
+
+  /* Below lap the five tracks stop fitting: the row becomes two lines, id and
+     metadata above the name, which is the same treatment the index table's
+     own rows take at this breakpoint. */
+  @media (max-width: 60rem) {
+    .record-summary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-200) var(--space-300);
+      padding-inline: var(--space-400);
+    }
+    /* The title takes the whole first line; the id, dates and kind wrap
+       underneath it in the machine voice, with the chevron pushed to the far
+       edge of that second line. */
+    .record-summary-name {
+      order: -1;
+      flex: 1 1 100%;
+    }
+    .record-summary-chevron {
+      margin-left: auto;
+    }
+    .record-body {
+      padding-inline: var(--space-400);
+    }
+  }
+</style>

@@ -1,0 +1,70 @@
+---
+import Mark from './Mark.astro';
+
+/**
+ * The mark legend, canonized.
+ *
+ * Standing rule 5 says a mark is never more than one viewport from its meaning.
+ * The rule is only real if the legend is a component rather than a paragraph
+ * someone remembers to paste, so every page that renders a mark renders this in
+ * its table footer. The three states and their wording are the canon in
+ * tokens/README.md and appear verbatim on both approved canvases.
+ *
+ * Mono, because these are machine states, not editorial labels.
+ */
+
+interface Props {
+  /** The surface the legend sits on, passed through to the knockout on the
+      re-verified mark. */
+  surface?: 'page' | 'raised' | 'hover';
+  class?: string;
+}
+
+const { surface = 'page', class: className } = Astro.props;
+
+// Verbatim from the canvas legend row. Order is the lifecycle: seen, seen again,
+// gone.
+const STATES = [
+  { state: 'verified', text: 'Verified this sweep' },
+  { state: 're-verified', text: 'Re-verified' },
+  { state: 'closed', text: 'Closed' }
+] as const;
+---
+
+<ul class:list={['legend', className]}>
+  {
+    STATES.map(({ state, text }) => (
+      <li class="legend-item">
+        <Mark state={state} surface={surface} />
+        <span class="legend-text mono">{text}</span>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200);
+    white-space: nowrap;
+  }
+
+  /* The legend deliberately sits below the machine-voice default. It is the
+     smallest thing on the page because it is a key, read once and then trusted,
+     and it has to fit on one line in a table footer at phone width. */
+  .legend-text {
+    font-size: var(--size-050);
+    line-height: var(--leading-snug);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-loose);
+    color: var(--color-muted);
+  }
+</style>

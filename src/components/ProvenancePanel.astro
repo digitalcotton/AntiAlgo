@@ -1,0 +1,237 @@
+---
+import KeyValueList from './KeyValueList.astro';
+import Mark from './Mark.astro';
+import Panel from './Panel.astro';
+import {
+  ABSENCE,
+  AGE_BASIS_LABEL,
+  ageOf,
+  firstSeen,
+  firstSeenShowable,
+  formatAge,
+  formatDate,
+  markStateOf,
+  sourceLabel,
+  sweptStamp,
+  type Job
+} from '../lib/data';
+import { expiryOf } from './job-detail/detail';
+import type { KeyValueRow } from '../lib/ui';
+
+/**
+ * Where a row came from, and when we last looked.
+ *
+ * This panel is the product's argument compressed into one box. Everything else
+ * on a job page is a claim about a job; this is the receipt for the claim, and
+ * it is the reason a reader should believe the rest of the page.
+ *
+ * WHAT THE TIMELINE MAY CONTAIN. Only observations the record holds. The
+ * approved canvas draws three entries for its worked example, including a
+ * middle sweep, and the fixture carries two dates per record: when we first saw
+ * it and when we last verified it. So the timeline renders the entries we can
+ * evidence and no others. Filling in the sweeps between two known dates would
+ * be inventing observations on the panel whose entire job is to prove we do not.
+ * When the archive ships full observation histories they arrive as data and
+ * render here unchanged.
+ *
+ * WHAT "FIRST OBSERVED" DOES WHILE THE ARCHIVE IS SHALLOW. Where almost every
+ * record was first observed today, the row would say the same thing as "last
+ * verified" and imply the posting appeared overnight. Those rows are suppressed
+ * and the row says why rather than vanishing without a word. A record
+ * whose first-observed date predates the sweep is not that case: it is an
+ * observation from before tonight, it is the date the age on this same panel is
+ * measured from, and it prints.
+ *
+ * THE VERIFICATION WINDOW IS DISCLOSED HERE BECAUSE THE STRUCTURED DATA
+ * PUBLISHES IT. Every live role page emits a JobPosting with `validThrough`,
+ * which is a date nobody observed: it is the sweep date plus the rest of this
+ * record's window, and it says when we stop standing behind our own reading. A
+ * consumer of JobPosting reads validThrough as the employer's expiry. So for a
+ * while the only surface carrying that date was the machine-readable one, the
+ * markdown twin explained it and the HTML page did not, and the date sat beside
+ * a named company having never been published by them.
+ *
+ * The panel that holds every other receipt on this page is where it belongs. It
+ * renders as two rows, the date and what the date is counted from, and the
+ * footnote below them says whose date it is in one sentence. A closed record
+ * emits no JobPosting and carries no window, so it gets neither row.
+ *
+ * ONE PREDICATE, NOT TWO. `firstSeenShowable()` decides for the key/value row
+ * and for the timeline entry below it, because they were deciding separately and
+ * disagreeing: five job pages printed "Held back until the archive is three
+ * sweeps deep" and then, two elements later, the exact date they had withheld.
+ * The markdown twin reads the same predicate for the same reason.
+ */
+
+interface Props {
+  job: Job;
+  class?: string;
+}
+
+const { job, class: className } = Astro.props;
+
+const age = ageOf(job);
+const observed = firstSeen(job);
+const showObserved = firstSeenShowable(job);
+const isClosed = job.status === 'closed';
+
+/* The same call the JSON-LD makes, so the page and the structured data cannot
+   state different dates. Null where the window has nothing left, in which case
+   no validThrough is emitted either and both surfaces say so. */
+const expiry = isClosed ? null : expiryOf(job);
+
+const rows: KeyValueRow[] = [
+  {
+    key: 'First observed',
+    value: showObserved ? formatDate(observed) : null,
+    absence: observed
+      ? 'Held back while most rows were first seen on this sweep'
+      : 'Not recorded for this posting'
+  },
+  { key: 'Last verified', value: sweptStamp() },
+  {
+    key: 'Age',
+    value: age ? formatAge(job) : null,
+    // Declared for the same reason JobRow.astro wraps its own age cell in
+    // data-truth="machine": this number is not posted anywhere, it is the
+    // machine's own count of days since the record was published or first
+    // seen. A row this panel prints without saying so is a fact the receipt
+    // panel itself is keeping quiet about, and the receipt panel is the one
+    // place on this page that cannot afford that.
+    truth: age ? { kind: 'machine' } : undefined,
+    absence: ABSENCE.date
+  },
+  { key: 'Source', value: `${sourceLabel(job)}, read direct` },
+  { key: 'Status', value: isClosed ? 'Closed' : job.status === 're_verified' ? 'Re-verified' : 'Live' }
+];
+
+if (!isClosed) {
+  rows.push(
+    {
+      key: 'This reading stands until',
+      value: expiry ? formatDate(expiry.date) : null,
+      // Declared for gate 2, which recomputes the date from the sweep and this
+      // record's own window, requires the same date in the page's ld+json, and
+      // fails a page that publishes validThrough while showing a reader nothing.
+      truth: expiry ? { kind: 'window', 'data-truth-job': job.slug, 'data-truth-date': expiry.date } : undefined,
+      absence: job.window
+        ? `No date. The sweep found this posting on day ${job.window.day} of its ${job.window.days} day window, so the window has nothing left to run`
+        : 'No date. This record carries no verification window to count from'
+    },
+    {
+      key: 'Counted from',
+      value: expiry ? expiry.basis : null,
+      absence: 'Nothing to count, so nothing is published as validThrough either'
+    }
+  );
+}
+
+// The age's own basis, so the number above is never something a reader has to
+// take on trust. Only ever added where there is a number to explain.
+if (age) {
+  rows.splice(3, 0, {
+    key: 'Age measured from',
+    value: `${AGE_BASIS_LABEL[age.basis]} ${formatDate(age.from)}`
+  });
+}
+
+/**
+ * The timeline, built only out of dates the record carries. Ordered oldest
+ * first, which is the order things happened.
+ */
+const timeline: { stamp: string; event: string }[] = [];
+if (showObserved) {
+  timeline.push({ stamp: formatDate(observed) ?? '', event: 'First observed in the feed' });
+}
+if (isClosed && job.closed_on) {
+  timeline.push({ stamp: formatDate(job.closed_on) ?? '', event: 'Closure observed at source' });
+}
+timeline.push({ stamp: sweptStamp(), event: 'Verified at source, this sweep' });
+---
+
+<Panel
+  title="Provenance"
+  footnote={
+    isClosed
+      ? 'Every entry is a machine observation, stamped at the sweep that made it'
+      : 'Every entry is a machine observation, stamped at the sweep that made it. The date this reading stands until is ours and not the employer\'s: it is when we stop standing behind this reading unless a later sweep refreshes it, and it is the value this page publishes as validThrough in its structured data'
+  }
+  class={className}
+>
+  <span class="status" slot="aside">
+    <Mark state={markStateOf(job)} surface="raised" />
+    <span class="status-text mono-label">
+      {isClosed ? 'Closed' : job.status === 're_verified' ? 'Re-verified' : 'Verified this sweep'}
+    </span>
+  </span>
+
+  <div class="provenance">
+    <KeyValueList rows={rows} />
+
+    <ol class="timeline">
+      {
+        timeline.map((entry) => (
+          <li class="entry">
+            <span class="entry-stamp mono">{entry.stamp}</span>
+            <span class="entry-event">{entry.event}</span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</Panel>
+
+<style>
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200);
+  }
+
+  .status-text {
+    color: var(--color-muted);
+  }
+
+  .provenance {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .timeline {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-300);
+  }
+
+  /* A rule down the left, and a tick per entry. No dots, no connectors drawn
+     with pseudo-elements stacked on pseudo-elements: the line is the sequence
+     and the stamps are the content. */
+  .entry {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+    padding-left: var(--space-300);
+    border-left: var(--border-heavy) solid var(--color-line-strong);
+  }
+
+  .entry:last-child {
+    border-left-color: var(--color-foreground);
+  }
+
+  .entry-stamp {
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .entry-event {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    line-height: var(--leading-snug);
+  }
+</style>

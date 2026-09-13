@@ -1,0 +1,637 @@
+---
+/**
+ * ProposalForm.astro: the review for one parsed resume. One ROW per proposal,
+ * pre-checked, with the full editable form behind that row's own disclosure,
+ * then the proposed links and the proposed name, all in one form that posts to
+ * profile/import.ts's confirm step.
+ *
+ * A LINE EACH, NOT A FORM EACH. This used to render every proposal as nine
+ * open fields plus a classification fieldset plus the source quotes. Fifteen
+ * proposals off a real resume made a page nobody could read as a decision, and
+ * the observed consequence was the decision not being made: a parse sat
+ * confirmed by nobody while the drafting downstream had no record to draw on.
+ * The row states what was read and what will happen to it; the disclosure holds
+ * the same fields, unchanged, for anyone who wants to correct one before it is
+ * saved. Owner ruling 2026-09-01: line by default, editing on expand.
+ *
+ * EVERY INPUT STAYS IN THE DOM. A collapsed <details> still posts its fields,
+ * so closing a row changes nothing about what is submitted. That is the whole
+ * reason the disclosure is native <details> and not a script that adds and
+ * removes fields.
+ *
+ * THE FIELD NAMES ARE A CONTRACT WITH import.ts. `entry-<i>-<field>`,
+ * `link-<i>-confirm`, `nameConfirm`, and the proposalCount / linkCount hidden
+ * inputs are read back by src/pages/profile/import.ts by exactly these names.
+ * This file may restyle them; it may not rename them.
+ *
+ * PRE-CHECKED, DELIBERATELY. The older paste flow left every box unchecked
+ * ("nothing is preselected"). This one checks them, because the whole point of
+ * uploading a resume is that the person should not have to re-enter what is
+ * already on the page: they uncheck what they do not want, not check what they
+ * do. Nothing is written until they submit, and every proposal is theirs to
+ * edit or drop first, so this changes the default, not the consent.
+ *
+ * THE STATUS WORD IS CSS, NOT SCRIPT. "will be added" and "skipped" are both
+ * rendered as real text and one of them is hidden by a sibling selector off
+ * the row's own checkbox. It is live with JavaScript disabled, and it is real
+ * text rather than generated content, so it reaches the accessibility tree.
+ *
+ * WHY THIS IS NOT EntryCard. A proposal is a NewEntryInput (no prfId, no
+ * provenance): it is not yet a record entry, so it cannot render through
+ * EntryCard, which needs a StoredEntry. This form is the edit surface for that
+ * pre-record shape, the same reason the paste review always hand-rolled it.
+ */
+import { KIND_LABELS, CLASSIFICATION_LABELS, MONTH_NAMES, formatDate } from './entry-presentation';
+import { CEILINGS, CLASSIFICATIONS, ENTRY_KINDS } from '../../lib/record';
+import { linkPlatformLabel, normaliseLinkUrl } from '../../lib/profile-links';
+import type { EntryProposal, LinkProposal, NameProposal, ProposalField } from '../../lib/resume-parse';
+
+interface Props {
+  entries: readonly EntryProposal[];
+  links: readonly LinkProposal[];
+  nameProposal: NameProposal | null;
+  action: string;
+  /** The URLs already on this profile, so a link the resume repeats is shown
+      as already held rather than offered a second time. Optional: a caller
+      that does not pass it simply offers every link, which is what happened
+      before this was here. */
+  existingLinkUrls?: readonly string[];
+}
+
+const { entries, links, nameProposal, action, existingLinkUrls = [] } = Astro.props;
+
+function quote(entry: EntryProposal, field: ProposalField): string | null {
+  return entry.sourceQuotes[field] ?? null;
+}
+
+/** One proposal's date range, in the same words the record uses. */
+function proposalRange(entry: EntryProposal): string {
+  const start = formatDate(entry.candidate.start.year, entry.candidate.start.month);
+  const end =
+    entry.candidate.end === null ? 'Present' : formatDate(entry.candidate.end.year, entry.candidate.end.month);
+  return `${start} to ${end}`;
+}
+
+/* Compared through normaliseLinkUrl on both sides, because a stored link went
+   through it on the way in and a proposed one has not: without that, the same
+   address written two ways reads as two links. A URL that will not normalise
+   is simply not matched, and gets offered like any other. */
+const heldUrls = new Set<string>();
+for (const url of existingLinkUrls) {
+  const result = normaliseLinkUrl(url);
+  if (result.ok) heldUrls.add(result.url);
+}
+
+function alreadyHeld(link: LinkProposal): boolean {
+  const normalised = normaliseLinkUrl(link.url);
+  return normalised.ok && heldUrls.has(normalised.url);
+}
+
+const offeredLinks = links.map((link) => ({ link, held: alreadyHeld(link) }));
+
+/* The count on the button before anything is unchecked. Every proposal is
+   pre-checked, minus any link already on file, which is offered unchecked. */
+const initialCount =
+  entries.length + offeredLinks.filter((row) => !row.held).length + (nameProposal ? 1 : 0);
+---
+
+<form class="record-form proposal-form" method="POST" action={action}>
+  <input type="hidden" name="intent" value="confirm" />
+  <input type="hidden" name="proposalCount" value={entries.length} />
+  <input type="hidden" name="linkCount" value={links.length} />
+  <input type="hidden" name="nameProposed" value={nameProposal ? '1' : ''} />
+
+  <div class="proposal-rows">
+    {
+      entries.map((entry, i) => (
+        <div class="proposal-row">
+          <input
+            class="field-check proposal-check"
+            type="checkbox"
+            id={`import-confirm-${i}`}
+            name={`entry-${i}-confirm`}
+            data-proposal-check
+            checked
+          />
+          <label class="visually-hidden" for={`import-confirm-${i}`}>
+            Add {entry.candidate.officialTitle}
+          </label>
+
+          <details class="proposal-detail">
+            <summary class="proposal-summary">
+              <span class="proposal-kind">{KIND_LABELS[entry.candidate.kind]}</span>
+              {/* The expression container sits hard against the closing tag
+                  before it: a newline between two inline elements is a text
+                  node, and it printed a space in front of the comma. */}
+              <span class="proposal-name">
+                <span class="proposal-title">{entry.candidate.officialTitle}</span>{
+                  entry.candidate.employerOrInstitution && (
+                    <span class="proposal-employer">, {entry.candidate.employerOrInstitution}</span>
+                  )
+                }
+              </span>
+              <span class="proposal-dates">{proposalRange(entry)}</span>
+              <span class="proposal-status">
+                <span class="status-on">will be added</span>
+                <span class="status-off">skipped</span>
+              </span>
+              <span class="proposal-chevron" aria-hidden="true" />
+            </summary>
+
+            <fieldset class="import-proposal">
+              <legend class="visually-hidden">What was read for {entry.candidate.officialTitle}</legend>
+
+              <div class="field">
+                <label class="field-label" for={`import-kind-${i}`}>Kind</label>
+                <select class="field-input" id={`import-kind-${i}`} name={`entry-${i}-kind`}>
+                  {ENTRY_KINDS.map((kind) => (
+                    <option value={kind} selected={entry.candidate.kind === kind}>
+                      {KIND_LABELS[kind]}
+                    </option>
+                  ))}
+                </select>
+                <p class="field-hint">Change this if it read the wrong kind of thing.</p>
+              </div>
+
+              <div class="field">
+                <label class="field-label" for={`import-employer-${i}`}>Employer or institution</label>
+                <input
+                  class="field-input"
+                  id={`import-employer-${i}`}
+                  type="text"
+                  name={`entry-${i}-employerOrInstitution`}
+                  maxlength={CEILINGS.employerOrInstitution}
+                  value={entry.candidate.employerOrInstitution ?? ''}
+                />
+                {quote(entry, 'employerOrInstitution') && (
+                  <p class="import-reading">Read from: "{quote(entry, 'employerOrInstitution')}"</p>
+                )}
+              </div>
+
+              <div class="field">
+                <label class="field-label" for={`import-title-${i}`}>Official title</label>
+                <input
+                  class="field-input"
+                  id={`import-title-${i}`}
+                  type="text"
+                  name={`entry-${i}-officialTitle`}
+                  required
+                  maxlength={CEILINGS.officialTitle}
+                  value={entry.candidate.officialTitle}
+                />
+                {quote(entry, 'officialTitle') && <p class="import-reading">Read from: "{quote(entry, 'officialTitle')}"</p>}
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label class="field-label" for={`import-start-year-${i}`}>Start year</label>
+                  <input
+                    class="field-input field-input-narrow"
+                    id={`import-start-year-${i}`}
+                    type="number"
+                    name={`entry-${i}-startYear`}
+                    required
+                    min="1900"
+                    max="2100"
+                    value={entry.candidate.start.year}
+                  />
+                </div>
+                <div class="field">
+                  <label class="field-label" for={`import-start-month-${i}`}>Start month</label>
+                  <select class="field-input field-input-narrow" id={`import-start-month-${i}`} name={`entry-${i}-startMonth`}>
+                    <option value="" selected={entry.candidate.start.month === null}>
+                      Unknown
+                    </option>
+                    {MONTH_NAMES.map((monthName, index) => (
+                      <option value={index + 1} selected={entry.candidate.start.month === index + 1}>
+                        {monthName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div class="field field-checkbox">
+                <input
+                  class="field-check"
+                  type="checkbox"
+                  id={`import-still-here-${i}`}
+                  name={`entry-${i}-stillHere`}
+                  checked={entry.candidate.end === null}
+                />
+                <label class="field-label field-label-inline" for={`import-still-here-${i}`}>Still there</label>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label class="field-label" for={`import-end-year-${i}`}>End year</label>
+                  <input
+                    class="field-input field-input-narrow"
+                    id={`import-end-year-${i}`}
+                    type="number"
+                    name={`entry-${i}-endYear`}
+                    min="1900"
+                    max="2100"
+                    value={entry.candidate.end?.year ?? ''}
+                  />
+                </div>
+                <div class="field">
+                  <label class="field-label" for={`import-end-month-${i}`}>End month</label>
+                  <select class="field-input field-input-narrow" id={`import-end-month-${i}`} name={`entry-${i}-endMonth`}>
+                    <option value="" selected={entry.candidate.end?.month == null}>
+                      Unknown
+                    </option>
+                    {MONTH_NAMES.map((monthName, index) => (
+                      <option value={index + 1} selected={entry.candidate.end?.month === index + 1}>
+                        {monthName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="field-label" for={`import-location-${i}`}>Location</label>
+                <input
+                  class="field-input"
+                  id={`import-location-${i}`}
+                  type="text"
+                  name={`entry-${i}-location`}
+                  maxlength={CEILINGS.location}
+                  value={entry.candidate.location ?? ''}
+                />
+                {quote(entry, 'location') && <p class="import-reading">Read from: "{quote(entry, 'location')}"</p>}
+              </div>
+
+              <div class="field">
+                <label class="field-label" for={`import-description-${i}`}>Description</label>
+                <textarea
+                  class="field-input field-textarea"
+                  id={`import-description-${i}`}
+                  name={`entry-${i}-description`}
+                  maxlength={CEILINGS.description}
+                  rows="4"
+                >{entry.candidate.description}</textarea>
+                {quote(entry, 'description') && <p class="import-reading">Read from the lines on your resume.</p>}
+              </div>
+
+              <fieldset class="field-fieldset">
+                <legend class="field-legend">Classification</legend>
+                {CLASSIFICATIONS.map((value) => (
+                  <div class="field-radio">
+                    <input
+                      class="field-check"
+                      type="radio"
+                      id={`import-classification-${i}-${value}`}
+                      name={`entry-${i}-classification`}
+                      value={value}
+                      checked={entry.candidate.classification === value}
+                    />
+                    <label class="field-label field-label-inline" for={`import-classification-${i}-${value}`}>
+                      {CLASSIFICATION_LABELS[value]}
+                    </label>
+                  </div>
+                ))}
+              </fieldset>
+            </fieldset>
+          </details>
+        </div>
+      ))
+    }
+
+    {
+      offeredLinks.map(({ link, held }, i) => (
+        <div class="proposal-row proposal-row-flat">
+          <input
+            class="field-check proposal-check"
+            type="checkbox"
+            id={`link-confirm-${i}`}
+            name={`link-${i}-confirm`}
+            data-proposal-check={held ? undefined : true}
+            checked={!held}
+            disabled={held}
+          />
+          <input type="hidden" name={`link-${i}-platform`} value={link.platform} />
+          <input type="hidden" name={`link-${i}-url`} value={link.url} />
+          <label class="proposal-summary proposal-summary-flat" for={`link-confirm-${i}`}>
+            <span class="proposal-kind">Link</span>
+            <span class="proposal-name">
+              <span class="proposal-title">{linkPlatformLabel(link.platform)}</span><span
+                class="proposal-employer"
+              >, {link.url}</span>
+            </span>
+            <span class="proposal-dates" />
+            <span class="proposal-status">
+              {held ? (
+                <span class="status-held">already on file</span>
+              ) : (
+                <>
+                  <span class="status-on">will be added</span>
+                  <span class="status-off">skipped</span>
+                </>
+              )}
+            </span>
+            <span class="proposal-chevron" />
+          </label>
+        </div>
+      ))
+    }
+
+    {
+      nameProposal && (
+        <div class="proposal-row proposal-row-flat">
+          <input
+            class="field-check proposal-check"
+            type="checkbox"
+            id="name-confirm"
+            name="nameConfirm"
+            data-proposal-check
+            checked
+          />
+          <input type="hidden" name="nameFirst" value={nameProposal.first} />
+          <input type="hidden" name="nameLast" value={nameProposal.last} />
+          <label class="proposal-summary proposal-summary-flat" for="name-confirm">
+            <span class="proposal-kind">Name</span>
+            <span class="proposal-name">
+              <span class="proposal-title">{nameProposal.first} {nameProposal.last}</span><span
+                class="proposal-employer"
+              >, you have no name set yet, so this fills it in</span>
+            </span>
+            <span class="proposal-dates" />
+            <span class="proposal-status">
+              <span class="status-on">will be added</span>
+              <span class="status-off">skipped</span>
+            </span>
+            <span class="proposal-chevron" />
+          </label>
+        </div>
+      )
+    }
+  </div>
+
+  {/* The whole sentence is one node, not "Add" plus a span plus "to your
+      profile": an uppercased button label loses the whitespace around an
+      inline element, and the count came out welded to the words on either
+      side of it. The script rewrites the sentence, not a number inside it. */}
+  <button class="field-submit" type="submit">
+    <span data-proposal-count>
+      Add {initialCount} {initialCount === 1 ? 'item' : 'items'} to your profile
+    </span>
+  </button>
+</form>
+
+<script>
+  /**
+   * The one thing on this form that cannot be done in CSS: the count on the
+   * button. Everything else about a row's state (the status word, the open
+   * disclosure) is a sibling selector off the row's own checkbox and works
+   * with this script absent.
+   *
+   * DELEGATED FROM document, ON PURPOSE. profile.astro renders this form into
+   * a slot it later replaces wholesale with freshly fetched HTML, and a
+   * <script> inside replaced markup never runs. A listener on document,
+   * registered once when the page loads, keeps working across that swap. Any
+   * form on the page with a count gets recounted, so two of them could not
+   * fight over one number.
+   */
+  function recount(form: HTMLFormElement): void {
+    const target = form.querySelector<HTMLElement>('[data-proposal-count]');
+    if (!target) return;
+    const checked = form.querySelectorAll<HTMLInputElement>('[data-proposal-check]:checked').length;
+    target.textContent = `Add ${checked} ${checked === 1 ? 'item' : 'items'} to your profile`;
+  }
+
+  document.addEventListener('change', (event) => {
+    const box = event.target;
+    if (!(box instanceof HTMLInputElement) || box.dataset.proposalCheck === undefined) return;
+    if (box.form) recount(box.form);
+  });
+</script>
+
+<style>
+  .record-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+  }
+
+  /* The checklist. One hairline between rows, none above the first and none
+     below the last: the panel this sits in draws those. */
+  .proposal-rows {
+    display: flex;
+    flex-direction: column;
+  }
+  .proposal-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-300);
+    padding: var(--space-300) 0;
+    border-top: var(--border-hairline) solid var(--color-line);
+    min-width: 0;
+  }
+  .proposal-row:first-child {
+    border-top: 0;
+  }
+  .proposal-check {
+    /* Optically aligned to the row's first text line rather than its box. */
+    margin-top: var(--space-100);
+  }
+
+  .proposal-detail {
+    min-width: 0;
+  }
+
+  /* The row itself. A <summary> on an editable proposal, a <label> on a flat
+     one (a link or a name has nothing to open), styled identically so the
+     checklist reads as one list. */
+  .proposal-summary {
+    display: grid;
+    grid-template-columns: var(--proposal-columns);
+    align-items: baseline;
+    gap: var(--space-300);
+    cursor: pointer;
+    list-style: none;
+    min-width: 0;
+  }
+  .proposal-summary::-webkit-details-marker {
+    display: none;
+  }
+  .proposal-summary-flat {
+    cursor: pointer;
+  }
+
+  .proposal-kind {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-050);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .proposal-name {
+    min-width: 0;
+    font-size: var(--size-150);
+    line-height: var(--leading-snug);
+    overflow-wrap: anywhere;
+  }
+  .proposal-title {
+    font-weight: var(--weight-medium);
+  }
+  .proposal-employer {
+    color: var(--color-muted);
+  }
+  .proposal-dates,
+  .proposal-status {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    font-feature-settings: var(--feature-tabular);
+  }
+  .proposal-chevron {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    text-align: right;
+  }
+  .proposal-detail .proposal-chevron::after {
+    content: '+';
+  }
+  .proposal-detail[open] .proposal-chevron::after {
+    content: '-';
+  }
+
+  /* Live with no script: the status word follows the row's own checkbox
+     through a sibling selector. Both words are real text, so the one on show
+     is the one a screen reader reads. */
+  .status-on {
+    display: none;
+  }
+  .proposal-check:checked ~ .proposal-detail .status-on,
+  .proposal-check:checked ~ .proposal-summary-flat .status-on {
+    display: inline;
+  }
+  .proposal-check:checked ~ .proposal-detail .status-off,
+  .proposal-check:checked ~ .proposal-summary-flat .status-off {
+    display: none;
+  }
+  .proposal-check:disabled ~ .proposal-summary-flat {
+    cursor: default;
+  }
+  .proposal-check:disabled ~ .proposal-summary-flat .proposal-name {
+    color: var(--color-muted);
+  }
+
+  /* The fields behind a row, unchanged from when they were the whole review. */
+  .import-proposal {
+    border: 0;
+    margin: var(--space-400) 0 var(--space-300);
+    padding: var(--space-400) 0 0;
+    border-top: var(--border-hairline) solid var(--color-line);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+  .import-reading {
+    margin: calc(-1 * var(--space-100)) 0 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    min-width: 0;
+  }
+  .field-row {
+    display: flex;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+  }
+  .field-label {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .field-label-inline {
+    text-transform: none;
+    letter-spacing: var(--tracking-normal);
+    font-size: var(--size-150);
+    color: var(--color-foreground);
+  }
+  .field-hint {
+    margin: 0;
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+  .field-checkbox,
+  .field-radio {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-200);
+  }
+  .field-check {
+    margin: 0;
+    width: var(--size-200);
+    height: var(--size-200);
+    accent-color: var(--color-foreground);
+    flex: none;
+  }
+  .field-fieldset {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+  .field-legend {
+    padding: 0;
+    font-family: var(--font-family-sans);
+    font-size: var(--size-075);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .field-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+
+  /* Below lap the five row tracks stop fitting: the name takes its own line
+     and the machine voice wraps under it, the same treatment the record rows
+     take at this breakpoint. */
+  @media (max-width: 60rem) {
+    .proposal-summary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-200) var(--space-300);
+    }
+    .proposal-name {
+      order: -1;
+      flex: 1 1 100%;
+    }
+    .proposal-chevron {
+      margin-left: auto;
+    }
+  }
+</style>

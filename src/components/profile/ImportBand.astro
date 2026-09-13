@@ -1,0 +1,680 @@
+---
+/**
+ * ImportBand.astro: the band at the top of /profile, and the state machine the
+ * resume import runs through. Four states, exactly one on screen:
+ *
+ *   done     a confirm just landed. A one-line receipt, and a way to read
+ *            another document.
+ *   review   a finished read is waiting to be acted on, in the slot below this
+ *            band. This is the state that matters most: a person who uploaded
+ *            and navigated away comes back to their proposals, not to an empty
+ *            upload box, which is exactly the failure that once left fifteen
+ *            parsed entries sitting unconfirmed while the drafting downstream
+ *            had no record to draw on.
+ *   reading  a read is still running.
+ *   idle     nothing in flight. The upload band, in two columns.
+ *
+ * PULLED OUT OF profile.astro SO THE GATES CAN SEE IT. /profile is signed in
+ * and per request, so it never reaches a built tree and no gate has ever read
+ * it there. As a component it renders on /_states, where axe reads it and
+ * Lighthouse weighs it. That is the whole reason for the extraction: markup
+ * inside a page no gate can load is markup nothing checks.
+ *
+ * THE WAITING LOG NARRATES ONLY WHAT IT KNOWS. The <ol> below is filled by
+ * profile.astro's own script, and /profile/import/status answers "pending" or
+ * "ready" and nothing else. So the log prints the four things the page
+ * genuinely has: what was sent, which provider key it went to (resolved
+ * server-side the same way resume-parse-runner.ts resolves it, and handed down
+ * here as a prop), how long it has been waiting, and the read's own notes
+ * verbatim when it lands. Owner ruling 2026-09-01: only lines that are true.
+ * A ticking log of invented stages was the alternative and it is not on the
+ * table.
+ *
+ * IT WORKS WITH NO SCRIPT. The dashed box is a <label> wrapped around a real
+ * file input, so clicking it opens the picker with nothing running. The paste
+ * fallback is a native <details>. Both forms are plain POSTs to
+ * profile/import/parse.ts, which 303s to /profile/review for a reader whose
+ * browser is doing none of the enhancement. Drag and drop, the file chips and
+ * the log are the enhancement, and every one of them is additive.
+ */
+import Spinner from '../Spinner.astro';
+
+export type ImportBandState = 'idle' | 'reading' | 'review' | 'done';
+
+/** What a finished confirm reported, relayed to the page by import.ts. */
+export interface ImportReceipt {
+  created: number;
+  failed: number;
+  links: number;
+  name: boolean;
+}
+
+/** The cover letter a person keeps on file (db/025), or null when none is
+    stored. Shown as a one-line "on file" receipt with a way to replace or
+    remove it. */
+export interface CoverLetterOnFileSummary {
+  sourceName: string | null;
+  /** A already-formatted "added" date, or null. The component prints it as
+      given; formatting is the caller's job (record data, not UI logic). */
+  addedLabel: string | null;
+}
+
+interface Props {
+  state: ImportBandState;
+  /** Present only in the 'done' state. */
+  receipt?: ImportReceipt | null;
+  /** Whether this person has a provider key at all. Without one there is no
+      read to offer: a resume is read with the person's OWN model, and the
+      keyless reader matches one strict shape and misses anything written
+      differently, so it is not offered as the way in. */
+  hasProviderKey: boolean;
+  /** The provider whose key the read will actually be spent on, named on the
+      waiting log. Null when there is none to name. */
+  providerLabel?: string | null;
+  parseAction: string;
+  reviewPath: string;
+  profilePath: string;
+  settingsPath: string;
+  /** The cover-letter upload endpoint (/profile/import/cover). Optional so the
+      resume-only specimens and callers still render; the cover affordance is
+      shown only when this is given. */
+  coverAction?: string | null;
+  /** The letter on file, or null. */
+  coverLetterOnFile?: CoverLetterOnFileSummary | null;
+}
+
+const {
+  state,
+  receipt = null,
+  hasProviderKey,
+  providerLabel = null,
+  parseAction,
+  reviewPath,
+  profilePath,
+  settingsPath,
+  coverAction = null,
+  coverLetterOnFile = null
+} = Astro.props;
+---
+
+<section class="import-band" aria-label="Import from your resume">
+  {state === 'done' && receipt && (
+    <p class="import-receipt" role="status">
+      <span class="import-receipt-label">Imported</span>
+      <span>
+        {receipt.created > 0
+          ? `${receipt.created} ${receipt.created === 1 ? 'entry' : 'entries'} added`
+          : 'No entries were added'}
+        {receipt.links > 0 && `, ${receipt.links} ${receipt.links === 1 ? 'link' : 'links'}`}
+        {receipt.name && ', your name set'}
+        {receipt.failed > 0 &&
+          `, ${receipt.failed} could not be added and ${receipt.failed === 1 ? 'was' : 'were'} left out`}
+      </span>
+      <a class="profile-link import-receipt-again" href={profilePath}>Read another document</a>
+    </p>
+  )}
+
+  {state === 'reading' && (
+    <p class="import-pending" role="status">
+      A resume you uploaded is still being read.{' '}
+      <a class="profile-link" href={reviewPath}>Open the review</a>.
+    </p>
+  )}
+
+  {state === 'review' && (
+    <p class="import-waiting" role="status">
+      A read has finished and is waiting for you, just below.{' '}
+      <a class="profile-link" href={profilePath}>Start over instead</a>.
+    </p>
+  )}
+
+  {state === 'idle' &&
+    (hasProviderKey ? (
+      <>
+        <div class="import-columns">
+          <div class="import-drop-column">
+            <div class="import-column-head">
+              <span class="mono-label">Start with your documents</span>
+            </div>
+
+            <form
+              class="import-file-form"
+              method="POST"
+              action={parseAction}
+              enctype="multipart/form-data"
+              data-import-form
+            >
+              <label class="import-dropzone" data-dropzone>
+                <input
+                  class="import-file-input"
+                  id="import-file"
+                  type="file"
+                  name="file"
+                  data-file-input
+                  accept=".md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                />
+                <span class="import-dropzone-mark" aria-hidden="true">&#8595;</span>
+                <span class="import-dropzone-head">Drop your resume here</span>
+                <span class="import-dropzone-hint">
+                  Drag it here, or click to choose. PDF, Word, Markdown, plain text. Up to 4 MB.
+                </span>
+                <span class="import-chips" data-file-chips />
+              </label>
+              <button class="field-submit" type="submit">Read my documents</button>
+            </form>
+          </div>
+
+          <ol class="import-how">
+            <li>
+              <span class="import-how-number">01</span>
+              <span>Your own model reads it, with your own key. We never see the file.</span>
+            </li>
+            <li>
+              <span class="import-how-number">02</span>
+              <span>You review every fact it found before anything is saved.</span>
+            </li>
+            <li>
+              <span class="import-how-number">03</span>
+              <span>Read once, in memory, then gone. Nothing stored, nothing sent to us.</span>
+            </li>
+          </ol>
+        </div>
+
+        {/* Paste is a full-band affordance, not a control tucked in the drop
+            column's header: opened there, the textarea inherited that column's
+            width and came out a narrow box. A sibling of the columns, so the
+            open textarea gets the whole outer box. Still a native <details>,
+            so the toggle needs no script. */}
+        <details class="import-paste">
+          <summary class="import-paste-summary">Paste text instead</summary>
+          <form class="record-form import-paste-form" method="POST" action={parseAction} data-import-form>
+            <div class="field">
+              <label class="field-label" for="import-pasted">Pasted resume text</label>
+              <textarea class="field-input field-textarea import-paste-area" id="import-pasted" name="pasted" rows="16" />
+            </div>
+            <button class="field-submit" type="submit">Read the text</button>
+          </form>
+        </details>
+      </>
+    ) : (
+      <div class="import-locked">
+        <p class="import-locked-line">
+          Your own model is also what reads the whole resume. The keyless reader matches one strict
+          shape and misses anything written differently, and a half-read resume is worse than one
+          you fill in by hand. So connect a key first, then upload and it fills your profile in for
+          you.
+        </p>
+        <a class="field-submit" href={settingsPath}>Connect a key in Settings</a>
+      </div>
+    ))}
+
+  {/* The cover letter on file. Unlike the resume, it needs no key to store: it
+      is kept as a writing-voice sample and a drafted cover letter adapts it,
+      keeping the person's voice. Any dated role or employer it names is proposed
+      into the record through the same reviewer a resume upload uses (which does
+      need a key). A native <details> and plain POSTs, so it works with no
+      script, the same as the paste affordance above. */}
+  {state === 'idle' && coverAction && (
+    <div class="import-cover">
+      {coverLetterOnFile && (
+        <div class="import-cover-onfile" role="status">
+          <span class="import-cover-label mono-label">Cover letter on file</span>
+          <span class="import-cover-name">
+            {coverLetterOnFile.sourceName ?? 'Pasted text'}
+            {coverLetterOnFile.addedLabel && `, added ${coverLetterOnFile.addedLabel}`}
+          </span>
+          <form class="import-cover-remove" method="POST" action={coverAction}>
+            <input type="hidden" name="intent" value="remove" />
+            <button class="import-cover-remove-button" type="submit">Remove</button>
+          </form>
+        </div>
+      )}
+      <details class="import-cover-details">
+        <summary class="import-paste-summary">
+          {coverLetterOnFile ? 'Replace your cover letter' : 'Add a cover letter (optional)'}
+        </summary>
+        <div class="import-cover-body">
+          <p class="import-cover-hint">
+            We adapt your own letter to each job, keeping your voice. It is kept only as a writing
+            sample; any dated role or employer it names is proposed into your record for you to
+            review before anything is saved.
+          </p>
+          <form class="import-cover-file-form" method="POST" action={coverAction} enctype="multipart/form-data">
+            <label class="field-label" for="import-cover-file">Upload a file</label>
+            <input
+              class="import-cover-file-input"
+              id="import-cover-file"
+              type="file"
+              name="file"
+              accept=".md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            />
+            <button class="field-submit" type="submit">Save cover letter</button>
+          </form>
+          <form class="record-form import-cover-paste-form" method="POST" action={coverAction}>
+            <div class="field">
+              <label class="field-label" for="import-cover-pasted">Or paste your cover letter</label>
+              <textarea class="import-cover-area" id="import-cover-pasted" name="pasted" rows="10" />
+            </div>
+            <button class="field-submit" type="submit">Save pasted letter</button>
+          </form>
+        </div>
+      </details>
+    </div>
+  )}
+
+  {/* The waiting state. Revealed by profile.astro's script when an upload
+      starts here, and rendered already open when the page loads with a read
+      genuinely still running: a pending parse row is proof a model is working,
+      so the ring turns for it rather than making a returning reader infer that
+      from a sentence. The shared ring carries this site's one motion-gate
+      exemption. See this file's header on why the log says only what it
+      knows. */}
+  <div
+    class="import-working"
+    data-import-working
+    data-provider-label={providerLabel ?? ''}
+    hidden={state !== 'reading'}
+    role="status"
+    aria-live="polite"
+  >
+    <div class="import-working-head">
+      <Spinner />
+      <span class="mono-label import-working-label">Reading with your model</span>
+    </div>
+    <ol class="import-log" data-import-log />
+  </div>
+
+  <p class="import-note" data-import-note hidden role="status" />
+</section>
+
+<style>
+  .import-band {
+    border: var(--border-hairline) solid var(--color-line-strong);
+    background: var(--color-surface-raised);
+  }
+  .import-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  }
+  .import-drop-column {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    padding: var(--space-500);
+    border-right: var(--border-hairline) solid var(--color-line);
+  }
+  .import-column-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+  }
+  .import-column-head .mono-label {
+    color: var(--color-muted);
+  }
+
+  /* The full-band paste affordance. The summary is a bar across the whole
+     band, set off from the columns above by a hairline; opening it reveals a
+     textarea at the band's full width. */
+  .import-paste {
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .import-paste-summary {
+    cursor: pointer;
+    padding: var(--space-400) var(--space-500);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    list-style: none;
+  }
+  .import-paste-summary::-webkit-details-marker {
+    display: none;
+  }
+  /* The same plus and minus the record rows use, rather than the browser's
+     triangle. Decorative: the summary's own text is the accessible name. */
+  .import-paste-summary::before {
+    content: '+ ';
+  }
+  .import-paste[open] .import-paste-summary::before {
+    content: '- ';
+  }
+  .import-paste-summary:hover {
+    color: var(--color-foreground);
+  }
+  .import-paste-form {
+    padding: 0 var(--space-500) var(--space-500);
+  }
+  /* Fills the band and stays comfortable to type in: the narrow box was the
+     whole complaint. */
+  .import-paste-area {
+    width: 100%;
+    min-height: 20rem;
+  }
+
+  .import-file-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    align-items: flex-start;
+  }
+  .import-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-300);
+    width: 100%;
+    min-height: 11rem;
+    padding: var(--space-500);
+    border: var(--border-hairline) dashed var(--color-line-strong);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color var(--motion-duration-instant) var(--motion-easing-standard),
+      background var(--motion-duration-instant) var(--motion-easing-standard);
+  }
+  .import-dropzone:hover,
+  .import-dropzone:focus-within,
+  .import-dropzone.is-dragging {
+    border-color: var(--color-foreground);
+    background: var(--color-hover-surface);
+  }
+  /* The real control, kept in the accessibility tree and kept operable by
+     keyboard: it is the label's own input, so clicking anywhere in the dashed
+     box opens the picker with no script at all. */
+  .import-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .import-dropzone-mark {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-400);
+    line-height: var(--leading-tight);
+    color: var(--color-muted);
+  }
+  .import-dropzone-head {
+    font-size: var(--size-300);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-tight);
+  }
+  .import-dropzone-hint {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+  .import-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-200);
+    justify-content: center;
+  }
+  /* The chip is built by the script, so it is not in this component's markup
+     and Astro's scoping cannot reach it. */
+  .import-chips :global(.import-chip) {
+    border: var(--border-hairline) solid var(--color-line-strong);
+    padding: var(--space-100) var(--space-300);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-foreground);
+  }
+
+  .import-how {
+    margin: 0;
+    padding: var(--space-500);
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+    justify-content: center;
+  }
+  .import-how li {
+    display: flex;
+    gap: var(--space-400);
+    align-items: baseline;
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+  }
+  .import-how-number {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    font-feature-settings: var(--feature-tabular);
+    flex: none;
+  }
+
+  .import-locked {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    align-items: flex-start;
+    padding: var(--space-500);
+  }
+  .import-locked-line {
+    margin: 0;
+    max-width: var(--layout-measure);
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+  }
+
+  /* The three flat states: a receipt, a read in flight, a read waiting. Each
+     is one line, because each has one thing to say and one thing to do. */
+  .import-receipt,
+  .import-pending,
+  .import-waiting {
+    margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+    padding: var(--space-400) var(--space-500);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-foreground);
+  }
+  .import-receipt-label {
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .import-receipt-again {
+    margin-left: auto;
+  }
+
+  .import-working:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    padding: var(--space-500);
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .import-working-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-300);
+  }
+  .import-working-label {
+    color: var(--color-muted);
+    text-transform: none;
+    letter-spacing: var(--tracking-wide);
+  }
+  .import-log {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+  }
+  .import-note:not([hidden]) {
+    margin: 0;
+    padding: var(--space-400) var(--space-500);
+    border-top: var(--border-hairline) solid var(--color-line);
+    font-size: var(--size-150);
+    color: var(--color-muted);
+  }
+
+  .profile-link {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    border-bottom: 1px solid var(--color-foreground);
+    padding-bottom: 2px;
+  }
+
+  /* The cover-letter affordance: a hairline-separated band foot, matching the
+     paste affordance's own summary bar. */
+  .import-cover {
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .import-cover-onfile {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+    padding: var(--space-400) var(--space-500);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-foreground);
+  }
+  .import-cover-label {
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .import-cover-remove {
+    margin: 0 0 0 auto;
+  }
+  .import-cover-remove-button {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+  .import-cover-remove-button:hover {
+    color: var(--color-foreground);
+  }
+  .import-cover-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    padding: 0 var(--space-500) var(--space-500);
+  }
+  .import-cover-hint {
+    margin: 0;
+    max-width: var(--layout-measure);
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+  }
+  .import-cover-file-form,
+  .import-cover-paste-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    align-items: flex-start;
+  }
+  .import-cover-file-input {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-foreground);
+  }
+  .import-cover-area {
+    width: 100%;
+    min-height: 12rem;
+    padding: var(--space-300);
+    background: var(--color-surface);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    color: var(--color-foreground);
+    font-family: var(--font-family-sans);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    resize: vertical;
+    box-sizing: border-box;
+  }
+
+  /* Forms, matching sign-in.astro / sign-up.astro's field vocabulary, the
+     same per-file duplication profile.astro's own copy of this block already
+     explains. */
+  .record-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    min-width: 0;
+  }
+  .field-label {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .field-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+
+  /* The band stacks at the same step every other two-up band on this site
+     stacks at. */
+  @media (max-width: 60rem) {
+    .import-columns {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .import-drop-column {
+      border-right: 0;
+      border-bottom: var(--border-hairline) solid var(--color-line);
+    }
+    .import-receipt,
+    .import-pending,
+    .import-waiting,
+    .import-drop-column,
+    .import-how,
+    .import-locked,
+    .import-paste-summary,
+    .import-cover-onfile,
+    .import-working:not([hidden]),
+    .import-note:not([hidden]) {
+      padding-inline: var(--space-400);
+    }
+    .import-paste-form,
+    .import-cover-body {
+      padding-inline: var(--space-400);
+    }
+  }
+</style>

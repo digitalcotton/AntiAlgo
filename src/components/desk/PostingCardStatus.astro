@@ -1,0 +1,81 @@
+---
+/**
+ * PostingCardStatus: one line on the Desk card for a posting a person added.
+ *
+ * The card is a summary, and only a summary: no forms, no steps, no refresh.
+ * Everything a person can do with the posting (paste its text, retry the read,
+ * name the role, write why they want it, draft) lives on the posting's own
+ * page, and every line here points there. The draft link appears only once a
+ * draft is ready, so the card never links to an empty room.
+ */
+import type { StoredPostingFetch } from '../../lib/posting-fetch-store';
+import { fetchDisplayState } from '../../lib/posting-fetch-store';
+import { hostnameOf } from '../../lib/added-posting';
+
+interface Props {
+  row: StoredPostingFetch;
+  /** Whether any draft row exists for this posting, and whether one is ready. */
+  draft: 'none' | 'pending' | 'ready' | 'failed';
+  detailHref: string;
+  roomHref: string;
+  nowMs: number;
+}
+
+const { row, draft, detailHref, roomHref, nowMs } = Astro.props;
+const display = fetchDisplayState(row, nowMs);
+const host = hostnameOf(row.url);
+const settled = display === 'ready' || display === 'pasted';
+const prefix = display === 'pasted' ? 'From text you pasted. Unverified.' : display === 'ready' ? `Read from ${host}.` : null;
+---
+
+<p class="card-status" data-card-status={display} data-card-draft={settled ? draft : undefined}>
+  {display === 'reading' && (
+    <>
+      Reading the posting from {host}. <a class="text-link" href={detailHref}>Watch it land</a>
+    </>
+  )}
+  {display === 'queued' && (
+    <>
+      Still queued for the machine. <a class="text-link" href={detailHref}>Open the posting</a> to paste the text instead.
+    </>
+  )}
+  {display === 'slow' && (
+    <>
+      Reading {host} is taking longer than usual. <a class="text-link" href={detailHref}>Open the posting</a>
+    </>
+  )}
+  {display === 'unreadable' && (
+    <>
+      We could not read that page. <a class="text-link" href={detailHref}>Paste the text on the posting</a>
+    </>
+  )}
+  {settled && draft === 'none' && (
+    <>
+      {prefix} <a class="text-link" href={detailHref}>Open the posting</a> to draft.
+    </>
+  )}
+  {settled && draft === 'pending' && (
+    <>
+      {prefix} Drafting your resume and cover letter. <a class="text-link" href={detailHref}>Open the posting</a>
+    </>
+  )}
+  {settled && draft === 'ready' && (
+    <>
+      {prefix} Your draft is ready. <a class="text-link" href={roomHref}>Open the draft</a>
+    </>
+  )}
+  {settled && draft === 'failed' && (
+    <>
+      {prefix} The draft did not finish. <a class="text-link" href={detailHref}>Try again on the posting</a>
+    </>
+  )}
+</p>
+
+<style>
+  .card-status {
+    margin: 0;
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+</style>

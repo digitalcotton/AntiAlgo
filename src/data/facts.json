@@ -1,0 +1,108 @@
+{
+  "_meta": {
+    "purpose": "The canonical fact list. These eight strings are the ONLY statistics allowed anywhere on this site. Gate 2 (test/gates/truth.mjs) compares every numeral-bearing sentence in every insight strip against them, verbatim. A paraphrase fails the build.",
+    "authority": "BUILD.md, 'The canonical fact list'. The strings below are transcribed from it without edit. DESIGN-BRIEF.md's fact sheet is the longer prose version of the same research and is not a second source: where the two differ in wording, BUILD.md wins, because that is the list the gate was told to enforce.",
+    "how_to_add": "A new statistic needs a line here with its exact string, its named source, and the pages licensed to render it. There is no other way to get a number onto the site. Adding one without a source is the failure mode this file exists to prevent.",
+    "verbatim_rule": "The 'string' field is what has to appear in the rendered HTML, character for character. Copy carries the surrounding sentence: a strip may read '56% of applications land in the first 96 hours (St. Louis Fed). Age leads this table for a reason.' and pass, because the fact string is present unbroken and every other numeral in the sentence is accounted for by the source line. Rewriting it as 'more than half within four days' fails, which is the point.",
+    "pages_rule": "'pages' licenses a fact to a route, not to a page's general topic. Patterns are exact routes ('/kills') or one-level globs ('/role/*'). Routes here are base-free: the site is served under /jobs and this file names the route, not the URL. Rendering a licensed fact on an unlicensed route fails the gate: the fix is one line here, made deliberately, rather than a fact quietly spreading across the site.",
+    "routes_are_provisional": "Several licensed routes do not exist yet (phases 4 to 7 build them). Route names are structure, which BUILD.md ruling 4 permits deriving. If a builder ships '/manifesto' where this file says '/not-here', the gate fails loudly with both strings in the message and someone picks one. That is a better outcome than a silent pass.",
+    "voice": "The numerals in these strings are machine assertions and set in Basier Square Mono when rendered. The words around them are editorial and set in N27. A fact string therefore usually spans both voices; the verbatim check reads text content, so inline markup between the words does not affect it.",
+    "punctuation": "Straight quotes only, no em dashes, no en dashes. Gate 3 lints this file too.",
+    "revision": "2026-08-19. Research pass, plus a correction to it. The St. Louis Fed blog figures were superseded by the peer-reviewed NBER paper on a larger sample; the Greenhouse citation was corrected from a deception claim to what it actually measures; the 9.8 day mean was replaced by the 7 day median; and our own sweep reading was removed entirely because a measurement is not a fact. That pass also narrowed two 'pages' lists it never mentioned narrowing, which broke the build on /not-here and on all 37 job detail pages. Both routes are restored, each with the evidence in its own note. A licence list is edited deliberately or not at all, and that cuts both ways: losing a route in a retype is as undeliberate as adding one to make a build pass.",
+    "two_species": "Every entry here is an EXTERNAL CITATION: static, verbatim, hardcoded, with its source. Gate 2 checks them literally, because a citation that drifts from its source is a misquote. Numbers describing OUR OWN sweep are readings, not facts. They change nightly, they are computed from stats.json at build time, and they must never appear here or as a literal anywhere in the repository.",
+    "banned": [
+      "41% within 48 hours / 56% within 96. Superseded by the NBER figures of 45 and 60.",
+      "The average single-position posting lives about 9.8 days. Superseded by the 7 day median.",
+      "Industry ghost rate runs about 1 in 5. Restates an activity measure as a deception rate.",
+      "Any 8x within 96 hours claim. The source is defunct and the figure is unverifiable.",
+      "We measured 27% this sweep, 14 of 51 pulled. A reading, not a fact. Compute it from stats.json."
+    ]
+  },
+  "facts": [
+    {
+      "id": "arrival-window",
+      "string": "45% of applications arrive within 48 hours of a posting going up, and 60% within 96 hours",
+      "source": "Davis and Samaniego de la Parra, NBER Working Paper 32320, 125 million applications",
+      "pages": [
+        "/",
+        "/report",
+        "/methodology",
+        "/role/*"
+      ],
+      "so_what": "Freshness decides whether a human reads your application. It says nothing about whether the posting is honest.",
+      "note": "COMPLETED 2026-08-20. The string ended '60% within 96' with no unit and simply stopped, so every page quoting it trailed off mid sentence. The claim is unchanged and the source is unchanged: 96 was always 96 hours. Supersedes the St. Louis Fed blog figures of 41% and 56%, which came from an earlier working note on ~80M applications. This is the peer-reviewed version on a larger sample. The old numbers must not appear anywhere. LICENCE RESTORED 2026-08-19: '/role/*' was on this list until the revision pass and was dropped without a word in the commit that dropped it (git show 7bf6e31^ reads '/report', '/methodology', '/role/*'). That pass replaced the string and merged in the dead first-96-hours entry's '/', and lost the glob on the way through. Restoring it is a correction to a record, not a new editorial licence: every one of the job detail pages has rendered this fact beside the posting's own age since phase 4, which is the one place a reader can act on it tonight."
+    },
+    {
+      "id": "posting-lifespan",
+      "string": "Median posting life is 7 days; only a quarter stay up past two weeks",
+      "source": "Davis and Samaniego de la Parra, NBER Working Paper 32320, 125 million applications",
+      "pages": [
+        "/",
+        "/report",
+        "/methodology",
+        "/role/*"
+      ],
+      "so_what": "The typical posting is short-lived, which is exactly why a long-lived one is worth showing rather than judging: the roles that stay up are the senior and technical ones that genuinely take months.",
+      "note": "Replaces 'the average single-position posting lives about 9.8 days'. Median rather than mean, and the mean was doing misleading work on a distribution this skewed. LICENSED FOR /role/* 2026-08-20, for the apply window strip on the job detail page. That strip is built from three facts and needs all three on the page: the arrival curve is what it plots, the posting life is how long the window is usually open at all, and this one is the caveat that stops the strip reading as a staleness meter."
+    },
+    {
+      "id": "time-to-fill",
+      "string": "Median time to first fill runs 71 days for senior roles and 75 for technical",
+      "source": "Ashby Talent Trends 2026, 54 million applications",
+      "pages": [
+        "/report",
+        "/methodology",
+        "/kills",
+        "/role/*"
+      ],
+      "so_what": "This is the number that killed our own age rule. A senior role open 90 days is a normal search, not evidence of anything.",
+      "note": "Load bearing. Any future proposal to kill on age has to get past this fact first. LICENSED FOR /role/* 2026-08-20, for the apply window strip on the job detail page. That strip is built from three facts and needs all three on the page: the arrival curve is what it plots, the posting life is how long the window is usually open at all, and this one is the caveat that stops the strip reading as a staleness meter."
+    },
+    {
+      "id": "no-hiring-activity",
+      "string": "18 to 22% of postings show no hiring activity in a given quarter",
+      "source": "Greenhouse, 2024 State of Job Hunting",
+      "pages": [
+        "/kills",
+        "/report",
+        "/methodology"
+      ],
+      "so_what": "The published industry figure. It measures observed activity, not intent.",
+      "note": "CORRECTED. Previously rendered as 'industry ghost rate runs about 1 in 5', which restated an activity measure as a deception rate. Greenhouse has never published their method or threshold. Say 'no hiring activity'. Never say 'no intent to hire', and never place this beside our own numbers as though they measure the same thing."
+    },
+    {
+      "id": "admitted-fake-postings",
+      "string": "40% of hiring managers admit posting a job they never intended to fill",
+      "source": "ResumeBuilder survey",
+      "pages": [
+        "/kills",
+        "/report",
+        "/not-here"
+      ],
+      "so_what": "Self-reported intent, which is the only honest source for intent. A machine reading feeds cannot observe it.",
+      "note": "Kept unchanged. Note this is a survey of admissions, not a measurement of postings, and the two must not be conflated. LICENCE RESTORED 2026-08-19: '/not-here' was on this list until the revision pass, which declared this fact itself unchanged and still dropped the route (git show 7bf6e31^ reads '/kills', '/report', '/not-here'). The manifesto is the one page on this site whose argument is about intent rather than observation, and a self-reported admission is the only honest source for intent. It is the single sourced sentence on that page and it sets no number of ours beside it, so the conflation forbidden above does not arise."
+    },
+    {
+      "id": "applications-per-job",
+      "string": "The average job now draws about 254 applications",
+      "source": "Greenhouse, via Fortune, July 2026",
+      "pages": [
+        "/report",
+        "/desk"
+      ],
+      "so_what": "Why being read at all is the scarce thing.",
+      "note": "Kept unchanged."
+    },
+    {
+      "id": "ai-sameness-red-flag",
+      "string": "49% of hiring managers name AI-generated sameness a top red flag",
+      "source": "Resume Genius, 1,500 hiring managers, August 2026",
+      "pages": [
+        "/report",
+        "/desk"
+      ],
+      "so_what": "The cost of applying faster with worse material.",
+      "note": "Kept unchanged."
+    }
+  ]
+}

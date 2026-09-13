@@ -1,0 +1,403 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import InsightStrip from '../components/InsightStrip.astro';
+import { routeFor } from '../data/nav';
+import { sweptStamp } from '../lib/data';
+
+/**
+ * Not here, on purpose. The manifesto, and the brand thesis.
+ *
+ * WHY THIS PAGE IS SHAPED LIKE A POSTER RATHER THAN AN ESSAY.
+ *
+ * The brief asks for one desktop screen, typeset like a masthead. So the page is
+ * three bands and nothing else: the masthead, the five absences abreast, and the
+ * coda. A reader gets the whole position without scrolling, and a screenshot of
+ * the top of this page is the argument rather than the introduction to it.
+ *
+ * THE THREE THINGS THIS PAGE DELIBERATELY DOES NOT DO.
+ *
+ *   1. It carries no ornamental numerals. A serial "01" beside each absence
+ *      would look right on a poster and would be the one place on this site
+ *      where a numeral means nothing. Every other number here is a measurement,
+ *      and teaching a reader to skip numbers on one page is expensive on the
+ *      rest. The rhythm comes from the hairlines and the repeated "No", which
+ *      is what a masthead uses anyway.
+ *
+ *   2. It draws no heavy rule of its own. There are exactly two 2px rules in
+ *      this system and both mark the boundary between chrome and content: under
+ *      the header, and above the ecosystem band. A third would make the weight
+ *      decorative. The poster weight comes from the type scale instead, which is
+ *      the one page in the manifest that earns size.700 at the top end.
+ *
+ *   3. It states no statistic in its own prose. Four facts are licensed to this
+ *      route and one strip is the page's maximum, so the strip carries the
+ *      sourced number and every other sentence is a claim about this product
+ *      that a reader can check by using it.
+ *
+ * Each absence is paired with the harm it prevents, as a dt and a dd, because
+ * that is literally what they are: a term and its definition. The pairing is the
+ * page. An absence with no harm beside it is a brag, and the harm is what makes
+ * it a position rather than a list of features we skipped.
+ */
+
+const route = routeFor('manifesto');
+
+// The stamp is the credential. A manifesto on a site whose whole argument is
+// provenance should be dated by the same clock as every row on the index, so
+// this reads out of the sweep rather than being written.
+const stamp = `Swept ${sweptStamp()}`;
+
+/**
+ * The five absences, in the order the brief names them.
+ *
+ * Copy, held as data rather than markup, so the five entries cannot drift into
+ * five slightly different shapes as the page is edited. Every "prevents" line
+ * describes something a reader can verify by using this site: no feed, no form,
+ * no account, no paid placement, published kills. None of them asserts what
+ * anybody else intended.
+ */
+const ABSENCES = [
+  {
+    absence: 'No feed.',
+    prevents:
+      'A feed has no end, so it never asks you to leave. This is one list of the postings that were live at the sweep above, ordered by a published rule and finished when you reach the bottom of it.'
+  },
+  {
+    absence: 'No one-click apply.',
+    prevents:
+      'One click is how a queue gets long enough that nobody can read it. Every apply link here names the board it sends you to before you click, and the last thing that happens on this site is you leaving it.'
+  },
+  {
+    absence: 'No resume black hole.',
+    prevents:
+      'We never take your resume, so we cannot lose it, sell it or rank you by it. No account, no profile, no form standing between you and the posting at its source.'
+  },
+  {
+    absence: 'No pay-to-rank.',
+    prevents:
+      'No company can buy a row, a mark or a place at the top. Order comes from a rubric and a clock that are both published, so you can check our arithmetic instead of trusting it.'
+  },
+  {
+    absence: 'No ghost jobs by construction.',
+    prevents:
+      'Every posting is read at its source every night. One that fails a kill rule is killed that night and published with the dates behind it, so nothing here can quietly rot while you keep applying to it.'
+  }
+] as const;
+
+/** The coda: what the refusals leave behind, said in three beats. */
+const INSTEAD = [
+  {
+    title: 'Read at the source.',
+    detail: 'Direct from the board each company publishes, never copied from an aggregator that copied someone else.'
+  },
+  {
+    title: 'Killed by rule.',
+    detail: 'Every closure dated, published with what was observed, and open to appeal the same night.'
+  },
+  {
+    title: 'Archived forever.',
+    detail: 'A posting that closes keeps its page and its history, and loses its apply path. Nothing is quietly deleted.'
+  }
+] as const;
+---
+
+<BaseLayout
+  title="Not here, on purpose"
+  description="The absences that make The Index worth reading: no feed, no one-click apply, no resume black hole, no pay-to-rank, and no ghost jobs by construction."
+  active="manifesto"
+>
+  <div class="shell manifesto">
+    <header class="masthead">
+      {/*
+        The stamp is a value the machine produced, so it is declared as one. The
+        marker is not decoration: gate 2 scans undeclared page text for the
+        sweep's own counts, and the minutes in a rendered clock ("02:14") would
+        otherwise read to that scan as the kill count sitting loose in copy.
+        Declaring it says what it actually is instead of hiding it from a check.
+      */}
+      <p class="stamp mono-label" data-truth="machine">{stamp}</p>
+      <h1 class="masthead-title">Not here, on purpose.</h1>
+      <p class="standfirst">
+        Every job site is a list of what it has. This one also states what it refuses, because each refusal below is a
+        harm it can no longer do to you. All five cost us something. That is what makes them worth printing.
+      </p>
+    </header>
+
+    {/*
+      A definition list, because a term and its definition is exactly what an
+      absence and the harm it prevents are. The grid puts the five abreast on a
+      desktop screen and stacks them on a phone, and each pair stays a real dt
+      and dd in the accessibility tree at both widths.
+    */}
+    <dl class="absences">
+      {
+        ABSENCES.map(({ absence, prevents }) => (
+          <div class="absence">
+            <dt class="absence-term">{absence}</dt>
+            <dd class="absence-prevents">{prevents}</dd>
+          </div>
+        ))
+      }
+    </dl>
+
+    {/*
+      The strip ships its own band furniture: an inline gutter, a page-coloured
+      fill and a bottom rule, all sized for the full-width placement it has on
+      the index. Inside this shell that gutter would indent the one sourced
+      sentence on the page away from every other line, which on a poster is the
+      one thing that cannot happen. The wrapper is mine, the rule is on the
+      wrapper, and the reach into the component is limited to undoing the three
+      properties that belong to the other placement. Nothing in the component
+      changes, so the index keeps the band it was designed with.
+    */}
+    <div class="insight-band">
+      <InsightStrip
+        dismissible={false}
+        factId="admitted-fake-postings"
+        route={route}
+        soWhat="Ghosts are not an accident of stale data, which is why we kill by rule rather than wait for a posting to be taken down."
+      />
+    </div>
+
+    <footer class="coda">
+      <h2 class="coda-title">What is here instead.</h2>
+
+      <ul class="instead">
+        {
+          INSTEAD.map(({ title, detail }) => (
+            <li class="instead-item">
+              <span class="instead-title">{title}</span>
+              <span class="instead-detail">{detail}</span>
+            </li>
+          ))
+        }
+      </ul>
+
+      <p class="closer">Everything on this page is something we could have sold. That is why none of it is here.</p>
+
+      <p class="coda-links">
+        <a class="coda-link" href={routeFor('methodology')}>How the machine works</a>
+        <span class="coda-sep" aria-hidden="true">·</span>
+        <a class="coda-link" href={routeFor('kills')}>What died this sweep</a>
+      </p>
+    </footer>
+  </div>
+</BaseLayout>
+
+<style>
+  /* Three bands, evenly spaced, with the page's own rhythm set once here rather
+     than as a margin on each child.
+
+     The gap is one step wider than the page rhythm elsewhere on the site, and
+     that is measured rather than felt: at 1280x800 it is what puts the whole
+     position (masthead, five absences, the one sourced fact) above the fold and
+     lands the coda cleanly under it. A step tighter and the coda's heading is
+     sliced in half by the bottom of the screen, which on the most screenshotted
+     page here would look like an accident. */
+  .manifesto {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-800);
+    padding-block: var(--space-700) var(--space-900);
+  }
+
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  /* The sweep stamp is a machine assertion, so it takes the machine voice. Only
+     the tone is this page's decision; .mono-label owns the size, the tracking
+     and the case. */
+  .stamp {
+    color: var(--color-muted);
+  }
+
+  /* No size, weight or tracking here: the page title role lives on h1 in
+     global.css and is the same role on every route. What belongs to this page is
+     how many words go on a line. 18ch is counted in the title's own size, so the
+     line count holds as the clamp moves that size between 36px and 76px, and the
+     title sets one line on a desktop screen and two on a phone. */
+  .masthead-title {
+    max-width: 18ch;
+  }
+
+  .standfirst {
+    font-size: var(--size-300);
+    line-height: var(--leading-snug);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  /* Five abreast on a desktop screen. The hairline above each column and the
+     rule across the top of the group is all the furniture this band gets: the
+     weight comes from the type, not from a heavier border. */
+  .absences {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--space-500);
+    margin: 0;
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-500);
+  }
+
+  .absence {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    min-width: 0;
+  }
+
+  .absence-term {
+    font-size: var(--size-400);
+    font-weight: var(--weight-bold);
+    line-height: var(--leading-snug);
+    letter-spacing: var(--tracking-tight);
+    text-wrap: balance;
+  }
+
+  .absence-prevents {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    text-wrap: pretty;
+  }
+
+  .insight-band {
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+
+  /* Scoped styles stop at a component boundary, and the strip's root element
+     carries its own scope rather than this page's. :global inside a selector
+     that starts with a class this page owns is the escape hatch that stays
+     confined: it can only ever match a strip inside this wrapper. */
+  .insight-band :global(.insight-strip) {
+    padding-inline: 0;
+    background: none;
+    border-bottom: none;
+  }
+
+  .coda {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-500);
+  }
+
+  /* One step below the page title and above everything else in the band: this
+     is the only other heading on the page and it closes the argument. */
+  .coda-title {
+    font-size: var(--size-500);
+    line-height: var(--leading-tight);
+  }
+
+  .instead {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-500);
+  }
+
+  .instead-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    min-width: 0;
+  }
+
+  .instead-title {
+    font-weight: var(--weight-medium);
+    font-size: var(--size-200);
+  }
+
+  .instead-detail {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    text-wrap: pretty;
+  }
+
+  /* The one pull line on the page. It is set at the section-heading size rather
+     than as a heading, because it is the last sentence of the argument and not a
+     new section. */
+  .closer {
+    font-size: var(--size-400);
+    line-height: var(--leading-snug);
+    letter-spacing: var(--tracking-tight);
+    max-width: 34ch;
+    text-wrap: balance;
+  }
+
+  .coda-links {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-300);
+    flex-wrap: wrap;
+    font-size: var(--size-150);
+  }
+
+  .coda-link {
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .coda-link:hover {
+    color: var(--color-foreground);
+  }
+
+  .coda-sep {
+    color: var(--color-line-strong);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .coda-link {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  /* Between a phone and a desktop screen the five columns are too narrow to hold
+     a headline of three words, so they go two abreast before they stack. */
+  @media (max-width: 64rem) { /* --breakpoint-desk */
+    .absences {
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-500) var(--space-600);
+    }
+
+    .instead {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .manifesto {
+      gap: var(--space-600);
+      padding-block: var(--space-600) var(--space-800);
+    }
+
+    /* Stacked, with a hairline between pairs rather than only above the group.
+       On a phone the rule is the only thing separating one absence from the
+       next, so each pair carries its own. */
+    .absences {
+      grid-template-columns: 1fr;
+      gap: 0;
+      padding-top: 0;
+      border-top: none;
+    }
+
+    .absence {
+      border-top: var(--border-hairline) solid var(--color-line);
+      padding-block: var(--space-400);
+    }
+
+    .absence-term {
+      font-size: var(--size-300);
+    }
+
+    .closer {
+      font-size: var(--size-300);
+    }
+  }
+</style>

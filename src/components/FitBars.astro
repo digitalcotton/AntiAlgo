@@ -1,0 +1,239 @@
+---
+import { ABSENCE, fitComponents, type Job } from '../lib/data';
+
+/**
+ * The five rubric components behind a fit score.
+ *
+ * This is what the "why" expander opens and what the job detail page shows in
+ * full. A score that shows its working is a score a reader can argue with,
+ * which is the whole difference between this and a relevance ranking.
+ *
+ * WHAT CHANGED ON 2026-08-17, AND WHY IT IS THE POINT OF THE COMPONENT.
+ * This panel used to print each component as a machine reading with a bar:
+ * "Title scope 37/30", and under it the arithmetic, "Fit 96 = 37+25+20+5+9".
+ * Every one of those component numbers is back-filled. `src/data/jobs.json`
+ * says so in its own _meta and now declares it as a field: the totals are real
+ * sweep scores and the splits were derived from the rubric weights so that a
+ * sum check had something to verify. Rendering them in the mono voice with bars
+ * asserted five readings the machine never took, on the panel whose entire job
+ * is to show the machine's working, which is the most expensive place on this
+ * site to state something nobody measured.
+ *
+ * So while `fitComponentsPublished()` is false the panel renders what is true:
+ * the total, which is the machine's; the five component names and their
+ * published rubric weights, which are the rubric's; and a truthful absence
+ * where each reading would be. The night the export carries measured splits the
+ * field flips to "measured" and every value and bar appears here with no change
+ * to this file's markup. Same treatment as the five unprovenanced ages, the
+ * missing `kill_rule` and the absent `role_family`.
+ *
+ * Each published component carries data-truth="fit-component" and the total
+ * line carries data-truth="fit", so gate 2 checks every rendered value against
+ * the fixture rather than trusting that the bar is drawn from the same number
+ * the label prints. Under the absence the total marker still holds the sum
+ * check, which is the half that verifies the export rather than the page.
+ *
+ * TWO THINGS THIS COMPONENT DELIBERATELY DOES NOT DO.
+ *
+ * It writes no prose. The approved canvas shows a sentence of reasoning under
+ * each bar for one hand-worked example, and the fixture carries no such field
+ * for the other 37 rows. Generating those sentences here would be inventing the
+ * machine's reasoning, which is the line BUILD.md draws in bold. When the export
+ * script emits per-component reasoning, it arrives as data and renders here.
+ *
+ * It draws no bar for a published component that falls outside its rubric
+ * weight. Eight records carry one (title_scope as high as 40 against a weight
+ * of 30, apply_friction as low as -5). Every total still sums correctly, so the
+ * score stands; the split is what is wrong. Clipping 37 to a full 30-wide bar
+ * would draw a picture that says "at the maximum" about a number that is past
+ * it, and a bar is a measurement. The value still prints, with the reason the
+ * bar is missing beside it.
+ */
+
+interface Props {
+  job: Job;
+  /** The heading above the bars. Omitted inside a row expander, where the row
+      already said whose score this is. */
+  heading?: string;
+  class?: string;
+}
+
+const { job, heading, class: className } = Astro.props;
+const breakdown = fitComponents(job);
+---
+
+<div class:list={['fit-bars', className]}>
+  {
+    heading && (
+      <div class="fit-bars-head">
+        <span class="mono-label">{heading}</span>
+      </div>
+    )
+  }
+
+  <ul class="components">
+    {
+      breakdown.components.map((component) => (
+        <li class="component">
+          <div class="component-head">
+            <span class="component-label">{component.label}</span>
+
+            {component.value === null ? (
+              /* An absence is us saying what we do not hold, so it is sans, not
+                 mono, and it carries no data-truth marker because there is no
+                 machine reading here to check. The weight beside it is the
+                 rubric's published maximum and is a real number, so it keeps the
+                 machine voice. */
+              <span class="component-absence-value">
+                {ABSENCE.value}
+                <span class="component-weight mono">/{component.weight}</span>
+              </span>
+            ) : (
+              <span
+                class="component-value mono"
+                data-truth="fit-component"
+                data-truth-job={job.slug}
+                data-truth-component={component.key}
+                data-truth-value={component.value}
+              >
+                {component.value}/{component.weight}
+              </span>
+            )}
+          </div>
+
+          {component.fraction !== null && (
+            <div class="track">
+              <div class="fill" style={`width: ${(component.fraction * 100).toFixed(1)}%;`}></div>
+            </div>
+          )}
+
+          {component.value !== null && component.fraction === null && (
+            /* No bar, and the row says why rather than leaving a gap that reads
+               as a rendering fault. Sans, because this is us explaining, not the
+               machine asserting. */
+            <p class="component-note">
+              Outside the rubric range for this component, so there is no bar to draw. The score still sums.
+            </p>
+          )}
+        </li>
+      ))
+    }
+  </ul>
+
+  {
+    breakdown.published ? (
+      /* The working out. Every numeral here is either the total, a component or
+         a rubric weight, all of which the reader can see above it. */
+      <p class="working mono-label" data-truth="fit" data-truth-job={job.slug} data-truth-total={breakdown.total}>
+        Fit {breakdown.total} = {breakdown.workingOut} · rubric v1 · weights {breakdown.weightsOut}
+      </p>
+    ) : (
+      <>
+        <p class="working mono-label" data-truth="fit" data-truth-job={job.slug} data-truth-total={breakdown.total}>
+          Fit {breakdown.total} of 100 · rubric v1 · weights {breakdown.weightsOut}
+        </p>
+        {/* Why the five slots above are empty, said on the page rather than only
+            in a decision log. A missing breakdown explained is a standard being
+            held; a missing breakdown unexplained is a page that looks unfinished. */}
+        <p class="working-absence">
+          The total is the machine's own score for this posting. The split behind it is not in this
+          export, so the five readings are not shown and nothing is drawn for them. The weights are
+          rubric v1, which is published on methodology and is what a reading would be measured
+          against. They appear here the sweep the machine starts exporting them.
+        </p>
+      </>
+    )
+  }
+</div>
+
+<style>
+  .fit-bars {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  .fit-bars-head {
+    color: var(--color-muted);
+  }
+
+  .components {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  .component {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+  }
+
+  .component-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-300);
+  }
+
+  .component-label {
+    font-size: var(--size-100);
+  }
+
+  .component-value {
+    color: var(--color-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  /* The track is a rule, not a control, so it is held to the hairline token
+     rather than to a contrast threshold: delete every track and the numbers
+     beside them still carry the whole reading. The value is the fact; the bar
+     is the shape of the fact. */
+  .track {
+    height: var(--space-100);
+    background: var(--color-line);
+  }
+
+  .fill {
+    height: 100%;
+    background: var(--color-foreground);
+  }
+
+  .component-note {
+    font-size: var(--size-050);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  /* The absence and its weight sit on one baseline. Two channels tell them
+     apart, which is ruling 3 applied to a pair that would otherwise be one
+     tone: the absence is sans and the weight is mono. */
+  .component-absence-value {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-100);
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+
+  .component-weight {
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .working {
+    color: var(--color-muted);
+    line-height: var(--leading-snug);
+  }
+
+  .working-absence {
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+</style>

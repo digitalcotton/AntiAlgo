@@ -1,0 +1,219 @@
+---
+/**
+ * The gated route, and the one that proves the whole path works.
+ *
+ * DYNAMIC, because entitlement is decided per request and a prerendered page
+ * cannot know who is asking.
+ *
+ * THE GATE IS A SHOP WINDOW, NOT A DOOR. A signed-out reader sees the company,
+ * the founder's name, the signal that made them a target, and the opening line
+ * of the real draft. What they do not see is the rest of it. That is deliberate:
+ * a gate showing nothing teaches people to leave, and the ask only works at the
+ * moment someone has seen what they would get.
+ *
+ * WHY THIS READS A COMMITTED FILE AND NEVER THE MINI. The sweep machine is
+ * where drafts are produced, and the site must never depend on it at request
+ * time: the mini has been offline repeatedly, and a reader's ability to sign in
+ * and browse cannot ride on a machine in a house. So drafts arrive as a
+ * committed artifact and the site reads a file, exactly as it does for the job
+ * index.
+ *
+ * WHAT IS NOT SOLVED HERE, AND IS FLAGGED IN THE REPORT. The records in
+ * src/data/drafts.json are invented samples. Real drafts carry founder
+ * identities and outreach copy, which the machine keeps in a private dossier
+ * that is deliberately never published. Getting real drafts here means deciding
+ * how private data reaches an authenticated route without being committed to
+ * the repository that builds the public site. That is Ryan's decision and it is
+ * not made in this file.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import draftData from '../../data/drafts.json';
+import { withBase } from '../../../site.config.mjs';
+
+export const prerender = false;
+
+const { slug } = Astro.params;
+const draft = draftData.drafts.find((d) => d.slug === slug);
+
+if (!draft) {
+  return new Response('Not found', { status: 404 });
+}
+
+// The verdict was decided in middleware before this page ran. The page reads it
+// to choose what to render. It never decides whether it is allowed to render.
+const verdict = Astro.locals.verdict;
+const allowed = verdict?.allow === true;
+const reason = verdict?.reason ?? 'signed-out';
+
+const title = `Outreach draft, ${draft.company}`;
+---
+
+<BaseLayout
+  title={title}
+  description={`A 300 character outreach note written for ${draft.company}.`}
+  noindex
+>
+  <article class="draft">
+    <header class="draft-head">
+      <p class="draft-kicker">Outreach draft</p>
+      <h1 class="draft-company">{draft.company}</h1>
+      <dl class="draft-facts">
+        <div><dt>Founder</dt><dd>{draft.founder}</dd></div>
+        <div><dt>Cohort</dt><dd>{draft.cohort}</dd></div>
+        <div><dt>Team</dt><dd>{draft.team_size}</dd></div>
+      </dl>
+      <p class="draft-signal">{draft.signal}</p>
+    </header>
+
+    {allowed ? (
+      <div class="draft-body">
+        <p class="draft-text">{draft.full}</p>
+        <p class="draft-meta">{draft.character_count} characters. LinkedIn Connect notes cap at 300.</p>
+      </div>
+    ) : (
+      <div class="draft-body">
+        {/* The real opening line, not a placeholder. This is the shop window. */}
+        <p class="draft-text draft-text-preview">{draft.preview}</p>
+        <p class="draft-veil" aria-hidden="true">
+          {'█'.repeat(58)} {'█'.repeat(41)} {'█'.repeat(63)}
+        </p>
+
+        <div class="draft-ask">
+          {reason === 'email-unverified' ? (
+            <>
+              <p class="draft-ask-line">Confirm your email and the rest of this opens.</p>
+              <a class="draft-ask-button" href={withBase('/verify-email')}>Resend the link</a>
+            </>
+          ) : (
+            <>
+              <p class="draft-ask-line">
+                The rest of this note, and every other draft, opens with a free account.
+              </p>
+              <a class="draft-ask-button" href={`${withBase('/sign-up')}?from=drafts`}>Read the full draft</a>
+              <p class="draft-ask-alt">
+                Already have an account? <a href={withBase('/sign-in')}>Sign in</a>.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    )}
+  </article>
+</BaseLayout>
+
+<style>
+  .draft {
+    max-width: 62ch;
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-600);
+  }
+  .draft-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+  .draft-kicker {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .draft-company {
+    margin: 0;
+    font-size: var(--size-600);
+    line-height: var(--leading-tight);
+  }
+  .draft-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-500);
+    margin: 0;
+  }
+  .draft-facts div {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+  }
+  .draft-facts dt {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--color-muted);
+  }
+  .draft-facts dd {
+    margin: 0;
+    font-size: var(--size-200);
+  }
+  .draft-signal {
+    margin: 0;
+    font-size: var(--size-200);
+    color: var(--color-muted);
+  }
+  .draft-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+  .draft-text {
+    margin: 0;
+    font-size: var(--size-300);
+    line-height: var(--leading-normal);
+  }
+  .draft-text-preview {
+    /* The preview is real text, fully readable. Only what follows is withheld. */
+    margin-bottom: 0;
+  }
+  /* The withheld remainder, drawn as blocks rather than blurred real text.
+     Blur is reversible with a screenshot and a filter, so the actual words are
+     never sent to a browser that is not entitled to them. The shape is honest
+     about how much more there is. */
+  .draft-veil {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-line);
+    overflow-wrap: anywhere;
+    user-select: none;
+  }
+  .draft-meta {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+  .draft-ask {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    padding: var(--space-500);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+  }
+  .draft-ask-line {
+    margin: 0;
+    font-size: var(--size-300);
+    line-height: var(--leading-normal);
+    max-width: 44ch;
+  }
+  .draft-ask-button {
+    align-self: start;
+    padding: var(--space-300) var(--space-500);
+    border-radius: var(--radius);
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    text-decoration: none;
+    font-size: var(--size-200);
+  }
+  .draft-ask-alt {
+    margin: 0;
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+</style>

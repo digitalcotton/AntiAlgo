@@ -1,0 +1,189 @@
+---
+import Reading from './Reading.astro';
+import { KILL_RULES, type KillRule } from '../lib/data';
+import { noRuleHasFired, reading, ruleLabel, type ReadingMetric } from '../lib/readings';
+
+/**
+ * The kill rules, what each one observes, and how many postings it caught.
+ *
+ * WHY EVERY RULE IS LISTED EVERY NIGHT, INCLUDING THE ONES THAT FOUND NOTHING.
+ * A rule missing from a summary reads as a rule that was never run, and the
+ * machine prints its zeroes for the same reason. A tally that only listed the
+ * rules with hits would let a night where four rules found nothing look
+ * identical to a night where four rules were switched off.
+ *
+ * THE DESCRIPTIONS ARE THE OBSERVATION, NOT THE ACCUSATION. Each line says what
+ * the machine saw, in the same words the machine's own kill reason uses. None of
+ * them says what an employer meant by it, because a feed does not carry intent.
+ * That is the kill list's spine, applied to the taxonomy rather than only to the
+ * rows.
+ *
+ * TWO RULES CARRY A STATED LIMIT AND IT IS RENDERED, NOT FOOTNOTED. A zero
+ * beside a rule that cannot currently see is a different fact from a zero beside
+ * a rule that looked and found nothing, and a reader who cannot tell them apart
+ * has been misled by an accurate number. Phantom cannot be established on Ashby
+ * at all, and Ashby is about four fifths of this board universe. Repost churn
+ * compares against an archive that only started recording what it needs on
+ * 2026-08-19.
+ *
+ * Counts come from stats.killed_by_rule through <Reading>, so gate 2 holds every
+ * one of them to the data file. Nothing here is typed.
+ */
+
+interface Props {
+  /** Heading level for the rule names, so the host page keeps its outline. */
+  headingLevel?: 'h3' | 'h4';
+  /**
+   * Which count sits beside each rule. `sweep` (default): what the verified
+   * sweep killed tonight (stats.killed_by_rule), the report's and the
+   * methodology's number. `record`: how many kills on the record the rule
+   * produced, both machines, all time (kills_on_record_by_rule), with
+   * tonight's sweep figure printed small beside it. The kill list uses
+   * `record` since 2026-09-12: its table lists the whole record, and a tally
+   * of tonight's sweep under that table read as the wrong number ("touched,
+   * not refreshed 0" under rows killed by exactly that rule).
+   */
+  count?: 'sweep' | 'record';
+  class?: string;
+}
+
+const { headingLevel = 'h3', count = 'sweep', class: className } = Astro.props;
+const onRecord = count === 'record';
+
+interface RuleCopy {
+  observes: string;
+  limit?: string;
+}
+
+/**
+ * One line per rule, written from the machine's own kill reason strings and
+ * from docs/MACHINE-CONTRACT.md. Flagged for Ryan's voice pass.
+ */
+const COPY: Record<KillRule, RuleCopy> = {
+  repost_churn: {
+    observes:
+      'A req that left the boards and came back under a new identifier, freshly dated, with its title, location, remote flag, employment type, posted pay and description byte for byte the ones it had before.',
+    limit:
+      'It compares tonight against closed records carrying a content fingerprint, and the machine only started writing that field on August 19. It reports nothing until the archive has the records to compare, and that zero is a result rather than a rule missing from the page.'
+  },
+  misrepresented: {
+    observes:
+      "The location the employer printed offers remote and nothing else, and the posting's own description states an in-office requirement, with no remote option anywhere in its text."
+  },
+  zombie: {
+    observes:
+      'The posting is still listed past a closing date the employer printed themselves, with an explicit four digit year beside it.'
+  },
+  phantom: {
+    observes:
+      "The posting's own link is gone at source: a 404 or 410, or a redirect away from the posting's own identifier, confirmed on a second request.",
+    limit:
+      'Ashby answers 200 for postings that do not exist, and Ashby is about four fifths of the boards we read, so phantom cannot be established there at all. A rule that cannot see is told to say nothing rather than to guess.'
+  },
+  touched_not_refreshed: {
+    observes:
+      'The published date moved while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical.'
+  }
+};
+
+const Heading = headingLevel;
+const nothingFired = onRecord ? reading('kills_on_record').value === 0 : noRuleHasFired();
+---
+
+<div class:list={['tally', className]}>
+  <ul class="rules">
+    {
+      KILL_RULES.map((rule) => (
+        <li class="rule">
+          <div class="rule-head">
+            <Heading class="rule-name mono">{ruleLabel(rule)}</Heading>
+            <Reading
+              class="rule-count"
+              metric={(onRecord ? `kills_on_record_by_rule.${rule}` : `killed_by_rule.${rule}`) as ReadingMetric}
+            />
+          </div>
+          <p class="rule-observes">{COPY[rule].observes}</p>
+          {COPY[rule].limit && <p class="rule-limit">{COPY[rule].limit}</p>}
+        </li>
+      ))
+    }
+  </ul>
+
+  {
+    nothingFired && (
+      <p class="tally-note">
+        Every rule ran and every rule found nothing. That is the whole result, printed rather than
+        summarised away. No bars are drawn beside these counts, because a track of length zero reads
+        as a measurement of zero and this is an absence of findings.
+      </p>
+    )
+  }
+</div>
+
+<style>
+  .rules {
+    display: grid;
+    row-gap: var(--space-400);
+  }
+
+  .rule {
+    display: grid;
+    row-gap: var(--space-100);
+    padding-top: var(--space-300);
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+
+  /* The name and its count share a baseline row, so a reader scanning the
+     right-hand edge reads the five counts as one column. */
+  .rule-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    column-gap: var(--space-400);
+  }
+
+  .rule-name {
+    font-size: var(--size-100);
+    font-weight: var(--weight-regular);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin: 0;
+  }
+
+  .tally :global(.rule-count) {
+    font-size: var(--size-300);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-tight);
+    color: var(--color-stat-loss);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  /* No measure on these since 2026-09-12 (the owner's ask): the tally runs
+     the full width of its page and the lines run with it. */
+  .rule-observes {
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    margin: 0;
+  }
+
+  /* The limit is quieter than the observation and louder than nothing. A reader
+     who skips it still reads a true page; a reader who reads it knows which
+     zeroes were measured and which were unmeasurable. */
+  .rule-limit {
+    font-size: var(--size-050);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+    margin: 0;
+    padding-top: var(--space-100);
+  }
+
+  .tally-note {
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+    margin: 0;
+    padding-top: var(--space-400);
+  }
+</style>

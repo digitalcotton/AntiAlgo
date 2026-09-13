@@ -1,0 +1,87 @@
+---
+import CaptureModule from '../CaptureModule.astro';
+
+/**
+ * The index's panel around the site's one capture module.
+ *
+ * WHAT THIS IS, AND WHAT IT IS NOT. This is chrome and copy: the raised panel
+ * the index canvas draws, the kicker, the heading and the one paragraph saying
+ * what the digest is. It asks for nothing. Everything that asks for an address,
+ * and every statement about what happens to one, is CaptureModule, which every
+ * capture surface on the site composes.
+ *
+ * WHY IT REPLACED A SECOND MODULE. Until 2026-08-17 this file was
+ * `EmailCapture.astro` and it was a whole second capture module: its own
+ * endpoint constant, its own form, its own honest state, its own mail link. The
+ * Desk composed the other one. Two modules asking for an address is two promises
+ * about what happens to it, and the two were not even agreeing: this one shipped
+ * an announcement because it had nowhere to post, while the other shipped a live
+ * POST to a path a static build never emits, so a submit on /desk was a 404. One
+ * module now answers the question, and the panel is the only thing that differs
+ * between the surfaces, because the panel is the only thing that should.
+ *
+ * The name changed with the job. A file called EmailCapture that captures
+ * nothing is a file whose name has to be read twice.
+ */
+---
+
+<section class="digest" aria-labelledby="digest-title">
+  <p class="kicker digest-kicker">The weekly digest</p>
+  <h2 class="digest-title" id="digest-title">One email a week, and nothing else</h2>
+
+  <p class="digest-detail">
+    The roles that arrived since the last one, the postings that died in between, and one number
+    from the sweep. No feed to scroll, no re-sends, and your address goes nowhere else.
+  </p>
+
+  {/*
+    watchFilters, because this page is the one that renders Filters. The alerts
+    consent reads the table's filter state and names it back, so the consent says
+    what it stores. It is inert until there is a list, and so is everything else
+    in the module, which is the point of composing it rather than copying it.
+  */}
+  <CaptureModule source="index" watchFilters class="digest-capture" />
+</section>
+
+<style>
+  .digest {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-300);
+    padding: var(--space-600);
+    background: var(--color-surface-raised);
+    border: var(--border-hairline) solid var(--color-line-strong);
+  }
+
+  .digest-kicker {
+    color: var(--color-muted);
+  }
+
+  /* The section heading role, one step down from the page title, set by
+     global.css on h2. Only the measure is this module's business. */
+  .digest-title {
+    max-width: 20ch;
+  }
+
+  .digest-detail {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+    text-wrap: pretty;
+  }
+
+  /* The panel already set the gap between its own blocks. The module keeps its
+     own internal rhythm and only needs the step above it, so nothing here
+     reaches inside a component this file does not own. */
+  .digest-capture {
+    margin-block-start: var(--space-200);
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .digest {
+      padding: var(--space-500) var(--space-400);
+    }
+  }
+</style>

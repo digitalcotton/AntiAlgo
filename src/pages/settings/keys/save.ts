@@ -1,0 +1,144 @@
+/**
+ * POST /settings/keys/save: add or replace one provider key for the
+ * signed-in caller. MASTER-SPEC decision D7. Add and replace are the same
+ * request: keychain-store.ts's putKey() upserts on (userId, provider), so
+ * a second submission for a provider that already has a key on file is a
+ * rotation, not a duplicate, and this file does not need to know which of
+ * the two it is doing.
+ *
+ * MOUNTED UNDER /settings, NOT /api, FOR THE SAME FORCED REASON export.ts,
+ * delete.ts, and record/entry.ts ARE. See any of those files' own header
+ * for the preview-deploy evidence: this repo's root api/ directory claims
+ * every /api/* path before Astro's router runs. Do not move this back
+ * under /api.
+ *
+ * WHO THIS CAN ACT ON. No id anywhere but in the POSTed body, and the body
+ * is never trusted for whose account this is: userId comes only from
+ * Astro.locals.viewer, resolved server-side from the session before this
+ * file runs ('/settings' is a gated prefix, and '/settings/keys/save'
+ * matches it by prefix, so no second ROUTE_POLICY entry is needed).
+ *
+ * THE TWO-MOMENTS RULE, RESTATED FOR THIS ENDPOINT. keychain.ts's header
+ * says a plaintext key exists in exactly two moments: the POST body that
+ * delivered it, and the decrypt at the moment of generation. This handler
+ * is the first of those two moments: `plaintext` below lives only in this
+ * function's own scope, is handed straight to putKey() (which encrypts it
+ * before its first await), and is never assigned to a variable that
+ * outlives this request, logged, or included in the redirect this function
+ * returns. See settings.astro's own header for how the relay cookie this
+ * function sets on failure is built to the same rule: provider and a
+ * message, never the value that was typed.
+ *
+ * TWO FAILURE SHAPES, TWO DIFFERENT RELAY MESSAGES.
+ *   - InvalidKeyShapeError: putKey() refused the plaintext before ever
+ *     touching the encryption secret (validateKeyShape() runs first inside
+ *     putKey()). Its `message` already carries validateKeyShape()'s own
+ *     `reason`, which by keychain.ts's own contract never echoes the input
+ *     back, so it is safe to relay as-is.
+ *   - Anything else: almost certainly keychain.ts's requiredMasterSecret()
+ *     throwing because KEY_ENCRYPTION_SECRET is unset or malformed, the
+ *     same condition settings.astro's keyStorageIsConfigured() check catches
+ *     before ever showing this form. Reaching this branch means that check
+ *     was bypassed (a stale cached page, a direct POST), so the relay says
+ *     the same honest thing the page itself would have said, and nothing
+ *     about the underlying error (which could in principle carry more
+ *     detail than intended) is forwarded.
+ *
+ * THE `byok` FLAG IS CHECKED HERE TOO, NOT ONLY ON THE PAGE. flags.config
+ * .mjs calls `byok` "the kill switch over bring-your-own-key generation,
+ * and the only thing that can turn the whole feature off without a
+ * deploy." A kill switch that only hides settings.astro's key form but
+ * still accepts a direct POST is not a kill switch, it is a UI change, so
+ * this handler refuses the same way the page explains itself instead of a
+ * form when the flag is off.
+ */
+import type { APIContext } from 'astro';
+import { isOn } from '../../../lib/flags';
+import { PROVIDERS, type Provider } from '../../../lib/keychain';
+import { InvalidKeyShapeError, putKey } from '../../../lib/keychain-store';
+import { withBase } from '../../../../site.config.mjs';
+
+export const prerender = false;
+
+const KEYS_PATH = '/settings';
+const RELAY_COOKIE = 'keys_form_relay';
+const RELAY_COOKIE_PATH = '/settings';
+
+interface RelayPayload {
+  provider: Provider;
+  message: string;
+}
+
+function redirect(): Response {
+  // Back to the key section, not the top of the settings page. The #keys
+  // fragment matches the id on settings.astro's .keys-block, which carries a
+  // scroll-margin that clears the sticky header.
+  return new Response(null, { status: 303, headers: { Location: `${withBase(KEYS_PATH)}#keys` } });
+}
+
+function setRelayCookie(context: APIContext, payload: RelayPayload): void {
+  context.cookies.set(RELAY_COOKIE, JSON.stringify(payload), {
+    path: withBase(RELAY_COOKIE_PATH),
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: import.meta.env.PROD,
+    maxAge: 120
+  });
+}
+
+function isProvider(value: unknown): value is Provider {
+  return typeof value === 'string' && (PROVIDERS as readonly string[]).includes(value);
+}
+
+export async function POST(context: APIContext): Promise<Response> {
+  const viewer = context.locals.viewer;
+  const verdict = context.locals.verdict;
+
+  if (!viewer || verdict?.allow !== true) {
+    return new Response('Not signed in.', { status: 401 });
+  }
+
+  if (!isOn('byok')) {
+    return new Response('Bring-your-own-key generation is off on this deployment.', { status: 403 });
+  }
+
+  const form = await context.request.formData();
+  const providerField = form.get('provider');
+  const keyField = form.get('key');
+
+  if (!isProvider(providerField)) {
+    return new Response('Unrecognised provider.', { status: 400 });
+  }
+  const provider = providerField;
+
+  // Not trusted as anything but the raw submission: putKey() is the one
+  // place this becomes a decision (valid shape, or not). A missing or
+  // non-string field is refused the same way an empty string is, by the
+  // same validateKeyShape() message, rather than a separate code path here.
+  const plaintext = typeof keyField === 'string' ? keyField : '';
+
+
+  try {
+    await putKey(viewer.userId, provider, plaintext);
+    return redirect();
+  } catch (err) {
+    if (err instanceof InvalidKeyShapeError) {
+      // err.message is 'keychain-store: refused to store key: <reason>';
+      // strip the prefix so the relay reads as one plain sentence instead
+      // of exposing this file's own error-class naming to a reader.
+      const reason = err.message.replace(/^keychain-store: refused to store key: /, '');
+      setRelayCookie(context, { provider, message: `That key was not stored: ${reason}.` });
+      return redirect();
+    }
+
+    // Any other failure is treated as the encryption secret being unset or
+    // malformed (see this file's own header): the same honest message
+    // keys.astro's keyStorageIsConfigured() check would have shown instead of this
+    // form, never the underlying error's own text.
+    setRelayCookie(context, {
+      provider,
+      message: 'Key storage is not configured on this deployment right now. Nothing was stored.'
+    });
+    return redirect();
+  }
+}

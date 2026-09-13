@@ -1,0 +1,253 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Board from '../components/Board.astro';
+import BoardTabs from '../components/BoardTabs.astro';
+import { prospectRows, sortJobs } from '../lib/data';
+import { getBoardStats } from '../lib/job-store';
+import { isConfigured } from '../lib/db';
+import { isOn } from '../lib/flags';
+import { withBase } from '../../site.config.mjs';
+
+/**
+ * /prelist: the Pre-List, the "Newly funded" tab.
+ *
+ * ONE BOARD, TWO TABS. The member view renders through the very same
+ * src/components/Board.astro the index does: the same tabs, strip, tiles,
+ * filters, sort, insight, age plot, table and paging. The only difference is the
+ * population, companies scored before they post a role rather than postings.
+ * Both are Jobs, so the one component renders them without knowing which tab it
+ * is on.
+ *
+ * GATED, WITH A REAL SHOP WINDOW. A signed-out or unverified reader sees what the
+ * Pre-List is and the count on it, not the rows, the same wall /desk uses.
+ * Astro.locals.verdict is set by middleware (src/lib/entitlement.ts) before this
+ * runs. prerender = false because the wall is decided per request.
+ */
+export const prerender = false;
+
+const verdict = Astro.locals.verdict;
+const allowed = verdict?.allow === true;
+const reason = verdict?.reason ?? 'signed-out';
+
+const prelistPaidLive = isOn('prelist_paid');
+
+const jobs = sortJobs(prospectRows(), 'fit');
+const prospectCount = jobs.length;
+
+// The same sweep numbers the board tab shows, so the tiles read the same on both
+// tabs. The list and the count below differ per tab; the sweep does not.
+const boardStats = isConfigured() ? await getBoardStats() : null;
+const verifiedLive = boardStats?.verified_live ?? 0;
+---
+
+<BaseLayout
+  title="Pre-List"
+  active="prelist"
+  description="Companies we have not seen post a role yet, scored by the same rubric as the board, tracked before anything is posted."
+  noindex={allowed}
+>
+  <div class="shell prelist" data-prelist-paid-live={prelistPaidLive}>
+    <header class="prelist-head">
+      <p class="index-eyebrow mono">The Pre-List</p>
+      <h1 class="index-title">Companies before they post a role.</h1>
+      <p class="index-lede">
+        The same nightly pass that verifies every posting on the board also scores companies that have not posted a
+        role yet: funded, in scope, and read by the same five weights. Nothing here is a job. Every row states the
+        observation that put a company on this list, and no role name is ever written onto a row that has no posting.
+      </p>
+    </header>
+
+    {
+      allowed ? (
+        <Board
+          jobs={jobs}
+          active="prelist"
+          prospectCount={prospectCount}
+          boards={boardStats?.boards_swept}
+          verifiedLive={boardStats ? verifiedLive : undefined}
+          ariaLabel="Newly funded"
+        />
+      ) : (
+        <section class="board" aria-label="Newly funded">
+          <div class="board-head">
+            <div class="board-tabs-row">
+              <BoardTabs active="prelist" prospectCount={prospectCount} />
+            </div>
+          </div>
+          <div class="prelist-wall">
+            <h2 class="wall-title">What the Pre-List is</h2>
+            <ol class="capabilities">
+              <li class="capability">
+                <h3 class="capability-title">Scored before a role exists</h3>
+                <p class="capability-body">
+                  Every company here is scored by the same rubric that scores a live posting: title and scope, remote
+                  and location, published pay, freshness, and apply friction. There is no posting to read a title or a
+                  pay range from, so those read the neutral case, and freshness reads a different clock: how recently
+                  the company was funded, against a 12 month horizon.
+                </p>
+              </li>
+              <li class="capability">
+                <h3 class="capability-title">Every score shows its basis</h3>
+                <p class="capability-body">
+                  Each of the five components carries the sentence that produced it: which clock fired, what the team
+                  size and open-role count said about scope, what the location field stated. Nothing is inferred
+                  silently.
+                </p>
+              </li>
+              <li class="capability">
+                <h3 class="capability-title">Follow one, and it stays on your list</h3>
+                <p class="capability-body">
+                  An account lets you follow a company here, the same way a saved job works on the Desk. Signing in is
+                  what this page asks for today, not a purchase.
+                </p>
+              </li>
+            </ol>
+            {reason === 'email-unverified' ? (
+              <>
+                <p class="wall-note">Confirm your email and this page opens.</p>
+                <div class="wall-links">
+                  <a class="text-link" href={withBase('/verify-email')}>Resend the link</a>
+                </div>
+              </>
+            ) : (
+              <>
+                <p class="wall-note">
+                  Sign in to see the list itself. The rows are walled; the fact that {prospectCount} companies are on
+                  it is not, and the board says so too.
+                </p>
+                <div class="wall-links">
+                  <a class="text-link" href={withBase('/sign-in')}>Sign in</a>
+                  <a class="text-link" href={withBase('/sign-up')}>No account yet? Create one.</a>
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+      )
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  .prelist {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-700);
+    padding-block: var(--space-700) var(--space-800);
+  }
+
+  .prelist-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .index-eyebrow {
+    color: var(--color-muted);
+  }
+
+  .index-title {
+    max-width: 24ch;
+  }
+
+  .index-lede {
+    font-size: var(--size-300);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  /* The wall's own card, only for the signed-out branch. The member branch draws
+     its whole card in Board.astro. */
+  .board {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .board-head {
+    background: var(--color-surface);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-bottom: none;
+  }
+
+  .board-tabs-row {
+    padding: var(--space-300) var(--space-600);
+    background: var(--color-surface-raised);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  .prelist-wall {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+    padding: var(--space-500) var(--space-600) var(--space-600);
+    background: var(--color-surface);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-top: none;
+  }
+
+  .wall-title {
+    font-size: var(--size-300);
+  }
+
+  .capabilities {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .capability {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+    padding-block-start: var(--space-400);
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+
+  .capability:first-child {
+    border-top: none;
+    padding-block-start: 0;
+  }
+
+  .capability-title {
+    font-size: var(--size-200);
+  }
+
+  .capability-body {
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+
+  .wall-note {
+    font-size: var(--size-150);
+    color: var(--color-muted);
+    max-width: var(--layout-measure);
+  }
+
+  .wall-links {
+    display: flex;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+  }
+
+  .text-link {
+    font-size: var(--size-150);
+    font-weight: var(--weight-medium);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .text-link:hover {
+    color: var(--color-muted);
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .prelist {
+      gap: var(--space-600);
+    }
+  }
+</style>

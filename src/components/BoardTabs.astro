@@ -1,0 +1,83 @@
+---
+/**
+ * BoardTabs.astro: the control panel's top-level view switch.
+ *
+ * Two views sit in one control panel: the main board (the sweep's verified
+ * postings) and Newly funded, the companies that just got funded and have no
+ * role posted yet, which is the site's earliest signal and the members-only
+ * Pre-List (src/pages/prelist.astro). This is the no-JS segmented control
+ * desk.astro already uses for its Board/Table switch: plain links, the active
+ * one marked with aria-current and derived server-side, no script. It lives in
+ * its own component so both routes render the same strip from one set of styles
+ * rather than each keeping a copy.
+ *
+ * The count pill on the Newly funded tab is how many companies the pre-posting
+ * pass is tracking right now. It is passed in, derived by the page from
+ * prospectRows() at render time, never typed. A signed-out reader sees the tab
+ * and the count (the Pre-List keeps a real shop window); the rows themselves are
+ * behind the member gate, which is the whole point: being early is the product.
+ */
+import { withBase } from '../../site.config.mjs';
+
+interface Props {
+  active: 'board' | 'prelist';
+  /** Companies the pre-posting pass is tracking. Shown on the Newly funded tab. */
+  prospectCount: number;
+}
+
+const { active, prospectCount } = Astro.props;
+const boardHref = withBase('/');
+const prelistHref = withBase('/prelist');
+---
+
+<nav class="board-tabs" aria-label="Board views">
+  <a class="board-tab" href={boardHref} aria-current={active === 'board' ? 'page' : undefined}>Board</a>
+  <a class="board-tab" href={prelistHref} aria-current={active === 'prelist' ? 'page' : undefined}>
+    Newly funded
+    <span class="board-tab-count" aria-label={`${prospectCount} tracked`}>{prospectCount}</span>
+  </a>
+</nav>
+
+<style>
+  /* The same segmented control desk.astro draws for Board/Table: a hairline box,
+     square corners, the active link knocked out to the inverse surface. */
+  .board-tabs {
+    display: inline-flex;
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .board-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200);
+    padding: var(--space-200) var(--space-400);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-foreground);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .board-tab + .board-tab {
+    border-left: var(--border-hairline) solid var(--color-line-strong);
+  }
+
+  .board-tab[aria-current='page'] {
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+  }
+
+  /* The count reads in the mono figure register, one step down, and inherits the
+     tab's colour so it flips with the knockout on the active tab. */
+  .board-tab-count {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-normal);
+    color: inherit;
+  }
+</style>

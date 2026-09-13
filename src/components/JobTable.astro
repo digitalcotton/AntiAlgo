@@ -1,0 +1,1034 @@
+---
+import EmptyState from './EmptyState.astro';
+import FitBadge from './FitBadge.astro';
+import JobRow from './JobRow.astro';
+import Mark from './Mark.astro';
+import MarkLegend from './MarkLegend.astro';
+import {
+  ageOf,
+  clusterJobs,
+  compShort,
+  compTop,
+  facetsOf,
+  formatAge,
+  loadStats,
+  locationShort,
+  markStateOf,
+  sortRanks,
+  sourceLabel,
+  sweptStamp,
+  type Job,
+  type JobCluster,
+  workplaceOf
+} from '../lib/data';
+import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
+
+/**
+ * The index table: column labels, rows, and the footer that carries the legend.
+ *
+ * WHY THIS IS A LIST AND NOT A <table>.
+ *
+ * At 375px every row becomes a card, which is what the approved mobile canvas
+ * draws and what a phone actually needs. A real table cannot do that without
+ * either abandoning its own semantics at a breakpoint or shipping the rows
+ * twice. So this is a list of rows, the column labels are presentational, and
+ * every cell carries its own visually hidden label instead. A screen reader gets
+ * the same six named values at both widths, which a responsive table would not
+ * have managed.
+ *
+ * THE LEGEND IS PART OF THE TABLE, NOT PART OF THE PAGE. Standing rule 5 says a
+ * mark is never more than one viewport from its meaning, and a rule that depends
+ * on somebody remembering to paste a legend is not a rule. Rendering it here
+ * means every page that renders rows renders the key, by construction.
+ *
+ * THE WHY EXPANDER WORKS WITHOUT SCRIPTING. Every reasoning panel is in the
+ * markup, hidden by the `hidden` attribute. The noscript block below reveals
+ * every panel and removes every toggle, so a reader with scripting off gets the
+ * reasoning rather than a button that does nothing. That is also why the panels
+ * are not built on demand: a control that cannot fail is worth more than the
+ * bytes.
+ *
+ * DUPLICATE-CLUSTER COLLAPSE (MASTER-SPEC F10). `jobs` is clustered by
+ * clusterJobs() (src/lib/data.ts) before it is walked: the same title at the
+ * same company across several locations becomes one row rather than one row
+ * per posting. An ordinary posting with no duplicate renders exactly as
+ * before, byte for byte, through the same JobRow this file has always used.
+ * A cluster renders its own row: the facts every member shares (fit of the
+ * cluster's best-ranked member, company, title, the location list) sit in
+ * the same six-cell grid a JobRow draws, and a native `<details>` beneath it
+ * (the pattern EntryCard.astro already uses for exactly this) expands to a
+ * real JobRow per member, each still linking to its own page. `<details>` was
+ * chosen over the "why" button above because it needs no click listener to
+ * open: a reader with scripting off gets a working native disclosure, not a
+ * dead button waiting for JavaScript that never arrives.
+ *
+ * ROWS, NOT POSTINGS. Everything below this point, from `data-total` to the
+ * client controller's `index:rows` announcement, counts CLUSTERED ROWS: a
+ * three-posting cluster is one row, the same as a posting with no duplicate.
+ * "63 verified" on the index (stats.verified_live) is a different, older
+ * population, postings, and stays exactly what it always was: a sweep fact
+ * gate 2 holds to stats.json, unrelated to how many rows this table happens
+ * to draw them into. See this component's own report for which numbers on
+ * the page now need to say which population they mean.
+ */
+
+interface Props {
+  jobs: readonly Job[];
+  /**
+   * Who owns paging.
+   *
+   *   'server'  the caller already sliced the rows and one URL is one page.
+   *             Zero script, zero layout shift, and every page is crawlable.
+   *             This is the default and it is the right answer for the index.
+   *
+   *   'client'  the caller passes every row and the controls below become
+   *             islands. Rows past the first page are rendered with `hidden`
+   *             already set, so the first paint is byte for byte the state the
+   *             script would have produced. Nothing moves on load.
+   */
+  paging?: 'server' | 'client';
+  /** Rows per page when paging is 'client'. 37 rows at 8 is five pages. */
+  perPage?: number;
+  /** The banner that says every row here was checked this sweep. */
+  verifiedBanner?: boolean;
+  /** Shown in place of the rows when there are none. */
+  emptyTitle?: string;
+  emptyDetail?: string;
+  /** Where each row's title links. Passed straight to JobRow; default is the
+      /role page. The unified board passes its own /board resolver. */
+  hrefFor?: (job: Job) => string;
+  /**
+   * Whether this reader sees the fit score. False drops the Fit column from
+   * the label row, every row and every cluster row, the why panels with it,
+   * and the table resolves the five-track token instead of the six-track one
+   * so nothing else moves. The page decides (flags.config.mjs fit_public).
+   */
+  fit?: boolean;
+  class?: string;
+}
+
+const {
+  jobs,
+  paging = 'server',
+  perPage = 8,
+  verifiedBanner = true,
+  emptyTitle = 'No roles match',
+  emptyDetail = 'Nothing in this sweep fits the filters you have set. Widening one of them is the fastest way back to a full table.',
+  hrefFor,
+  fit = true,
+  class: className
+} = Astro.props;
+
+// Ranks are only worth their bytes when something in the browser is going to
+// reorder rows. Under server paging the order on screen is the order the caller
+// sorted, and the attributes would be dead weight on every row. Computed over
+// every posting, not the clustered rows below: a member folded into a cluster
+// still needs its own real rank for the JobRow rendered inside that cluster's
+// expansion.
+const ranks = paging === 'client' ? sortRanks(jobs) : null;
+
+// MASTER-SPEC F10. `rows` is what this file walks from here on: an ordinary
+// posting stays a `single`, and every duplicate cluster becomes one `cluster`
+// entry. See clusterJobs() in src/lib/data.ts for the match rule, and this
+// file's own header for why a row, not a posting, is what everything past
+// this line counts.
+const rows = clusterJobs(jobs);
+
+/**
+ * A cluster's comp cell states one figure only where every member actually
+ * posted the identical string; MASTER-SPEC forbids inventing a merged number
+ * no single posting carries, and comp_posted is prose ("$200K - $260K -
+ * Offers Equity"), not a structured range this file could safely average or
+ * bracket. Compared with plain `===`, the same byte-identical rule
+ * clusterJobs() itself uses: a comp string is exactly the source's own words,
+ * same as title and company, so it gets the same no-normalising treatment.
+ */
+function sharedComp(cluster: JobCluster): string | null {
+  const first = compShort(cluster.postings[0]);
+  return first !== null && cluster.postings.every((posting) => compShort(posting) === first) ? first : null;
+}
+
+/**
+ * A cluster's age cell states one figure only where every member's own
+ * formatAge() output is identical. Comparing the formatted output rather than
+ * the raw dates means this reuses the one place "how old is this posting"
+ * is already decided (formatAge() in src/lib/data.ts) instead of writing a
+ * second, looser notion of "close enough" here.
+ */
+function sharedAge(cluster: JobCluster): string | null {
+  const first = formatAge(cluster.postings[0]);
+  return cluster.postings.every((posting) => formatAge(posting) === first) ? first : null;
+}
+
+/**
+ * A cluster's workplace label, stated only where every member agrees. Same
+ * shape as sharedComp/sharedAge: a cluster spanning a remote posting and an
+ * on-site one has no single honest answer, so it says "Varies by location"
+ * rather than picking one. workplaceOf() is the one place the remote/hybrid/
+ * on-site reading is decided (src/lib/data.ts), reused here.
+ */
+function sharedWorkplace(cluster: JobCluster): string | null {
+  const first = workplaceOf(cluster.postings[0]);
+  return cluster.postings.every((posting) => workplaceOf(posting) === first) ? first : null;
+}
+
+// "001", from the sweep number itself. The zero padding is the canvas's, and it
+// is a display decision about one value rather than a second stored string.
+// The raw instant the browser subtracts from, for the staleness check below.
+// sweptStamp() is the human rendering; this is the machine value.
+const sweptIso = loadStats().swept_at_utc;
+---
+
+<div
+  class:list={['job-table', !fit && 'job-table-no-fit', className]}
+  data-job-table
+  data-paging={paging}
+  data-per-page={perPage}
+  data-total={rows.length}
+>
+  {
+    verifiedBanner && (
+      /*
+        THE SIGNATURE MOMENT LIVES HERE. BUILD.md gate 6 asks for one moment
+        that runs once, under 400ms, and is absent under prefers-reduced-motion,
+        and standing rule 6 adds that it has to be functional rather than
+        decoration. This band is the table's own claim about itself, so the
+        moment is the claim being made: the verification rule draws itself
+        across the banner once, left to right, in the live colour, at the sweep
+        speed the token names.
+
+        WHAT MAKES IT FUNCTIONAL RATHER THAN AN EFFECT. The rule is part of the
+        resting design and carries meaning without moving: a green rule under a
+        band that says every posted row below was verified this sweep. Motion is the
+        act of drawing it, and nothing is communicated by the motion alone. A
+        reader who asks for reduced motion gets the same rule, already drawn,
+        and loses no information at all. The animation's end state is also the
+        resting state, which is what made this band safe to photograph while the
+        visual gate existed and is still the reason the motion carries nothing
+        of its own.
+
+        The marker is on the band and the animation is on a real element inside
+        it, not on a pseudo element, so both halves of gate 6 can see it: the
+        recorder reads a CSSAnimation whose target is inside the marked element,
+        and the computed-style witness reads the band itself.
+      */
+      <div
+        class="assurance"
+        data-signature-moment
+        data-swept={sweptIso}
+        data-fresh-hours={FRESH_WINDOW_HOURS}
+      >
+        <span class="assurance-live mono-label" data-assurance-text>
+          Every posted row verified this sweep &#183; {sweptStamp()}
+        </span>
+        <slot name="count" />
+        <span class="assurance-rule" aria-hidden="true"></span>
+      </div>
+    )
+  }
+
+  {/* The horizontal scroller. Below the table minimum the six fixed columns
+      would crush rather than reflow, so the table scrolls inside its own box
+      and the page never scrolls sideways. Above the phone break only: at phone
+      width the rows are cards and there is nothing to scroll. */}
+  <div class="scroller">
+    <div class="rows-wrap">
+      {/* Presentational. The real names live on each cell, so this row is hidden
+          from the accessibility tree rather than read out as six stray words. */}
+      <div class="column-labels" aria-hidden="true">
+        {fit && <span>Fit</span>}
+        <span>Role, as posted</span>
+        <span>Pay</span>
+        <span>Location</span>
+        <span>Age</span>
+        <span>Apply</span>
+      </div>
+
+      {
+        rows.length === 0 ? (
+          <EmptyState title={emptyTitle} detail={emptyDetail}>
+            <slot name="empty-action" slot="action" />
+          </EmptyState>
+        ) : (
+          <ul class="rows" data-rows>
+            {
+              rows.map((row, index) => {
+                const rowHidden = paging === 'client' && index >= perPage;
+                if (row.kind === 'single') {
+                  return <JobRow job={row.job} surface="raised" ranks={ranks?.get(row.job.slug)} hidden={rowHidden} hrefFor={hrefFor} fit={fit} />;
+                }
+
+                const { cluster } = row;
+                // The best-ranked member under whatever sort produced `jobs`
+                // (sortJobs() runs before this component ever sees the rows),
+                // so the collapsed row's fit, rank and facet attributes are a
+                // real posting's own real values, not a figure this file
+                // invented by averaging or picking a maximum across members.
+                const lead = cluster.postings[0];
+                const leadRanks = ranks?.get(lead.slug);
+                const leadFacets = facetsOf(lead);
+                const leadAge = ageOf(lead);
+                const leadCompTop = compTop(lead);
+                const comp = sharedComp(cluster);
+                const age = sharedAge(cluster);
+
+                return (
+                  <li
+                    class="job-row job-row-cluster"
+                    data-job-row
+                    data-slug={lead.slug}
+                    data-company={cluster.company}
+                    data-status={lead.status}
+                    data-fit={lead.fit.total}
+                    data-comp-top={leadCompTop === null ? '' : leadCompTop}
+                    data-age={leadAge === null ? '' : leadAge.days}
+                    data-facet-location={leadFacets.location}
+                    data-facet-comp={leadFacets.comp}
+                    data-facet-freshness={leadFacets.freshness}
+                    data-facet-stage={leadFacets.stage}
+                    data-rank-fit={leadRanks?.fit}
+                    data-rank-comp={leadRanks?.comp}
+                    data-rank-age={leadRanks?.age}
+                    hidden={rowHidden}
+                  >
+                    {fit && (
+                      <span class="cell cell-fit">
+                        <span class="visually-hidden">Fit score</span>
+                        <FitBadge job={lead} />
+                      </span>
+                    )}
+
+                    <span class="cell cell-role">
+                      <span class="visually-hidden">Role, as posted</span>
+                      {/* Title first, the same order JobRow uses for a single
+                          posting, so a clustered row and an ordinary one read
+                          the same way down the column. */}
+                      <span class="title">{cluster.title}</span>
+                      <span class="row-source">
+                        <Mark
+                          state={markStateOf(lead)}
+                          surface="raised"
+                          label={`${lead.status === 're_verified' ? 'Re-verified' : 'Verified'} against the ${sourceLabel(lead)} source`}
+                        />
+                        <span class="company mono">{cluster.company}</span>
+                        {/* Same applied tag JobRow's own row draws (see its
+                            markup comment), keyed off this <li>'s own
+                            data-slug (the cluster's lead posting), which is
+                            the same slug applySuppression() and
+                            applyAppliedTag() in Filters.astro already match
+                            a cluster row against. */}
+                        <span class="applied-tag" data-applied-tag>Applied</span>
+                      </span>
+                    </span>
+
+                    <span class="cell cell-comp">
+                      <span class="visually-hidden">Comp, as posted</span>
+                      {comp ? (
+                        <span class="comp mono">{comp}</span>
+                      ) : (
+                        <span class="cluster-note">Varies by location</span>
+                      )}
+                    </span>
+
+                    <span class="cell cell-location">
+                      <span class="visually-hidden">Location</span>
+                      {/* Same locationShort() JobRow's own single-posting cell
+                          reads (src/lib/data.ts): the primary place, with a
+                          "+N more" when the cluster spans several, never
+                          touching cluster.locations itself. */}
+                      <span class="location mono">
+                        {locationShort(cluster.locations.join(', ')).primary}
+                        {locationShort(cluster.locations.join(', ')).more > 0 && (
+                          <span class="location-more"> +{locationShort(cluster.locations.join(', ')).more} more</span>
+                        )}
+                      </span>
+                      {
+                        /* One workplace label where every member agrees, else
+                           the same "Varies by location" the comp and age cells
+                           use. See sharedWorkplace() above. */
+                        sharedWorkplace(cluster) ? (
+                          <span class="workplace mono-label">{sharedWorkplace(cluster)}</span>
+                        ) : (
+                          <span class="workplace cluster-note">Varies by location</span>
+                        )
+                      }
+                    </span>
+
+                    <span class="cell cell-age">
+                      <span class="visually-hidden">Age</span>
+                      {age ? <span class="age mono">{age}</span> : <span class="cluster-note">Varies by location</span>}
+                    </span>
+
+                    <span class="cell cell-apply">
+                      <span class="visually-hidden">Apply</span>
+                      <span class="cluster-note">See postings below</span>
+                    </span>
+
+                    {/*
+                      THE EXPANDABLE PART. A native <details>, not a scripted
+                      panel: it needs no click listener to open, so a reader
+                      with scripting off still gets a working control, which is
+                      the same reason JobRow's own why-panel ships a noscript
+                      fallback rather than relying on this file's click
+                      delegation. The count is stated in the summary's own
+                      text and both numbers are derived from `cluster` (never
+                      typed): postings.length and locations.length can differ
+                      when two postings happen to share a location string, so
+                      this states both rather than assuming they agree.
+                      Spans full width by sitting in the row's own grid at
+                      `grid-column: 1 / -1` (see this file's <style> block)
+                      rather than in a sixth column meant for a single cell.
+                    */}
+                    <details class="cluster-disclosure">
+                      <summary class="cluster-summary">
+                        {cluster.postings.length} postings in {cluster.locations.length} locations
+                        <span class="cluster-caret" aria-hidden="true">&#9662;</span>
+                      </summary>
+                      <ul class="cluster-postings">
+                        {cluster.postings.map((posting) => (
+                          <JobRow job={posting} surface="raised" ranks={ranks?.get(posting.slug)} hrefFor={hrefFor} fit={fit} />
+                        ))}
+                      </ul>
+                    </details>
+                  </li>
+                );
+              })
+            }
+          </ul>
+        )
+      }
+    </div>
+  </div>
+
+  <div class="table-footer">
+    <MarkLegend surface="page" />
+    <slot name="pagination" />
+  </div>
+
+</div>
+
+{/*
+  Without scripting: every reasoning panel opens and every toggle disappears.
+  Parsed at load, so there is no flash of a control that is about to be removed.
+*/}
+<noscript>
+  
+<style>
+    [data-why-panel][hidden] {
+      display: block !important;
+    }
+    [data-why-toggle] {
+      display: none !important;
+    }
+  </style>
+</noscript>
+
+<script>
+  /**
+   * The why expander, one listener for the whole table.
+   *
+   * Delegated rather than bound per row, so a table that grows to 37 rows costs
+   * one listener rather than 37, and so rows the filter island hides and shows
+   * keep working without being re-wired. The button and the panel are already
+   * in the markup and already associated by aria-controls; this only flips two
+   * states and keeps them in step.
+   */
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const toggle = target.closest('[data-why-toggle]');
+    if (!(toggle instanceof HTMLButtonElement)) return;
+
+    const panelId = toggle.getAttribute('aria-controls');
+    if (!panelId) return;
+
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+
+    const open = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+    panel.hidden = open;
+  });
+
+  /**
+   * The table controller: filtering, sorting and paging, for tables that asked
+   * for them with paging="client".
+   *
+   * THE CONTRACT WITH THE THREE CONTROLS. Filters, SortControl and Pagination
+   * know nothing about rows. They announce intent on the document and this
+   * listens:
+   *
+   *   index:filter  { group, value }        group is a data-facet-* name
+   *   index:sort    { key }                 fit | comp | age
+   *   index:page    { page } or { delta }
+   *
+   * and this announces the result back, so the controls can update their own
+   * labels from what actually happened rather than from what they asked for:
+   *
+   *   index:rows    { shown, page, pages, firstRow, lastRow, sort, filters }
+   *
+   * WHY IT SORTS BY AN INTEGER. Each row carries data-rank-fit, data-rank-comp
+   * and data-rank-age, computed at build time by sortRanks() in src/lib/data.ts.
+   * The rules for what "sort by comp" means (top of the posted range, rows with
+   * no posted range last, ties broken by company) live there and only there. A
+   * comparator written here would be a second opinion, and the two would drift
+   * the first time one of them was corrected.
+   *
+   * WHY NOTHING MOVES. Rows past the first page are rendered with `hidden`
+   * already set, so the state this script starts from is the state the server
+   * sent. The first run of update() changes nothing, which is exactly what a
+   * reader should experience.
+   */
+  interface TableState {
+    sort: string;
+    filters: Record<string, string>;
+    page: number;
+    query: string;
+  }
+
+  function wireTable(table: HTMLElement) {
+    const found = table.querySelector('[data-rows]');
+    if (!found) return;
+    // Re-declared with a non-nullable type rather than relying on the guard
+    // above to narrow: the narrowing does not follow into update() below, and
+    // a non-null assertion there would be talking the compiler out of a check
+    // rather than doing one.
+    const list: Element = found;
+
+    // `:scope > [data-job-row]` rather than a bare `[data-job-row]`: a
+    // clustered row's <details> panel nests a real JobRow per member, and
+    // every one of those carries data-job-row too (it is a real row on the
+    // job's own page, not a fabricated one). An unscoped query would pull
+    // those nested rows in as independently sortable, filterable, pageable
+    // rows, double counting a three-posting cluster as four rows the moment
+    // its panel opened. Scoping to direct children keeps this controller's
+    // whole notion of "a row" the same one clusterJobs() and data-total
+    // already agree on: one row per cluster, not one per posting.
+    const rows = Array.from(list.querySelectorAll<HTMLElement>(':scope > [data-job-row]'));
+    const perPage = Number(table.getAttribute('data-per-page')) || rows.length || 1;
+
+    const state: TableState = { sort: 'fit', filters: {}, page: 1, query: '' };
+
+    // A row's searchable text, built once and cached: its title and its
+    // company, lowercased. Deterministic and exact (a substring test), never a
+    // ranking or a fuzzy match, per MASTER-SPEC F10's own ban on reordering by
+    // anything but observed data. A cluster header carries the cluster's own
+    // title and company, so it searches the same way an ordinary row does.
+    const searchText = new WeakMap<HTMLElement, string>();
+    const textOf = (row: HTMLElement): string => {
+      let cached = searchText.get(row);
+      if (cached === undefined) {
+        const title = row.querySelector('.title')?.textContent ?? '';
+        const company = row.getAttribute('data-company') ?? '';
+        cached = `${title} ${company}`.toLowerCase();
+        searchText.set(row, cached);
+      }
+      return cached;
+    };
+
+    // The order the server sent, kept so an unranked table (one built without
+    // sortRanks) still has something stable to fall back to.
+    const initialOrder = new Map(rows.map((row, index) => [row, index]));
+
+    const rankOf = (row: HTMLElement, key: string): number => {
+      const raw = row.getAttribute(`data-rank-${key}`);
+      const parsed = raw === null ? Number.NaN : Number(raw);
+      return Number.isFinite(parsed) ? parsed : (initialOrder.get(row) ?? 0);
+    };
+
+    const matches = (row: HTMLElement): boolean => {
+      // A row whose Location facet is 'unknown' (a company before it posts,
+      // see facetsOf) passes any Location choice: the reader's saved "Remote"
+      // from the Board is a statement about postings, and this row is not one.
+      const passesFilters = Object.entries(state.filters).every(([group, value]) => {
+        if (value === 'all') return true;
+        const facet = row.getAttribute(`data-facet-${group}`);
+        if (group === 'location' && facet === 'unknown') return true;
+        return facet === value;
+      });
+      if (!passesFilters) return false;
+      // The search query, if any, is a plain substring of the row's title or
+      // company. Empty query matches everything, so a cleared box is not a
+      // filter.
+      return state.query === '' || textOf(row).includes(state.query);
+    };
+
+    function update() {
+      const kept = rows.filter(matches);
+      kept.sort((a, b) => rankOf(a, state.sort) - rankOf(b, state.sort));
+
+      const pages = Math.max(1, Math.ceil(kept.length / perPage));
+      if (state.page > pages) state.page = pages;
+      const start = (state.page - 1) * perPage;
+      const visible = kept.slice(start, start + perPage);
+      const visibleSet = new Set(visible);
+
+      // Reorder before hiding, so the DOM order is the reading order whatever
+      // is on screen. A fragment means one reflow rather than one per row.
+      const keptSet = new Set(kept);
+      const fragment = document.createDocumentFragment();
+      for (const row of kept) fragment.appendChild(row);
+      for (const row of rows) if (!keptSet.has(row)) fragment.appendChild(row);
+      list.appendChild(fragment);
+
+      for (const row of rows) row.hidden = !visibleSet.has(row);
+
+      document.dispatchEvent(
+        new CustomEvent('index:rows', {
+          detail: {
+            shown: visible.length,
+            total: kept.length,
+            page: state.page,
+            pages,
+            firstRow: kept.length === 0 ? 0 : start + 1,
+            lastRow: start + visible.length,
+            sort: state.sort,
+            filters: { ...state.filters }
+          }
+        })
+      );
+    }
+
+    document.addEventListener('index:filter', (event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail || typeof detail.group !== 'string') return;
+      state.filters[detail.group] = String(detail.value);
+      state.page = 1;
+      update();
+    });
+
+    document.addEventListener('index:search', (event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail || typeof detail.query !== 'string') return;
+      state.query = detail.query.trim().toLowerCase();
+      state.page = 1;
+      update();
+    });
+
+    document.addEventListener('index:sort', (event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail || typeof detail.key !== 'string') return;
+      state.sort = detail.key;
+      state.page = 1;
+      update();
+    });
+
+    document.addEventListener('index:page', (event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail) return;
+      if (typeof detail.page === 'number') state.page = Math.max(1, detail.page);
+      else if (typeof detail.delta === 'number') state.page = Math.max(1, state.page + detail.delta);
+      update();
+    });
+
+    // Announce the state the server already rendered, so the controls start in
+    // step with the table rather than with their own defaults.
+    update();
+  }
+
+  for (const table of document.querySelectorAll<HTMLElement>('[data-job-table][data-paging="client"]')) {
+    wireTable(table);
+  }
+</script>
+
+<!--
+  THE STALENESS CHECK, and it is the one guard the rest of the site depends on.
+
+  Everything else here is a static build of one sweep, so it is true at the moment
+  it is built. This band is the only claim that decays: it says every row below was
+  verified this sweep, and that sentence quietly becomes false if the machine sleeps,
+  a sweep dies, or a push never lands. Nothing on a static page notices that on its
+  own, because there is no request to notice it during.
+
+  So the browser checks. It reads the sweep instant off the band, subtracts it from
+  now, and past the freshness window swaps the green assurance for an amber one that
+  states how long it has actually been. It never claims fresh; it downgrades or it
+  stays quiet. A reader with JavaScript off sees the server-rendered line and the
+  timestamp beside it, which is the same information without the arithmetic.
+
+  Deliberately client-side rather than build-time: a build knows how old the data was
+  when it was built, which is exactly the wrong question. The reader needs to know how
+  old it is now, and only their clock can answer that.
+
+  IT IS ONE HALF OF A PAIR, and the other half is api/rebuild.ts. This one runs in
+  a reader's browser, which means it only ever fires for a reader who happened to
+  visit; the machine going quiet on a night nobody looked would be seen by nobody.
+  The other runs daily on a schedule against the same window and turns the cron log
+  red instead. Both windows come from FRESH_WINDOW_HOURS in src/lib/data-contract.ts,
+  which is why the number below is read off the band rather than typed here: two
+  copies of a threshold is how a page ends up looking fresh while the alarm rings.
+-->
+<script is:inline>
+  (function () {
+    var band = document.querySelector('[data-swept]');
+    if (!band) return;
+    var text = band.querySelector('[data-assurance-text]');
+    var swept = Date.parse(band.getAttribute('data-swept') || '');
+    if (!text || isNaN(swept)) return;
+
+    // The window the server stamped on the band, which is FRESH_WINDOW_HOURS. The
+    // machine sweeps nightly, so one missed night is the signal. A band with no
+    // usable number would silently never warn, so an unreadable attribute falls
+    // back to the value that constant holds rather than to no check at all.
+    // A clock skewed backwards reads negative, which is not staleness and must
+    // not raise a warning about the employer's data on the strength of a wrong
+    // device clock, so only positive ages count.
+    var HOURS = parseFloat(band.getAttribute('data-fresh-hours'));
+    if (!(HOURS > 0)) HOURS = 36;
+    var hours = (Date.now() - swept) / 3600000;
+    if (!(hours >= HOURS)) return;
+
+    var whole = Math.floor(hours);
+    var label = whole >= 48
+      ? Math.floor(whole / 24) + ' days'
+      : whole + ' hours';
+
+    band.setAttribute('data-stale', '');
+    text.textContent =
+      'Last verified ' + label + ' ago. These rows were true at the last sweep and have not been checked since.';
+  })();
+</script>
+
+<style>
+  .job-table {
+    background: var(--color-surface);
+    border: var(--border-hairline) solid var(--color-line-strong);
+  }
+
+  /* A reader who does not see fit gets the five-track token in place of the
+     six-track one. Every label row and data row under this element reads
+     --table-columns, so redefining it here is the one change: the fit track
+     is gone and every other column keeps its width. */
+  .job-table-no-fit {
+    --table-columns: var(--table-columns-public);
+  }
+
+  .assurance {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+    padding: var(--space-300) var(--space-600);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  /* The verification rule: the resting state of the signature moment. It sits
+     on top of the band's own hairline rather than beside it, so the banner's
+     height does not depend on whether the rule is there. */
+  .assurance-rule {
+    position: absolute;
+    inset-inline: 0;
+    bottom: calc(var(--border-hairline) * -1);
+    height: var(--border-heavy);
+    background: var(--color-mark-live);
+    transform-origin: left center;
+  }
+
+  /* The moment itself. Guarded by the media query rather than by a class a
+     script flips, so a reader who asks for reduced motion never has it armed:
+     gate 6 reads the computed animation-name on the marked element under
+     `reduce` and fails anything still loaded. It runs once (no iteration
+     count means 1), it fills forwards so the drawn rule stays drawn, and its
+     duration is the signature token, which is 320ms against standing rule 6's
+     400ms cap. */
+  @media (prefers-reduced-motion: no-preference) {
+    .assurance-rule {
+      animation: verification-sweep var(--motion-duration-signature) var(--motion-easing-standard)
+        both;
+    }
+  }
+
+  @keyframes verification-sweep {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  /* The one place the live colour carries a sentence rather than a mark. It is
+     the table's own claim about itself, so it takes the colour that claim is
+     made in everywhere else on the site. */
+  /* Amber, not red: this is a warning about our own freshness, not an accusation
+     about an employer. The rule under the band goes with it, because a green rule
+     over an amber sentence would be the same contradiction in two parts. */
+  .assurance[data-stale] .assurance-live {
+    color: var(--color-banner-stale);
+  }
+  .assurance[data-stale] .assurance-rule {
+    background: var(--color-banner-stale);
+  }
+
+  .assurance-live {
+    color: var(--color-mark-live);
+  }
+
+  .scroller {
+    overflow-x: auto;
+  }
+
+  .rows-wrap {
+    min-width: var(--layout-table-min);
+  }
+
+  .column-labels {
+    display: grid;
+    grid-template-columns: var(--table-columns);
+    gap: var(--space-400);
+    padding: var(--space-200) var(--space-600);
+    background: var(--color-surface-raised);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    font-size: var(--size-050);
+    color: var(--color-muted);
+  }
+
+  .rows {
+    display: block;
+  }
+
+  /*
+    THE CLUSTERED ROW. JobRow.astro's own `.job-row` rule (display: grid,
+    --table-columns) is scoped to markup JobRow itself renders, and does not
+    reach a <li> this file draws, so the same grid contract is restated here
+    rather than assumed. `.job-row-cluster` is deliberately kept a close
+    sibling of `.job-row`'s rules above the phone breakpoint: same tracks,
+    same padding, same hover and focus behaviour, so a cluster and an
+    ordinary posting sit in exactly the same six columns.
+  */
+  .job-row-cluster {
+    display: grid;
+    grid-template-columns: var(--table-columns);
+    gap: var(--space-400);
+    align-items: center;
+    padding: var(--space-300) var(--space-600);
+    background: var(--color-surface-raised);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    --mark-knockout-fill: var(--color-surface-raised);
+  }
+
+  .job-row-cluster[hidden] {
+    display: none;
+  }
+
+  .job-row-cluster:hover {
+    background: var(--color-hover-surface);
+    --mark-knockout-fill: var(--color-hover-surface);
+  }
+
+  .job-row-cluster:focus-within {
+    background: var(--color-hover-surface);
+    --mark-knockout-fill: var(--color-hover-surface);
+  }
+
+  .job-row-cluster .cell {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+  }
+
+  .job-row-cluster .cell-fit {
+    align-items: flex-start;
+  }
+
+  .job-row-cluster .row-source {
+    display: flex;
+    align-items: center;
+    gap: var(--space-200);
+  }
+
+  .job-row-cluster .company {
+    color: var(--color-muted);
+  }
+
+  /* Restated from JobRow.astro's own .applied-tag rule for the same reason
+     .workplace is restated above: Astro scopes a component's styles to its
+     own markup, so that rule does not reach the cluster row this file draws
+     by hand. Same values, same meaning: the live/verified green a cluster's
+     own Mark already carries, revealed only once this row's <li> carries
+     data-applied (see JobRow.astro's markup comment for where that
+     attribute comes from). */
+  .job-row-cluster .applied-tag {
+    display: none;
+    font-family: var(--font-family-sans);
+    font-size: var(--size-050);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    line-height: var(--leading-tight);
+    color: var(--color-foreground-inverse);
+    background: var(--color-mark-live);
+    border-radius: var(--radius);
+    padding: var(--space-100) var(--space-200);
+    white-space: nowrap;
+  }
+
+  .job-row-cluster[data-applied] .applied-tag {
+    display: inline-block;
+  }
+
+  .job-row-cluster .title {
+    font-family: var(--font-family-sans);
+    color: var(--color-foreground);
+  }
+
+  .job-row-cluster .comp,
+  .job-row-cluster .age,
+  .job-row-cluster .location {
+    font-size: var(--size-075);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  .job-row-cluster .comp {
+    white-space: normal;
+  }
+
+  /* The workplace label under a cluster's location, matching JobRow's own
+     .workplace. Restated here because Astro scopes styles per component, so
+     JobRow's rule does not reach this file's markup. */
+  .job-row-cluster .workplace {
+    display: block;
+    color: var(--color-muted);
+    line-height: var(--leading-snug);
+    margin-block-start: var(--space-100);
+  }
+
+  .job-row-cluster .comp-part {
+    white-space: nowrap;
+  }
+
+  /* States a fact a single cell cannot honestly state: two or more members
+     of this cluster posted a different comp string or a different age, so
+     the cell says that plainly rather than picking one member's figure to
+     stand for all of them. */
+  .cluster-note {
+    font-family: var(--font-family-sans);
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+
+  /* The disclosure is the row's own seventh grid item, spanning every track,
+     rather than a value squeezed into one of the six named cells. */
+  .cluster-disclosure {
+    grid-column: 1 / -1;
+  }
+
+  .cluster-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-200);
+    padding-block: var(--space-200);
+    font-family: var(--font-family-sans);
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .cluster-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .cluster-summary:hover {
+    color: var(--color-foreground);
+  }
+
+  /* The caret turns to point up when the panel is open, the same convention
+     JobRow's own why-caret uses: a transform, not a second glyph, so the
+     character in the accessibility tree never changes. */
+  @media (prefers-reduced-motion: no-preference) {
+    .cluster-caret {
+      transition: transform var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  .cluster-disclosure[open] .cluster-caret {
+    transform: rotate(180deg);
+  }
+
+  /* Every member renders as a full, ordinary JobRow: JobRow.astro's own
+     scoped styles reach these because JobRow itself renders them, so nothing
+     about their layout is restated here. This rule only resets the <ul>
+     wrapping them and draws the seam between the summary and the panel. */
+  .cluster-postings {
+    display: block;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+
+  .table-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+    padding: var(--space-300) var(--space-600);
+  }
+
+  /* Phone: the rows are cards, so there is no fixed grid to scroll and no
+     column labels to head it. The labels each cell carries take over, which is
+     why they were never optional. */
+  @media (max-width: 60rem) { /* --breakpoint-lap */
+    .rows-wrap {
+      min-width: 0;
+    }
+
+    .column-labels {
+      display: none;
+    }
+
+    .assurance,
+    .table-footer {
+      padding-inline: var(--space-400);
+    }
+
+    /* Same card reflow as JobRow's own phone rule, with one more area for
+       the disclosure: a cluster's card is a JobRow-shaped card plus one more
+       row for the expand control. */
+    .job-row-cluster {
+      grid-template-columns: 1fr auto;
+      grid-template-areas:
+        'role fit'
+        'comp location'
+        'age age'
+        'apply apply'
+        'cluster cluster';
+      gap: var(--space-200) var(--space-400);
+      padding: var(--space-400);
+      align-items: start;
+    }
+
+    .job-row-cluster .cell-fit {
+      grid-area: fit;
+      align-items: flex-end;
+    }
+    .job-row-cluster .cell-role {
+      grid-area: role;
+    }
+    .job-row-cluster .cell-comp {
+      grid-area: comp;
+    }
+    .job-row-cluster .cell-location {
+      grid-area: location;
+    }
+    .job-row-cluster .cell-age {
+      grid-area: age;
+    }
+    .job-row-cluster .cell-apply {
+      grid-area: apply;
+    }
+    .job-row-cluster .title {
+      font-size: var(--size-300);
+    }
+    .cluster-disclosure {
+      grid-area: cluster;
+    }
+  }
+</style>

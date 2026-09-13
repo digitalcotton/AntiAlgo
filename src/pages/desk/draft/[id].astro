@@ -1,0 +1,210 @@
+---
+/**
+ * /desk/draft/[id]: the draft room. MASTER-SPEC F3's tailor engine,
+ * relocated from its own page (the deleted /account/tailor) to the moment
+ * of need: a resume and a cover letter drafted against the one posting an
+ * application already points at, computed in the background the instant a
+ * person clicked apply (src/pages/desk/application.ts's 'click' intent,
+ * src/lib/generation-preference-store.ts's triggerBackgroundGeneration()),
+ * and read back here rather than recomputed on every visit.
+ *
+ * OWNER OR 404, THE SAME RULE src/pages/u/[handle].astro STATES IN FULL.
+ * A signed-out visitor, a signed-in stranger, an id that belongs to no
+ * application, and an id that belongs to someone else's application all
+ * get the identical plain 404 below: a resume drafted against one person's
+ * record is exactly the kind of thing "private" and "does not exist" must
+ * stay indistinguishable for. '/desk' is a GATED_PREFIXES entry
+ * (src/lib/entitlement.ts), so a non-member's request never reaches this
+ * file at all (middleware answers 403 first); what middleware does NOT
+ * rule out is a signed-out or unverified request, which it lets fall
+ * through to this page (src/middleware.ts's own comment on
+ * `verdict.reason !== 'insufficient-tier'`), so this file still checks
+ * Astro.locals.viewer itself rather than assuming the wall already closed.
+ *
+ * NEVER PRERENDERED. Which application exists, who owns it, and whether a
+ * draft has finished are all per-request facts; a build-time render could
+ * only ever be correct for whichever request happened to trigger it once.
+ *
+ * THREE STATES, READ FROM db/012_drafting.sql, NEVER RECOMPUTED HERE. This
+ * page calls no renderResume()/renderCover() of its own: src/lib/
+ * generated-render-store.ts's getRenders() is the only source of what
+ * shows below.
+ *   - Neither row exists: nothing was ever drafted for this application
+ *     (the click that created it ran with drafting off, no key connected,
+ *     or before this feature existed). An honest empty state, not a
+ *     spinner waiting on nothing.
+ *   - Either row is still 'pending': the background render has not
+ *     finished (or, rarely, both attempts inside it failed outright; see
+ *     generation-preference-store.ts's renderInBackground() for that one
+ *     honest dead end). A calm drafting state that polls itself.
+ *   - Both rows are 'ready' or 'fallback': something to show. The two
+ *     statuses render through the same DraftDocuments component either
+ *     way; 'fallback' only adds its own visible notice, never a different
+ *     layout.
+ */
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import EmptyState from '../../../components/EmptyState.astro';
+import LoadingState from '../../../components/LoadingState.astro';
+import DraftDocuments from '../../../components/tailor/DraftDocuments.astro';
+import { routeFor } from '../../../data/nav';
+import { getApplication } from '../../../lib/desk-store';
+import { getRenders } from '../../../lib/generated-render-store';
+import type { ResumeRender, CoverRender } from '../../../lib/tailor';
+
+export const prerender = false;
+
+/** One literal Response, the same plain-text 404 src/pages/u/[handle].astro
+    and src/middleware.ts's own flag gate both return, so a reader (or a
+    script comparing responses across this site) sees one house style for
+    "nothing here", not a second one this route invented for itself. */
+function notFound(): Response {
+  return new Response('Not found.', {
+    status: 404,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+  });
+}
+
+const viewer = Astro.locals.viewer;
+if (!viewer) {
+  return notFound();
+}
+
+const rawId = Astro.params.id ?? '';
+const id = Number(rawId);
+if (!Number.isInteger(id) || id <= 0) {
+  return notFound();
+}
+
+const application = await getApplication(viewer.userId, id);
+if (!application) {
+  return notFound();
+}
+
+const { resume, cover } = await getRenders(viewer.userId, id);
+
+const hasNoDraft = resume === null && cover === null;
+// isReady requires BOTH rows present and settled, not merely "neither is
+// pending": beginDraft() writes its two rows as two separate statements,
+// not one transaction, so a read landing in that narrow window could see
+// one row and not the other. Treating that half-written moment as
+// "pending" rather than a fourth, unhandled state is what keeps this page
+// from ever rendering nothing at all.
+const isReady =
+  !hasNoDraft && resume !== null && cover !== null && resume.status !== 'pending' && cover.status !== 'pending';
+const isPending = !hasNoDraft && !isReady;
+
+const deskPath = routeFor('desk');
+const settingsPath = routeFor('settings');
+
+const postingLabel = application.snapshot.title
+  ? application.snapshot.company
+    ? `${application.snapshot.title}, ${application.snapshot.company}`
+    : application.snapshot.title
+  : (application.snapshot.company ?? 'this posting');
+---
+
+<BaseLayout
+  title="Draft room"
+  description="The resume and cover letter drafted against this application's posting, cited to the record."
+  noindex
+>
+  <section class="draft-page">
+    <div class="shell draft-shell">
+      <span class="kicker">The Desk</span>
+      <h1>Draft room</h1>
+      <p class="muted">Targeted at: {postingLabel}</p>
+
+      {
+        hasNoDraft && (
+          <EmptyState
+            title="No draft yet"
+            detail="No draft was started for this application. Drafting runs when you apply with a provider key connected."
+          >
+            <a class="draft-link" slot="action" href={settingsPath}>
+              Manage drafting in Settings
+            </a>
+          </EmptyState>
+        )
+      }
+
+      {
+        isPending && (
+          <>
+            <meta http-equiv="refresh" content="3" />
+            <LoadingState label="Drafting your resume and cover letter against this posting" />
+          </>
+        )
+      }
+
+      {
+        // resume.payload/cover.payload are `unknown` (RenderRow's own type:
+        // a jsonb column, node-postgres hands it back already parsed with
+        // no shape guarantee beyond that). Cast, not re-validated: the only
+        // writer of this column is generation-preference-store.ts's own
+        // completeDraft() calls, each handed a real ResumeRender/CoverRender
+        // straight out of renderResume()/renderCover(), so the round trip
+        // through jsonb is the only thing between the typed value written
+        // and the typed value read back here.
+        isReady && resume && cover && (
+          <DraftDocuments
+            resume={resume.payload as ResumeRender}
+            cover={cover.payload as CoverRender}
+            provider={resume.provider}
+            model={resume.model}
+            fallback={resume.status === 'fallback' || cover.status === 'fallback'}
+          />
+        )
+      }
+
+      <div class="draft-back no-print">
+        <a class="draft-link" href={deskPath}>Back to the Desk</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .draft-page .draft-shell {
+    padding-block: var(--space-800) var(--space-1000);
+    /* No max-width: fills the shell to the same width as the Account (profile)
+       page, so moving between the record, the draft room, and settings does not
+       change the page width. Prose caps its own measure per block. */
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+  }
+  .kicker {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  h1 {
+    margin: var(--space-300) 0 0;
+    font-size: var(--size-600);
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-display);
+  }
+  .muted {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+  }
+  .draft-link {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    border-bottom: 1px solid var(--color-foreground);
+    padding-bottom: 2px;
+  }
+  .draft-back {
+    display: flex;
+    gap: var(--space-400);
+    margin-top: var(--space-300);
+  }
+</style>

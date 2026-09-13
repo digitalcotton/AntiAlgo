@@ -1,0 +1,447 @@
+/**
+ * generated-render-store.ts: the impure half of drafting-on-apply's
+ * persistence, db/012_drafting.sql's generated_render table and nothing
+ * else. Same split record-store.ts already draws against record.ts,
+ * restated here for the same reason: this file does I/O and decides
+ * nothing, including about ownership. Every function below takes a
+ * `userId`, and every read scopes its query to that id; none accepts a
+ * userId from a request body, because a userId is a viewer fact, resolved
+ * server-side from the session, never a form field a caller could type a
+ * stranger's id into.
+ *
+ * PARAMETERISED QUERIES ONLY. No string ever gets concatenated into SQL
+ * here; every value a caller supplies travels as a placeholder argument.
+ *
+ * THE ONLY CALLER IS src/lib/generation-preference-store.ts's
+ * triggerBackgroundGeneration() (and the render loop it kicks off, not
+ * awaited, once a decision is made). beginDraft() runs at the moment a
+ * click decides to draft; completeDraft() runs once, later, when that
+ * background render settles; getRenders() is what the draft room
+ * (src/pages/desk/draft/[id].astro) reads to show or poll. No file outside
+ * this task's own list writes to generated_render.
+ *
+ * NEVER THROWS FOR "NO ROWS". A missing draft is the ordinary "nothing was
+ * ever started for this application" state (getRenders()'s own return
+ * shape says so plainly, resume/cover each null), not an error to
+ * diagnose, the same posture keychain-store.ts's keyMeta() and
+ * getDecryptedKey() already take for a provider nobody connected.
+ */
+import { randomUUID } from 'node:crypto';
+import { db } from './db';
+import { recordEvent } from './analytics';
+
+/** db/012_drafting.sql's two kinds, and its statuses (db/026 added 'failed').
+    Kept here rather than imported from anywhere else, the same hand-kept
+    agreement keychain.ts's PROVIDERS tuple documents for db/007's own CHECK
+    constraint: a migration cannot be imported into a module that must stay
+    buildable with no connection.
+
+    'failed' is a job draft's honest dead end: a provider that was tried and
+    could not deliver (the owner's ruling is that the built-in template never
+    stands in for a tried key), or a render that threw. It carries a reason
+    and is what the result page offers a retry against; 'pending' is never
+    left to mean "gave up". */
+export type RenderKind = 'resume' | 'cover';
+export type RenderStatus = 'pending' | 'ready' | 'fallback' | 'failed';
+
+/* -------------------------------------------------------------------------
+   Row shape and the pure mapper between a row and the shape the rest of the
+   app reads.
+   ------------------------------------------------------------------------- */
+
+export interface GeneratedRenderRow {
+  id: string;
+  kind: RenderKind;
+  status: RenderStatus;
+  /** jsonb: node-postgres hands this back already parsed, null while
+      status = 'pending'. Whatever shape src/lib/tailor.ts's ResumeRender or
+      CoverRender wrote in is what comes back out; this file has no opinion
+      about it beyond "unknown", the same defensive read filters-store.ts's
+      own jsonb column takes. */
+  payload: unknown;
+  provider: string | null;
+  model: string | null;
+  /** db/026: a plain sentence our own code minted, set only with 'failed'. */
+  failure_reason: string | null;
+  /** db/026: stamped once by the invocation that claimed the row to render
+      it; null until then. node-postgres decodes timestamptz to a Date, and a
+      test may hand in the ISO string; toDate() below takes either. */
+  started_at: Date | string | null;
+  updated_at: Date | string;
+}
+
+/** What the rest of the app reads: one row, mapped one-to-one from
+    GeneratedRenderRow. The two dates exist for one reader, jobDraftState()
+    below, which needs them to tell a render still in flight from one the
+    platform abandoned. */
+export interface RenderRow {
+  readonly id: string;
+  readonly kind: RenderKind;
+  readonly status: RenderStatus;
+  readonly payload: unknown;
+  readonly provider: string | null;
+  readonly model: string | null;
+  readonly failureReason: string | null;
+  readonly startedAt: Date | null;
+  readonly updatedAt: Date;
+}
+
+function toDate(value: Date | string): Date {
+  return value instanceof Date ? value : new Date(value);
+}
+
+/** Pure: a row in, the shape the rest of the app reads out. Exported so
+    generated-render-store.test.ts can pin this mapping with no connection,
+    the same seam desk-store.test.ts already tests for
+    rowToStoredApplication() and record-store.test.ts tests for the
+    Profile Record's own row mappers. */
+export function rowToRenderRow(row: GeneratedRenderRow): RenderRow {
+  return {
+    id: row.id,
+    kind: row.kind,
+    status: row.status,
+    payload: row.payload,
+    provider: row.provider,
+    model: row.model,
+    failureReason: row.failure_reason ?? null,
+    startedAt: row.started_at == null ? null : toDate(row.started_at),
+    updatedAt: toDate(row.updated_at)
+  };
+}
+
+/* -------------------------------------------------------------------------
+   The job draft's state, as one pure function. Two surfaces answer "what is
+   this draft doing" (the status endpoint and the draft room) and they must
+   answer identically; both call this.
+   ------------------------------------------------------------------------- */
+
+export type JobDraftState = 'none' | 'pending' | 'ready' | 'failed';
+
+/** Slack past the platform ceiling before a claimed, still-pending row is
+    declared abandoned: the ceiling is the longest an invocation can possibly
+    still be working on it, plus a margin for the final writes. */
+export const STALE_CLAIMED_SLACK_MS = 30_000;
+
+/** How long an unclaimed pending row may wait for an invocation to claim it.
+    The dispatch is a sub-second round trip and its failure falls back to an
+    in-process render that claims at once, so a row nobody has claimed after
+    this long has been dropped. */
+export const STALE_UNCLAIMED_MS = 90_000;
+
+/** One document is its own JobDraftState. */
+export type DocumentState = JobDraftState;
+
+/**
+ * The state of ONE document's row. Absent is 'none'. A row marked 'failed' is
+ * 'failed'. A 'pending' row is 'pending' while an invocation could still be
+ * working on it, and 'failed' once it has been pending longer than any
+ * invocation could live (`ceilingMs`, the platform's maxDuration, plus slack)
+ * or, never even claimed, longer than a dispatch could take. A settled row
+ * ('ready' or the no-key 'fallback') is 'ready'.
+ */
+export function documentState(row: RenderRow | null, nowMs: number, ceilingMs: number): DocumentState {
+  if (row === null) return 'none';
+  if (row.status === 'failed') return 'failed';
+  if (row.status === 'pending') {
+    const age = nowMs - row.updatedAt.getTime();
+    const limit = row.startedAt ? ceilingMs + STALE_CLAIMED_SLACK_MS : STALE_UNCLAIMED_MS;
+    return age > limit ? 'failed' : 'pending';
+  }
+  return 'ready';
+}
+
+/**
+ * The state of one posting's draft PAIR, derived from the two documents so it
+ * can never disagree with the per-document view the room now shows. Both 'none'
+ * is 'none'. Either 'failed' is 'failed'. Either still 'pending', or exactly one
+ * document present (the half-written moment between beginJobDraft()'s two
+ * INSERTs), is 'pending'. Only both documents settled is 'ready'.
+ */
+export function jobDraftState(
+  rows: { readonly resume: RenderRow | null; readonly cover: RenderRow | null },
+  nowMs: number,
+  ceilingMs: number
+): JobDraftState {
+  const states = [documentState(rows.resume, nowMs, ceilingMs), documentState(rows.cover, nowMs, ceilingMs)];
+  if (states.every((s) => s === 'none')) return 'none';
+  if (states.some((s) => s === 'failed')) return 'failed';
+  if (states.some((s) => s === 'pending') || states.some((s) => s === 'none')) return 'pending';
+  return 'ready';
+}
+
+/* -------------------------------------------------------------------------
+   Writes.
+   ------------------------------------------------------------------------- */
+
+/**
+ * Starts a draft: upserts one 'pending' row per kind (resume, cover) for
+ * this application, each with a fresh id, then stamps
+ * desk_application.resume_render_id / cover_render_id with those same ids
+ * so a reader who already has the application row can find its drafts
+ * without a second table in between.
+ *
+ * A FRESH ID EVERY CALL, EVEN ON CONFLICT. If this application already had
+ * a draft (a retry, in practice; nothing in this codebase's own call sites
+ * triggers a second beginDraft() for the same application today), the old
+ * row's id, payload, provider and model are all replaced, not appended to:
+ * db/012_drafting.sql's UNIQUE (application_id, kind) means there is only
+ * ever one row per kind per application, and the stamp on desk_application
+ * below is what keeps that row's new id the one the rest of the app finds,
+ * rather than a stale id left over from the row this upsert just
+ * overwrote.
+ *
+ * THE STAMP IS SCOPED TO userId, THE SAME OWNERSHIP DISCIPLINE EVERY WRITE
+ * IN desk-store.ts USES. A caller that somehow reached this function with
+ * an applicationId it does not own gets a no-op UPDATE (0 rows), not a
+ * write into a stranger's application; the two generated_render rows would
+ * still exist, orphaned from any desk_application.*_render_id column, which
+ * is the same "gone versus never there" shape the rest of this codebase's
+ * stores already leave for a caller to notice rather than throwing on.
+ * triggerBackgroundGeneration() is this function's only caller, and it is
+ * only ever invoked with the applicationId of an application it just
+ * created for that same userId, so this path is not expected to run in
+ * practice; it is defended anyway because "trust the caller" is not this
+ * file's job (see this file's own header).
+ */
+export async function beginDraft(
+  userId: string,
+  applicationId: number
+): Promise<{ resumeId: string; coverId: string }> {
+  const resumeId = randomUUID();
+  const coverId = randomUUID();
+
+  for (const [id, kind] of [
+    [resumeId, 'resume'],
+    [coverId, 'cover']
+  ] as const) {
+    await db().query(
+      `INSERT INTO generated_render (id, user_id, application_id, kind, status, payload, provider, model)
+       VALUES ($1, $2, $3, $4, 'pending', NULL, NULL, NULL)
+       ON CONFLICT (application_id, kind) DO UPDATE SET
+         id = EXCLUDED.id,
+         user_id = EXCLUDED.user_id,
+         status = 'pending',
+         payload = NULL,
+         provider = NULL,
+         model = NULL`,
+      [id, userId, applicationId, kind]
+    );
+  }
+
+  await db().query(
+    'UPDATE desk_application SET resume_render_id = $1, cover_render_id = $2 WHERE id = $3 AND user_id = $4',
+    [resumeId, coverId, applicationId, userId]
+  );
+
+  // The first-draft funnel milestone, best-effort. Kept only once per person.
+  await recordEvent(userId, 'first_draft');
+
+  return { resumeId, coverId };
+}
+
+export interface CompleteDraftFields {
+  readonly status: 'ready' | 'fallback';
+  /** JSON.stringify()'d below, the same `$n::jsonb` cast filters-store.ts's
+      saveFilterState() already uses for its own jsonb column, so a plain
+      JS object is the right thing to pass in here. */
+  readonly payload: unknown;
+  readonly provider: string | null;
+  readonly model: string | null;
+}
+
+/**
+ * Finishes one draft: the one write completeDraft() ever makes, by id, no
+ * userId or applicationId needed because the id itself
+ * (crypto.randomUUID(), minted by beginDraft() above) is already
+ * unguessable and already scoped to the row it names. A caller with the
+ * wrong id (one that does not exist any more, an application that was
+ * deleted between beginDraft() and this call landing) gets a silent no-op:
+ * see this file's own header, never throws for "no rows".
+ */
+export async function completeDraft(id: string, fields: CompleteDraftFields): Promise<void> {
+  await db().query(
+    `UPDATE generated_render SET
+       status = $2,
+       payload = $3::jsonb,
+       provider = $4,
+       model = $5
+     WHERE id = $1`,
+    [id, fields.status, JSON.stringify(fields.payload), fields.provider, fields.model]
+  );
+}
+
+/**
+ * Ends one draft as 'failed' with the reason, clearing any payload. Only a
+ * row still 'pending' is touched: a draft that already settled keeps its
+ * result, so a late failure signal from a superseded attempt cannot undo a
+ * finished document. The reason is a sentence our own code minted, never a
+ * provider body (see generation-preference-store.ts), so it can never carry
+ * a key; the column's own CHECK caps it at 1000 characters and this slices
+ * to stay inside it.
+ */
+export async function failDraft(id: string, reason: string): Promise<void> {
+  await db().query(
+    `UPDATE generated_render SET
+       status = 'failed',
+       failure_reason = $2,
+       payload = NULL
+     WHERE id = $1 AND status = 'pending'`,
+    [id, reason.slice(0, 1000)]
+  );
+}
+
+/**
+ * Claims one job-draft row for rendering: stamps started_at on a row that is
+ * still pending and has not been claimed, scoped to the owner, posting and
+ * kind the caller was told. True when this call made the claim; false when
+ * the row was already claimed, already settled, or not what the caller
+ * described. The run endpoint's replay guard: a second request for the same
+ * row finds nothing to claim and renders nothing.
+ */
+export async function claimJobRender(id: string, userId: string, jobId: string, kind: RenderKind): Promise<boolean> {
+  const result = await db().query(
+    `UPDATE generated_render SET started_at = now()
+     WHERE id = $1 AND user_id = $2 AND job_id = $3 AND kind = $4
+       AND status = 'pending' AND started_at IS NULL`,
+    [id, userId, jobId, kind]
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/* -------------------------------------------------------------------------
+   Reads.
+   ------------------------------------------------------------------------- */
+
+const RENDER_COLUMNS = 'id, kind, status, payload, provider, model, failure_reason, started_at, updated_at';
+
+/**
+ * Both drafts for one application, scoped to userId so an id copied from
+ * someone else's draft room matches nothing rather than reading their
+ * render. null for a kind that was never started (no beginDraft() call
+ * yet) or that belongs to a different application/user than the one asked
+ * for; both null is the honest "nothing was ever drafted here" state the
+ * draft room's own empty state reads.
+ */
+export async function getRenders(
+  userId: string,
+  applicationId: number
+): Promise<{ resume: RenderRow | null; cover: RenderRow | null }> {
+  const { rows } = await db().query<GeneratedRenderRow>(
+    `SELECT ${RENDER_COLUMNS} FROM generated_render WHERE user_id = $1 AND application_id = $2`,
+    [userId, applicationId]
+  );
+  const byKind = new Map(rows.map((row) => [row.kind, rowToRenderRow(row)] as const));
+  return { resume: byKind.get('resume') ?? null, cover: byKind.get('cover') ?? null };
+}
+
+/* -------------------------------------------------------------------------
+   Job drafts: the one-click button's rows (db/022_job_draft.sql). Same table,
+   keyed by the posting's slug instead of an application, application_id null.
+   No desk_application stamp, because a job draft has no application: it is
+   tied to the posting, not to anything the person did, which is the whole
+   point of a draft that is not an apply.
+   ------------------------------------------------------------------------- */
+
+/**
+ * Starts a job draft: one 'pending' row per kind for this (user, job), each
+ * with a fresh id, application_id null and job_id set to the posting's slug.
+ * A prior job draft for the same posting is deleted first, so a second press
+ * starts fresh rather than appending: one resume and one cover per posting,
+ * the same "no history to pick from" shape beginDraft() keeps for an
+ * application. Scoped to userId like every write in this file.
+ */
+export async function beginJobDraft(
+  userId: string,
+  jobId: string,
+  reason: string | null = null
+): Promise<{ resumeId: string; coverId: string }> {
+  const resumeId = randomUUID();
+  const coverId = randomUUID();
+
+  await db().query('DELETE FROM generated_render WHERE user_id = $1 AND job_id = $2', [userId, jobId]);
+
+  for (const [id, kind] of [
+    [resumeId, 'resume'],
+    [coverId, 'cover']
+  ] as const) {
+    // The note (db/027) is written only on the cover row: it is the letter's
+    // opening anchor and the resume has no channel for it. It is kept so a
+    // later cover-only retry, which has no payload to read it back from, can
+    // still open the letter with the person's own words.
+    await db().query(
+      `INSERT INTO generated_render (id, user_id, application_id, job_id, kind, status, payload, provider, model, reason)
+       VALUES ($1, $2, NULL, $3, $4, 'pending', NULL, NULL, NULL, $5)`,
+      [id, userId, jobId, kind, kind === 'cover' ? reason : null]
+    );
+  }
+
+  // The first-draft funnel milestone, best-effort. Kept only once per person.
+  await recordEvent(userId, 'first_draft');
+
+  return { resumeId, coverId };
+}
+
+/**
+ * Restarts ONE document of a job draft, leaving the other alone: deletes just
+ * this kind's row and inserts a fresh 'pending' one. The per-document retry the
+ * room's "Draft the cover letter again" button drives. The partial unique index
+ * generated_render_job_uidx (user, job, kind) is per kind, so replacing one row
+ * while its sibling stands is allowed. A cover retry carries the note forward:
+ * the caller's `reason` when the form still holds it, else the value the deleted
+ * row was keeping (db/027), so the person's words are never lost to a retry.
+ */
+export async function beginJobDraftDocument(
+  userId: string,
+  jobId: string,
+  kind: RenderKind,
+  reason: string | null = null
+): Promise<{ id: string; reason: string | null }> {
+  const id = randomUUID();
+  const deleted = await db().query<{ reason: string | null }>(
+    'DELETE FROM generated_render WHERE user_id = $1 AND job_id = $2 AND kind = $3 RETURNING reason',
+    [userId, jobId, kind]
+  );
+  const carried = reason ?? deleted.rows[0]?.reason ?? null;
+  const stored = kind === 'cover' ? carried : null;
+  await db().query(
+    `INSERT INTO generated_render (id, user_id, application_id, job_id, kind, status, payload, provider, model, reason)
+     VALUES ($1, $2, NULL, $3, $4, 'pending', NULL, NULL, NULL, $5)`,
+    [id, userId, jobId, kind, stored]
+  );
+  return { id, reason: stored };
+}
+
+/**
+ * Both drafts for one posting, scoped to userId. null for a kind never
+ * started; both null is the honest "nothing was ever drafted for this
+ * posting" state the job draft room's own empty state reads, the same shape
+ * getRenders() returns for an application.
+ */
+export async function getJobRenders(
+  userId: string,
+  jobId: string
+): Promise<{ resume: RenderRow | null; cover: RenderRow | null }> {
+  const { rows } = await db().query<GeneratedRenderRow>(
+    `SELECT ${RENDER_COLUMNS} FROM generated_render WHERE user_id = $1 AND job_id = $2`,
+    [userId, jobId]
+  );
+  const byKind = new Map(rows.map((row) => [row.kind, rowToRenderRow(row)] as const));
+  return { resume: byKind.get('resume') ?? null, cover: byKind.get('cover') ?? null };
+}
+
+/**
+ * How many job-draft render rows this person has started in the last `windowMs`.
+ * A per-user rate signal for the draft endpoint: each draft writes one or two of
+ * these rows, each carrying up to two model calls on the person's own key, so
+ * counting recent rows bounds how fast a session can spend that key's credit and
+ * the platform's function time. Scoped to userId and to job drafts (job_id set),
+ * like every read here.
+ */
+export async function countRecentJobRenders(userId: string, windowMs: number): Promise<number> {
+  const sinceIso = new Date(Date.now() - windowMs).toISOString();
+  const { rows } = await db().query<{ n: string }>(
+    'SELECT count(*)::text AS n FROM generated_render WHERE user_id = $1 AND job_id IS NOT NULL AND created_at >= $2',
+    [userId, sinceIso]
+  );
+  return Number(rows[0]?.n ?? '0');
+}

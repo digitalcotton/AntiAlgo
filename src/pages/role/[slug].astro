@@ -1,0 +1,1554 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ApplyAction from '../../components/job-detail/ApplyAction.astro';
+import ClosedHistory from '../../components/job-detail/ClosedHistory.astro';
+import ClosureRecord from '../../components/job-detail/ClosureRecord.astro';
+import DescriptionSlot from '../../components/job-detail/DescriptionSlot.astro';
+import EasePanel from '../../components/EasePanel.astro';
+import FitBadge from '../../components/FitBadge.astro';
+import FitBars from '../../components/FitBars.astro';
+import ApplyWindow from '../../components/job-detail/ApplyWindow.astro';
+import KeyValueList from '../../components/KeyValueList.astro';
+import LiveSiblings from '../../components/job-detail/LiveSiblings.astro';
+import Mark from '../../components/Mark.astro';
+import MarkLegend from '../../components/MarkLegend.astro';
+import NewHereStrip from '../../components/NewHereStrip.astro';
+import PostingBiography from '../../components/job-detail/PostingBiography.astro';
+import ProvenancePanel from '../../components/ProvenancePanel.astro';
+import {
+  ABSENCE,
+  ageOf,
+  applyLabel,
+  easeSegments,
+  formatDate,
+  formatDays,
+  loadJobs,
+  markStateOf,
+  sourceLabel,
+  sweptStamp,
+  type Job
+} from '../../lib/data';
+import type { KeyValueRow } from '../../lib/ui';
+import { jobCardImagePath, jobPath, routeFor } from '../../data/nav';
+import { SITE } from '../../data/site';
+import {
+  applyCaption,
+  jobPostingLd,
+  rowPosition,
+  statusStamp,
+  summaryParts,
+  verifiedCount
+} from '../../components/job-detail/detail';
+// Only for the Save/Track panel's GET /auth/get-session check below.
+// /auth/* is Better Auth's own mounted route, not one of this site's pages,
+// so it is reached the same way src/pages/sign-in.astro's own script
+// reaches /auth/sign-in/email: withBase() directly, never routeFor(), which
+// only knows routes ROUTES itself registers.
+import { withBase } from '../../../site.config.mjs';
+
+/**
+ * One page per posting, route /jobs/<slug>. Built to design/job-detail-page2.html,
+ * which contains both variants on one sheet.
+ *
+ * THIS IS THE SEO SURFACE AND THE PROOF SURFACE AT THE SAME TIME, and the two
+ * pull in opposite directions. A page that ranks wants prose; a page that
+ * proves wants receipts and nothing else. The canvas resolves it by putting the
+ * provenance panel beside the apply action rather than below the fold, so the
+ * claim "verified at source" is checkable at the moment a reader decides. That
+ * placement is the whole reason this page is laid out in two columns.
+ *
+ * TWO VARIANTS, ONE ROUTE.
+ *
+ *   live    the facts as posted, the description slot, the fit reasoning in
+ *           full, the provenance panel, the ease panel, the insight strip and
+ *           the apply action naming its destination.
+ *   closed  a plain announcement, the full history, the closure record, and the
+ *           roles at the same company that were verified live on this sweep.
+ *           No apply path exists anywhere on it, no JSON-LD is emitted, and the
+ *           route still returns 200 because a closure is part of the index
+ *           rather than a deletion from it.
+ *
+ * WHAT THIS PAGE COMPUTES: nothing. Every age, duration, ordering and label
+ * comes out of src/lib/data.ts, and the three things this route needs that the
+ * shared layer does not own (the expiry window, the row position and the apply
+ * caption) live in components/job-detail/detail.ts, where the markdown twin and
+ * the share card read the same answers.
+ *
+ * WHERE IT LEAVES THE CANVAS, deliberately, each logged in DECISIONS.md:
+ *
+ *   1. No per-component reasoning prose under the fit bars. The canvas writes a
+ *      sentence per component for one hand-worked example and the records carry
+ *      no such field, so generating them would be inventing the machine's
+ *      reasoning.
+ *   2. No "same family" list on the closed page. It needs a role family the
+ *      sweep does not emit, and reading one out of job titles is the
+ *      classification that was already refused twice on this site.
+ *   3. The mobile sheet collapses the provenance timeline and the fit reasoning
+ *      behind disclosure controls. Both live in shared components this route
+ *      does not own, so the sections stack in full instead. Nothing is hidden
+ *      and nothing is duplicated; only the affordance is missing.
+ *
+ * POSTING BIOGRAPHY (MASTER-SPEC F10, RUN-FINISH phase 7), added after the
+ * canvas. PostingBiography sits beside ProvenancePanel on both variants:
+ * first seen, published date with its basis, and lifecycle to date, read
+ * through the same helpers ProvenancePanel and the markdown twin already use.
+ * Its repost row is gated on the `repost_biography` flag, locked false in
+ * both editions, and renders no field the Job type does not carry: the site
+ * never computes a repost claim from data it does not hold. See that
+ * component's own header for the full reasoning.
+ */
+
+export async function getStaticPaths() {
+  // Every record gets a page, closed included. The archive is the product.
+  return loadJobs().map((job) => ({ params: { slug: job.slug }, props: { job } }));
+}
+
+interface Props {
+  job: Job;
+}
+
+const { job } = Astro.props;
+
+const isClosed = job.status === 'closed';
+const age = ageOf(job);
+const source = sourceLabel(job);
+const route = jobPath(job.slug);
+const canonical = new URL(route, SITE.url).href;
+
+/**
+ * The facts, as posted. Five rows, and three of them can be an absence.
+ *
+ * The values keep the source's own case, which is why this grid overrides
+ * KeyValueList's uppercase further down. A job title is the employer's
+ * sentence and "as posted" is the heading over it: normalising the case here
+ * would make this a summary of the posting rather than a record of it.
+ */
+const facts: KeyValueRow[] = [
+  { key: 'Title', value: job.title },
+  {
+    key: 'Compensation',
+    value: job.comp_posted ? `${job.comp_posted}, range posted at source` : null,
+    absence: `${ABSENCE.value} at source`
+  },
+  { key: 'Location', value: job.location },
+  {
+    key: 'Posted date',
+    value: formatDate(job.published_date),
+    absence: `${ABSENCE.date} at source`
+  },
+  { key: 'Source system', value: source }
+];
+
+/*
+ * Age is not joined into this array. summaryParts() would fold it into the
+ * same plain string as the comp range and the location, and a marker cannot
+ * be attached to a substring: the age has to be its own element in the DOM to
+ * carry data-truth="machine" the way JobRow's own age cell does. So the
+ * duration is asked for separately below, right where it renders.
+ */
+const summary = summaryParts(job, null);
+const position = rowPosition(job);
+
+// The stamp along the top bar. Live rows say where they sat in the table and
+// under which sort, because a position with no stated order is not a fact.
+const barStamp = isClosed
+  ? `Archived record · swept ${sweptStamp()}`
+  : `Swept ${sweptStamp()}`;
+
+const closedStamp = isClosed
+  ? [
+      'Closed',
+      job.closed_on ? `detected ${formatDate(job.closed_on)}` : null,
+      `confirmed ${sweptStamp()}`
+    ]
+      .filter(Boolean)
+      .join(' · ')
+  : null;
+
+const title = isClosed ? `${job.title} at ${job.company}, closed` : `${job.title} at ${job.company}`;
+
+const description = isClosed
+  ? `${job.company} posted ${job.title}. The posting closed at source and the record is archived here, with its full history.`
+  : `${job.title} at ${job.company}. ${job.location}. Read direct from ${source} and verified live at source on the sweep of ${sweptStamp()}.`;
+
+/**
+ * JSON-LD on live pages only.
+ *
+ * Google's own guidance is that an expired posting should stop carrying
+ * JobPosting markup, and the product rule points the same way: structured data
+ * is a machine-readable claim that a role is open, and this one is not. The
+ * page stays, the record stays, the claim goes.
+ */
+const ld = isClosed ? null : JSON.stringify(jobPostingLd(job, canonical), null, 2);
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  active="index"
+  image={jobCardImagePath(job.slug)}
+  ogType="article"
+>
+  {ld && <script type="application/ld+json" is:inline set:html={ld} />}
+
+  <div class="shell">
+    <article class="detail" data-variant={isClosed ? 'closed' : 'live'}>
+      <div class="detail-bar">
+        <a class="detail-back" href={routeFor('index')}>Back to the index</a>
+
+        <p class="detail-stamp mono">
+          {
+            position !== null && (
+              <>
+                Row <span data-truth="machine">{position}</span> of{' '}
+                <span
+                  data-truth="tile"
+                  data-truth-metric="verified_live"
+                  data-truth-value={String(verifiedCount())}>{verifiedCount()}</span
+                > by fit ·{' '}
+              </>
+            )
+          }
+          {barStamp}
+        </p>
+      </div>
+
+      {
+        /*
+          The three-beat orientation strip, on the surface most first-time
+          readers actually arrive on. This route is the Google Jobs landing
+          surface and the reason the product is served under the mothership's
+          path at all, so a reader's first screen is far more often a posting
+          than the index. Until 2026-08-18 the strip shipped on the index and the
+          report only, which put the orientation everywhere except the door.
+
+          LIVE PAGES ONLY, and the condition is not a preference. The strip's
+          third beat renders "96H", which DECISIONS.md, 2026-08-17, allows as
+          shorthand for the odds window only where the sourced sentence it points
+          at is on the same page, and says to drop where it would travel alone.
+          On a live posting that sentence is the arrival-window strip in the
+          aside below ("41% of applications arrive within 48 hours, 56% within
+          96", St. Louis Fed), which facts.json licenses to /role/*. The closed
+          variant renders no such sentence, because there is no apply action for
+          an odds window to inform, so the shorthand would be uncited there and
+          the strip stays off. Same test, opposite answer, one rule.
+
+          It sits under the bar rather than above the article, so it is inside
+          the record's own box and reads as furniture on this page rather than as
+          a second banner stacked on the site header.
+
+          NO WRAPPER AND NO CLASS, unlike the report's placement, and that is
+          measured rather than assumed: the strip's own padding is space-300 by
+          space-600, and space-400 inline below the phone breakpoint, which are
+          the two values .detail-bar directly above it already uses. It draws its
+          own bottom hairline exactly as the bar does. There is nothing left for
+          a page rule to say, and a class passed to a component arrives on that
+          component's root without this page's scope attribute, so the rule would
+          not have applied anyway. See the note on .ease-slot below.
+        */
+        !isClosed && <NewHereStrip surface="raised" />
+      }
+
+      {
+        isClosed && (
+          /*
+            The announcement. It states what the machine observed and what this
+            page will not do, and it assigns no motive: why a posting closed is
+            not something an ATS feed can tell us, so the reason of record is
+            quoted from the source in the history and the closure panel rather
+            than narrated here.
+          */
+          <header class="closed-banner">
+            <p class="closed-stamp mono">
+              <Mark state="closed" surface="raised" />
+              {closedStamp}
+            </p>
+            <h1 class="closed-title">This posting closed.</h1>
+            <p class="closed-lede">
+              The machine found this posting closed at source and archived the record. Nothing on
+              this page accepts applications, because a closed role that still takes them is a
+              resume black hole, and we do not operate one.
+            </p>
+          </header>
+        )
+      }
+
+      <div class="detail-grid">
+        <div class="detail-main">
+          <div class="detail-card">
+          <header class="role">
+            {/*
+              The kicker. Live rows lead with the mark and its text partner,
+              because the first thing a reader needs is whether this was checked
+              last night. A closed record leads with the company, because the
+              banner above it has already said what state it is in and repeating
+              the word here would be the loudest thing on the page said twice.
+              The separators are written as their own elements rather than typed
+              into the strings, so a missing segment never leaves a stray dot.
+            */}
+            <p class="role-meta mono">
+              {!isClosed && <Mark state={markStateOf(job)} surface="raised" />}
+              {
+                isClosed ? (
+                  <>
+                    <span class="role-company">{job.company}</span>
+                    <span class="role-dot" aria-hidden="true">
+                      ·
+                    </span>
+                    <span class="role-source">{source}</span>
+                    <span class="role-dot" aria-hidden="true">
+                      ·
+                    </span>
+                    <span>As posted, held for the record</span>
+                  </>
+                ) : (
+                  <>
+                    <span class="role-status-live">{statusStamp(job)}</span>
+                    <span class="role-dot" aria-hidden="true">
+                      ·
+                    </span>
+                    <span class="role-company">{job.company}</span>
+                    <span class="role-dot" aria-hidden="true">
+                      ·
+                    </span>
+                    <span class="role-source">{source}</span>
+                  </>
+                )
+              }
+            </p>
+
+            {
+              isClosed ? (
+                /* The role title is an h2 here because the announcement above it
+                   is the page's subject. On a live page the title is the h1. */
+                <h2 class="role-title role-title-closed">{job.title}</h2>
+              ) : (
+                <h1 class="role-title">{job.title}</h1>
+              )
+            }
+
+            <p class="role-summary mono">
+              {summary.join(' · ')}
+              {
+                /*
+                  The age, marked. JobRow.astro wraps the same duration in
+                  data-truth="machine" on the index row, and this line is the
+                  same fact restated on the detail page: a number the machine
+                  measured, not a number anyone posted. It renders here on both
+                  variants, closed included, because a closed posting's age is
+                  still the machine's own reading and the gate has no way to
+                  tell "unmarked because there is nothing here" from "unmarked
+                  because we forgot to say so" until a human tells it which.
+                */
+                age && (
+                  <>
+                    {summary.length > 0 && <span class="role-dot" aria-hidden="true">·</span>}{' '}
+                    <span data-truth="machine">{formatDays(age.days)}</span>
+                  </>
+                )
+              }
+              {
+                !isClosed && (
+                  <span class="role-fit-pair">
+                    <span class="role-dot" aria-hidden="true">·</span> Fit{' '}
+                    <FitBadge job={job} class="role-fit" />
+                  </span>
+                )
+              }
+              {isClosed && !job.comp_posted && ABSENCE.value}
+            </p>
+          </header>
+
+          {
+            isClosed ? (
+              <ClosedHistory job={job} />
+            ) : (
+              <>
+                <section class="facts" aria-labelledby={`facts-${job.slug}`}>
+                  <h2 class="facts-title mono-label" id={`facts-${job.slug}`}>
+                    The facts, as posted
+                  </h2>
+                  <KeyValueList rows={facts} class="facts-list" />
+                </section>
+
+                <DescriptionSlot job={job} />
+
+                <section class="fit" aria-labelledby={`fit-${job.slug}`}>
+                  <div class="fit-head">
+                    <h2 class="fit-title mono-label" id={`fit-${job.slug}`}>
+                      Fit reasoning, in full
+                    </h2>
+                    <FitBadge job={job} size="detail" />
+                  </div>
+
+                  <FitBars job={job} />
+
+                  <p class="fit-method">
+                    <a href={routeFor('methodology')}>How the rubric is scored</a>
+                  </p>
+                </section>
+              </>
+            )
+          }
+          </div>
+
+          {/* Across the column rather than in the sidebar, because it is a
+              scale and a scale needs width to be read. It also replaces the
+              arrival-window strip that used to sit in the sidebar: that strip
+              stated the fact, this one states the fact AND where this posting
+              sits in it, and one page saying the same number twice is one page
+              a reader stops trusting the second time. */}
+          {!isClosed && <ApplyWindow job={job} route={route} class="detail-window" />}
+        </div>
+
+        <aside class="detail-aside" aria-label={isClosed ? 'The record' : 'Provenance and applying'}>
+          <ProvenancePanel job={job} />
+          <PostingBiography job={job} />
+
+          {
+            isClosed ? (
+              <ClosureRecord job={job} />
+            ) : (
+              /*
+                The wrapper is not decoration. A scoped style reaches an element
+                this template renders; a class passed down to a child component
+                arrives on that component's root without this page's scope
+                attribute, so `.ease-panel { display: none }` would match
+                nothing. Measured, not assumed: the rule shipped and the panel
+                stayed visible at 375. Owning the element means owning the rule.
+              */
+              <div class="ease-slot">
+                <EasePanel job={job} />
+              </div>
+            )
+          }
+
+          {isClosed && <LiveSiblings job={job} />}
+
+          {
+            !isClosed && (
+              <>
+                {/*
+                  One strip per page, placed where it changes behaviour: directly
+                  above the apply action. The statistic is quoted from
+                  src/data/facts.json by id and the follow-through carries no
+                  numeral of its own, because gate 2 reads every sentence in a
+                  strip as a potential claim.
+                */}
+                <div class="odds">
+                  {age && (
+                    <p class="odds-age">
+                      {age.basis === 'published_date' ? (
+                        <>
+                          This posting is <span data-truth="machine">{formatDays(age.days)}</span> old,
+                          counted from the date the source published.
+                        </>
+                      ) : (
+                        <>
+                          We have watched this posting for{' '}
+                          <span data-truth="machine">{formatDays(age.days)}</span>. The source shows no
+                          date, so that is a floor on its age rather than its age.
+                        </>
+                      )}
+                    </p>
+                  )}
+
+                </div>
+
+                {/* The ease summary the canvas puts above the button at phone
+                    width, where the panel above is hidden to keep the action
+                    within a thumb reach of the receipts. */}
+                <p class="ease-summary mono">
+                  {easeSegments(job).map((part, i) => (
+                    <>
+                      {i > 0 && <span class="ease-sep" aria-hidden="true"> &#183; </span>}
+                      <span class="ease-part">{part}</span>
+                    </>
+                  ))}
+                </p>
+
+                {
+                  /*
+                    THE MERGED PRIMARY BUTTON (this task's own brief). One
+                    click used to mean two separate trips: ApplyAction's own
+                    <a> opened the posting, and a second "Track this
+                    application" form, built by script further down, wrote
+                    the 'clicked' row. They are now one control: clicking it
+                    opens the posting in a new tab AND records the click,
+                    the same instant, and the page in front of the reader
+                    swaps to say so ("Tracking on your Desk").
+
+                    THE COVENANT THIS BLOCK DOES NOT TOUCH (MASTER-SPEC F4:
+                    "a click is not an application"). The form below posts
+                    intent=click, the one branch of src/pages/desk/
+                    application.ts that writes only 'clicked' (see
+                    createApplicationFromClick()'s own header); it carries
+                    no `answer` field and no `to` field, the two things
+                    src/lib/desk.ts's transition() requires, and refuses
+                    without, to ever reach 'applied'. Nothing on this page
+                    calls the one function that can build a
+                    PersonConfirmation, src/lib/desk.ts's own
+                    recordPersonConfirmation; nothing on this page has any
+                    way to. A click is not applied, structurally, here
+                    exactly as it was before this task.
+
+                    WHY BOTH APPLYACTION AND THIS FORM EXIST ON THE PAGE AT
+                    ONCE, ONE HIDDEN. This route is prerendered, built once
+                    for nobody (getStaticPaths above): there is no
+                    per-request viewer to read here, so this template
+                    cannot know, at build time, whether the reader who
+                    eventually loads it is signed in. A form that posts
+                    intent=click while signed out hits /desk/application's
+                    own 401 ("Not signed in.", plain text, no link back),
+                    which is exactly the silent, dishonest failure this
+                    control is not allowed to be. So the form below ships
+                    `hidden` in the static HTML, ApplyAction (untouched,
+                    imported and rendered exactly as before) ships visible,
+                    and only the script at the foot of this file, after a
+                    same-origin call to Better Auth's own already-mounted
+                    GET /auth/get-session confirms a live session, swaps
+                    which one is showing. No endpoint was added to make
+                    that check: get-session is Better Auth's own route,
+                    called here, never modified, same as sign-in.astro's
+                    own script already calls a Better Auth route by its
+                    bare path.
+
+                    SIGNED OUT, OR JAVASCRIPT NEVER RUNS: APPLYACTION'S OWN
+                    LINK, NEVER A FORM THAT COULD FAIL. ApplyAction's <a
+                    href> is the same static anchor it always was, reachable
+                    and fully functional with JavaScript off, before this
+                    script runs, and if /auth/get-session ever errors: the
+                    `hidden` form is either never revealed or, for a true
+                    no-JS reader, revealed by nothing at all, and stays
+                    exactly as inert as an element with no click handler
+                    and a method/action nothing ever submits it to.
+                    TRACKING (AND THE BACKGROUND DRAFT BEHIND IT) IS
+                    ADDITIVE, NEVER A GATE ON APPLYING: if the merge cannot
+                    happen, opening the posting still does, exactly as
+                    before.
+
+                    THE NO-JS PATH THAT DOES WORK: A REAL <form>, NOT A
+                    SCRIPT-ONLY FETCH. Unlike the old track-panel (built
+                    from nothing by document.createElement()), the form
+                    below is real, static markup this template renders, the
+                    same way ApplyAction's own <a> is. The enhancement
+                    script prevents its default submission and does the
+                    smoother thing (open a tab, POST in the background, swap
+                    the page in place); but if that script fails to attach
+                    for any reason after already revealing the form (a
+                    later script error, fetch blocked by an extension), the
+                    form still submits the ordinary way: target="_blank"
+                    opens a new tab, that tab's own POST records the click,
+                    and the `then=posting` field (src/pages/desk/
+                    application.ts's own additive field; see that file's
+                    header) tells the server to answer with a redirect
+                    straight to the posting instead of back to the Desk, so
+                    even that degraded path still opens the posting and
+                    still tracks it, in the one tab, in the one action. Only
+                    the in-place "Tracking on your Desk" swap on THIS tab is
+                    JS-only; see this task's own report for that named
+                    plainly rather than overclaimed.
+
+                    Every value below (job.apply_url, job.title, job.company)
+                    is the same public job data this page already renders
+                    elsewhere, never anything about a viewer: the static
+                    HTML this route emits is identical for every reader,
+                    satisfying the same "no person-specific data on a
+                    prerendered page" rule gate 11 checks.
+
+                    titleOverride/companyOverride exist for one reason:
+                    src/pages/desk/application.ts's click intent already
+                    accepts them, for the one case its own jobForUrl() fails
+                    to match this posting back to the published jobs file (a
+                    stale apply_url, a redirect, a URL that moved), so the
+                    Desk shows a real title and company instead of
+                    "Untitled role" / "Unknown company". The server still
+                    re-resolves the URL first; these two fields only fill
+                    the label on a failed match, never override a real one.
+
+                    THE PRIMARY NOW WAITS FOR ONE MORE ANSWER (this same
+                    task's own addition): drafting. The listing still opens
+                    the instant this form's submit handler runs, same as
+                    before, but the tab this page owns no longer swaps
+                    straight to "Tracking on your Desk": it POSTs the click
+                    with `Accept: application/json`, and application.ts's
+                    click branch (see that file's header, "THE JSON
+                    RESPONSE") answers whether a resume and cover letter
+                    started drafting against this posting. When they did,
+                    this tab becomes the draft room (deskDraftPath) instead
+                    of the tracked notice; when they did not (no key, the
+                    reader chose "Apply without drafting", the trigger
+                    declined), the tracked notice is exactly what it always
+                    was. Below, `.apply-secondary-form` and `.apply-nudge`
+                    are the two ways a signed-in reader learns which of
+                    those outcomes to expect before ever clicking: one lets
+                    them opt out in advance, the other tells them there is
+                    nothing to opt out of yet.
+                  */
+                }
+                <div
+                  class="apply-panel"
+                  id="apply-panel"
+                  data-session-url={withBase('/auth/get-session')}
+                  data-drafting-status-url={routeFor('desk-drafting-status')}
+                >
+                  <div class="apply-primary-default" id="apply-primary-default">
+                    <ApplyAction job={job} />
+                  </div>
+
+                  {
+                    job.apply_url && (
+                      <form
+                        class="apply-primary-form"
+                        id="apply-primary-form"
+                        method="POST"
+                        action={routeFor('desk-application')}
+                        target="_blank"
+                        hidden
+                      >
+                        <input type="hidden" name="intent" value="click" />
+                        <input type="hidden" name="url" value={job.apply_url} />
+                        <input type="hidden" name="then" value="posting" />
+                        {job.title && <input type="hidden" name="titleOverride" value={job.title} />}
+                        <input type="hidden" name="companyOverride" value={job.company} />
+                        <button class="apply-primary-button" type="submit">
+                          {applyLabel(job)}
+                          <span aria-hidden="true">&#8599;</span>
+                          <span class="visually-hidden">, opens in a new tab</span>
+                        </button>
+                        <p class="apply-caption mono-label">{applyCaption(job)}</p>
+                      </form>
+                    )
+                  }
+
+                  {
+                    /*
+                      THE QUIET SECONDARY: "APPLY WITHOUT DRAFTING" (this
+                      task's own brief). Posts the same intent=click, the
+                      same url/overrides, the same target=_blank as the
+                      primary form above, plus one additive field,
+                      `draft=skip`, that src/pages/desk/application.ts's
+                      click branch reads to skip the background generation
+                      trigger entirely (see that file's header, "THE
+                      BACKGROUND GENERATION TRIGGER"): the click itself is
+                      still recorded, exactly as the primary records it,
+                      only the draft is declined.
+
+                      SHIPS HIDDEN, REVEALED ONLY WHEN DRAFTING IS ACTUALLY
+                      ON OFFER. There is nothing to skip for a reader who
+                      has no key stored: revealing this control for every
+                      signed-in reader regardless would read as a choice
+                      between two working paths when, for most readers
+                      today (no KEY_ENCRYPTION_SECRET, no key, no opt-in),
+                      there is only one. The enhancement script below
+                      reveals it only after GET /desk/drafting-status
+                      answers `{ available: true }`; the no-key nudge
+                      further down is what a reader with drafting NOT
+                      available sees in this same slot instead.
+                    */
+                  }
+                  {
+                    job.apply_url && (
+                      <form
+                        class="apply-secondary-form"
+                        id="apply-secondary-form"
+                        method="POST"
+                        action={routeFor('desk-application')}
+                        target="_blank"
+                        hidden
+                      >
+                        <input type="hidden" name="intent" value="click" />
+                        <input type="hidden" name="url" value={job.apply_url} />
+                        <input type="hidden" name="then" value="posting" />
+                        <input type="hidden" name="draft" value="skip" />
+                        {job.title && <input type="hidden" name="titleOverride" value={job.title} />}
+                        <input type="hidden" name="companyOverride" value={job.company} />
+                        <button class="apply-secondary-button" type="submit">Apply without drafting</button>
+                      </form>
+                    )
+                  }
+
+                  <p class="apply-tracked" id="apply-tracked" hidden>
+                    Tracking on your Desk.{' '}
+                    <a href={routeFor('desk')}>Open your Desk</a>
+                  </p>
+
+                  {
+                    /* The no-key nudge: the same drafting-status slot as the
+                       secondary form just above, shown instead of it when
+                       GET /desk/drafting-status answers `{ available:
+                       false }` for a signed-in reader (byok off, no key
+                       stored, or the preference itself off; see that
+                       route's own header for which). routeFor('settings'),
+                       not a data attribute, because this link is static
+                       markup this template already renders, the same way
+                       apply-tracked's "Open your Desk" link above is: only
+                       the URL this script itself fetches (drafting-status,
+                       on the panel above) needs to reach the client as a
+                       data-* value. */
+                  }
+                  <p class="apply-nudge mono-label" id="apply-nudge" hidden>
+                    Add a provider key in <a href={routeFor('settings')}>Settings</a> and applying drafts your resume
+                    and cover letter.
+                  </p>
+
+                  <p class="track-invite mono-label" id="track-invite" hidden>
+                    <a href={routeFor('sign-in')}>Sign in</a> to save this role and track your application.
+                  </p>
+
+                  {
+                    /*
+                      THE SECONDARY ACTION: SAVE, NOT "OPEN THE POSTING
+                      WITHOUT TRACKING". This task's brief offers a choice
+                      between demoting ApplyAction's own link to a second-
+                      rank control, or keeping Save as the secondary; see
+                      this task's own report for why Save was chosen.
+                      Short version: ApplyAction.astro is outside this
+                      task's touchable files, and its own scoped <style>
+                      already renders its <a> as a filled, bordered,
+                      primary-weight control that nothing outside that
+                      component can restyle down to a secondary look. Once
+                      the merged form above takes over as the visible
+                      primary (signed in, JS present), ApplyAction's own
+                      link is hidden, not demoted in place, so there is no
+                      second primary-looking control competing with it.
+                      Save fills the one remaining, genuinely useful slot: a
+                      person who is not ready to click out yet still has one
+                      plain action available.
+                    */
+                  }
+                  {
+                    (job.apply_url || job.source_url) && (
+                      <form class="save-form" id="save-form" method="POST" action={routeFor('desk-save')} hidden>
+                        <input type="hidden" name="intent" value="save" />
+                        <input type="hidden" name="url" value={job.apply_url || job.source_url} />
+                        <button class="save-submit" type="submit">Save to my Desk</button>
+                      </form>
+                    )
+                  }
+
+                  <noscript>
+                    <p class="track-invite mono-label">
+                      <a href={routeFor('sign-in')}>Sign in</a> to save this role and track your application.
+                    </p>
+                  </noscript>
+                </div>
+
+                {job.source_url !== job.apply_url && (
+                  /* Only where the apply path is not the posting. One record
+                     applies by email to a founder, so the posting itself would
+                     otherwise be unreachable from this page. */
+                  <p class="source-link">
+                    <a href={job.source_url} rel="noopener nofollow" target="_blank">
+                      Read the posting at source
+                      <span aria-hidden="true">&#8599;</span>
+                      <span class="visually-hidden">, opens in a new tab</span>
+                    </a>
+                  </p>
+                )}
+              </>
+            )
+          }
+        </aside>
+      </div>
+
+      <footer class="detail-foot">
+        <MarkLegend surface="page" />
+        <a class="detail-method" href={routeFor('methodology')}>Methodology</a>
+      </footer>
+    </article>
+  </div>
+</BaseLayout>
+
+<script>
+  // Progressive enhancement for the apply panel above. See that block's
+  // own comment for why this exists at all: the page is static, so it
+  // cannot know who is asking, and the one thing it must never do is
+  // reveal a form a signed-out reader would watch 401. This script is the
+  // only thing that finds out, after the page has already shipped, and
+  // every element it touches below already exists in the static HTML
+  // (this template renders both states; this script only picks one),
+  // never one it builds from nothing.
+  //
+  // ONE PANEL PER PAGE. getStaticPaths above builds one job per route, so a
+  // single id is never ambiguous here the way it would be on a listing page.
+  //
+  // NOW ALSO DECIDES DRAFT ROOM VS TRACKED NOTICE (this same task's own
+  // addition). The primary form's submit handler used to fire its click
+  // POST and immediately reveal the tracked notice; it now awaits that
+  // POST's JSON answer (src/pages/desk/application.ts's click branch, "THE
+  // JSON RESPONSE" in that file's own header) and, only when drafting
+  // actually started, sends this tab to the draft room instead. Separately,
+  // and ahead of any click, one GET to /desk/drafting-status decides
+  // whether the quiet "Apply without drafting" secondary or the no-key
+  // nudge is the one shown in that slot; see the markup block's own
+  // comment above, "THE QUIET SECONDARY", for why both exist rather than
+  // showing the secondary unconditionally.
+  const panel = document.getElementById('apply-panel');
+  const defaultSlot = document.getElementById('apply-primary-default');
+  const primaryForm = document.getElementById('apply-primary-form') as HTMLFormElement | null;
+  const secondaryForm = document.getElementById('apply-secondary-form') as HTMLFormElement | null;
+  const trackedNotice = document.getElementById('apply-tracked');
+  const nudge = document.getElementById('apply-nudge');
+  const trackInvite = document.getElementById('track-invite');
+  const saveForm = document.getElementById('save-form') as HTMLFormElement | null;
+
+  if (panel) {
+    (async () => {
+      let signedIn = false;
+      try {
+        // Better Auth's own GET /get-session, mounted at /auth by this
+        // app (src/pages/auth/[...all].ts). Returns { session, user } when
+        // a live session cookie is present, null otherwise, and never
+        // throws for "signed out": a rejected fetch (offline, blocked)
+        // is treated the same as signed out below, never as signed in.
+        const sessionUrl = panel.dataset.sessionUrl;
+        if (!sessionUrl) throw new Error('no session url');
+        const response = await fetch(sessionUrl, {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' }
+        });
+        if (response.ok) {
+          const body = await response.json();
+          signedIn = Boolean(body && body.user);
+        }
+      } catch {
+        signedIn = false;
+      }
+
+      if (!signedIn) {
+        // ApplyAction's own link (defaultSlot) is left exactly as it
+        // shipped: reachable, functional, untracked. trackInvite is the
+        // one element this branch reveals; the noscript twin further up
+        // covers the case this script never runs at all.
+        trackInvite?.removeAttribute('hidden');
+        return;
+      }
+
+      // THE MERGED PRIMARY: swap ApplyAction's own link for the real form
+      // that does both jobs in one submit. See the markup block's own
+      // comment above for the full no-JS fallback story this enables.
+      if (primaryForm) {
+        defaultSlot?.setAttribute('hidden', '');
+        primaryForm.removeAttribute('hidden');
+
+        primaryForm.addEventListener('submit', (event) => {
+          const applyUrl = (primaryForm.elements.namedItem('url') as HTMLInputElement | null)?.value;
+          if (!applyUrl) return; // No URL to open: let the plain submission run.
+
+          // Prevent the default submission and do the smoother version:
+          // open the destination immediately, inside this click's own user
+          // activation (see MDN on window.open() and transient activation;
+          // an await before this call would forfeit that and risk a
+          // popup-blocked tab), then hide this slot and find out, from the
+          // click POST's own JSON answer, whether this tab becomes the
+          // draft room or the tracked notice.
+          event.preventDefault();
+          window.open(applyUrl, '_blank', 'noopener');
+          primaryForm.setAttribute('hidden', '');
+
+          (async () => {
+            try {
+              const response = await fetch(primaryForm.action, {
+                method: 'POST',
+                body: new FormData(primaryForm),
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' }
+              });
+              if (!response.ok) throw new Error(`click POST answered ${response.status}`);
+              const body = await response.json();
+              if (body && body.drafting === 'started' && body.draftUrl) {
+                // This tab becomes the draft room; the tab window.open()
+                // already opened above still carries the listing itself.
+                window.location.href = body.draftUrl;
+                return;
+              }
+              trackedNotice?.removeAttribute('hidden');
+            } catch (error) {
+              // The listing tab already opened and the click may or may
+              // not have recorded: never navigate to a draft URL this page
+              // cannot vouch for. Fall back to the same tracked notice a
+              // successful, undrafted click would show; the person can
+              // still confirm from the Desk's own manual "paste a URL"
+              // form if the click itself failed to record.
+              console.error('role page: click tracking or drafting decision failed', error);
+              trackedNotice?.removeAttribute('hidden');
+            }
+          })();
+        });
+      }
+
+      // THE QUIET SECONDARY'S OWN HANDLER. Same shape the primary's used
+      // to be, before drafting existed to wait on: draft=skip already told
+      // application.ts's click branch not to trigger generation, so there
+      // is no JSON answer worth awaiting here, and this tab goes straight
+      // to the tracked notice, never to a draft room.
+      if (secondaryForm) {
+        secondaryForm.addEventListener('submit', (event) => {
+          const applyUrl = (secondaryForm.elements.namedItem('url') as HTMLInputElement | null)?.value;
+          if (!applyUrl) return;
+
+          event.preventDefault();
+          window.open(applyUrl, '_blank', 'noopener');
+          secondaryForm.setAttribute('hidden', '');
+          trackedNotice?.removeAttribute('hidden');
+
+          // Fire-and-forget: the tab already opened and this tab already
+          // shows "Tracking on your Desk", so a failed POST here is a
+          // click this page failed to also record, not a failed apply.
+          fetch(secondaryForm.action, {
+            method: 'POST',
+            body: new FormData(secondaryForm),
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' }
+          }).catch((error) => {
+            console.error('role page: background click tracking (apply without drafting) failed', error);
+          });
+        });
+      }
+
+      if (saveForm) {
+        saveForm.removeAttribute('hidden');
+      }
+
+      // Independent of the primary/secondary wiring above: whether
+      // drafting is even on offer for this reader, decided once, ahead of
+      // any click, by GET /desk/drafting-status (another worker's route
+      // this task only calls; see that route's own header for the
+      // { available: boolean } shape). Reveals exactly one of the two
+      // remaining hidden slots in the panel: the quiet secondary when
+      // drafting is available, the no-key nudge when it is not. A failed
+      // check (offline, blocked) reveals neither: the primary above still
+      // applies and still tracks either way, the one thing this whole
+      // panel must never gate.
+      try {
+        const draftingStatusUrl = panel.dataset.draftingStatusUrl;
+        if (!draftingStatusUrl) throw new Error('no drafting-status url');
+        const statusResponse = await fetch(draftingStatusUrl, {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' }
+        });
+        if (statusResponse.ok) {
+          const statusBody = await statusResponse.json();
+          if (statusBody && statusBody.available) {
+            secondaryForm?.removeAttribute('hidden');
+          } else {
+            nudge?.removeAttribute('hidden');
+          }
+        }
+      } catch (error) {
+        console.error('role page: drafting status check failed', error);
+      }
+    })();
+  }
+</script>
+
+<style>
+  .detail {
+    display: flex;
+    flex-direction: column;
+    margin-block: var(--space-500) var(--space-800);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    background: var(--color-surface);
+  }
+
+  /* The bar the canvas puts under the site header: the way back, and the sweep
+     this reading belongs to. */
+  .detail-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+    padding: var(--space-300) var(--space-600);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  .detail-back {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    text-decoration-color: var(--color-line-strong);
+  }
+
+  .detail-back::before {
+    /* Decorative, and inside the link's own box so it never wraps away from the
+       words it belongs to. */
+    content: '\2190\00a0';
+  }
+
+  .detail-back:hover {
+    color: var(--color-foreground);
+  }
+
+  .detail-stamp {
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin: 0;
+  }
+
+  /* -----------------------------------------------------------------------
+     The closed announcement
+     ----------------------------------------------------------------------- */
+
+  .closed-banner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    padding: var(--space-600);
+    background: var(--color-surface-raised);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  .closed-stamp {
+    display: flex;
+    align-items: center;
+    gap: var(--space-200);
+    margin: 0;
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  /* The section-heading step rather than the page-title step. The canvas sets
+     this at 30px and the house ramp's nearest step is 36px; the display step at
+     76px would make a two-word announcement the loudest thing on the site. */
+  .closed-title {
+    font-size: var(--size-500);
+    line-height: var(--leading-snug);
+  }
+
+  .closed-lede {
+    max-width: var(--layout-measure);
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+  }
+
+  /* -----------------------------------------------------------------------
+     The two columns
+     ----------------------------------------------------------------------- */
+
+  .detail-grid {
+    display: grid;
+    /* 1.55 to 1 is the canvas ratio. The minmax(0, ...) on the reading column
+       is what stops a long unbroken title from pushing the aside off the grid:
+       a grid track's default minimum is auto, which is the content's own width.
+    */
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  }
+
+  /* The reading column is a card, the same card the aside's panels are.
+     It was not, and the two columns read as different kinds of thing: the aside
+     put its content inside bordered Panels sitting in a gutter, while this side
+     painted the raised surface onto the gutter itself and drew no card at all.
+     Same page, two grammars.
+
+     So the gutter is now just a gutter, matching .detail-aside exactly, and the
+     content sits in a card whose border, surface and padding are Panel's. The
+     padding is space-400 because that is Panel's body padding, and a reading
+     column that padded itself differently from the panels beside it is the
+     mismatch that made the page feel assembled from two designs. */
+  .detail-main {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-600);
+    border-right: var(--border-hairline) solid var(--color-line);
+    min-width: 0;
+  }
+
+  .detail-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-600);
+    padding: var(--space-400);
+    background: var(--color-surface-raised);
+    border: var(--border-hairline) solid var(--color-line);
+    min-width: 0;
+  }
+
+  .detail-aside {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500);
+    padding: var(--space-600);
+    min-width: 0;
+  }
+
+  /* -----------------------------------------------------------------------
+     The role header
+     ----------------------------------------------------------------------- */
+
+  .role {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  .role-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-200);
+    flex-wrap: wrap;
+    margin: 0;
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  /* The live status stamp is the one place on this page that carries the mark
+     colour in text. It is a machine state, it sits beside its own mark, and the
+     legend at the foot of the page names it. */
+  .role-status-live {
+    color: var(--color-mark-live);
+    font-weight: var(--weight-medium);
+  }
+
+  /* The separator is quieter than the segments it separates, so the line reads
+     as three facts rather than five. */
+  .role-dot {
+    color: var(--color-line-strong);
+  }
+
+  /* The section-heading step, not the page-title step. A job title runs to 48
+     characters in this data and the display step would set four words to the
+     line on a laptop. */
+  .role-title {
+    font-size: var(--size-500);
+    line-height: var(--leading-snug);
+    max-width: var(--layout-measure);
+  }
+
+  /* A closed role is a record rather than an offer, so its title recedes to the
+     secondary tone. The announcement above it is what the page is about. */
+  .role-title-closed {
+    color: var(--color-muted);
+    font-weight: var(--weight-medium);
+  }
+
+  .role-summary {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--space-100);
+    margin: 0;
+    color: var(--color-muted);
+  }
+
+  /* FitBadge's row size is tuned to be the first thing read in a table row. In
+     a summary line it is one fact among four, so it comes down to the line it
+     sits on. Reaching in by class rather than forking the component keeps gate
+     2's data-truth marker exactly where the gate expects it. */
+  /* The label and its numeral are one fact, so they never break across lines. */
+  .role-fit-pair {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-100);
+    white-space: nowrap;
+  }
+
+  .role-summary :global(.role-fit .fit-value) {
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+  }
+
+  /* -----------------------------------------------------------------------
+     The facts, the description, the fit
+     ----------------------------------------------------------------------- */
+
+  .facts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-400);
+  }
+
+  .facts-title,
+  .fit-title {
+    color: var(--color-muted);
+  }
+
+  /* KeyValueList sets its values in upper case because every other place it is
+     used states a machine reading: a friction band, a status, a source system.
+     Here the values are the employer's own strings, and "as posted" is the
+     heading over them, so the case is theirs. Everything else the component
+     decides stays: mono for a value, sans for an absence, which is the split
+     that lets a reader tell a measurement from a gap without reading it. */
+  .facts :global(.kv-value) {
+    text-transform: none;
+    letter-spacing: var(--tracking-normal);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+  }
+
+  .fit {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-400);
+  }
+
+  .fit-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-300);
+    flex-wrap: wrap;
+  }
+
+  .fit-method {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+
+  .fit-method a,
+  .source-link a {
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    text-decoration-color: var(--color-line-strong);
+  }
+
+  .fit-method a:hover,
+  .source-link a:hover {
+    color: var(--color-foreground);
+    text-decoration-color: var(--color-foreground);
+  }
+
+  /* -----------------------------------------------------------------------
+     The aside
+     ----------------------------------------------------------------------- */
+
+  .odds {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+
+  .odds-age {
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  /* InsightStrip is drawn as a full-bleed band on the index, where it spans the
+     table. In a column it has to be a box, so it takes a border on all four
+     sides and the panel gutter instead of the band gutter. :global because the
+     element belongs to that component; the copy, the licence check and the
+     dismissal all stay its business. */
+  .odds :global(.insight-strip) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-200);
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line);
+  }
+
+  .odds :global(.insight-text) {
+    font-size: var(--size-100);
+  }
+
+  /* Each fact holds together; the line breaks between them. */
+  .ease-part {
+    white-space: nowrap;
+  }
+
+  .ease-summary {
+    display: none;
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  .source-link {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    text-align: center;
+  }
+
+  /* The apply panel itself carries no border or background of its own:
+     every child below owns its own spacing, and .apply-panel is only ever
+     a vertical stack of whichever of them is not `hidden` at the moment.
+
+     NO :global() ANYWHERE BELOW, UNLIKE THE PANEL THIS REPLACED. The old
+     Save/Track panel built its forms and buttons at runtime with
+     document.createElement(), which never receive Astro's per-component
+     scope attribute, so its rules had to reach them with :global(). Every
+     element below (apply-primary-form, apply-tracked, save-form, and the
+     rest) is real markup this template renders directly; the enhancement
+     script only toggles a `hidden` attribute on elements that already
+     carry this page's own scope, so a plain scoped selector reaches them
+     exactly as it reaches anything else in this file. */
+  .apply-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+
+  /* Respect the hidden attribute, the same reason .apply-tracked does below.
+     This form ships `hidden` and is revealed only for a signed-in reader by the
+     enhancement script; a bare `display: flex` overrode the UA
+     `[hidden] { display: none }` (author beats UA at equal specificity), so the
+     open-and-track form rendered a SECOND "Apply on ..." button beside
+     ApplyAction's own, on every signed-out and no-JS page. */
+  .apply-primary-form:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+
+  /* Matches ApplyAction.astro's own .apply-action as closely as a
+     separate scoped stylesheet can: same tokens, same box, so swapping
+     which of the two is visible never shifts the layout around it.
+     ApplyAction.astro is outside this task's touchable files, so this is
+     a second, independent declaration of the same visual values, not a
+     shared rule; see this block's own comment further up for why that
+     duplication is the actual constraint here, not an oversight. */
+  .apply-primary-button {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: var(--space-200);
+    width: 100%;
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-heavy) solid var(--color-foreground);
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    font-weight: var(--weight-bold);
+    font-size: var(--size-200);
+    font-family: var(--font-family-sans);
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .apply-primary-button:hover {
+    background: var(--color-surface-raised);
+    color: var(--color-foreground);
+  }
+
+  .apply-caption {
+    color: var(--color-muted);
+    text-align: center;
+    line-height: var(--leading-snug);
+  }
+
+  /* The quiet secondary, "Apply without drafting": a plain link-weight
+     control, deliberately lighter than .apply-primary-button and
+     .save-submit alike, so nothing here competes with the primary for
+     attention. Hidden until the enhancement script's own drafting-status
+     check reveals it (see that script's own comment); guarded the same
+     way .apply-tracked below is, so the bare rule here never overrides
+     the hidden attribute before the script has decided anything. */
+  .apply-secondary-form:not([hidden]) {
+    display: flex;
+    justify-content: center;
+  }
+
+  .apply-secondary-button {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    font-family: var(--font-family-sans);
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .apply-secondary-button:hover {
+    color: var(--color-foreground);
+  }
+
+  /* Respect the hidden attribute. The box ships `hidden` and is only revealed
+     by the enhancement script after a click; a bare `.apply-tracked { display:
+     flex }` overrides the UA `[hidden] { display: none }` (author beats UA at
+     equal specificity), so the "Tracking on your Desk" state showed before any
+     click, implying a posting was tracked when it was not. `:not([hidden])`
+     keeps the box out of the flow until the script clears the attribute. */
+  .apply-tracked:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-200);
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    font-size: var(--size-150);
+    text-align: center;
+    color: var(--color-foreground);
+  }
+
+  .apply-tracked a {
+    font-weight: var(--weight-medium);
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .track-invite {
+    text-align: center;
+    color: var(--color-muted);
+  }
+
+  .track-invite a {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  /* The no-key nudge: the same quiet, muted tone as .track-invite above,
+     for the same reason (an invitation, not a warning). Shown instead of
+     .apply-secondary-form, never alongside it; see the enhancement
+     script's own drafting-status check for which one a signed-in reader
+     gets. */
+  .apply-nudge {
+    text-align: center;
+    color: var(--color-muted);
+  }
+
+  .apply-nudge a {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  /* Hidden until the script reveals it for a signed-in reader; guarded so the
+     bare display rule does not override the hidden attribute. */
+  .save-form:not([hidden]) {
+    display: flex;
+    justify-content: center;
+  }
+
+  .save-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: var(--border-hairline) solid var(--color-line-strong);
+    background: transparent;
+    color: var(--color-foreground);
+    cursor: pointer;
+    padding: var(--space-200) var(--space-400);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+  }
+
+  .save-submit:hover {
+    border-color: var(--color-foreground);
+  }
+
+  /* Gate 6 fails any transition with a non-zero duration under
+     prefers-reduced-motion: reduce (see ApplyAction.astro's own identical
+     comment on .apply-action for the same rule applied to the same visual
+     change, restyled here rather than shared for the reason this block's
+     own comment above gives). */
+  @media (prefers-reduced-motion: no-preference) {
+    .apply-primary-button {
+      transition:
+        background-color var(--motion-duration-instant) var(--motion-easing-standard),
+        color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+
+    .apply-secondary-button {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  /* -----------------------------------------------------------------------
+     The foot
+     ----------------------------------------------------------------------- */
+
+  .detail-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-400);
+    flex-wrap: wrap;
+    padding: var(--space-300) var(--space-600);
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+
+  .detail-method {
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    text-decoration-color: var(--color-line-strong);
+  }
+
+  .detail-method::after {
+    content: '\00a0\2192';
+  }
+
+  .detail-method:hover {
+    color: var(--color-foreground);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .detail-back,
+    .detail-method,
+    .fit-method a,
+    .source-link a {
+      transition:
+        color var(--motion-duration-instant) var(--motion-easing-standard),
+        text-decoration-color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  /* -----------------------------------------------------------------------
+     Phone and small tablet.
+
+     60rem is the breakpoint the index table and the site header already use,
+     and it is a raw value because a media query cannot read a custom property.
+     Below it the two columns become one, in DOM order, so the visual order and
+     the reading order stay the same thing: role, facts, description, fit
+     reasoning, then the receipts, then the action. That puts the apply button
+     one thumb reach below the evidence, which is what the canvas's mobile sheet
+     is for.
+     ----------------------------------------------------------------------- */
+  @media (max-width: 60rem) { /* --breakpoint-lap */
+    .detail {
+      margin-block: var(--space-400) var(--space-700);
+    }
+
+    .detail-bar,
+    .detail-foot {
+      padding-inline: var(--space-400);
+    }
+
+    .closed-banner,
+    .detail-main,
+    .detail-aside {
+      padding: var(--space-500) var(--space-400);
+    }
+
+    .detail-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .detail-main {
+      border-right: none;
+      border-bottom: var(--border-hairline) solid var(--color-line);
+    }
+
+    /* The canvas's phone sheet replaces the ease panel with its one line
+       summary, so the action sits closer to the receipts. The panel's fourth
+       fact, the destination, is already in the caption under the button, so
+       nothing is lost by the swap. */
+    .ease-slot {
+      display: none;
+    }
+
+    .ease-summary {
+      display: block;
+    }
+  }
+</style>

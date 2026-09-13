@@ -1,0 +1,1174 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import InsightStrip from '../components/InsightStrip.astro';
+import MarkLegend from '../components/MarkLegend.astro';
+import Panel from '../components/Panel.astro';
+import Quotation from '../components/Quotation.astro';
+import AppealLine from '../components/AppealLine.astro';
+import EmptyState from '../components/EmptyState.astro';
+import KeyValueList from '../components/KeyValueList.astro';
+import { routeFor } from '../data/nav';
+import RuleTally from '../components/RuleTally.astro';
+import { spellCount } from '../lib/ui';
+import {
+  ABSENCE,
+  KILL_RULES,
+  RUBRIC,
+  ageOf,
+  firstSeenVisible,
+  fitComponentsPublished,
+  formatAge,
+  killArchive,
+  killDuration,
+  loadJobs,
+  loadKills,
+  loadStats,
+  sourceLabel,
+  sweepDate,
+  sweptStamp,
+  verifiedJobs
+} from '../lib/data';
+
+/**
+ * Methodology: the machine in plain language, and the page every tooltip and
+ * footnote on this site points at.
+ *
+ * THE RULE THIS PAGE IS WRITTEN UNDER, AND IT IS STRICTER THAN THE REST.
+ *
+ * A methodology page is where a product is most tempted to describe the system
+ * it wishes it had. So every number below is computed from /fixtures at build
+ * time rather than typed, and every rule described is one the code actually
+ * runs: the derivations sit in this frontmatter where they can be read, and if
+ * the data changes under them the page changes with it. Where a rule is
+ * documented in the data rather than measured by it, the copy says which.
+ *
+ * Three product rules are documented here because they are live and a reader
+ * meets them on other pages without explanation:
+ *
+ *   1. The Posted versus First seen split, and the observation that decides
+ *      whether the second column renders at all.
+ *   2. That an age renders only when the record carries the date it was measured
+ *      from, which is why some cells read as an absence beside rows that show a
+ *      number.
+ *   3. That kill_rule is emitted by the machine, which is why the taxonomy is
+ *      counted here from stats.killed_by_rule rather than classified downstream.
+ *      Reading our own prose back through a keyword matcher would be this site
+ *      inventing a finding and presenting it as the machine's.
+ *
+ * The audience is two people at once. A skeptical engineer wants the thresholds,
+ * the ordering and the failure modes. A curious designer wants to know what the
+ * marks mean and why a cell is empty. The sections alternate between them on
+ * purpose, and neither has to read the other's paragraphs to get their answer.
+ */
+
+const route = routeFor('methodology');
+
+const stats = loadStats();
+const jobs = loadJobs();
+const kills = loadKills();
+/* The sweep's own records, held ones included. Two counts below are sentences
+   about what this sweep holds rather than about what the kill list shows, and a
+   sentence naming the sweep has to count the sweep. Nothing here renders a held
+   record: these are counts of records, and the worked example above them reads
+   the published set, so no span we are withholding is ever quoted as ours. */
+const archive = killArchive();
+const verified = verifiedJobs();
+
+const stamp = `Swept ${sweptStamp()}`;
+
+/**
+ * The boards, the feeds and the source systems, derived rather than described.
+ *
+ * A page claiming feeds are read direct should be able to show which ones, and
+ * the honest version of that list is the one the sweep actually produced. The
+ * count per system is a count of records in this build's data, which is why the
+ * caption says records rather than companies.
+ */
+const bySystem = new Map<string, number>();
+for (const job of jobs) {
+  const label = sourceLabel(job);
+  bySystem.set(label, (bySystem.get(label) ?? 0) + 1);
+}
+const sourceRows = [...bySystem.entries()]
+  .map(([label, count]) => ({ label, count }))
+  .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label));
+
+/**
+ * The longer expiry windows in this sweep, read off the records that carry one.
+ *
+ * Typing "30 days" would be describing the machine from memory. Reading the
+ * distinct window lengths out of the data means this sentence is still true the
+ * night the rule changes, and visibly wrong on this page if the export ever
+ * stops emitting the field.
+ */
+const windowLengths = [...new Set(jobs.map((job) => job.window?.days).filter((days): days is number => typeof days === 'number'))].sort(
+  (left, right) => left - right
+);
+
+/**
+ * A real row's age string, used as the worked example of what a windowed age
+ * looks like ("13d of 30").
+ *
+ * Taken off a record rather than typed, because an invented example on the page
+ * that explains why we do not invent things would be the worst possible place to
+ * put one. Null where no windowed row in this sweep has a measurable age, in
+ * which case the example is left out rather than filled in.
+ *
+ * The row has to be one where the age and the window's own day counter agree,
+ * because that agreement is what the compound reading states and it is the only
+ * case in which a row renders one. One record in this sweep is 119 days old
+ * inside a window whose counter had run out, and it renders its age alone; using
+ * it here would illustrate the pattern with the row that does not follow it.
+ */
+const windowExample =
+  jobs
+    .filter((job) => job.window && ageOf(job)?.days === job.window.day)
+    .map((job) => formatAge(job))
+    .find((formatted): formatted is string => formatted !== null) ?? null;
+
+/**
+ * Windowed rows whose measured age and whose own day counter disagree.
+ *
+ * Counted rather than assumed, so the paragraph below only claims the exception
+ * exists on a sweep where it does. It is not printed: the sentence states the
+ * rule, and a count of rows that follow an exception is not a fact a reader has
+ * any use for.
+ */
+const windowsOutrun = jobs.filter((job) => {
+  const measured = ageOf(job);
+  return job.window !== null && measured !== null && measured.days !== job.window.day;
+}).length;
+
+/** How many verified rows show a date the source itself published. */
+const withPostedDate = verified.filter((job) => job.published_date !== null).length;
+
+/**
+ * The rows carrying a stored age with no date behind it.
+ *
+ * This is the defect the age rule exists for, counted rather than asserted: a
+ * record has an age_days, and ageOf() returns null because neither a published
+ * date nor an earlier first-seen date is in the record for that number to have
+ * come from. Those cells render the absence, and the count is reported upstream.
+ */
+const unprovenancedAges = verified.filter((job) => job.age_days !== null && ageOf(job) === null).length;
+
+/** Rows the machine first saw on this very sweep, so their age is unmeasurable. */
+const firstSeenThisSweep = verified.filter((job) => job.first_observed === sweepDate()).length;
+
+/**
+ * Whether the index's First seen column is actually rendering tonight.
+ *
+ * Read, never assumed. This page described the column as suppressed in
+ * unconditional prose, and went on describing it that way after the archive
+ * turned it on, which put a false sentence about our own table on the page whose
+ * job is to describe the machine accurately.
+ */
+const firstSeenOn = firstSeenVisible();
+
+/**
+ * The longest measured span on the kill list, and the counts of kills whose
+ * duration or first-published date the sweep could not supply.
+ *
+ * All three are computed. The long one is the example the refusal section uses,
+ * and quoting a number there that we had typed by hand would be a poor way to
+ * illustrate a rule about only printing what we measured.
+ *
+ * The span reads the published rows, and each count reads whichever set the
+ * sentence around it is actually about. That is a correction, made 2026-08-19.
+ * Both counts used to read the archive on the reasoning that a sentence naming
+ * the sweep must count what the sweep recorded, held records included. The
+ * reasoning is sound and it was applied to two sentences that were not about
+ * the sweep.
+ *
+ * `undatedKills` sits in a sentence about what renders: "they render no
+ * duration and no bar at all". Off the archive it said 4 while the kill list
+ * showed 3 such rows, because the fourth is the held Finta record, which
+ * renders nowhere. A count of things a reader is invited to go and count has to
+ * be a count of the things that are there, so it reads the published rows now
+ * and the sentence says which rows it means.
+ *
+ * `reportedElsewhere` sits in a sentence about what the sweep recorded and then
+ * refused to draw, so it keeps the archive and the copy below now states the
+ * publication status rather than leaving a reader to look for a row that was
+ * withheld. Its published half is counted separately for exactly that sentence.
+ *
+ * Both are declared to gate 2 now (kills_undated, kills_reported_elsewhere).
+ * Neither carried a marker before, which is why a numeral could contradict the
+ * page it was printed on for four commits without anything noticing.
+ */
+const measuredDurations = kills
+  .map((kill) => killDuration(kill))
+  .filter((duration): duration is NonNullable<typeof duration> => duration !== null)
+  .map((duration) => duration.days);
+const longestKillDays = measuredDurations.length > 0 ? Math.max(...measuredDurations) : null;
+const reportedElsewhere = archive.filter((kill) => kill.duration_provenance === 'reported_elsewhere').length;
+const reportedElsewherePublished = kills.filter((kill) => kill.duration_provenance === 'reported_elsewhere').length;
+const undatedKills = kills.filter((kill) => kill.first_published === null).length;
+
+/** The rubric's own arithmetic, so the page never states a total it did not add. */
+const rubricTotal = RUBRIC.reduce((running, entry) => running + entry.weight, 0);
+
+// Whether the export carries the machine's own component readings. False on
+// sweep 001, which is why the rubric section below states the gap and every job
+// page renders each component as a truthful absence against its real weight.
+const componentsPublished = fitComponentsPublished();
+
+/**
+ * What each rubric component measures, in one line.
+ *
+ * Keyed by the rubric's own component keys and looked up as the rubric is walked,
+ * so the labels and the weights come from the data layer and only the plain
+ * English is written here. Five hand-written rows beside the five real ones is
+ * how a table ends up describing the fourth component under the third's name.
+ */
+const RUBRIC_MEANING: Record<string, string> = {
+  title_scope: 'How close the posted title and its scope are to the kind of work this index covers.',
+  remote_geo: 'Whether the posting is remote, and how tightly its geography is drawn.',
+  comp: 'Whether a range is posted at all, and what it is. A posting with no range scores lower.',
+  freshness: 'How recently the source published or refreshed it, measured from a date we can show.',
+  apply_friction: 'How hard the apply path is: account required, form length, where the click lands.'
+};
+
+/**
+ * The kill rule families the machine decides between.
+ *
+ * Named here and attached to nothing. sweep.py's kill_reason() already knows
+ * which rule fired and emits it with the record as kill_rule; this sweep's
+ * export does not carry the field, so no kill on this site is labelled with a
+ * rule and no group is counted. The alternative would be reading our own reason
+ * prose back through a keyword matcher and presenting the result as the
+ * machine's classification, which is the exact move this whole product exists
+ * to refuse. See DECISIONS.md, 2026-08-17, "kill_rule must come from upstream".
+ *
+ * `evergreen` was here and is retired, 2026-08-19. It killed a posting for
+ * being older than a fixed window, which inferred an employer's intent from a
+ * duration on the one page whose spine is observations and never intent. Every
+ * rule below is instead something the employer did that we can point at: a req
+ * taken down and put back up with a new date and the same words, a deadline
+ * they published and then ignored, a sentence in their own posting that
+ * contradicts their own location field, a URL that does not resolve, a date
+ * that moved while every other byte stayed identical.
+ *
+ * Age did not go with it. It is on every row, it is one of the three sorts, it
+ * drives the freshness filter, and it is plotted against the cited reference
+ * line. It is a fact the reader reads, and no longer a verdict we hand them.
+ *
+ * `repost-churn` joined 2026-08-19 and is first in the machine's precedence
+ * order, because it reads no English at any point: the finding is two sha256
+ * digests being equal and two dates. It is also the only rule here that
+ * compares two observations separated by time rather than reading one posting,
+ * which means it cannot be run without an archive. It is expected to report
+ * nothing for several weeks, and that zero is a published result rather than a
+ * rule quietly missing from the page.
+ */
+/*
+ * The rules themselves are NOT re-declared here. This page used to carry its own
+ * literal list, hyphenated, five entries long, sitting a few lines above a
+ * sentence that said "one of the four kill rules below". A second copy of an
+ * enum is a second thing to keep in step, and it fell out of step in the only
+ * way a typed count ever does. `KILL_RULES` is imported from src/lib/data.ts,
+ * which is the same array `/kills`, `/report` and `<RuleTally>` read, and the
+ * count in the prose below is `KILL_RULES.length` spelled out rather than typed.
+ */
+const ruleCount = spellCount(KILL_RULES.length);
+
+/** The sections, in order, so the contents list cannot fall out of step. */
+const SECTIONS = [
+  { id: 'sweep', label: 'The nightly sweep' },
+  { id: 'feeds', label: 'What we read' },
+  { id: 'marks', label: 'The marks, and how to read them' },
+  { id: 'windows', label: 'Re-verification and windows' },
+  { id: 'kills', label: 'The kill rules' },
+  { id: 'rubric', label: 'Rubric v1, with weights' },
+  { id: 'dates', label: 'Posted, first seen, and age' },
+  { id: 'archive', label: 'What we archive' },
+  { id: 'refusals', label: 'What we refuse to infer' },
+  { id: 'corrections', label: 'Corrections' }
+] as const;
+---
+
+<BaseLayout
+  title="Methodology"
+  description="How The Index works: the nightly sweep, source-direct feeds, the kill rules, rubric v1 and its weights, re-verification windows, what we archive, and what we refuse to infer."
+  active="methodology"
+>
+  <div class="shell method">
+    <header class="head">
+      {/*
+        Declared as a machine value, which is what it is. It also keeps gate 2's
+        scan for loose sweep counts from reading the minutes of a rendered clock
+        ("02:14") as the kill count sitting undeclared in page copy.
+      */}
+      <p class="stamp mono-label" data-truth="machine">{stamp}</p>
+      <h1 class="head-title">How the machine works.</h1>
+      <p class="lede">
+        The Index is the public face of a program that runs every night. This page is that program in plain language:
+        what it reads, what it checks, what it kills, how it scores what survives, and the things it will not guess.
+        Every rule below is one the site actually runs on, so if a number anywhere surprises you, the reason it is that
+        number is on this page.
+      </p>
+
+      <nav class="contents" aria-label="On this page">
+        <ul class="contents-list">
+          {
+            SECTIONS.map((section) => (
+              <li>
+                <a class="contents-link" href={`#${section.id}`}>
+                  {section.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+    </header>
+
+    <section class="section" id="sweep">
+      <h2 class="section-title">The nightly sweep</h2>
+
+      <p class="prose">
+        Every night the machine reads company job feeds directly from the applicant tracking system each company
+        publishes:{' '}
+        {/* No whitespace inside the span. A space that lands inside a mono
+            element is set at the mono's own width, which reads as a double space
+            beside proportional text. */}
+        <span class="figure mono" data-truth="tile" data-truth-metric="boards" data-truth-value={String(stats.boards)}>{stats.boards}</span>{' '}
+        boards on this sweep. It works in one order and always the same order. Pull every posting the feed carries.
+        Check every posting it already knows about, at the source, one request per posting. Kill the ones that fail a
+        rule. Score what survives. Write the night down.
+      </p>
+
+      <p class="prose">
+        One clock. Every timestamp on this site is the moment that sweep finished,{' '}
+        <span class="num" data-truth="machine">{sweptStamp()}</span>, and nothing on any page is computed from the
+        time in your browser. A page that told you the time on your own machine would be telling you about your
+        machine. The stamp is what the claim on every row is dated to, so it is the same string everywhere, read from
+        one field.
+      </p>
+    </section>
+
+    <section class="section" id="feeds">
+      <h2 class="section-title">What we read</h2>
+
+      <p class="prose">
+        Source-direct means the record came from the board the company itself publishes, read by us, on the night the
+        record is dated. We do not read aggregators. Where an aggregate source carries a posting the company's own
+        board and directory do not, the source wins and the posting does not appear on the index. It appears on the
+        kill list instead, with what we looked for and did not find.
+      </p>
+
+    </section>
+
+    <section class="section" id="marks">
+      <h2 class="section-title">The marks, and how to read them</h2>
+
+      <p class="prose">
+        Three states, and a mark never appears further than one screen from this legend. Two of them are live states
+        and they carry the same colour, because they say the same thing about the posting: it was there when we looked.
+      </p>
+
+      <Panel title="The legend, canonized">
+        <MarkLegend surface="raised" />
+
+        <dl class="defs">
+          <div class="def">
+            <dt class="def-term">Verified this sweep</dt>
+            <dd class="def-detail">The machine loaded this posting at its source during this sweep and it was there.</dd>
+          </div>
+          <div class="def">
+            <dt class="def-term">Re-verified</dt>
+            <dd class="def-detail">
+              The same, and we have now confirmed it on more than one sweep. The mark carries a notch so the two live
+              states can be told apart without colour.
+            </dd>
+          </div>
+          <div class="def">
+            <dt class="def-term">Closed</dt>
+            <dd class="def-detail">
+              The posting is gone from its source. The record keeps its page and its history and loses its apply path.
+              The mark is grey, not red: a closed posting is an honest archive record.
+            </dd>
+          </div>
+        </dl>
+      </Panel>
+
+      <p class="prose">
+        Red is never a row mark on this site. It belongs to the kill count and to the per-rule counts beside it, which
+        are readings about what the rules found rather than verdicts on a row. There is no ghost rate here: killed over
+        pulled reads as a rate of deception, and it was dropped on the same day the age rule was. And the two typefaces
+        are a rule, not a mood: numbers,
+        timestamps, statuses, scores and source names are set in the mono face because a machine produced them.
+        Everything else, including every absence, is set in the human face, because "{ABSENCE.date}" is us saying what
+        we do not know rather than a machine stating a reading.
+      </p>
+    </section>
+
+    <section class="section" id="windows">
+      <h2 class="section-title">Re-verification and windows</h2>
+
+      <p class="prose">
+        A posting is checked again on every sweep after the one that found it, and it is checked at its source rather
+        than against our own copy. Postings we have now confirmed on more than one sweep read as re-verified rather
+        than as verified, which is the mark changing to say that the confirmation is now ours as well as theirs.
+      </p>
+
+      <p class="prose">
+        Nothing expires here, and something used to. A posting was once taken off this list purely for passing a
+        fixed age. That rule was withdrawn, because it inferred an employer's intent from a duration, and because
+        senior and specialist searches legitimately stay open far longer than any fixed window allows for. A
+        posting now leaves this list when it leaves its board, or when one of the {ruleCount} kill rules below fires on
+        something the employer actually did. Age is shown, sorted, filtered and plotted against the average
+        lifespan quoted in those rules, and it decides nothing.
+      </p>
+
+      <p class="prose">
+        Where a record carries a window of its own, the row shows its age against it rather than as a bare number,
+        so you can see which clock the row is being measured on.{' '}
+        {
+          windowLengths.length > 0 ? (
+            <>
+              This sweep records a window of{' '}
+              {/* A per-record observation rather than a sweep total: the lengths
+                  are read off the records that carry one. Declared so gate 2's
+                  reading check can see that this number came from the data. */}
+              <span class="num" data-truth="machine">{windowLengths.map((days) => `${days} days`).join(', ')}</span>
+              {windowExample && (
+                <>
+                  {' '}and an example row reads <span class="num" data-truth="machine">({windowExample})</span>
+                </>
+              )}
+              .{' '}
+              {windowsOutrun > 0 && (
+                <>
+                  A record can also be older than the window it carries, and where the age and the window's own day
+                  counter disagree the row shows its age alone. Two measurements printed as one fraction would be a
+                  reading neither of them supports.
+                </>
+              )}
+            </>
+          ) : (
+            <>This sweep's records carry no longer window, so no row shows an age measured against one.</>
+          )
+        }
+      </p>
+    </section>
+
+    <section class="section" id="kills">
+      <h2 class="section-title">The kill rules</h2>
+
+      <p class="prose">
+        A kill is a posting we stop showing and start citing. Killing is done by rule and never by opinion, and every
+        kill is published with the observations and dates it was decided on. The reason column states what was seen. It
+        does not state why anyone did anything, because a feed does not carry intent and we will not print a claim we
+        cannot evidence.
+      </p>
+
+      {/* Wrapped for the same reason as on the manifesto: the strip's own inline
+          gutter is sized for a full-width band on the index, and inside a
+          document column it would indent the one sourced sentence away from the
+          prose it belongs to. The wrapper owns the rule; the reach into the
+          component undoes three properties and changes nothing for any other
+          page that renders a strip. */}
+      <div class="insight-band">
+        <InsightStrip
+          factId="posting-lifespan"
+          route={route}
+          soWhat="That is context for reading the age on a row, and it is not a threshold. Nothing here is killed for being older than it."
+        />
+      </div>
+
+      <p class="prose">
+        How long a killed posting was open is computed as the date we recorded the kill minus the date the source first
+        published it. It is never stored, because a stored duration and the dates it came from are two sources of truth
+        that drift.{' '}
+        {
+          undatedKills > 0 && (
+            <>
+              <span
+                class="num"
+                data-truth="tile"
+                data-truth-metric="kills_undated"
+                data-truth-value={String(undatedKills)}
+              >
+                {undatedKills}
+              </span>{' '}
+              of the rows on the kill list carry no first-published date at source, so they render no duration and no bar
+              at all rather than a guessed length.
+            </>
+          )
+        }
+      </p>
+
+      <Panel
+        title="Kill rule taxonomy"
+        footnote="One line per rule, every night, counts read from stats.killed_by_rule"
+      >
+        <p class="panel-prose">
+          The machine knows which rule fired on each kill: kill_reason() decides between the families below and emits
+          the answer with the record as kill_rule. The export carries that field, and every rule is counted every
+          night, zeroes included, because a rule missing from a summary reads as a rule that was never run. These are
+          the same counts /kills and the report render, from the same reading, so the three pages cannot disagree.
+        </p>
+
+        <RuleTally class="rules-tally" headingLevel="h3" />
+
+        <p class="panel-prose">
+          The alternative was available and was refused: we could read our own reason prose back through a keyword
+          matcher and group the kills by what the words looked like. That would be this website inventing a
+          classification and presenting it as the machine's finding, on the page whose whole authority is that the
+          machine found it.
+        </p>
+      </Panel>
+    </section>
+
+    <section class="section" id="age">
+      <h2 class="section-title">Why we do not kill on age</h2>
+
+      <p class="prose">
+        We used to. A rule called evergreen killed a posting for having been listed longer than a fixed window, and it
+        is retired, because it inferred an employer's intent from a duration on the one site whose whole spine is that
+        we report observations and never intent. That was our reasoning. It is also, word for word in
+        substance, the reasoning of the only peer-reviewed paper the field has produced, which is worth showing rather
+        than claiming.
+      </p>
+
+      <Quotation
+        citationId="ng-age-cannot-categorise"
+        route={route}
+        lede="On whether a duration can produce a finding at all:"
+      />
+
+      <p class="prose">
+        The defence Ng names is not hypothetical and it is not rare. Our own cited figure for how long a real search
+        takes is the reason: a senior role open ninety days is an ordinary search and not evidence of anything, and any
+        threshold short enough to catch a ghost is short enough to catch a hundred honest ones. The definition itself
+        says so.
+      </p>
+
+      <Quotation
+        citationId="ng-slow-hires-excluded"
+        route={route}
+        lede="On what the definition of a ghost job excludes:"
+      />
+
+      <p class="prose">
+        A rule that cannot tell a slow hire from a ghost cannot implement that definition. Which is the whole argument
+        against age, and it is why every rule we do run points at something an employer did rather than at how long
+        they took: a deadline they published and then ignored, a sentence in their own posting that contradicts their
+        own location field, a URL that does not resolve, a date that moved while every other byte stayed identical.
+      </p>
+
+      <Panel title="Where this leaves the official numbers">
+        <p class="panel-prose">
+          The United States counts a job opening in JOLTS when an employer is
+          <span class="mono" data-truth="citation" data-truth-citation="jolts-actively-recruiting">actively recruiting</span>
+          and the job
+          <span class="mono" data-truth="citation" data-truth-citation="jolts-thirty-days">could start within 30 days</span>.
+          Both halves are statements about what an employer intends, and Ng's point is that neither can be checked from
+          outside. Ghost jobs are therefore inside the official vacancy statistics rather than outside them, which is a
+          larger problem than any job board has, and not one this machine claims to solve.
+        </p>
+        <p class="panel-prose">
+          <span class="mono">Ng, Ghost Jobs, arXiv 2410.21771, 2024, page 3</span>
+        </p>
+      </Panel>
+
+      <p class="prose">
+        Sites that publish a ghost rate derived from a thirty day cutoff are doing the thing the field's only paper
+        says cannot be done. We have no such number and will not have one. What we publish instead is a list of
+        postings that each did something specific, with the observation and the date it was made, and a reader who
+        disagrees with any single row can check it at source tonight.
+      </p>
+    </section>
+
+    <section class="section" id="rubric">
+      <h2 class="section-title">Rubric v1, with weights</h2>
+
+      {/*
+        This sentence used to end "so a score is checkable rather than
+        mysterious", and that was the one claim on this page that was not true:
+        the weights are published, the per-component readings behind any given
+        total are not in this sweep's export, and the panel at the foot of this
+        section says so. A page that states the rule "we print what we can
+        evidence" cannot be the page that overstates by one word. What is
+        published here is the rubric, so the rubric is what the sentence claims.
+      */}
+      <p class="prose">
+        Every posting that survives the night is scored out of{' '}
+        <span class="num">{rubricTotal}</span>. Five components, fixed weights, published here so the rubric is
+        checkable rather than mysterious.
+      </p>
+
+      {/*
+        A definition list, not a table, and the reason is the same one that made
+        the index a list of rows rather than a table element: a three column
+        table cannot be read at 375px without either crushing the columns or
+        switching display to block at a breakpoint, and switching display to
+        block throws away the row and column relationships a screen reader
+        depends on. A dt with two dds says the true thing at every width, which
+        is that each component has a weight and a meaning. The desktop alignment
+        is a grid over the same markup.
+      */}
+      <Panel
+        title={`Rubric v1 · weights ${RUBRIC.map((entry) => entry.weight).join('+')}`}
+        footnote="The five components sum to the total. Nothing else contributes."
+      >
+        <dl class="rubric">
+          {
+            RUBRIC.map((entry) => (
+              <div class="rubric-row">
+                <dt class="rubric-term">{entry.label}</dt>
+                <dd class="rubric-weight num">
+                  <span class="visually-hidden">Weight </span>
+                  {entry.weight}
+                </dd>
+                <dd class="rubric-meaning">{RUBRIC_MEANING[entry.key]}</dd>
+              </div>
+            ))
+          }
+        </dl>
+      </Panel>
+
+      {/*
+        The out-of-range sentence is conditional, and that is the fix for a real
+        defect rather than a nicety. It described what FitBars does with a
+        component that lies outside its own weight: print the value, draw no bar.
+        That branch is unreachable while the component readings are unpublished,
+        because every reading is null and there is nothing to print or to leave
+        undrawn. So the page was describing a rendering no reader could find,
+        three paragraphs above a panel explaining that no reading renders at all.
+        Written this way both states are true: the sentence returns on the night
+        the export carries the readings, in the same commit as the bars.
+      */}
+      <p class="prose">
+        One consequence worth stating plainly: Fit blends the rubric with freshness, so a sort named Fit is not a sort
+        by seniority, and the index says so where the sort is.
+        {componentsPublished && (
+          <>
+            {' '}
+            A second: where a component falls outside its own weight, the value is printed and no bar is drawn beside
+            it, because a bar is a measurement against a stated maximum and a clipped bar would draw a picture of a
+            number that is not there.
+          </>
+        )}
+      </p>
+
+      {
+        !componentsPublished && (
+          /* The gap in this section, stated in the section rather than in a log.
+             The weights above are real and published; the per-component readings
+             behind a total are not in this sweep's export, and a page claiming a
+             score is checkable while showing five numbers nobody measured would
+             be the most expensive sentence on this site. Same treatment as the
+             kill taxonomy two sections up. */
+          <Panel title="The component scores are not published yet">
+            <p class="prose">
+              A total on this site is the machine's own score and every page shows it. The five component readings
+              behind it are not in this sweep's export, so every job page prints the component names and their weights
+              with the reading marked as not listed, and draws no bar. The weights are the rubric and they are real.
+              The split is a reading, and a reading we do not hold is one we do not print.
+            </p>
+            <p class="prose">
+              This is the same standard as the kill rules above. The machine scores each component to produce the
+              total, so the readings exist; they travel with the record or they do not appear here.
+            </p>
+          </Panel>
+        )
+      }
+    </section>
+
+    <section class="section" id="dates">
+      <h2 class="section-title">Posted, first seen, and age</h2>
+
+      <p class="prose">
+        Two dates, two different facts, and conflating them is the most common way a job board misleads without lying.
+      </p>
+
+      <dl class="defs defs-loose">
+        <div class="def">
+          <dt class="def-term">Posted</dt>
+          <dd class="def-detail">
+            The date the source itself shows. It is the employer's claim about the posting's age, and very few boards
+            publish one:{' '}
+            <span class="num" data-truth="tile" data-truth-metric="jobs_with_published_date" data-truth-value={String(withPostedDate)}>{withPostedDate}</span>{' '}
+            of the verified rows in this sweep carry it. Where
+            the source shows nothing, the cell reads "{ABSENCE.date}".
+          </dd>
+        </div>
+        <div class="def">
+          <dt class="def-term">First seen</dt>
+          <dd class="def-detail">
+            The sweep on which we first found the posting. It is our own observation and it belongs to us rather than
+            to the employer, which is what will eventually make it the most useful date on the page.
+          </dd>
+        </div>
+      </dl>
+
+      {/*
+        THIS PARAGRAPH IS WRITTEN TWICE BECAUSE THE COLUMN HAS TWO STATES AND THE
+        PAGE HAD ONLY EVER DESCRIBED ONE. It shipped as unconditional prose saying
+        the column was suppressed, and it kept saying so after the archive turned
+        the column on, three sentences away from the reading that proves it. The
+        predicate is firstSeenVisible(), the same one the index table asks, so the
+        description and the behaviour cannot separate again.
+      */}
+      {
+        firstSeenOn ? (
+          <p class="prose">
+            First seen is a column on the index, and it renders because the archive can now support it. Most of the
+            rows in this sweep carry a date older than the sweep that rendered them, so the column says something
+            different per row instead of repeating one date.{' '}
+            <span class="num" data-truth="tile" data-truth-metric="jobs_first_seen_this_sweep" data-truth-value={String(firstSeenThisSweep)}>{firstSeenThisSweep}</span>{' '}
+            of the verified rows {firstSeenThisSweep === 1 ? 'was' : 'were'} first seen on this sweep, and those cells
+            read "{ABSENCE.date}" rather than tonight's date, because a row we met tonight has no first-seen history
+            to show. The switch is an
+            observation about the data on every build, never a count of nights: three sweeps of a machine that saw
+            nothing new would have satisfied a counter and still printed one repeated date.
+          </p>
+        ) : (
+          <p class="prose">
+            First seen is built, labelled and suppressed as a column until most of the rows carry a date older than the
+            sweep that rendered them. On this sweep it would print one date over and over,{' '}
+            <span class="num" data-truth="tile" data-truth-metric="jobs_first_seen_this_sweep" data-truth-value={String(firstSeenThisSweep)}>{firstSeenThisSweep}</span>{' '}
+            rows of it, and a column of identical dates would imply that every one of those postings appeared
+            overnight. The column turns on when it can say something, and not before. It used to turn on at a sweep
+            count, which was a proxy for this and a worse one: three sweeps of a machine that saw nothing new would
+            have satisfied the counter and still printed one repeated date.
+          </p>
+        )
+      }
+
+      <p class="prose">
+        An age renders only when the record carries the date it was computed from. That rule has two edges and both
+        matter. A posting we first saw on this sweep has no measurable age: we know it exists, we do not know how long
+        it has existed, and counting from tonight would render a zero that reads as "posted today" about an employer we
+        cannot evidence.{' '}
+        {
+          unprovenancedAges > 0 && (
+            <>
+              And <span class="num">{unprovenancedAges}</span> verified rows arrived carrying an age with neither date
+              behind it. Those cells read "{ABSENCE.date}", and the rows are reported to the export as a defect to fix
+              upstream rather than rendered as numbers we cannot source.
+            </>
+          )
+        }
+      </p>
+    </section>
+
+    <section class="section" id="archive">
+      <h2 class="section-title">What we archive</h2>
+
+      <p class="prose">
+        Everything, and we do not take it down. A posting that closes keeps its page, its provenance and its history,
+        and loses its apply path: no closed page anywhere on this site offers a way to apply, because that would be a
+        door we know is locked. A kill keeps its dates and its receipts. The archive is most of the point. A market
+        that forgets what it advertised last year cannot be held to it, and a record of what was open, when, and for
+        how long is the only way any of this is checkable a year from now.
+      </p>
+    </section>
+
+    <section class="section" id="refusals">
+      <h2 class="section-title">What we refuse to infer</h2>
+
+      <p class="prose">
+        The list below is the part of the method that costs us features. Each entry is something the site could show,
+        that a reader would probably like, and that we cannot source. They ship the day the data does.
+      </p>
+
+      <dl class="defs defs-loose">
+        <div class="def">
+          <dt class="def-term">Motive</dt>
+          <dd class="def-detail">
+            {
+              longestKillDays !== null ? (
+                <>
+                  "Open <span class="num">{longestKillDays}</span> days" is a measurement. "Fake job" is a claim about
+                  a state of mind, and no feed carries one. The dates land harder anyway.
+                </>
+              ) : (
+                <>A duration is a measurement. A motive is a claim about a state of mind, and no feed carries one.</>
+              )
+            }
+          </dd>
+        </div>
+        <div class="def">
+          <dt class="def-term">A kill rule on a kill</dt>
+          <dd class="def-detail">
+            The families are named above. Attaching one to a record here would mean classifying by reading our own
+            words back, which is not the same thing as the machine's answer even when it agrees.
+          </dd>
+        </div>
+        <div class="def">
+          <dt class="def-term">A role family</dt>
+          <dd class="def-detail">
+            The index filters by location, by whether a range is posted, and by freshness, because each of those is a
+            field the record holds. There is no role family filter, because there is no role family field: deriving one
+            by reading job titles would be a classification of ours wearing the machine's clothes.
+          </dd>
+        </div>
+        <div class="def">
+          <dt class="def-term">An age with no date behind it</dt>
+          <dd class="def-detail">
+            Covered above, and it is the rule the rest of them are a family of. A number whose provenance we cannot
+            show does not go on the page.
+          </dd>
+        </div>
+        <div class="def">
+          <dt class="def-term">Somebody else's measurement, drawn as ours</dt>
+          <dd class="def-detail">
+            {
+              reportedElsewhere > 0 ? (
+                <>
+                  A duration somebody else reported is not a measurement we made. This sweep recorded{' '}
+                  <span
+                    class="num"
+                    data-truth="tile"
+                    data-truth-metric="kills_reported_elsewhere"
+                    data-truth-value={String(reportedElsewhere)}
+                  >
+                    {reportedElsewhere}
+                  </span>{' '}
+                  such {reportedElsewhere === 1 ? 'kill' : 'kills'}, and none of them draws a bar against the reference
+                  line, because the bar is a measurement and we do not have one. The claim renders as attributed text
+                  naming its source, or it waits for one.{' '}
+                  {reportedElsewherePublished === 0
+                    ? `Every one of them is still waiting, so ${reportedElsewhere === 1 ? 'the record is' : 'the records are'} not on the kill list at all: a figure whose source nobody can name is held back rather than published without one.`
+                    : 'Where the source is named, the row is on the kill list carrying the attribution and no bar.'}
+                </>
+              ) : (
+                <>
+                  A duration that came from outside reporting never draws a bar against the reference line, because the
+                  bar is a measurement and we would not have one.
+                </>
+              )
+            }
+          </dd>
+        </div>
+        <div class="def">
+          <dt class="def-term">Reasoning we did not receive</dt>
+          <dd class="def-detail">
+            The fit panel prints the five component values and the arithmetic that makes the total. It writes no
+            sentence explaining a component, because the machine has not sent one and writing it here would be
+            inventing the machine's reasoning on the panel that exists to show it.
+          </dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="section" id="corrections">
+      <h2 class="section-title">Corrections</h2>
+
+      <p class="prose">
+        Every page here is a claim about a company on a given night. Claims get answered, and the sweep runs nightly,
+        so an answer really does land the same night.
+      </p>
+
+      <AppealLine />
+
+      <p class="prose">
+        The rest of the receipts are on the other pages, not restated here.{' '}
+        <a class="inline-link" href={routeFor('kills')}>The kill list</a> carries what died this sweep and why.{' '}
+        <a class="inline-link" href={routeFor('manifesto')}>Not here, on purpose</a> carries what this site refuses to
+        build, and each refusal's cost.
+      </p>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .method {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-700);
+    padding-block: var(--space-700) var(--space-900);
+  }
+
+  .head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .stamp {
+    color: var(--color-muted);
+  }
+
+  /* The title role is set on h1 in global.css. This page owns only the line
+     length, counted in the title's own size so it holds as the clamp moves. */
+  .head-title {
+    max-width: 20ch;
+  }
+
+  .lede {
+    font-size: var(--size-300);
+    line-height: var(--leading-snug);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  /* The contents list is a real nav, so a keyboard and a screen reader both get
+     the shape of the document before reading it. Two columns on a wide screen so
+     ten entries do not become a tall stack above the first section. */
+  .contents {
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-400);
+  }
+
+  /* Two columns, filled down and then across, which is the order a reader of a
+     contents list expects. Row-major would put the second section beside the
+     first and the document would appear to start in the middle. The row count is
+     half the section count, rounded up, and it is stated here rather than
+     computed because the list is a fixed ten. */
+  .contents-list {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(5, auto);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-200) var(--space-500);
+    max-width: var(--layout-measure);
+    justify-items: start;
+  }
+
+  .contents-link {
+    font-size: var(--size-200);
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .contents-link:hover {
+    color: var(--color-foreground);
+  }
+
+  .section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    /* The whole section is held to the reading measure rather than each
+       paragraph, so a panel inside it lines up with the prose above it. */
+    /* Full width since 2026-09-12, the owner's ask: the sections used to sit
+       in the reading measure while the header ran the shell's width, and the
+       page read as a narrow column beside empty space. */
+    max-width: none;
+  }
+
+  .section-title {
+    /* The section heading role: size.500 with the tight leading, as measured on
+       the mothership. h2 in global.css already sets it; this restates nothing
+       and only adds the rule that separates one section from the next. */
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-400);
+  }
+
+  .prose {
+    text-wrap: pretty;
+  }
+
+  .insight-band {
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+
+  /* Scoped styles stop at a component boundary: the strip's root carries its own
+     scope, not this page's. :global behind a class this page owns is the escape
+     hatch that cannot reach a strip anywhere else. */
+  .insight-band :global(.insight-strip) {
+    padding-inline: 0;
+    background: none;
+    border-bottom: none;
+  }
+
+  /* A machine value inside a sentence: a count, a duration, a timestamp.
+     It takes the machine voice, at the size the token was made for. The flat
+     14px of the .mono class is the size of the machine voice as a block, and
+     dropped into 17px prose it reads as a footnote rather than as the number the
+     sentence is about. font-scale-mono is relative, so the numeral tracks
+     whatever it sits inside and the two faces stay optically matched. */
+  .num {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-scale-mono);
+    font-synthesis: none;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  /* The one sweep figure this page states in its own lede, a step up in weight
+     because the sentence is about that measurement rather than mentioning it. */
+  .figure {
+    font-size: var(--font-scale-mono);
+    font-weight: var(--weight-medium);
+  }
+
+  /* The definition blocks: a term and its explanation, used for the legend
+     inside a panel and for the refusals in the open. Inside a panel the legend
+     sits above them, so they carry their own top space rather than the panel
+     learning about them. */
+  .defs {
+    display: grid;
+    gap: var(--space-300);
+    margin: 0;
+    padding-top: var(--space-300);
+  }
+
+  .defs-loose {
+    gap: var(--space-400);
+  }
+
+  .def {
+    display: grid;
+    gap: var(--space-100);
+  }
+
+  .def-term {
+    font-weight: var(--weight-medium);
+    font-size: var(--size-200);
+  }
+
+  /* Body leading, not the snug caption leading. These are paragraphs a reader
+     reads rather than labels they scan, and at three lines the tighter leading
+     made the quiet colour harder to read rather than quieter. */
+  .def-detail {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+    text-wrap: pretty;
+  }
+
+  .panel-prose {
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+    text-wrap: pretty;
+  }
+
+  /* The taxonomy is <RuleTally>, the same component /kills and the report
+     render, so the five names, their observations, their stated limits and
+     their counts are one implementation rather than three. This page owns only
+     the space around it. The local .rules/.rule/.rule-name/.rule-state block
+     that used to sit here drew five names beside five absences, and it went
+     when the absences did. */
+  .panel-prose + .rules-tally,
+  .rules-tally + .panel-prose {
+    margin-top: var(--space-400);
+  }
+
+  /* The rubric grid: term, weight, meaning, over a dl.
+
+     Three tracks declared once on the list and inherited by each row through
+     subgrid, so every weight starts in the same place without the row knowing
+     what the other rows contain. The same mechanism KeyValueList uses, for the
+     same reason. */
+  .rubric {
+    display: grid;
+    grid-template-columns: max-content max-content 1fr;
+    gap: var(--space-300) var(--space-400);
+    margin: 0;
+  }
+
+  .rubric-row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: baseline;
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    padding-bottom: var(--space-300);
+  }
+
+  .rubric-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .rubric-term {
+    font-size: var(--size-200);
+    font-weight: var(--weight-medium);
+  }
+
+  .rubric-weight {
+    margin: 0;
+    text-align: right;
+  }
+
+  .rubric-meaning {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+    text-wrap: pretty;
+  }
+
+  /* Where subgrid is missing the pairs stack, which is legible and loses only
+     the alignment. Stated rather than assumed: a silent fallback to overlapping
+     cells would be worse than either. */
+  @supports not (grid-template-columns: subgrid) {
+    .rubric {
+      grid-template-columns: 1fr;
+    }
+
+    .rubric-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-100) var(--space-300);
+    }
+
+    .rubric-weight {
+      text-align: left;
+    }
+
+    .rubric-meaning {
+      flex-basis: 100%;
+    }
+  }
+
+  .inline-link {
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .inline-link:hover {
+    color: var(--color-muted);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .contents-link,
+    .inline-link {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .method {
+      gap: var(--space-600);
+      padding-block: var(--space-600) var(--space-800);
+    }
+
+    .contents-list {
+      grid-auto-flow: row;
+      grid-template-rows: none;
+      grid-template-columns: 1fr;
+    }
+
+    /* Term and weight share a line, and the meaning takes the next one. The
+       markup does not change and neither do the semantics: only the tracks
+       collapse, so a screen reader hears the same term and its two values at
+       both widths. */
+    .rubric {
+      grid-template-columns: 1fr;
+    }
+
+    .rubric-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: var(--space-100) var(--space-300);
+    }
+
+    .rubric-weight {
+      text-align: left;
+    }
+
+    .rubric-meaning {
+      flex-basis: 100%;
+    }
+  }
+</style>

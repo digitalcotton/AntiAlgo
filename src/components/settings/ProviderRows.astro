@@ -1,0 +1,435 @@
+---
+/**
+ * ProviderRows.astro: the Settings "Models and keys" section, one row per
+ * provider, keys and writing model unified on a single line the way the design
+ * mock draws it: a three-column grid of NAME, STATUS, and inline ACTIONS
+ * (Change model, Replace key, Remove, or Connect), with the model picker and
+ * the key field expanding full width beneath the row.
+ *
+ * THE ROWS LINE UP AS ONE TABLE. Every row resolves the same
+ * `--provider-columns` tracks, so the names run down a fixed left column, the
+ * statuses share a left edge, and the actions sit at the right, exactly as the
+ * mock draws them. The old version stacked each action full width with a "+";
+ * this is the aligned grid the mock asks for.
+ *
+ * EXPANDING WITH NO SCRIPT. The mock opens the model picker or the key field
+ * inline when an action is clicked; here each action is a link that sets a
+ * query param (`?model=<provider>` or `?connect=<provider>`), and the page
+ * re-renders with that row's panel open below its grid line. This is the same
+ * no-JS pattern /profile's `?edit=` uses: the action reads as inline text, the
+ * panel spans the full width beneath, and nothing runs in the browser. A
+ * rejected key save reopens its own row through the same seam (relayError).
+ *
+ * THE ENDPOINTS ARE UNCHANGED. Choosing a model is a submit button posting its
+ * id to settings/model.ts (so the choice IS the save); the key field posts to
+ * settings/keys/save.ts; Remove posts to settings/keys/remove.ts. The key
+ * field never carries a value on any path, the one leak this section refuses.
+ */
+export interface ProviderRowModel {
+  id: string;
+  label: string;
+  note: string;
+  current: boolean;
+}
+
+export interface ProviderRow {
+  provider: string;
+  name: string;
+  connected: boolean;
+  tail: string | null;
+  added: string | null;
+  replaced: string | null;
+  writingLabel: string | null;
+  readModelLabel: string;
+  models: readonly ProviderRowModel[];
+  relayError: string | null;
+}
+
+interface Props {
+  rows: readonly ProviderRow[];
+  modelAction: string;
+  keysSaveAction: string;
+  keysRemoveAction: string;
+  modelUpdated: boolean;
+  modelError: boolean;
+  /** This page's own path, for the expand and collapse links. */
+  settingsPath: string;
+  /** Which row's model picker is open (from `?model=`), and which row's key
+      field is open (from `?connect=`), or null. */
+  openModel: string | null;
+  openKey: string | null;
+}
+
+const {
+  rows,
+  modelAction,
+  keysSaveAction,
+  keysRemoveAction,
+  modelUpdated,
+  modelError,
+  settingsPath,
+  openModel,
+  openKey
+} = Astro.props;
+
+const collapseHref = `${settingsPath}#keys`;
+function modelHref(provider: string): string {
+  return `${settingsPath}?model=${provider}#keys`;
+}
+function connectHref(provider: string): string {
+  return `${settingsPath}?connect=${provider}#keys`;
+}
+---
+
+<div class="providers">
+  {modelUpdated && <p class="settings-success" role="status">Saved.</p>}
+  {modelError && (
+    <p class="settings-error" role="alert">That did not save. Nothing has changed; pick again and save.</p>
+  )}
+
+  {rows.map((row) => {
+    // A model picker only exists for a connected provider: there is no key to
+    // spend a choice on otherwise, and the "Change model" action that opens it
+    // is shown only on connected rows.
+    const modelIsOpen = row.connected && openModel === row.provider;
+    const keyIsOpen = openKey === row.provider || row.relayError != null;
+    return (
+      <article class="provider-row">
+        <div class="provider-grid">
+          <span class="provider-name">{row.name}</span>
+          {row.connected ? (
+            <span class="provider-status">
+              <span class="provider-dot provider-dot-on" aria-hidden="true">&#9679;</span> Connected
+              {row.tail && <> · key ends in <span class="provider-mono">{row.tail}</span></>}
+              {row.added && <> · added {row.added}</>}
+              {row.replaced && <> · replaced {row.replaced}</>}
+              {row.writingLabel && <> · writes with <span class="provider-strong">{row.writingLabel}</span></>}
+              {' '}· reads with {row.readModelLabel}
+            </span>
+          ) : (
+            <span class="provider-status provider-status-off">
+              <span class="provider-dot" aria-hidden="true">&#9675;</span> Not connected
+            </span>
+          )}
+          <span class="provider-actions">
+            {row.connected ? (
+              <>
+                <a class="provider-action" href={modelIsOpen ? collapseHref : modelHref(row.provider)}>
+                  {modelIsOpen ? 'Close' : 'Change model'}
+                </a>
+                <a class="provider-action" href={keyIsOpen ? collapseHref : connectHref(row.provider)}>
+                  {keyIsOpen ? 'Close' : 'Replace key'}
+                </a>
+                <form class="provider-remove-form" method="POST" action={keysRemoveAction}>
+                  <input type="hidden" name="provider" value={row.provider} />
+                  <button class="provider-action provider-action-button" type="submit">Remove</button>
+                </form>
+              </>
+            ) : (
+              <a class="provider-connect" href={keyIsOpen ? collapseHref : connectHref(row.provider)}>
+                {keyIsOpen ? 'Cancel' : 'Connect'}
+              </a>
+            )}
+          </span>
+        </div>
+
+        {modelIsOpen && (
+          <div class="provider-panel">
+            <form class="model-form" method="POST" action={modelAction}>
+              <input type="hidden" name="provider" value={row.provider} />
+              <div class="model-options" role="group" aria-label={`Writing model for ${row.name}`}>
+                {row.models.map((model) => (
+                  <button class="model-option" type="submit" name="model" value={model.id} aria-pressed={model.current}>
+                    <span class="model-option-dot" aria-hidden="true">{model.current ? '●' : '○'}</span>
+                    <span class="model-option-body">
+                      <span class="model-option-name">{model.label}</span>
+                      <span class="model-option-note">{model.note}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </form>
+            <p class="provider-panel-note">
+              This picks who writes. Reading your resume always runs on {row.readModelLabel}, the provider's
+              cheapest model, because that work is copying, not writing.
+            </p>
+          </div>
+        )}
+
+        {keyIsOpen && (
+          <div class="provider-panel">
+            {row.relayError && (
+              <p class="field-issue" role="alert">That key was not saved: {row.relayError}.</p>
+            )}
+            <form class="key-form" method="POST" action={keysSaveAction}>
+              <input type="hidden" name="provider" value={row.provider} />
+              <label class="visually-hidden" for={`key-${row.provider}`}>
+                {row.connected ? `Replace your ${row.name} key` : `Your ${row.name} key`}
+              </label>
+              {/* NO value attribute, ever: a re-populating password field would
+                  render the submitted key into the page's HTML. */}
+              <input
+                class="field-input key-input"
+                id={`key-${row.provider}`}
+                type="password"
+                name="key"
+                placeholder="sk-..."
+                autocomplete="off"
+                spellcheck="false"
+                required
+              />
+              <button class="field-submit" type="submit">Save key</button>
+              <a class="provider-action key-cancel" href={collapseHref}>Cancel</a>
+            </form>
+            <p class="provider-panel-note">
+              Paste the whole key. It is sealed before it is stored and read only at drafting time.
+              {row.connected && ' Saving replaces the key on file; there is one key per provider.'}
+            </p>
+          </div>
+        )}
+      </article>
+    );
+  })}
+</div>
+
+<style>
+  .providers {
+    display: flex;
+    flex-direction: column;
+    /* The row stacks on the CONTAINER's width, not the viewport's. The Settings
+       content column is capped at 70ch, so on a wide screen this section is far
+       narrower than the viewport; a viewport media query left the three-column
+       grid in force inside a column too narrow to hold it, which crushed the
+       status track to a single character wide. A container query measures the
+       space the grid actually has. */
+    container-type: inline-size;
+  }
+  .settings-success {
+    margin: 0 0 var(--space-400);
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line);
+    font-size: var(--size-150);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+  .settings-error {
+    margin: 0 0 var(--space-400);
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+
+  /* One row per provider. A hairline between rows makes the set read as one
+     table; none above the first. */
+  .provider-row {
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .provider-row:first-of-type {
+    border-top: 0;
+  }
+  .provider-grid {
+    display: grid;
+    grid-template-columns: var(--provider-columns);
+    gap: var(--space-400);
+    align-items: baseline;
+    padding: var(--space-400) 0;
+    min-width: 0;
+  }
+  .provider-name {
+    font-size: var(--size-200);
+    font-weight: var(--weight-medium);
+    color: var(--color-foreground);
+  }
+  .provider-status {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+    /* break-word, not anywhere: anywhere lets the text break mid-word, which
+       also lets this grid track shrink below its longest word and, in a tight
+       column, collapse to one character per line. break-word only breaks a word
+       that genuinely cannot fit, so the track keeps a sane minimum. */
+    overflow-wrap: break-word;
+  }
+  .provider-dot {
+    color: var(--color-muted);
+  }
+  .provider-dot-on {
+    color: var(--color-mark-live);
+  }
+  .provider-mono {
+    color: var(--color-foreground);
+  }
+  .provider-strong {
+    color: var(--color-foreground);
+    font-weight: var(--weight-medium);
+  }
+
+  /* The actions, inline at the right of the row. */
+  .provider-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: baseline;
+    gap: var(--space-400);
+    white-space: nowrap;
+  }
+  .provider-action {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+    cursor: pointer;
+  }
+  .provider-action:hover,
+  .provider-action:focus-visible {
+    color: var(--color-foreground);
+  }
+  .provider-action-button {
+    background: transparent;
+    border: 0;
+    padding: 0;
+  }
+  .provider-remove-form {
+    margin: 0;
+    display: inline;
+  }
+  /* Connect is a bordered button, the one control that invites an action on a
+     provider with nothing on it yet. */
+  .provider-connect {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-foreground);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-radius: var(--radius);
+    padding: var(--space-200) var(--space-400);
+  }
+  .provider-connect:hover,
+  .provider-connect:focus-visible {
+    border-color: var(--color-foreground);
+  }
+
+  /* The expand panel, full width beneath the grid line. */
+  .provider-panel {
+    padding: 0 0 var(--space-500);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+  .provider-panel-note {
+    margin: 0;
+    max-width: var(--layout-measure);
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+  }
+  .field-issue {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+  }
+
+  /* The model choices: one submit button per model, so a click is the save.
+     The current one carries the filled dot and a heavier border. */
+  .model-form {
+    margin: 0;
+  }
+  .model-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+  .model-option {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-300);
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line);
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+  }
+  .model-option[aria-pressed='true'] {
+    border-color: var(--color-foreground);
+  }
+  .model-option-dot {
+    margin-top: var(--space-100);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    flex: none;
+  }
+  .model-option-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+    min-width: 0;
+  }
+  .model-option-name {
+    font-size: var(--size-200);
+    font-weight: var(--weight-medium);
+    color: var(--color-foreground);
+  }
+  .model-option-note {
+    font-size: var(--size-100);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+  }
+
+  /* The key field row: field, save, cancel, inline. */
+  .key-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-300);
+  }
+  .key-input {
+    flex: 1;
+    min-width: 12rem;
+  }
+  .field-submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .key-cancel {
+    flex: none;
+  }
+
+  /* When the section itself (not the viewport) is too narrow to hold the three
+     tracks, the row stacks and the actions move to their own line, left-aligned.
+     45rem is name (13.5rem) plus a readable status plus the connected row's three
+     actions plus gaps; below it the three-column table cannot fit, so it becomes
+     a clean single column. The Settings content column is 70ch, narrower than
+     this on every screen, so in practice the rows stack, which is exactly how
+     they already render at phone width. */
+  @container (max-width: 45rem) {
+    .provider-grid {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-200);
+    }
+    .provider-actions {
+      justify-content: flex-start;
+    }
+  }
+</style>

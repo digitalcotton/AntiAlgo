@@ -1,0 +1,110 @@
+---
+/**
+ * The way in. Until this existed there was none.
+ *
+ * Auth shipped with sign-in and sign-up routes and nothing on the index linking
+ * to either, so the only door into an account was the gated draft page, which a
+ * reader reaches only by already knowing the URL. A gate with no entrance is not
+ * a gate, it is a wall.
+ *
+ * WHAT THE COPY PROMISES IS WHAT EXISTS TODAY. It says an account opens the
+ * outreach drafts, because that is the one gated thing built. Applied tracking
+ * and suggested contacts are planned and are not mentioned, because a landing
+ * promise the product does not keep is the fastest way to lose the reader it
+ * just converted.
+ *
+ * IT SHOWS THE THING RATHER THAN DESCRIBING IT. The founder's name and the
+ * signal are the shop window: a reader who sees a real company and a real
+ * observation understands the offer without a paragraph explaining it.
+ */
+import { withBase } from '../../site.config.mjs';
+
+interface Props {
+  /** Named so the signup source can tell which surface converted. */
+  source?: string;
+}
+const { source = 'index' } = Astro.props;
+---
+
+<aside class="account-cta" aria-labelledby="account-cta-title">
+  <div class="account-cta-body">
+    <p class="account-cta-kicker">Free account</p>
+    <h2 id="account-cta-title" class="account-cta-title">
+      Every draft, not just the opening line.
+    </h2>
+    <p class="account-cta-line">
+      The index is free and always will be. An account opens the outreach drafts:
+      the founder by name, the signal that put them on the list, and the note
+      written for that company.
+    </p>
+    <div class="account-cta-actions">
+      <a class="account-cta-button" href={`${withBase('/sign-up')}?from=${source}`}>
+        Create an account
+      </a>
+      <p class="account-cta-alt">
+        Already have one? <a href={withBase('/sign-in')}>Sign in</a>.
+      </p>
+    </div>
+  </div>
+</aside>
+
+<style>
+  .account-cta {
+    border-block-start: var(--border-heavy) solid var(--color-foreground);
+    padding-block-start: var(--space-600);
+    margin-block-start: var(--space-800);
+  }
+  .account-cta-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    max-width: 60ch;
+  }
+  .account-cta-kicker {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .account-cta-title {
+    margin: 0;
+    font-size: var(--size-500);
+    line-height: var(--leading-display);
+    font-weight: var(--weight-bold);
+  }
+  .account-cta-line {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+  }
+  .account-cta-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    align-items: flex-start;
+  }
+  .account-cta-button {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-300) var(--space-500);
+    border: var(--border-heavy) solid var(--color-foreground);
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    text-decoration: none;
+    font-weight: var(--weight-bold);
+    font-size: var(--size-200);
+  }
+  .account-cta-button:hover,
+  .account-cta-button:focus-visible {
+    background: var(--color-surface-raised);
+    color: var(--color-foreground);
+  }
+  .account-cta-alt {
+    margin: 0;
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+</style>
