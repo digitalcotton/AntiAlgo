@@ -30,11 +30,28 @@ export const BASE_PATH = '';
 export const SITE_URL = `${SITE_ORIGIN}${BASE_PATH}`;
 
 /**
- * Where the job index lives today. Every link to the board, the kill list,
- * the methodology and the rest goes through indexUrl(), so the day the index
- * moves onto this origin, this is the one value that changes.
+ * Where the job index lives today: this same origin. It used to be a separate
+ * property (tokenstoagents.ai/jobs) reached cross-origin; the board is now
+ * copied into this repo and served locally, so indexUrl() resolves against
+ * this site's own SITE_URL instead of a foreign host. Every link to the
+ * board, the kill list, the methodology and the rest still goes through
+ * indexUrl(), so a future re-split back onto its own origin is still one
+ * edit here.
  */
-export const INDEX_URL = 'https://tokenstoagents.ai/jobs';
+export const INDEX_URL = SITE_URL;
+
+/**
+ * The Vercel function ceiling, in seconds. Read by astro.config.mjs (the
+ * adapter's maxDuration) and by the job-draft state math
+ * (src/lib/generated-render-store.ts's jobDraftState), so a row that has been
+ * "pending" longer than the platform could possibly still be working on it is
+ * reported as failed, and the two can never disagree about how long that is.
+ * 300 is the Fluid compute maximum on every plan (Hobby caps here; Pro allows
+ * more) — a draft's provider calls run after the response, in a fresh
+ * invocation per document (src/lib/draft-run-dispatch.ts), held alive by
+ * waitUntil for up to this long.
+ */
+export const FUNCTION_MAX_DURATION_S = 300;
 
 /** The endpoint the index publishes its sweep totals at. Read, never typed. */
 export const INDEX_STATS_URL = `${INDEX_URL}/board/stats.json`;

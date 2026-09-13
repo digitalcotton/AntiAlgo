@@ -1,0 +1,13 @@
+{
+  "//": "The edge function is compiled by Vercel, not by astro check, and Vercel resolves it under nodenext unless told otherwise. Under nodenext this file cannot import a sibling without a .js extension (TS2835) and cannot import JSON without an import attribute (TS1543). Adding the attribute satisfies tsc and then breaks the bundler, which is an older esbuild that does not parse it at all: the first production build to clear the schema check failed on exactly that, having just been fixed for the error before it. moduleResolution bundler accepts both forms and matches how the rest of this repo compiles. Note that tsconfig.json permits a // key and vercel.json does not, which is the difference that cost this project every deployment it had ever attempted.",
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "module": "esnext",
+    "resolveJsonModule": true,
+    "noEmit": true
+  },
+  "include": [
+    "./**/*.ts"
+  ]
+}

@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tokenstoagents.ai/jobs/schemas/jobs.schema.json",
+  "title": "The Index: jobs.json",
+  "description": "Every posting the sweep verified, plus every posting it has seen close. One record per posting, and the record is the machine's, never this repository's. See src/data/README.md for what each field is allowed to contain and what an absence means.",
+  "type": "object",
+  "required": ["_meta", "jobs"],
+  "additionalProperties": false,
+  "properties": {
+    "_meta": { "$ref": "#/$defs/meta" },
+    "jobs": {
+      "type": "array",
+      "description": "May be empty. An empty array is a sweep that verified nothing, which is a finding rather than a failure. A missing key is a load that failed.",
+      "items": { "$ref": "#/$defs/job" }
+    }
+  },
+  "$defs": {
+    "meta": {
+      "type": "object",
+      "required": ["purpose", "contents"],
+      "properties": {
+        "fixture": {
+          "type": "boolean",
+          "description": "True only for a labelled build fixture. The build's freshness check throws on unlabelled data past 48 hours and reports loudly on a labelled fixture. A push from the machine must never carry this."
+        },
+        "purpose": { "type": "string" },
+        "contents": { "type": "string" },
+        "fit_component_provenance": {
+          "enum": ["measured", "derived_from_weights"],
+          "description": "Whether the five fit components in each record are the machine's own readings. While this is derived_from_weights the site renders the totals and shows every component as a truthful absence, because a back-filled split is not an observation."
+        },
+        "fit_components": { "type": "string" },
+        "descriptions": { "type": "string" },
+        "status_rule": { "type": "string" },
+        "ages": { "type": "string" }
+      }
+    },
+    "isoDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "isoInstant": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$" },
+    "job": {
+      "type": "object",
+      "required": [
+        "id",
+        "slug",
+        "company",
+        "title",
+        "comp_posted",
+        "location",
+        "remote",
+        "source_system",
+        "source_url",
+        "apply_url",
+        "first_observed",
+        "last_verified",
+        "published_date",
+        "age_days",
+        "status",
+        "window",
+        "risk",
+        "ease",
+        "fit",
+        "description_html"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "description": "The URL. Stable across sweeps, because a posting that changes its URL loses its archive."
+        },
+        "company": { "type": "string", "minLength": 1 },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "As the source states it. Never cleaned up, never normalised, never title-cased."
+        },
+        "comp_posted": {
+          "type": ["string", "null"],
+          "description": "The range as posted, verbatim. Null where the source posted none, which renders as Not listed."
+        },
+        "location": { "type": "string", "minLength": 1 },
+        "remote": { "type": "boolean" },
+        "source_system": {
+          "enum": ["greenhouse", "ashby", "workable", "jobvite", "yc", "custom", "founder_post"],
+          "description": "The board this record was read from, and the name the site prints beside both links below: Apply on X, X read direct, Destination X. A schema cannot check a value against another field, so the build and the export do: the named system has to agree with the host of source_url and of apply_url, and custom and founder_post are the two labels that name the absence of a board. One sweep 001 record said ashby over two links to the company's own site, which is why the check exists."
+        },
+        "source_url": { "type": "string", "format": "uri" },
+        "apply_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Gate 2 requests every one of these at build time and fails the build on a status of 400 or above."
+        },
+        "first_observed": {
+          "oneOf": [{ "$ref": "#/$defs/isoDate" }, { "type": "null" }],
+          "description": "The sweep on which the machine first saw this posting. Ours, not the employer's."
+        },
+        "last_verified": {
+          "$ref": "#/$defs/isoInstant",
+          "description": "Equal to stats.swept_at_utc on every record. One clock: the build fails when any record disagrees."
+        },
+        "published_date": {
+          "oneOf": [{ "$ref": "#/$defs/isoDate" }, { "type": "null" }],
+          "description": "The date the source itself shows. Null on most records, and an absence renders as No date shown. Never inferred from anything."
+        },
+        "age_days": {
+          "type": ["integer", "null"],
+          "description": "Stored and never read by the site, which computes an age from the dates instead. A derived observation that is also stored is a second source of truth. Dropping this field from the export would be an improvement."
+        },
+        "status": { "enum": ["live", "re_verified", "closed"] },
+        "window": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["days", "day"],
+              "properties": {
+                "days": { "type": "integer", "minimum": 1 },
+                "day": { "type": "integer", "minimum": 0 }
+              },
+              "additionalProperties": false
+            },
+            { "type": "null" }
+          ],
+          "description": "A longer expiry window for a senior or leadership posting, and which day of it the sweep found the posting on."
+        },
+        "risk": { "enum": ["LOW", "MED", "HIGH"] },
+        "ease": {
+          "type": "object",
+          "required": ["friction", "minutes_estimate", "account_required", "destination"],
+          "properties": {
+            "friction": { "enum": ["EASY", "MEDIUM", "HARD"] },
+            "minutes_estimate": { "type": ["integer", "null"] },
+            "account_required": { "type": "boolean" },
+            "destination": {
+              "type": "string",
+              "description": "Named plainly, because the apply action says where it sends a reader."
+            }
+          },
+          "additionalProperties": false
+        },
+        "fit": {
+          "type": "object",
+          "required": ["total", "title_scope", "remote_geo", "comp", "freshness", "apply_friction"],
+          "properties": {
+            "total": { "type": "integer" },
+            "title_scope": { "type": "integer" },
+            "remote_geo": { "type": "integer" },
+            "comp": { "type": "integer" },
+            "freshness": { "type": "integer" },
+            "apply_friction": { "type": "integer" }
+          },
+          "additionalProperties": false,
+          "description": "Rubric v1. The five components sum to the total, and the build throws when they do not. Each component should also sit between zero and its rubric weight (30, 25, 20, 15, 10); eight records in sweep 001 do not, and the site prints those values with no bar rather than clipping them."
+        },
+        "description_html": {
+          "type": ["string", "null"],
+          "description": "The employer's own words, fetched verbatim by the machine, or null. This repository never writes prose into this field, and an empty slot stays empty."
+        },
+        "closed_on": { "$ref": "#/$defs/isoDate" },
+        "closed_reason": { "type": "string" },
+        "age_at_close_days": { "type": "integer" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "closed" } }, "required": ["status"] },
+          "then": {
+            "required": ["closed_on", "closed_reason"],
+            "description": "A closed record carries the date the machine detected the closure and what it observed. The page renders no apply path of any kind."
+          }
+        }
+      ]
+    }
+  }
+}

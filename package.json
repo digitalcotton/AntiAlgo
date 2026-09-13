@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "The product site for The Index: the product page, sign-up, and the waitlist.",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "tokens": "style-dictionary build --config style-dictionary.config.js",
     "dev": "npm run tokens && astro dev",

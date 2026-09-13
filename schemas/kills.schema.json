@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tokenstoagents.ai/jobs/schemas/kills.schema.json",
+  "title": "The Index: kills.json",
+  "description": "Every posting the sweep killed by rule. The kill list is built from this file and nothing else. Observations only: no field here may carry a claim about why a company did anything, because a job feed cannot show intent.",
+  "type": "object",
+  "required": ["_meta", "kills"],
+  "additionalProperties": false,
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": ["purpose", "contents"],
+      "properties": {
+        "fixture": { "type": "boolean" },
+        "purpose": { "type": "string" },
+        "contents": { "type": "string" },
+        "reason_copy": { "type": "string" },
+        "duration_provenance": { "type": "string" },
+        "held_rows": { "type": "string" }
+      }
+    },
+    "kills": {
+      "type": "array",
+      "description": "May be empty, and an empty array is the best night the machine can have. The kill list has a designed state that says so, and the build must not die before the page can say it.",
+      "items": { "$ref": "#/$defs/kill" }
+    }
+  },
+  "$defs": {
+    "isoDate": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "kill": {
+      "type": "object",
+      "required": ["company", "title", "reason", "first_published", "killed_on", "duration_open_days"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "A digest of the posting URL and the rule that fired. The same identity the record in kills-archive.json carries, so a row on tonight's list and its row in the record are the same row twice rather than two rows that happen to agree. Added 2026-09-05 with the archive; absent from sweeps written before it."
+        },
+        "slug": {
+          "type": "string",
+          "description": "The card URL, assigned across the whole archive at once so tonight's card and the record's card are one string. Absent from sweeps written before 2026-09-05, where killSlug() derives it from company and title as it always did."
+        },
+        "company": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What was observed, when, and which contradiction it carried. Never a motive. Four strings were cut back to observation on 2026-08-17 and a fifth had an outside-reported duration removed from it; the originals and their replacements are in DECISIONS.md."
+        },
+        "first_published": {
+          "oneOf": [{ "$ref": "#/$defs/isoDate" }, { "type": "null" }],
+          "description": "The date the source itself showed. Null on four records in sweep 001, and a null here means no duration bar is drawn at all rather than a guessed length."
+        },
+        "killed_on": {
+          "oneOf": [{ "$ref": "#/$defs/isoDate" }, { "type": "null" }],
+          "description": "The day the machine detected the kill. Not normalised to the sweep: Uplight's is the day before, and the duration is measured to detection."
+        },
+        "duration_open_days": {
+          "type": ["integer", "null"],
+          "description": "Stored and never read. The site computes killed_on minus first_published, because a derived observation that is also stored can drift from the dates it came from. Gate 2 asserts the computation, not this field."
+        },
+        "duration_provenance": {
+          "oneOf": [{ "enum": ["observed_by_us", "reported_elsewhere"] }, { "type": "null" }],
+          "description": "observed_by_us where we hold a first_published date and measured the span ourselves. reported_elsewhere where the figure came from outside research: those rows draw no bar against the 9.8 day line, because the bar is a measurement and we have none."
+        },
+        "duration_source": {
+          "type": ["string", "null"],
+          "description": "The named outside source for a reported_elsewhere figure. While it is null the figure itself is held back and does not render at all, per SESSION-07-KILL-LIST.md ruling 4. A duration with no nameable source is somebody else's number in our voice."
+        },
+        "held": {
+          "type": "boolean",
+          "description": "True where the record is kept in the archive and out of every published surface: no row on the kill list, no share card, and no place in any count of rendered rows. A hold is a publication decision and not a measurement, so stats.killed still counts the record and the kill list states on the page that a record is held and why. Ruled 2026-08-19."
+        },
+        "held_reason": {
+          "type": "string",
+          "description": "Why this record is held, travelling with the record rather than living in a page. Required in practice by review rather than by this schema: a hold with no stated reason is a row that was quietly dropped, which is the move this site exists to name."
+        },
+        "kill_rule": {
+          "oneOf": [
+            { "enum": ["repost_churn", "misrepresented", "zombie", "phantom", "touched_not_refreshed"] },
+            { "type": "null" }
+          ],
+          "description": "The rule that fired, emitted upstream by sweep.py's kill_reason(), which already knows. Absent from sweep 001, which is why the kill list ships without its taxonomy grouping and says so on the page. Never classified downstream from the reason prose. 'evergreen' is deliberately absent: it was retired 2026-08-19, so that an export which republished a historic age-based kill would be rejected here rather than rendered. It killed a posting for being old, which inferred an employer's intent from a duration. Age is now a displayed fact on every job row and is never a finding. 'repost_churn' was added 2026-08-19 and is the only rule here that reads two observations separated by time rather than one posting: a req that left the boards and came back under a new identifier, freshly dated, with a body byte for byte identical to the one it had before. It is expected to sit at zero for several weeks, because it compares against a fingerprint the machine only started recording on closed postings that night."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,48 @@
+THE INDEX / INSTANT ALERT
+========================================================
+
+Harvey
+Senior Manager, Product Design, Platform
+Verified this sweep
+FIT 92 of 100
+
+Comp:      $235.5K – $325K • Offers Equity • Offers Bonus
+Location:  New York
+Age:       10h
+Applying:  Easy · ~12 min · no account
+
+--------------------------------------------------------
+
+WHY IT MATCHED
+You asked to hear about roles matching this filter.
+  Location: On-site or hybrid · Comp: $200K to $250K · Freshness: Inside 96 hours
+
+This is how it scored against rubric v1.
+  Title scope: 22 of 30
+  Remote and geography: 25 of 25
+  Compensation: 20 of 20
+  Freshness: 15 of 15
+  Apply friction: 10 of 10
+  FIT 92 = 22+25+20+15+10 / RUBRIC V1 / WEIGHTS 30+25+20+15+10
+
+--------------------------------------------------------
+
+Apply on Ashby: https://jobs.ashbyhq.com/harvey/c0d56938-468a-43dc-b8ec-84f17b04338a
+Goes to Ashby, the company's own board.
+
+--------------------------------------------------------
+
+PROVENANCE
+  First observed Sep 5, 2026
+  Last verified Sep 5, 2026, 07:30 UTC
+  Read direct from Ashby
+  Full record: https://tokenstoagents.ai/jobs/role/harvey-senior-manager-product-design-platform
+
+========================================================
+
+LEGEND: (o) verified this sweep / (+) re-verified / (/) closed
+The Index reads company applicant tracking feeds direct, verifies every posting at source,
+and archives what it kills. Sent because you asked for it.
+
+Manage what you get: {{preferences_url}}
+Unsubscribe: {{unsubscribe_url}}

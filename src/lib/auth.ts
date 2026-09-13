@@ -124,6 +124,21 @@ export function getAuth(): ReturnType<typeof build> {
 }
 
 /**
+ * The same instance under the name Better Auth's own CLI looks for (`npx
+ * @better-auth/cli migrate` etc. expects a module-level `auth` binding, not a
+ * function to call). Mirrors $IDX/src/lib/auth.ts's export verbatim: a Proxy
+ * so importing this module builds nothing (still lazy, per this file's own
+ * header), and only the CLI's first property access constructs the real
+ * instance via getAuth().
+ */
+export const auth = new Proxy({} as ReturnType<typeof build>, {
+  get: (_target, prop, receiver) => Reflect.get(getAuth(), prop, receiver),
+  has: (_target, prop) => prop in getAuth(),
+  ownKeys: () => Reflect.ownKeys(getAuth()),
+  getOwnPropertyDescriptor: (_target, prop) => Reflect.getOwnPropertyDescriptor(getAuth(), prop)
+});
+
+/**
  * The placement that sent someone to sign up, read off the request that
  * created the account: the body's signup_source field first, then the
  * short-lived cookie the sign-up page sets, then 'direct'.
@@ -137,13 +152,28 @@ function sourceFromRequest(context: unknown): string {
   return match ? decodeURIComponent(match[1]) : 'direct';
 }
 
-/** Control characters flattened, bounded at 120, whitespace collapsed and trimmed. */
-export function sanitiseName(value: unknown): string {
+/**
+ * Control characters flattened, bounded at 120 — and nothing else touched.
+ * RUN-FINISH 2.1: "a person's name is stored verbatim. Never alter,
+ * title-case, normalise, or 'clean' what somebody says they are called."
+ * A stray control character is a safety problem (header-injection shape in
+ * anything that later builds a message from this string); interior or
+ * trailing whitespace is not a safety problem, it is what the person typed.
+ * settings/name.ts calls this one (not sanitiseName() below) so a name
+ * changed after sign-up is not quietly cleaned up in a way sign-up itself
+ * never did.
+ */
+export function sanitiseNameForStorage(value: unknown): string {
   return String(value ?? '')
     .replace(/\p{Cc}/gu, ' ')
-    .slice(0, 120)
-    .replace(/\s+/g, ' ')
-    .trim();
+    .slice(0, 120);
+}
+
+/** Control characters flattened, bounded at 120, whitespace collapsed and trimmed.
+ *  Used at sign-up only (namesFrom(), below); see sanitiseNameForStorage()
+ *  above for why a name changed later does not reuse this exact function. */
+export function sanitiseName(value: unknown): string {
+  return sanitiseNameForStorage(value).replace(/\s+/g, ' ').trim();
 }
 
 /**

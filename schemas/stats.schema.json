@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tokenstoagents.ai/jobs/schemas/stats.schema.json",
+  "title": "The Index: stats.json",
+  "description": "The sweep's own totals, and the site's only clock. Every timestamp rendered anywhere on the site is swept_at_utc, and every number the site states about its own sweep is one of these fields. Numbers here are READINGS: they change every night, they are computed at build time, and they must never appear as a literal in a template or in src/data/facts.json. facts.json holds the other species, external citations, which are static and verbatim. The build checks that these numbers reconcile against jobs.json and kills.json before a single page renders.",
+  "type": "object",
+  "required": [
+    "swept_at_utc",
+    "boards",
+    "pulled",
+    "verified_live",
+    "killed",
+    "killed_by_rule",
+    "killed_unattributed"
+  ],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "properties": {
+        "fixture": {
+          "type": "boolean",
+          "description": "True only for a labelled build fixture. Unlabelled data older than 48 hours fails the build, because a site that says verified last night cannot be built from data that is not last night's."
+        },
+        "purpose": { "type": "string" },
+        "contents": { "type": "string" },
+        "no_sweep_number": { "type": "string" },
+        "no_ghost_rate": { "type": "string" },
+        "killed_by_rule": { "type": "string" }
+      }
+    },
+    "swept_at_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "The one instant, and the sweep's only identifier. Shape is checked, freshness is checked, and every record in jobs.json has to carry it as last_verified. There is deliberately no sweep_number beside it: a counter can be miscounted and a test run inflates it, where an instant cannot be incremented by accident."
+    },
+    "boards": { "type": "integer", "minimum": 1, "description": "Feeds read, not postings." },
+    "pulled": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Postings pulled. Equal to verified_live plus killed: everything pulled was either verified or killed, and a third outcome is a state nobody designed."
+    },
+    "verified_live": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Equal to the number of records in jobs.json whose status is live or re_verified."
+    },
+    "killed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Equal to the number of records in kills.json, held records included. A held record is still a kill the sweep made; it is only a record the site does not publish."
+    },
+    "killed_by_rule": {
+      "type": "object",
+      "description": "One count per rule the machine can fire, and every rule appears every night whether or not it found anything. A rule missing from this object reads as a rule that was never run, which is the reading the zeroes exist to prevent. The keys are exactly the kill_rule enum in kills.schema.json: 'evergreen' is absent because it was retired, so an export republishing a historic age-based kill is rejected here rather than counted.",
+      "required": ["repost_churn", "misrepresented", "zombie", "phantom", "touched_not_refreshed"],
+      "additionalProperties": false,
+      "properties": {
+        "repost_churn": { "type": "integer", "minimum": 0 },
+        "misrepresented": { "type": "integer", "minimum": 0 },
+        "zombie": { "type": "integer", "minimum": 0 },
+        "phantom": { "type": "integer", "minimum": 0 },
+        "touched_not_refreshed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "killed_unattributed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Kills carrying no rule the current taxonomy can name. Sweep 001 has fourteen: every one of them fired the evergreen rule, which was retired on 2026-08-19 for inferring intent from a duration, so there is no honest rule name left to file them under. The sum of killed_by_rule plus this equals killed, and the build checks that. It is not a bin for anything inconvenient: the machine names the rule that fired, and this counts only records that predate a rule existing."
+    }
+  },
+  "additionalProperties": false
+}
