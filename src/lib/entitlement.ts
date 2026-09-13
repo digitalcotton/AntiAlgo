@@ -67,18 +67,48 @@ export interface Verdict {
  *
  * A route absent from this map is not automatically public: anything under a
  * gated prefix with no entry here is DENIED. Keys carry no base path and are
- * matched exactly, then by longest prefix.
+ * matched exactly, then by longest prefix, so e.g. `/drafts/acme` inherits
+ * `/drafts` without its own line.
+ *
+ * MERGED FROM TWO POLICIES. `/account` is AntiAlgo's own (the signed-in
+ * account page; a waitlisted account is sent to /waitlist instead) and
+ * `/internal` was already shared. `/desk`, `/settings`, `/profile`,
+ * `/drafts`, `/prelist` are the Index's gated prefixes for the board's
+ * signed-in surfaces, copied in now that that code runs in this repo. All
+ * five are 'member' for the same reason /account is: they read viewer state
+ * this repo's own database owns and none of them is priced differently from
+ * plain sign-in yet.
  */
 export const ROUTE_POLICY: Record<string, Tier> = {
   // The signed-in account page: who you are, your tier, sign out. A member's
   // landing after admission. A waitlisted account is sent to /waitlist instead.
   '/account': 'member',
+  // The Desk (MASTER-SPEC 3.5, F4): covers /desk and, by prefix, every
+  // endpoint under it (desk/save.ts, desk/application.ts, desk/posting.ts,
+  // desk/job-draft*). Keeps a real shop window for a signed-out reader (see
+  // src/pages/desk.astro's own header): the gate controls the tracker
+  // itself, not whether the page exists.
+  '/desk': 'member',
+  // Settings: name, email, handle, drafting with provider keys, and the data
+  // controls (export, delete, saved filters). Covers /settings and, by
+  // prefix, every endpoint under it.
+  '/settings': 'member',
+  // Your own profile: identity header and the Profile Record, editable in
+  // place. Private-only: unlike /desk and /prelist, no signed-out shop window.
+  '/profile': 'member',
+  // One outbound draft as a gated shop window: the company and opening line
+  // are public, the rest sits behind this gate.
+  '/drafts': 'member',
+  // The Pre-List (RUN-FINISH 3.1, MASTER-SPEC F6): covers /prelist and, by
+  // prefix, its one action route (prelist/follow.ts). Keeps a real shop
+  // window for a signed-out reader, like /desk.
+  '/prelist': 'member',
   // Exists so the internal gate is reachable and its denial is provable.
   '/internal': 'internal'
 };
 
 /** Prefixes that are gated. Anything at or under one of these must have a policy. */
-export const GATED_PREFIXES = ['/account', '/internal'] as const;
+export const GATED_PREFIXES = ['/account', '/desk', '/settings', '/profile', '/drafts', '/prelist', '/internal'] as const;
 
 function assertEveryGatedPrefixHasAPolicy(): void {
   const missing = GATED_PREFIXES.filter((p) => !(p in ROUTE_POLICY));
