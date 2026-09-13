@@ -40,6 +40,10 @@ export const DARK_REMAP = {
   line: '800',
   'line-strong': '600',
   'hover-surface': '800',
+  // The age strip's drag handle and rail, brought in with the board's
+  // AgePlot component. gray.800 on paper, gray.200 on ink — its own mirror,
+  // not the standard hover-surface remap.
+  control: '200',
 
   // The two live marks keep their meaning across themes by changing value.
   'mark-live': 'status.live.on-ink',

@@ -16,6 +16,11 @@
       "$value": "3.5rem minmax(15rem, 1.6fr) 9.5rem 9.25rem 11.875rem 12.5rem",
       "$type": "other",
       "$description": "The index table's six column tracks, measured off the approved canvas: fit, role as posted, comp as posted, location, age, apply. One token, because the column label row and every data row have to resolve the same tracks and two copies of a grid template is how a table's headings end up one column out. An Index extension: the mothership has no table. Nothing here duplicates a ramp step: the column gap and the panel gutter are space.400 and space.600 and stay on the ramp."
+    },
+    "columns-public": {
+      "$value": "minmax(15rem, 1.6fr) 9.5rem 9.25rem 11.875rem 12.5rem",
+      "$type": "other",
+      "$description": "The same table without its first track, for a reader who does not see fit (the fit_public flag is dark and they are signed out): role as posted, comp as posted, location, age, apply. The five tracks are table.columns with the fit track removed and nothing else changed, so a signed-in and a signed-out reader see every other column at the same width."
     }
   },
   "provider": {

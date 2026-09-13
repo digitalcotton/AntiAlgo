@@ -14,6 +14,7 @@
   --color-line: var(--gray-800);
   --color-line-strong: var(--gray-600);
   --color-hover-surface: var(--gray-800);
+  --color-control: var(--gray-200);
   --color-mark-live: var(--status-live-on-ink);
   --color-mark-closed: var(--gray-400);
   --color-banner-stale: var(--status-stale-on-ink);

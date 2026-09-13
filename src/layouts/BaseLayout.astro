@@ -8,16 +8,41 @@ import { SITE } from '../data/site';
  * The shell every route renders inside: the pre-paint theme resolution, the
  * document head, the two faces, the skip target, and the chrome. Page-level
  * structure belongs to the page.
+ *
+ * `active` and `image`/`ogType` were added for the board pages copied in from
+ * the Index, which pass them. `active` is accepted and defaulted but not
+ * read here: AntiAlgo's SiteHeader highlights the current nav item by
+ * comparing the request URL directly (see its own `isHere()`), not by a
+ * PAGES/PageKey inventory the way the Index's shared header did, so there is
+ * nothing in this repo's chrome for `active` to drive yet. It stays a typed,
+ * accepted prop rather than an error, so a board page copied verbatim does
+ * not have to be edited just to stop passing it.
  */
 interface Props {
   title: string;
   description?: string;
+  /** Which nav item is current. Accepted for the board pages that pass it;
+      see the note above for why AntiAlgo's own chrome does not yet read it. */
+  active?: string;
+  /** A page-specific social image, base-included (nav.ts's path helpers
+      already add it). Defaults to the site card. */
+  image?: string;
+  ogType?: string;
   noindex?: boolean;
 }
 
-const { title, description = SITE.description, noindex = false } = Astro.props;
+const {
+  title,
+  description = SITE.description,
+  active,
+  image = SITE.ogImage,
+  ogType = 'website',
+  noindex = false
+} = Astro.props;
+void active; // see the Props comment above: accepted, not yet consumed.
 
 const canonical = new URL(Astro.url.pathname, SITE.url).href.replace(/\/$/, '') || SITE.url;
+const ogImage = new URL(image, SITE.url).href;
 const fullTitle = title === SITE.name ? title : `${title} · ${SITE.name}`;
 const robots = noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large, max-snippet:-1';
 ---
@@ -50,13 +75,15 @@ const robots = noindex ? 'noindex, follow' : 'index, follow, max-image-preview:l
     {!noindex && <link rel="canonical" href={canonical} />}
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
     {!noindex && <meta property="og:url" content={canonical} />}
     <meta property="og:site_name" content={SITE.name} />
     <meta property="og:locale" content={SITE.locale} />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={fullTitle} />
     <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
 
     <!-- Only the two faces above the fold on every route are preloaded. -->
     <link rel="preload" as="font" type="font/woff2" crossorigin href="/fonts/n27-regular-latin.woff2" />

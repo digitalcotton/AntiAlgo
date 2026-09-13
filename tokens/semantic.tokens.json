@@ -50,6 +50,11 @@
       "$type": "color",
       "$description": "Calm hover wash on paper."
     },
+    "control": {
+      "$value": "{gray.800}",
+      "$type": "color",
+      "$description": "A handle a reader drags, and the rail it draws: the age strip's two bounds. One step softer than foreground, so the control reads as furniture the reader owns rather than as text. Owner's call 2026-09-13: gray.200 on ink, and its mirror on paper. Brought in with the board's AgePlot component (copied from the Index)."
+    },
     "mark-live": {
       "$value": "{status.live.on-paper}",
       "$type": "color",
