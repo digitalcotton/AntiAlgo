@@ -40,7 +40,14 @@ const MARKETING = [
 </header>
 
 <style>
+  /* Locked to the top: the header stays put and every page scrolls under it.
+     An opaque page-surface background is required so content passing beneath is
+     hidden, and it must be a theme token so it tracks light and dark. */
   .hdr {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--color-surface);
     border-bottom: var(--border-heavy) solid var(--color-foreground);
   }
   .hdr-main {
