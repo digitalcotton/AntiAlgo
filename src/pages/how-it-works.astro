@@ -67,19 +67,13 @@ const STEPS = [
         <h2 id={`step-${s.n}`} class="h2">{s.title}</h2>
         <p class="body">{s.body}</p>
         {s.link && <p class="more"><a href={s.link.href}>{s.link.label}</a></p>}
-        {s.img ? (
-          <figure class="shot">
-            <div class="shot-frame">
-              <img class="shot-img shot-light" src={s.img.light} width={s.img.w} height={s.img.h} loading="lazy" alt={s.img.alt} />
-              <img class="shot-img shot-dark" src={s.img.dark} width={s.img.w} height={s.img.h} loading="lazy" alt={s.img.alt} />
-            </div>
-            <figcaption>{s.caption}</figcaption>
-          </figure>
-        ) : (
-          <div class="placeholder">
-            <span class="placeholder-label">{s.placeholder}</span>
+        <figure class="shot">
+          <div class="shot-frame">
+            <img class="shot-img shot-light" src={s.img.light} width={s.img.w} height={s.img.h} loading="lazy" alt={s.img.alt} />
+            <img class="shot-img shot-dark" src={s.img.dark} width={s.img.w} height={s.img.h} loading="lazy" alt={s.img.alt} />
           </div>
-        )}
+          <figcaption>{s.caption}</figcaption>
+        </figure>
         {s.coming && <p class="coming-line">{s.coming}</p>}
       </section>
     ))}
