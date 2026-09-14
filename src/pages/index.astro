@@ -5,7 +5,16 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { INDEX, routeFor } from '../data/nav';
 import { SITE } from '../data/site';
 import { count, loadStats, sweptStamp, waitlistInLine } from '../lib/stats';
-import { daysToLaunch } from '../../site.config.mjs';
+import { daysToLaunch, withBase } from '../../site.config.mjs';
+
+// The live board, the same component /board renders, now on the home page.
+import Board from '../components/Board.astro';
+import { boardRowToJob } from '../lib/board-jobs';
+import { getBoardStats, listBoardFiltered, listBoardAges } from '../lib/job-store';
+import { facetGroupsFromCounts, prospectRows, sweepDate, sweptStamp as boardSweptStamp, type Job } from '../lib/data';
+import { parseBoardQuery } from '../lib/board-query';
+import { isConfigured } from '../lib/db';
+import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
 
 /*
  * The home page, built to the Anti Algo home canvas (marketing/Anti Algo
@@ -28,6 +37,36 @@ const days = daysToLaunch();
 const inLine = await waitlistInLine();
 const LAUNCH = 'Nov 10, 2026';
 const signUp = (from: string) => `${routeFor('sign-up')}?from=${from}`;
+
+// The board section, page one at the default order, the same load /board does.
+// All filtering, sorting and paging point at the full board (boardPath), so the
+// home page shows the live board as an entry point and interacting opens it in
+// full rather than driving the home URL.
+const boardPath = routeFor('board');
+const bq = parseBoardQuery(new URLSearchParams());
+const EMPTY_COUNTS = { total: 0, location: {}, comp: {}, freshness: {} };
+let bServed: Awaited<ReturnType<typeof listBoardFiltered>> = { rows: [], total: 0, counts: EMPTY_COUNTS };
+let bAgeJobs: Job[] = [];
+let bStats: Awaited<ReturnType<typeof getBoardStats>> = null;
+if (isConfigured()) {
+  try {
+    bServed = await listBoardFiltered({
+      q: bq.q, location: bq.location, comp: bq.comp, freshness: bq.freshness,
+      ageMin: bq.ageMin, ageMax: bq.ageMax,
+      sort: bq.sort === 'fit' ? 'age' : bq.sort,
+      page: 1, perPage: bq.per, sweepDate: sweepDate()
+    });
+  } catch (error) {
+    console.error('home board: the job store did not answer; rendering an empty board.', error);
+  }
+  try { bAgeJobs = (await listBoardAges()).map(boardRowToJob); } catch (error) { console.error('home board: age plot could not read the store.', error); }
+  try { bStats = await getBoardStats(); } catch (error) { console.error('home board: stats row could not be read.', error); }
+}
+const bJobs = bServed.rows.map(boardRowToJob);
+const bGroups = facetGroupsFromCounts(bServed.counts, bq);
+const bPages = Math.max(1, Math.ceil(bServed.total / bq.per));
+const bVerified = bStats?.verified_live ?? bServed.total;
+const bSweepLabel = boardSweptStamp();
 
 // Data for the stack fit widget and the research table.
 const WEIGHTS = [
@@ -101,34 +140,30 @@ const REFUSALS = [
       </div>
     </section>
 
-    <!-- 2 · last night -->
-    <section class="hsec" aria-labelledby="lastnight-title">
-      <div class="ln-head">
-        <h2 id="lastnight-title" class="h2">Last night</h2>
-        {stamp && <span class="ln-stamp">{stamp}</span>}
-      </div>
-      <a class="ln-bandlink" href={INDEX.kills}>
-        <div class="ln-band">
-          <div class="ln-tile">
-            <span class="ln-label">Boards</span>
-            {stats ? <span class="ln-figure">{count(stats.boards_swept)}</span> : <span class="ln-figure absence">Not read</span>}
-          </div>
-          <div class="ln-tile">
-            <span class="ln-label">Postings read</span>
-            {stats ? <span class="ln-figure">{count(stats.postings_observed)}</span> : <span class="ln-figure absence">Not read</span>}
-          </div>
-          <div class="ln-tile">
-            <span class="ln-label">Live</span>
-            {stats ? <span class="ln-figure">{count(stats.verified_live)}</span> : <span class="ln-figure absence">Not read</span>}
-          </div>
-          <div class="ln-tile">
-            <span class="ln-label">Killed by rule</span>
-            {stats ? <span class="ln-figure">{count(stats.killed_all_time)}</span> : <span class="ln-figure absence">Not read</span>}
-          </div>
-        </div>
-      </a>
-      <p class="ln-lede">We don't guess how many jobs are fake. We check every one, every night, and publish each kill with the rule that caught it.</p>
-      <p class="ln-more"><a href={INDEX.killsByRule}>The five rules and the kill record</a></p>
+    <!-- 2 · the board -->
+    <section class="hsec board-sec" aria-label="The board">
+      <Board
+        jobs={bJobs}
+        mode="server"
+        page={{ total: bServed.total, page: 1, pages: bPages, per: bq.per }}
+        query={bq}
+        groups={bGroups}
+        ageJobs={bAgeJobs}
+        boardPath={boardPath}
+        active="board"
+        prospectCount={prospectRows().length}
+        boards={bStats?.boards_swept}
+        verifiedLive={bStats ? bVerified : undefined}
+        hrefFor={(job: Job) => withBase(`/board/${job.slug}`)}
+        fit={false}
+        tabs={false}
+        ariaLabel="This sweep"
+      >
+        <p slot="stamp" class="index-eyebrow mono" data-swept={bStats?.swept_at} data-fresh-hours={FRESH_WINDOW_HOURS}>
+          <span data-assurance-text>Verified this sweep · {bSweepLabel}</span>
+        </p>
+      </Board>
+      <p class="board-more"><a href={boardPath}>Open the full board</a></p>
     </section>
 
     <!-- 3 · the stack -->
@@ -537,77 +572,25 @@ const REFUSALS = [
     justify-self: start;
   }
 
-  /* ---- 3 · last night ---- */
-  .ln-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: var(--sp-4);
-    flex-wrap: wrap;
-  }
-  .ln-stamp {
+  /* ---- 2 · the board ---- */
+  /* The Board component carries its own scoped styles; this section only spaces
+     it and the "open the full board" link below it. */
+  .board-sec .index-eyebrow {
+    margin: 0;
     font-family: var(--machine);
-    font-weight: 500;
-    font-size: var(--fs-12);
+    font-size: var(--fs-11);
+    letter-spacing: var(--tc);
     color: var(--muted);
   }
-  .ln-bandlink {
-    text-decoration: none;
-    color: var(--ink);
-    display: block;
-  }
-  .ln-bandlink:hover {
-    opacity: 0.85;
-    color: var(--ink);
-  }
-  .ln-band {
-    margin-top: var(--sp-5);
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    border: 1px solid var(--line-strong);
-    background: var(--raise);
-  }
-  .ln-tile {
-    padding: var(--sp-5);
-    border-right: 1px solid var(--line);
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-2);
-    min-width: 0;
-  }
-  .ln-tile:last-child {
-    border-right: none;
-  }
-  .ln-label {
-    font-family: var(--machine);
-    font-size: var(--fs-10);
-    letter-spacing: var(--tc);
-    text-transform: uppercase;
-    color: var(--faint);
-  }
-  .ln-figure {
-    font-family: var(--machine);
-    font-weight: 600;
-    font-size: var(--fs-26);
-    letter-spacing: -0.01em;
-    font-variant-numeric: tabular-nums;
-  }
-  .ln-lede {
+  .board-more {
     margin: var(--sp-5) 0 0;
     font-size: var(--fs-15);
-    line-height: 1.55;
-    max-width: 62ch;
-    text-wrap: pretty;
   }
-  .ln-more {
-    margin: var(--sp-4) 0 0;
-    font-size: var(--fs-15);
-  }
-  .ln-more a {
+  .board-more a {
     text-decoration: none;
     border-bottom: 1px solid var(--ink);
   }
-  .ln-more a:hover {
+  .board-more a:hover {
     color: var(--muted);
     border-bottom-color: var(--muted);
   }
