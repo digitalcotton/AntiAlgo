@@ -1,0 +1,100 @@
+---
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { routeFor } from '../data/nav';
+import { accountFacts } from '../lib/viewer';
+import { withBase } from '../../site.config.mjs';
+
+/**
+ * The $7.25/month membership pitch and its one button. Dark by flag: this
+ * page is mapped to `stripe` in flags.config.mjs's FLAGGED_ROUTES, so while
+ * that flag is off (both editions, today) middleware 404s the request
+ * before this file ever renders. Written now so the pitch, the button, and
+ * the route it posts to all exist and agree with each other the day the
+ * flag flips, instead of being drafted from scratch under pressure then.
+ *
+ * NOT ADDED TO GATED_PREFIXES. Same reasoning as billing/checkout.ts's own
+ * header: no ROUTE_POLICY entry requires the `paid` tier yet, and this page
+ * is not itself paid content — it is the page that explains the offer to
+ * whoever is signed in, `member` tier or above. So it reads its own viewer
+ * with accountFacts() rather than relying on Astro.locals.viewer, which
+ * middleware only populates for a gated prefix or a SESSION_AWARE path (see
+ * src/middleware.ts's needsViewer()); '/upgrade' is neither.
+ */
+const facts = await accountFacts(Astro);
+const alreadyPaid = facts?.tier === 'paid';
+---
+
+<BaseLayout title="Upgrade your membership" description="The $7.25/month membership for The Index." noindex>
+  <section class="shell room">
+    <span class="kicker muted">Membership</span>
+    <h1>Support The Index for $7.25/month.</h1>
+    <p class="lede">
+      One price, billed monthly, cancel any time from the account Stripe gives you at checkout. It does not unlock
+      anything the free membership tier does not already have today — this is a way to back the project directly.
+    </p>
+
+    {!facts && (
+      <div class="actions">
+        <a class="cta" href={`${routeFor('sign-in')}?next=${encodeURIComponent(withBase('/upgrade'))}`}>Sign in to upgrade</a>
+      </div>
+    )}
+
+    {facts && alreadyPaid && (
+      <p class="body">
+        Your account (<span class="mono">{facts.email}</span>) is already on the paid tier. Thank you for backing
+        it — there is nothing further to do here.
+      </p>
+    )}
+
+    {facts && !alreadyPaid && (
+      <>
+        <p class="body">
+          Signing up as <span class="mono">{facts.email}</span>. Continuing takes you to Stripe's own checkout page;
+          card details are entered there, never on this site.
+        </p>
+        <form class="actions" method="POST" action={withBase('/billing/checkout')}>
+          <button class="cta" type="submit">Continue to Stripe checkout — $7.25/month</button>
+        </form>
+      </>
+    )}
+  </section>
+</BaseLayout>
+
+<style>
+  .room {
+    padding-block: var(--space-800) var(--space-1000);
+    max-width: 60ch;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .muted {
+    color: var(--color-muted);
+  }
+  h1 {
+    margin: var(--space-300) 0 var(--space-600);
+    font-size: var(--size-600);
+    line-height: var(--leading-display);
+  }
+  .lede {
+    color: var(--color-muted);
+    margin-bottom: var(--space-600);
+  }
+  .body {
+    margin-bottom: var(--space-600);
+  }
+  .actions {
+    display: flex;
+    gap: var(--space-400);
+    align-items: center;
+  }
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    border: none;
+    font: inherit;
+    cursor: pointer;
+  }
+</style>

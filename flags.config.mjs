@@ -12,8 +12,9 @@
  * (`desk`, `profile`, `tailor`, `prelist`, …) and its dark-by-default rollout
  * flags (`prelist_paid`, `profiles_public`, `nav_public`, …). Both sets are
  * real, in force, and now live in one file since the board moved into this
- * repo. No `stripe` flag yet — billing is a later phase and stays unwired
- * until then.
+ * repo. `stripe` (Phase 6) was added dark in both editions: the billing lib,
+ * checkout route, webhook route and upgrade page all exist in the codebase
+ * but are unreachable — see FLAGGED_ROUTES below — until this is flipped on.
  *
  * ONE CODEBASE, TWO EDITIONS. `design` is the product as shipped: the
  * filtered index plus the seeker wall (Desk, Tailor, Profile Record,
@@ -178,6 +179,21 @@ export const FLAGS = {
       'The fit score, its why panel, the Fit sort and the fit reasoning on a posting are a ' +
       'signed-in feature, like drafting. Dark in both editions.',
     editions: { design: false, broad: false }
+  },
+
+  // --- Phase 6: Stripe billing, wired but dark ---
+  stripe: {
+    why:
+      'Stripe subscription billing for the $7.25/month membership (src/lib/billing.ts, ' +
+      'src/pages/billing/checkout.ts, src/pages/billing/webhook.ts, src/pages/upgrade.astro). ' +
+      'OFF in both editions: no Stripe account has been connected and no real keys exist in this ' +
+      'environment, so STRIPE_SECRET_KEY/STRIPE_WEBHOOK_SECRET/STRIPE_PRICE_ID are unset and ' +
+      'billing.ts would throw if it were ever called. The flag makes that moot — FLAGGED_ROUTES ' +
+      'below sends /upgrade and everything under /billing to a flat 404, before any handler runs, ' +
+      'so nothing is reachable and nothing can charge a card. The webhook only ever moves a tier ' +
+      'between member and paid; no ROUTE_POLICY entry requires the paid tier yet, so turning this ' +
+      'on someday grants the ability to buy the tier, not access to anything new by itself.',
+    editions: { design: false, broad: false }
   }
 };
 
@@ -227,7 +243,15 @@ export const FLAGGED_ROUTES = {
   '/prelist': 'prelist',
   // src/pages/tasks/nudge.ts is a scheduled endpoint, never a static page.
   // Flipping email_send off 404s the cron target.
-  '/tasks': 'email_send'
+  '/tasks': 'email_send',
+  // src/pages/upgrade.astro explains the $7.25/month membership and posts to
+  // /billing/checkout. Dark flag, flat 404, so the pitch and the button are
+  // both gone rather than a live page with a dead button.
+  '/upgrade': 'stripe',
+  // src/pages/billing/checkout.ts and src/pages/billing/webhook.ts both carry
+  // `export const prerender = false`. One entry covers both by prefix, same
+  // as '/desk' covers desk/save.ts, desk/application.ts, etc. above.
+  '/billing': 'stripe'
 };
 
 function normaliseRoute(pathname) {
