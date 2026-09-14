@@ -39,7 +39,7 @@ const { source = 'index' } = Astro.props;
     </p>
     <div class="account-cta-actions">
       <a class="account-cta-button" href={`${withBase('/sign-up')}?from=${source}`}>
-        Create an account
+        Save my spot
       </a>
       <p class="account-cta-alt">
         Already have one? <a href={withBase('/sign-in')}>Sign in</a>.
@@ -86,21 +86,23 @@ const { source = 'index' } = Astro.props;
     gap: var(--space-300);
     align-items: flex-start;
   }
+  /* The site's one primary action: the signal-orange button, dark ink in both
+     themes, matching the header and the home page's Save my spot. */
   .account-cta-button {
     display: inline-flex;
     align-items: center;
     padding: var(--space-300) var(--space-500);
-    border: var(--border-heavy) solid var(--color-foreground);
-    background: var(--color-surface-inverse);
-    color: var(--color-foreground-inverse);
+    border: var(--border-hairline) solid var(--color-signal);
+    background: var(--color-signal);
+    color: var(--gray-950);
     text-decoration: none;
     font-weight: var(--weight-bold);
     font-size: var(--size-200);
   }
   .account-cta-button:hover,
   .account-cta-button:focus-visible {
-    background: var(--color-surface-raised);
-    color: var(--color-foreground);
+    color: var(--gray-950);
+    filter: brightness(1.05);
   }
   .account-cta-alt {
     margin: 0;
