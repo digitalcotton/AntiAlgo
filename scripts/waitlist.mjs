@@ -8,15 +8,19 @@
  *
  * READ ONLY. This never admits, promotes, or changes a single row: it exists so
  * the waitlist order is always in hand while the decision about how and when to
- * let people in is held for later. The order is first-come, by the immutable
- * created_at each profile carries (user_id breaks a tie so the ordering is fully
- * deterministic), which is the same order a future admission would draw from.
- * Position is computed here, not stored, so it is always accurate and there is
- * no number to keep in sync. Runs where DATABASE_URL is set, like admit.mjs.
+ * let people in is held for later.
+ *
+ * Reads waitlist_email (db/201_waitlist_email.sql), the "Save my spot" landing
+ * page's own table, not app_user_profile. Those are two different waitlists:
+ * this one is email addresses collected before anyone has an account. The
+ * order is first-come, by the immutable created_at each row carries (id
+ * breaks a tie so the ordering is fully deterministic, matching the position
+ * math src/pages/api/waitlist.ts uses when it answers a submission). Position
+ * is computed here, not stored, so it is always accurate and there is no
+ * number to keep in sync.
  */
 import pg from 'pg';
 import '../load-local-env.mjs';
-import { WAITLIST_TIER } from '../tiers.config.mjs';
 
 const asCsv = process.argv.slice(2).includes('--csv');
 
@@ -38,28 +42,24 @@ function csvField(value) {
 
 try {
   const { rows } = await client.query(
-    `SELECT row_number() OVER (ORDER BY p.created_at ASC, p.user_id ASC)                 AS position,
-            u.email,
-            trim(concat_ws(' ', p.first_name, p.last_name))                              AS name,
-            to_char(p.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')        AS signed_up_utc,
-            coalesce(p.signup_source, '')                                                AS source
-       FROM app_user_profile p
-       JOIN "user" u ON u.id = p.user_id
-      WHERE p.tier = $1
-      ORDER BY p.created_at ASC, p.user_id ASC`,
-    [WAITLIST_TIER]
+    `SELECT row_number() OVER (ORDER BY created_at ASC, id ASC)               AS position,
+            email,
+            to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS joined_utc,
+            coalesce(referral_code, '')                                        AS referral_code
+       FROM waitlist_email
+      ORDER BY created_at ASC, id ASC`
   );
 
   if (rows.length === 0) {
-    if (asCsv) console.log('position,email,name,signed_up_utc,source');
-    else console.log(`The waitlist is empty (no accounts at tier "${WAITLIST_TIER}").`);
+    if (asCsv) console.log('position,email,joined_utc,referral_code');
+    else console.log('The waitlist is empty (no rows in waitlist_email).');
     process.exit(0);
   }
 
   if (asCsv) {
-    console.log('position,email,name,signed_up_utc,source');
+    console.log('position,email,joined_utc,referral_code');
     for (const r of rows) {
-      console.log([r.position, r.email, r.name, r.signed_up_utc, r.source].map(csvField).join(','));
+      console.log([r.position, r.email, r.joined_utc, r.referral_code].map(csvField).join(','));
     }
     process.exit(0);
   }
@@ -67,12 +67,11 @@ try {
   // A plain, aligned table. The position column is right-aligned to the widest
   // number so the list reads as an ordered queue rather than a dump.
   const width = String(rows.length).length;
-  console.log(`Waitlist, in order, ${rows.length} account(s):\n`);
+  console.log(`Waitlist, in order, ${rows.length} email(s):\n`);
   for (const r of rows) {
     const pos = String(r.position).padStart(width, ' ');
-    const name = r.name ? `  ${r.name}` : '';
-    const source = r.source ? `  [${r.source}]` : '';
-    console.log(`${pos}. ${r.email}${name}  ${r.signed_up_utc}${source}`);
+    const code = r.referral_code ? `  [${r.referral_code}]` : '';
+    console.log(`${pos}. ${r.email}  ${r.joined_utc}${code}`);
   }
 } finally {
   await client.end();

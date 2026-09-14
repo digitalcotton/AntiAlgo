@@ -115,3 +115,31 @@ export async function waitlistInLine(): Promise<number | null> {
     return null;
   }
 }
+
+/**
+ * How many rows are on the email waitlist: a plain count(*) of waitlist_email,
+ * the table the "Save my spot" page writes to. This is the "in line" figure
+ * that page's eyebrow reads, and the home page reads it too (see
+ * src/pages/index.astro), so both pages count the same list. No baseline is
+ * added here, unlike waitlistInLine: this is the number a new, smaller list
+ * starts at, not the account-tier waitlist the canvas seeded a display
+ * baseline for.
+ *
+ * Unlike waitlistInLine, this never returns null: it returns 0 when the
+ * database is not configured or the read fails. That is a deliberate
+ * difference. waitlistInLine's caller hides the "in line" line entirely on a
+ * failed read; the eyebrow this feeds is one clause of a sentence that is
+ * always on screen, so there is no "hide this part" branch for a null to
+ * signal into, and a landing page eyebrow that could not count for a moment
+ * should read as zero, not disappear.
+ */
+export async function waitlistEmailCount(): Promise<number> {
+  if (!isConfigured()) return 0;
+  try {
+    const { rows } = await db().query<{ n: number }>('SELECT count(*)::int AS n FROM waitlist_email');
+    return rows[0]?.n ?? 0;
+  } catch (error) {
+    console.error('stats: could not count the email waitlist:', error);
+    return 0;
+  }
+}

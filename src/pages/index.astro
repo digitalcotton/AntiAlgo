@@ -4,7 +4,7 @@ export const prerender = false;
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { INDEX, routeFor } from '../data/nav';
 import { SITE } from '../data/site';
-import { count, loadStats, sweptStamp, waitlistInLine } from '../lib/stats';
+import { count, loadStats, sweptStamp, waitlistEmailCount } from '../lib/stats';
 import { daysToLaunch, withBase } from '../../site.config.mjs';
 
 // The live board, the same component /board renders, now on the home page.
@@ -26,14 +26,16 @@ import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
  * EVERY SWEEP NUMBER IS READ, NEVER TYPED. The hero line reads the index's
  * published stats per request, and the board section below it reads the live
  * job store, the same load /board does. The launch day count is derived from
- * LAUNCH_DATE, and "in line" is the real waitlisted count.
+ * LAUNCH_DATE, and "in line" is the real count of the email waitlist (the
+ * same waitlist_email table the sign-up page's "Save my spot" form writes
+ * to), so the figure here and the one on that page's eyebrow never disagree.
  */
 Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
 
 const stats = await loadStats();
 const stamp = stats ? sweptStamp(stats.swept_at) : null;
 const days = daysToLaunch();
-const inLine = await waitlistInLine();
+const inLine = await waitlistEmailCount();
 const LAUNCH = 'Nov 10, 2026';
 const signUp = (from: string) => `${routeFor('sign-up')}?from=${from}`;
 
@@ -127,7 +129,7 @@ const REFUSALS = [
         <a class="cta" href={signUp('home-hero')}>Save my spot</a>
         <span class="count">
           <span><span class="count-strong">{days} {days === 1 ? 'day' : 'days'}</span> to launch · {LAUNCH}</span>
-          {inLine !== null && <span><span class="count-strong">{count(inLine)}</span> in line</span>}
+          <span><span class="count-strong">{count(inLine)}</span> in line</span>
         </span>
       </div>
     </section>
@@ -244,7 +246,7 @@ const REFUSALS = [
         <a class="cta" href={signUp('home-closer')}>Save my spot</a>
         <span class="count count-inline">
           <span><span class="count-strong">{days} days</span> to launch</span> ·
-          {inLine !== null && <span><span class="count-strong">{count(inLine)}</span> in line</span>}
+          <span><span class="count-strong">{count(inLine)}</span> in line</span>
         </span>
       </div>
     </section>

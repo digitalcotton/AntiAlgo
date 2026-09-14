@@ -4,18 +4,34 @@ export const prerender = false;
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { INDEX, routeFor } from '../data/nav';
 import { sanitiseSource } from '../lib/auth';
+import { isOn } from '../lib/flags';
+import { count, dayStamp, waitlistEmailCount } from '../lib/stats';
+import { LAUNCH_DATE } from '../../site.config.mjs';
 
 /*
- * Create an account. Server rendered because Better Auth's endpoint is a live
- * JSON call. A reader who is already signed in is sent to /account, where the
- * gate decides: a member sees the account page and a waitlisted account is
- * sent to the waitlist page. There is one landing, and the gate owns it.
+ * Create an account -- or, while the waitlist flag is on (flags.config.mjs),
+ * save an email-only spot in line instead. Server rendered either way: the
+ * waitlist branch reads the live waitlist count per request the same way the
+ * home page does, and the account-creation branch calls Better Auth's
+ * endpoint, a live JSON call.
+ *
+ * A reader who is already signed in is sent to /account, where the gate
+ * decides: a member sees the account page and a waitlisted account is sent
+ * to the waitlist page (src/pages/waitlist.astro -- a different page from
+ * this one; that one is what an already-waitlisted account sees after
+ * signing in, this one is where a stranger arrives to join the line). That
+ * redirect runs regardless of the flag, same as before.
  *
  * The placement that sent someone here (?from=) is read once on the server,
- * sanitised, and carried in a hidden field and a short-lived cookie so the
- * account-creation hook can record which gate converted them.
+ * sanitised, and carried in a cookie so the account-creation hook can record
+ * which gate converted them. It is only consumed by the account-creation
+ * form below (the hidden signup_source field); the waitlist branch does not
+ * use it today, but setting the cookie is harmless either way and keeps the
+ * two branches sharing one frontmatter instead of forking it.
  */
 if (Astro.locals.viewer) return Astro.redirect(routeFor('account'), 302);
+
+const waitlistOn = isOn('waitlist');
 
 const signupSource = sanitiseSource(Astro.url.searchParams.get('from'));
 Astro.cookies.set('signup_source', signupSource, {
@@ -25,86 +41,473 @@ Astro.cookies.set('signup_source', signupSource, {
   secure: import.meta.env.PROD,
   maxAge: 60 * 30
 });
+
+// Only the waitlist branch needs these; account creation doesn't touch the
+// email-waitlist count or the launch date.
+const inLine = waitlistOn ? await waitlistEmailCount() : 0;
+const today = dayStamp(new Date());
+const LAUNCH = 'Nov 10, 2026';
 ---
 
-<BaseLayout title="Create your account" description="Create an account on The Index." noindex>
-  <section class="auth-page">
-    <div class="shell auth-shell">
-      <span class="kicker muted">Account</span>
-      <h1>Save your spot</h1>
-      <p class="lede">Free. An email and under a minute. The account goes on the list, and the board stays public either way.</p>
+<BaseLayout title="Save my spot" description="Get in line for launch." noindex>
+  {waitlistOn ? (
+    <div class="wl">
+      <section class="wl-hero" aria-labelledby="wl-title">
+        <p class="wl-eyebrow">Product opens {LAUNCH} · {today} · {count(inLine)} in line</p>
 
-      <p id="auth-error" class="auth-error" role="alert" hidden>
-        Something went wrong creating your account. Check your details and try again.
-      </p>
+        <div class="wl-countdown" id="wl-countdown" data-launch={LAUNCH_DATE} aria-label="Time to launch">
+          <div class="wl-ctile">
+            <span class="wl-cnum" data-unit="days">00</span>
+            <span class="wl-clabel">Days</span>
+          </div>
+          <div class="wl-ctile">
+            <span class="wl-cnum" data-unit="hours">00</span>
+            <span class="wl-clabel">Hours</span>
+          </div>
+          <div class="wl-ctile">
+            <span class="wl-cnum" data-unit="minutes">00</span>
+            <span class="wl-clabel">Minutes</span>
+          </div>
+          <div class="wl-ctile">
+            <span class="wl-cnum" data-unit="seconds">00</span>
+            <span class="wl-clabel">Seconds</span>
+          </div>
+        </div>
 
-      <form class="auth-form" method="POST" action="/auth/sign-up/email" data-next={routeFor('account')}>
-        <input type="hidden" name="signup_source" value={signupSource} />
-        <input class="field-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
+        <h1 id="wl-title" class="wl-h1">Get in line for launch.</h1>
+        <p class="wl-sub">Email in, position number out. Someone you refer joins, you move up. Small on purpose, for now.</p>
 
-        <div class="field">
-          <label class="field-label" for="signup-first-name">First name</label>
-          <input class="field-input" id="signup-first-name" type="text" name="first_name" required maxlength="120" autocomplete="given-name" />
-        </div>
-        <div class="field">
-          <label class="field-label" for="signup-last-name">Last name</label>
-          <input class="field-input" id="signup-last-name" type="text" name="last_name" required maxlength="120" autocomplete="family-name" />
-        </div>
-        <div class="field">
-          <label class="field-label" for="signup-email">Email address</label>
-          <input class="field-input" id="signup-email" type="email" name="email" required autocomplete="email" placeholder="you@company.com" />
-        </div>
-        <div class="field">
-          <label class="field-label" for="signup-password">Password</label>
-          <input class="field-input" id="signup-password" type="password" name="password" required autocomplete="new-password" minlength="8" />
-          <span class="field-hint">Eight characters or more.</span>
-        </div>
-        <button class="cta" type="submit">Save my spot</button>
-      </form>
+        <form class="wl-form" id="wl-form">
+          <label class="visually-hidden" for="wl-email">Email address</label>
+          <input class="wl-input" id="wl-email" name="email" type="email" placeholder="you@wherever.com" required autocomplete="email" />
+          <button class="wl-cta" type="submit">Save my spot</button>
+        </form>
+        <p class="wl-position" id="wl-position" role="status" hidden></p>
+        <p class="wl-error" id="wl-error" role="alert" hidden></p>
+      </section>
 
-      <div class="auth-links">
-        <a class="link-line" href={routeFor('sign-in')}>Already have an account? Sign in.</a>
-        <a class="link-line" href={INDEX.board}>Or open the board. It is public.</a>
-      </div>
+      <section class="wl-hiw" aria-labelledby="wl-hiw-title">
+        <h2 id="wl-hiw-title" class="visually-hidden">How the line works</h2>
+        <div class="wl-hiw-grid">
+          <div class="wl-hiw-col">
+            <span class="wl-hiw-label">At launch</span>
+            <p class="wl-hiw-line">The first 1,000 positions get an account. The Index stays open to everyone.</p>
+          </div>
+          <div class="wl-hiw-col">
+            <span class="wl-hiw-label">Invites</span>
+            <p class="wl-hiw-line">Members earn an invite after 3 applications through the board. Not granted, earned.</p>
+          </div>
+          <div class="wl-hiw-col">
+            <span class="wl-hiw-label">After 1,000</span>
+            <p class="wl-hiw-line">The line keeps running. Your position and the count stay visible the whole way.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="wl-closer" aria-label="Save your spot">
+        <p class="wl-closer-line">The first thousand members compete with each other. Everyone after that competes with everyone.</p>
+      </section>
     </div>
-  </section>
+  ) : (
+    <section class="auth-page">
+      <div class="shell auth-shell">
+        <span class="kicker muted">Account</span>
+        <h1>Save your spot</h1>
+        <p class="lede">Free. An email and under a minute. The account goes on the list, and the board stays public either way.</p>
+
+        <p id="auth-error" class="auth-error" role="alert" hidden>
+          Something went wrong creating your account. Check your details and try again.
+        </p>
+
+        <form class="auth-form" method="POST" action="/auth/sign-up/email" data-next={routeFor('account')}>
+          <input type="hidden" name="signup_source" value={signupSource} />
+          <input class="field-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+          <div class="field">
+            <label class="field-label" for="signup-first-name">First name</label>
+            <input class="field-input" id="signup-first-name" type="text" name="first_name" required maxlength="120" autocomplete="given-name" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="signup-last-name">Last name</label>
+            <input class="field-input" id="signup-last-name" type="text" name="last_name" required maxlength="120" autocomplete="family-name" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="signup-email">Email address</label>
+            <input class="field-input" id="signup-email" type="email" name="email" required autocomplete="email" placeholder="you@company.com" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="signup-password">Password</label>
+            <input class="field-input" id="signup-password" type="password" name="password" required autocomplete="new-password" minlength="8" />
+            <span class="field-hint">Eight characters or more.</span>
+          </div>
+          <button class="cta" type="submit">Save my spot</button>
+        </form>
+
+        <div class="auth-links">
+          <a class="link-line" href={routeFor('sign-in')}>Already have an account? Sign in.</a>
+          <a class="link-line" href={INDEX.board}>Or open the board. It is public.</a>
+        </div>
+      </div>
+    </section>
+  )}
 </BaseLayout>
+
+<script>
+  // The countdown, ticking every second from the launch instant carried in
+  // data-launch. Guarded on the element existing: this script loads on every
+  // sign-up render, but the element it drives only exists when the waitlist
+  // branch rendered, so on the account-creation branch this is a no-op.
+  const countdown = document.getElementById('wl-countdown');
+  if (countdown) {
+    const launch = new Date(countdown.dataset.launch ?? '').getTime();
+    const days = countdown.querySelector<HTMLElement>('[data-unit="days"]');
+    const hours = countdown.querySelector<HTMLElement>('[data-unit="hours"]');
+    const minutes = countdown.querySelector<HTMLElement>('[data-unit="minutes"]');
+    const seconds = countdown.querySelector<HTMLElement>('[data-unit="seconds"]');
+    const pad = (n: number) => String(Math.max(0, n)).padStart(2, '0');
+
+    function tick() {
+      const diff = Math.max(0, launch - Date.now());
+      const totalSeconds = Math.floor(diff / 1000);
+      if (days) days.textContent = pad(Math.floor(totalSeconds / 86400));
+      if (hours) hours.textContent = pad(Math.floor((totalSeconds % 86400) / 3600));
+      if (minutes) minutes.textContent = pad(Math.floor((totalSeconds % 3600) / 60));
+      if (seconds) seconds.textContent = pad(totalSeconds % 60);
+    }
+    tick();
+    setInterval(tick, 1000);
+  }
+
+  // The waitlist form: a same-origin fetch POST to /api/waitlist, JSON in,
+  // JSON out. On success the position replaces the form rather than sitting
+  // beside it, so there is exactly one thing on screen to read afterward.
+  const form = document.querySelector<HTMLFormElement>('#wl-form');
+  const positionEl = document.querySelector<HTMLElement>('#wl-position');
+  const wlErrorEl = document.querySelector<HTMLElement>('#wl-error');
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (wlErrorEl) wlErrorEl.hidden = true;
+
+    const email = String(new FormData(form).get('email') ?? '').trim();
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (button) button.disabled = true;
+
+    try {
+      const response = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await response.json().catch(() => null);
+      if (response.ok && data && data.ok) {
+        if (positionEl) {
+          positionEl.textContent = `You're #${data.position} in line.`;
+          positionEl.hidden = false;
+        }
+        form.hidden = true;
+        return;
+      }
+      if (wlErrorEl) {
+        wlErrorEl.textContent = (data && data.error) || 'Something went wrong. Try again.';
+        wlErrorEl.hidden = false;
+      }
+    } catch {
+      if (wlErrorEl) {
+        wlErrorEl.textContent = 'Something went wrong. Try again.';
+        wlErrorEl.hidden = false;
+      }
+    } finally {
+      if (button) button.disabled = false;
+    }
+  });
+</script>
 
 <script>
   // Better Auth's endpoint wants JSON and answers with JSON, so the native
   // POST is intercepted. A filled honeypot stops the submit cold. On success
   // the account is already signed in (autoSignIn), so the reader goes to the
-  // one landing and the gate decides what they see.
-  const form = document.querySelector<HTMLFormElement>('.auth-form');
-  const errorEl = document.querySelector<HTMLElement>('#auth-error');
+  // one landing and the gate decides what they see. Guarded on .auth-form
+  // existing: a no-op on the waitlist branch, same reasoning as above.
+  const authForm = document.querySelector<HTMLFormElement>('.auth-form');
+  const authErrorEl = document.querySelector<HTMLElement>('#auth-error');
 
-  form?.addEventListener('submit', async (event) => {
+  authForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (errorEl) errorEl.hidden = true;
+    if (authErrorEl) authErrorEl.hidden = true;
 
-    const trap = form.querySelector<HTMLInputElement>('input[name="website"]');
+    const trap = authForm.querySelector<HTMLInputElement>('input[name="website"]');
     if (trap && trap.value) return;
 
-    const data = Object.fromEntries(new FormData(form).entries());
+    const data = Object.fromEntries(new FormData(authForm).entries());
     const first = String(data.first_name ?? '').trim();
     const last = String(data.last_name ?? '').trim();
     data.name = [first, last].filter(Boolean).join(' ');
 
     try {
-      const response = await fetch(form.action, {
+      const response = await fetch(authForm.action, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
       if (response.ok) {
-        const next = form.dataset.next;
+        const next = authForm.dataset.next;
         window.location.href = next && next.startsWith('/') ? next : '/';
         return;
       }
     } catch {}
-    if (errorEl) errorEl.hidden = false;
+    if (authErrorEl) authErrorEl.hidden = false;
   });
 </script>
+
+<style>
+  /* The waitlist landing page's own scale, local to .wl, the same pattern the
+     home canvas (.home, src/pages/index.astro) and /your-key (.hiw) use: a
+     small set of sizing and spacing variables scoped to this canvas, mapped
+     onto the shared colour/font tokens rather than the app's default ramp. */
+  .wl {
+    --fs-11: 11px;
+    --fs-13: 13.5px;
+    --fs-15: 15px;
+    --fs-17: 17.5px;
+    --fs-num: clamp(28px, 4vw, 40px);
+    --fs-h1: clamp(34px, 4.4vw, 50px);
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 24px;
+    --sp-6: 32px;
+    --sp-7: 48px;
+    --sp-8: 72px;
+    --tc: 0.13em;
+    --tt: -0.02em;
+
+    --ink: var(--color-foreground);
+    --muted: var(--color-muted);
+    --line: var(--color-line);
+    --line-strong: var(--color-foreground);
+    --signal: var(--color-signal);
+    --human: var(--font-family-sans);
+    --machine: var(--font-family-mono);
+
+    max-width: 75rem;
+    margin-inline: auto;
+    padding-inline: clamp(20px, 4vw, 56px);
+  }
+
+  .wl-hero {
+    padding: var(--sp-8) 0 var(--sp-7);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .wl-eyebrow {
+    margin: 0;
+    font-family: var(--machine);
+    font-weight: 500;
+    font-size: var(--fs-11);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* The countdown: a bordered four-cell band, big mono numerals over a mono
+     label, ticking client-side (see the script above). */
+  .wl-countdown {
+    margin-top: var(--sp-5);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    max-width: 34rem;
+    border: 1px solid var(--line);
+  }
+  .wl-ctile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-1);
+    padding: var(--sp-4) var(--sp-2);
+    border-left: 1px solid var(--line);
+  }
+  .wl-ctile:first-child {
+    border-left: none;
+  }
+  .wl-cnum {
+    font-family: var(--machine);
+    font-weight: 600;
+    font-size: var(--fs-num);
+    line-height: 1;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .wl-clabel {
+    font-family: var(--machine);
+    font-size: var(--fs-11);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .wl-h1 {
+    margin: var(--sp-6) 0 0;
+    font-weight: 700;
+    font-size: var(--fs-h1);
+    line-height: 1.08;
+    letter-spacing: var(--tt);
+    max-width: 20ch;
+    text-wrap: pretty;
+  }
+  .wl-sub {
+    margin: var(--sp-4) 0 0;
+    font-size: var(--fs-17);
+    line-height: 1.55;
+    color: var(--ink);
+    max-width: 50ch;
+    text-wrap: pretty;
+  }
+
+  .wl-form {
+    margin-top: var(--sp-6);
+    display: flex;
+    align-items: stretch;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+    max-width: 34rem;
+  }
+  /* The submit handler sets the hidden attribute on success. Without this
+     rule the class selector above (equal specificity, but an author rule)
+     beats the browser's own [hidden] { display: none }, and the form stays
+     visible next to the position it just returned. */
+  .wl-form[hidden] {
+    display: none;
+  }
+  .wl-input {
+    flex: 1 1 16rem;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 var(--sp-4);
+    background: var(--color-surface);
+    border: 1px solid var(--line-strong);
+    color: var(--ink);
+    font-family: var(--human);
+    font-size: var(--fs-15);
+  }
+  .wl-input::placeholder {
+    color: var(--muted);
+  }
+  .wl-input:focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: -1px;
+  }
+  .wl-cta {
+    background: var(--signal);
+    color: var(--gray-950);
+    font-family: var(--human);
+    font-weight: 600;
+    font-size: var(--fs-17);
+    padding: 0 var(--sp-6);
+    min-height: 44px;
+    border: 1px solid var(--signal);
+    cursor: pointer;
+  }
+  .wl-cta:hover,
+  .wl-cta:focus-visible {
+    filter: brightness(1.05);
+  }
+  .wl-cta:disabled {
+    filter: none;
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  .wl-position {
+    margin: var(--sp-5) 0 0;
+    font-family: var(--machine);
+    font-size: var(--fs-17);
+    color: var(--ink);
+  }
+  .wl-error {
+    margin: var(--sp-3) 0 0;
+    font-family: var(--machine);
+    font-size: var(--fs-13);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    padding: var(--sp-2) var(--sp-3);
+    max-width: 34rem;
+  }
+
+  /* ---- how the line works ---- */
+  .wl-hiw {
+    padding: var(--sp-7) 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .wl-hiw-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sp-6);
+    border-top: 1px solid var(--line);
+    padding-top: var(--sp-5);
+  }
+  .wl-hiw-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+  .wl-hiw-label {
+    font-family: var(--machine);
+    font-weight: 500;
+    font-size: var(--fs-11);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .wl-hiw-line {
+    margin: 0;
+    font-size: var(--fs-15);
+    line-height: 1.55;
+    color: var(--ink);
+    text-wrap: pretty;
+  }
+
+  /* ---- closer ---- */
+  .wl-closer {
+    padding: var(--sp-8) 0 var(--sp-7);
+  }
+  .wl-closer-line {
+    margin: 0;
+    font-weight: 600;
+    font-size: var(--fs-17);
+    line-height: 1.4;
+    letter-spacing: var(--tt);
+    color: var(--ink);
+    max-width: 42ch;
+    text-wrap: pretty;
+  }
+
+  @media (max-width: 640px) {
+    .wl-countdown {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .wl-ctile:nth-child(3) {
+      border-left: none;
+    }
+    .wl-ctile:nth-child(1),
+    .wl-ctile:nth-child(2) {
+      border-bottom: 1px solid var(--line);
+    }
+    .wl-hiw-grid {
+      grid-template-columns: 1fr;
+      gap: var(--sp-5);
+    }
+    .wl-form {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .wl-cta {
+      padding: 0 var(--sp-4);
+    }
+  }
+</style>
 
 <style>
   .auth-shell {
