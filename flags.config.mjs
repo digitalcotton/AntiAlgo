@@ -68,6 +68,19 @@ export const FLAGS = {
     editions: { design: true, broad: true }
   },
 
+  // OFF for now: during the pre-launch waitlist nobody is admitted yet, so the
+  // sign-in page is held closed and the header's Sign in button is hidden. The
+  // page itself is kept intact (src/pages/sign-in.astro), and while the flag is
+  // off it redirects a would-be sign-in to the Save my spot flow. Flip this on
+  // the day the first admissions go out, so admitted members can sign in.
+  signin: {
+    why:
+      'While off, /sign-in redirects to the Save my spot (sign-up) flow and the header hides its ' +
+      'Sign in button, because in the waitlist phase there are no admitted members to sign in yet. ' +
+      'Turn on alongside the first batch admission (see scripts/admit.mjs) so members can log in.',
+    editions: { design: false, broad: false }
+  },
+
   // --- The Index's flags, copied in as-is (they still govern the same board
   // code, now running in this repo) ---
   add_posting: {

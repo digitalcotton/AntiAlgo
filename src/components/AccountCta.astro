@@ -18,12 +18,15 @@
  * observation understands the offer without a paragraph explaining it.
  */
 import { withBase } from '../../site.config.mjs';
+import { isOn } from '../lib/flags';
 
 interface Props {
   /** Named so the signup source can tell which surface converted. */
   source?: string;
 }
 const { source = 'index' } = Astro.props;
+// The "already have one" line only makes sense once sign-in is open.
+const signinOpen = isOn('signin');
 ---
 
 <aside class="account-cta" aria-labelledby="account-cta-title">
@@ -39,9 +42,11 @@ const { source = 'index' } = Astro.props;
       <a class="account-cta-button" href={`${withBase('/sign-up')}?from=${source}`}>
         Save my spot
       </a>
-      <p class="account-cta-alt">
-        Already have one? <a href={withBase('/sign-in')}>Sign in</a>.
-      </p>
+      {signinOpen && (
+        <p class="account-cta-alt">
+          Already have one? <a href={withBase('/sign-in')}>Sign in</a>.
+        </p>
+      )}
     </div>
   </div>
 </aside>

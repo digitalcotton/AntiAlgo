@@ -3,6 +3,11 @@ import BrandMark from './BrandMark.astro';
 import ThemeToggle from './ThemeToggle.astro';
 import { routeFor } from '../data/nav';
 import { SITE } from '../data/site';
+import { isOn } from '../lib/flags';
+
+// The Sign in button is hidden while the `signin` flag is off (the pre-launch
+// waitlist phase). It comes back when sign-in reopens with the first admissions.
+const signinOpen = isOn('signin');
 
 /**
  * The header, from the Anti Algo home canvas: the lowercase wordmark with the
@@ -33,7 +38,7 @@ const MARKETING = [
         <a class="nav-link" href={item.href} aria-current={isHere(item.href) ? 'page' : undefined}>{item.label}</a>
       ))}
       <ThemeToggle />
-      <a class="signin" href={routeFor('sign-in')}>Sign in</a>
+      {signinOpen && <a class="signin" href={routeFor('sign-in')}>Sign in</a>}
       <a class="cta cta-header" href={`${routeFor('sign-up')}?from=header`}>Save my spot</a>
     </nav>
   </div>

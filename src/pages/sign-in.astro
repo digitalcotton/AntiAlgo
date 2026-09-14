@@ -3,6 +3,7 @@ export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { INDEX, routeFor } from '../data/nav';
+import { isOn } from '../lib/flags';
 
 /*
  * Sign in. A signed-in reader is sent to /account, where the gate decides.
@@ -10,7 +11,13 @@ import { INDEX, routeFor } from '../data/nav';
  * `next` carries where the reader was, and it is validated hard: only a
  * single-slash path on this site is honoured, so a sign-in link cannot be
  * borrowed to land someone on another host.
+ *
+ * HELD CLOSED IN THE WAITLIST PHASE. While the `signin` flag is off nobody is
+ * admitted yet, so a would-be sign-in is sent to the Save my spot flow instead.
+ * The page is kept intact; flipping the flag on restores it. A signed-in reader
+ * is still let through to their account either way.
  */
+if (!isOn('signin') && !Astro.locals.viewer) return Astro.redirect(`${routeFor('sign-up')}?from=sign-in`, 302);
 if (Astro.locals.viewer) return Astro.redirect(routeFor('account'), 302);
 
 function safeNext(raw: string | null): string {
