@@ -5,7 +5,7 @@
   "one_rubric": "Every row is scored by the same five weights (30/25/20/15/10). A posted row is scored by sweep.score(), the same function that scores the nightly boards. A pre-posting row is scored on the same weights from company facts, and every component carries the observation that produced it.",
   "two_clocks": "freshness on a posted row is the posting's age against a 60 day window. On a pre-posting row it is how recently the company was funded against a 12 month horizon. Different clocks, and every basis string says which one it used.",
   "no_invented_titles": "A pre-posting row has title null. No role name is ever written onto a row that has no posting.",
-  "generated_at_utc": "2026-09-15T16:17:08Z",
+  "generated_at_utc": "2026-09-15T19:31:45Z",
   "source_generated_at_utc": null
  },
  "prospects": [
