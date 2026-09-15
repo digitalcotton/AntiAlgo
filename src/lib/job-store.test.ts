@@ -71,10 +71,28 @@ describe('listBoardAges', () => {
   it('reads dates for every row and never the description', async () => {
     query.mockResolvedValue({ rows: [] });
     await listBoardAges();
-    const [sql, params] = query.mock.calls[0];
+    const [sql] = query.mock.calls[0];
     expect(sql).not.toMatch(/\bj\.description\b/);
     expect(sql).toContain('j.published');
     expect(sql).toContain('j.first_seen');
-    expect(params).toEqual([5000]);
+  });
+
+  it('reads the whole set, because the plot is a claim about the whole set', async () => {
+    // It used to default to LIMIT 5000 with no ORDER BY. Under 1,900 rows the
+    // cap never bound; carrying the whole crawl it binds every time, and the
+    // plot would describe an arbitrary subset while still printing "N roles".
+    query.mockResolvedValue({ rows: [] });
+    await listBoardAges();
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).not.toContain('LIMIT');
+    expect(params).toEqual([]);
+  });
+
+  it('bounds the read only when a caller asks for it', async () => {
+    query.mockResolvedValue({ rows: [] });
+    await listBoardAges(100);
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toContain('LIMIT $1');
+    expect(params).toEqual([100]);
   });
 });

@@ -93,6 +93,57 @@ const marks: Mark[] = measured
   }))
   .sort((a, b) => a.days - b.days);
 
+/*
+ * ONE TICK PER RENDERED POSITION, NOT PER ROW.
+ *
+ * Every tick is an absolutely positioned span with a title, and the strip is a
+ * few hundred pixels wide. At the 1,900 rows this plot was built for, ticks
+ * rarely collided and one span per row was honest and cheap. Carrying the whole
+ * crawl it is neither: thousands of spans land on the same fraction of a
+ * percent, the reader sees exactly the same strip, and the page pays for every
+ * one of them on every server-rendered request.
+ *
+ * So ticks are collapsed to the axis's real resolution (TICK_RESOLUTION of a
+ * percent, finer than any display can show) within a band. What is NOT
+ * collapsed is the counting: marks still holds every row, so the count line,
+ * data-total, the aria-label and the kept figure are all over the whole set.
+ * The strip is drawn at screen resolution; the numbers are exact.
+ *
+ * A collapsed tick that stands for several rows says so in its tooltip rather
+ * than naming one of them arbitrarily, because naming one would be the plot
+ * quietly claiming something it did not measure.
+ */
+const TICK_RESOLUTION = 0.05;
+
+interface Tick {
+  at: number;
+  days: number;
+  past: boolean;
+  title: string;
+  rows: number;
+}
+
+const tickBuckets = new Map<string, { at: number; days: number; past: boolean; first: Mark; rows: number }>();
+for (const mark of marks) {
+  const past = mark.days > BAND_DAYS;
+  const key = `${Math.round(mark.at / TICK_RESOLUTION)}:${past ? 1 : 0}`;
+  const seen = tickBuckets.get(key);
+  if (seen) {
+    seen.rows += 1;
+  } else {
+    tickBuckets.set(key, { at: mark.at, days: mark.days, past, first: mark, rows: 1 });
+  }
+}
+const ticks: Tick[] = [...tickBuckets.values()].map((b) => ({
+  at: b.at,
+  days: b.days,
+  past: b.past,
+  rows: b.rows,
+  title: b.rows === 1
+    ? `${b.first.company}, ${b.first.title}: ${b.first.label}`
+    : `${b.rows.toLocaleString()} roles at ${b.first.label}`
+}));
+
 const youngest = marks.at(0) ?? null;
 const eldest = marks.at(-1) ?? null;
 const showBothEnds = youngest !== null && eldest !== null && youngest.slug !== eldest.slug;
@@ -151,12 +202,12 @@ const resetHref = interactive ? hrefFor(null, null) : '';
               <span class="edge" style={`left: ${position(days).toFixed(3)}%;`} aria-hidden="true" />
             ))}
 
-            {marks.map((mark) => (
+            {ticks.map((tick) => (
               <span
-                class:list={['tick', mark.days > BAND_DAYS && 'tick-past', (mark.days < lo || mark.days > hi) && 'tick-out']}
-                style={`left: ${mark.at.toFixed(3)}%;`}
-                data-age={mark.days}
-                title={`${mark.company}, ${mark.title}: ${mark.label}`}
+                class:list={['tick', tick.past && 'tick-past', (tick.days < lo || tick.days > hi) && 'tick-out']}
+                style={`left: ${tick.at.toFixed(3)}%;`}
+                data-age={tick.days}
+                title={tick.title}
               />
             ))}
 

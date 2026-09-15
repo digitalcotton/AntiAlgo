@@ -253,7 +253,24 @@ import { FRESH_WINDOW_DAYS as FRESH_WINDOW_DAYS_SQL } from './data';
  * other BoardRow columns come back as typed nulls, the same shape the slug
  * fallback in getBoardJobBySlug uses.
  */
-export async function listBoardAges(limit = 5000): Promise<BoardRow[]> {
+export async function listBoardAges(limit?: number): Promise<BoardRow[]> {
+  /*
+   * NO DEFAULT LIMIT, DELIBERATELY. This used to be `limit = 5000` with a bare
+   * LIMIT and no ORDER BY. While the board held about 1,900 rows the cap never
+   * bound and nobody noticed. Once the board carries the whole crawl it binds
+   * every time, and because nothing orders the rows the plot would describe an
+   * arbitrary subset while the count line above it, the aria-label and
+   * data-total all still said "N roles" as though it were the whole set. A
+   * silent wrong number is the one thing this codebase refuses to ship, so the
+   * cap is gone: the plot is a claim about every row, and the query returns
+   * every row.
+   *
+   * It is affordable because this is the narrow shape: nine real columns, the
+   * rest typed nulls, no description and no comp. A caller that genuinely wants
+   * a bounded read has to ask for it by passing a limit, and then it owns the
+   * job of saying out loud that the answer is partial.
+   */
+  const bounded = typeof limit === 'number' && Number.isFinite(limit) && limit > 0;
   const { rows } = await db().query<BoardRow>(
     `SELECT j.id, j.slug, j.company, j.title, j.published, j.first_seen, j.last_seen, j.status, j.fit_total, j.kill_id,
             NULL::text AS url, NULL::text AS location, NULL::text AS country, false AS remote, j.ats,
@@ -262,8 +279,8 @@ export async function listBoardAges(limit = 5000): Promise<BoardRow[]> {
             k.kill_rule, k.reason AS kill_reason, k.killed_on, k.first_published AS kill_first_published,
             k.pipeline AS kill_pipeline
        FROM jobs j LEFT JOIN board_kills k ON k.id = j.kill_id
-      LIMIT $1`,
-    [Math.max(1, Math.floor(limit))]
+      ${bounded ? 'LIMIT $1' : ''}`,
+    bounded ? [Math.floor(limit as number)] : []
   );
   return rows;
 }
