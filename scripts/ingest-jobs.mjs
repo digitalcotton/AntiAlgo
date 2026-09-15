@@ -42,6 +42,7 @@ import { gunzipSync } from 'node:zlib';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { assertBatchFits, upsertSql } from '../src/lib/upsert-sql.mjs';
 
 const { Client } = pg;
 const here = dirname(fileURLToPath(import.meta.url));
@@ -229,18 +230,6 @@ function normalise(raw) {
   return row;
 }
 
-const UPSERT = `
-  INSERT INTO jobs (id, company, title, url, location, country, remote, published,
-                    ats, posting_id, department, comp_posted, days_up, ghost,
-                    first_seen, last_seen, slug, fit_total, fit_components, source,
-                    comp_range, description, status, kill_id, ingested_at)
-  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22, 'live', NULL, now())
-  ON CONFLICT (id) DO UPDATE SET
-    company=$2, title=$3, url=$4, location=$5, country=$6, remote=$7, published=$8,
-    ats=$9, posting_id=$10, department=$11, comp_posted=$12, days_up=$13, ghost=$14,
-    first_seen=$15, last_seen=$16, slug=$17, fit_total=$18, fit_components=$19,
-    source=$20, comp_range=$21, description=$22, status='live', kill_id=NULL, ingested_at=now()`;
-
 function values(j) {
   return [
     j.id, j.company, j.title, j.url, j.location, j.country, j.remote, j.published,
@@ -372,9 +361,10 @@ try {
     await client.query('TRUNCATE jobs');
     console.log('replaced: cleared the jobs table first (inside the transaction)');
   }
+  assertBatchFits(BATCH);
   for (let i = 0; i < rows.length; i += BATCH) {
     const slice = rows.slice(i, i + BATCH);
-    for (const j of slice) await client.query(UPSERT, values(j));
+    await client.query(upsertSql(slice.length), slice.flatMap(values));
     written += slice.length;
     console.log(`  upserted ${written}/${rows.length}`);
   }

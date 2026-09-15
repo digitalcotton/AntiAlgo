@@ -104,4 +104,18 @@ describe('AgePlot at the size the everything board brings', () => {
     // The oldest row must be represented; it would be dropped by an arbitrary cap.
     expect(html).toMatch(/left: 100\.000%/);
   });
+
+  it('every tick declares how many rows stand behind it, and they sum to the total', async () => {
+    // The browser script recomputes the kept figure while a handle moves. It
+    // used to count tick elements, which was the same thing when every row had
+    // its own tick. Now a tick is a position, so it must sum data-rows instead;
+    // if this contract breaks the line above the strip disagrees with the board
+    // underneath it, which is how it read "Showing 508 of 12,966".
+    const jobs = Array.from({ length: 13_315 }, (_, i) => job(i, (i % 400) + 1));
+    const html = await renderInteractive(jobs);
+    const rows = [...html.matchAll(/data-rows="(\d+)"/g)].map((m) => Number(m[1]));
+    const ticks = (html.match(/class="[^"]*\btick\b/g) ?? []).length;
+    expect(rows).toHaveLength(ticks);
+    expect(rows.reduce((a, b) => a + b, 0)).toBe(13_315);
+  });
 });
