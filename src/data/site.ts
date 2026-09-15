@@ -17,7 +17,7 @@ export const SITE = {
   origin: SITE_ORIGIN,
   basePath: BASE_PATH,
   description:
-    'The verified job index. A machine re-checks every posting at the company\'s own careers page nightly, kills the dead ones by published rule, and prints the night it read every number. Every role on every board it reads, not a filtered slice. Save your spot.',
+    'The verified job index for design and AI roles. A machine re-checks every posting at the company\'s own careers page nightly, kills the dead ones by published rule, and prints the night it read every number. Save your spot.',
   /** The default social image for any route that does not draw its own. */
   ogImage: withBase('/og.svg'),
   /** The product this site markets. */
