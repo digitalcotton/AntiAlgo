@@ -1,8 +1,8 @@
 {
   "_meta": {
-    "purpose": "Kills from the sweep of 2026-09-15T07:30:03Z, written by export-site-data.py on the machine.",
+    "purpose": "Kills from the sweep of 2026-09-15T16:14:46Z, written by export-site-data.py on the machine.",
     "contents": "3 records, every one a named rule firing on an observation. Observations only: no field here carries a claim about why a company did anything.",
-    "excluded": "0 posting(s) left the list this sweep on a personal filter rather than a rule: a contract role under Ryan's own rate bar, or a link this machine could not verify tonight. Neither says anything about the employer, so neither is named here.",
+    "excluded": "1 posting(s) left the list this sweep on a personal filter rather than a rule: a contract role under Ryan's own rate bar, or a link this machine could not verify tonight. Neither says anything about the employer, so neither is named here.",
     "kill_rule": "The enum comes from kill_reason() upstream and is never worked out downstream by reading the prose. touched-not-refreshed is spelled touched_not_refreshed to match the site's schema, which is the one rename this export performs.",
     "retired_rules": "0 kill event(s) in this sweep's archive fired a retired rule and are NOT published here. None this sweep. The events stay in the append-only archive, because that file records what the machine did and editing it would be worse than the finding it holds. Retired rules and why: evergreen, retired 2026-08-19: it inferred intent from a duration. Age is a fact this site shows, sorts and plots, and never a finding about an employer.",
     "duration_provenance": "observed_by_us wherever the board published a first date and this machine measured the span to the day it detected the kill. Null where the board published no date, and a null draws no bar. reported_elsewhere never appears: nothing in this machine reads outside research.",
