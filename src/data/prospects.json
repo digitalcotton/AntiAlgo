@@ -5,7 +5,7 @@
   "one_rubric": "Every row is scored by the same five weights (30/25/20/15/10). A posted row is scored by sweep.score(), the same function that scores the nightly boards. A pre-posting row is scored on the same weights from company facts, and every component carries the observation that produced it.",
   "two_clocks": "freshness on a posted row is the posting's age against a 60 day window. On a pre-posting row it is how recently the company was funded against a 12 month horizon. Different clocks, and every basis string says which one it used.",
   "no_invented_titles": "A pre-posting row has title null. No role name is ever written onto a row that has no posting.",
-  "generated_at_utc": "2026-09-14T07:31:48Z",
+  "generated_at_utc": "2026-09-15T07:31:50Z",
   "source_generated_at_utc": null
  },
  "prospects": [
@@ -115,9 +115,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30943-iw9ggf8-mts-founding-designer"
   },
@@ -222,9 +222,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32288-pre"
   },
@@ -333,9 +333,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31352-pre"
   },
@@ -444,9 +444,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32138-pre"
   },
@@ -553,9 +553,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31425-pre"
   },
@@ -587,9 +587,8 @@
    "comp_posted": null,
    "remote": null,
    "location": null,
-   "open_role_count": 2,
+   "open_role_count": 1,
    "open_role_titles": [
-    "Sales Development Representative",
     "Sales Development Representative"
    ],
    "has_design_role": false,
@@ -655,7 +654,7 @@
     {
      "key": "hiring_not_for_design",
      "direction": "positive",
-     "observation": "2 role(s) open on their own board and none is a design role"
+     "observation": "1 role(s) open on their own board and none is a design role"
     },
     {
      "key": "ai_native",
@@ -666,9 +665,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31426-pre"
   },
@@ -776,9 +775,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31420-pre"
   },
@@ -881,9 +880,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31500-pre"
   },
@@ -986,9 +985,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31491-pre"
   },
@@ -1091,9 +1090,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31054-pre"
   },
@@ -1199,9 +1198,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31095-pre"
   },
@@ -1299,9 +1298,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31229-pre"
   },
@@ -1411,9 +1410,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31101-pre"
   },
@@ -1445,10 +1444,8 @@
    "comp_posted": null,
    "remote": null,
    "location": null,
-   "open_role_count": 1,
-   "open_role_titles": [
-    "Frontend Engineer"
-   ],
+   "open_role_count": 0,
+   "open_role_titles": [],
    "has_design_role": false,
    "fit": 78,
    "fit_components": [
@@ -1512,7 +1509,7 @@
     {
      "key": "hiring_not_for_design",
      "direction": "positive",
-     "observation": "1 role(s) open on their own board and none is a design role"
+     "observation": "0 role(s) open on their own board and none is a design role"
     },
     {
      "key": "ai_native",
@@ -1523,9 +1520,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30882-pre"
   },
@@ -1623,9 +1620,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31239-8smt7qd-founding-designer"
   },
@@ -1742,9 +1739,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-26144-pre"
   },
@@ -1856,9 +1853,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30960-pre"
   },
@@ -1966,9 +1963,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31470-qz919ca-head-of-design-engineering"
   },
@@ -2082,9 +2079,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30877-pre"
   },
@@ -2190,9 +2187,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31019-pre"
   },
@@ -2294,9 +2291,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32552-pre"
   },
@@ -2409,9 +2406,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33056-pre"
   },
@@ -2517,9 +2514,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32621-pre"
   },
@@ -2625,9 +2622,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32262-pre"
   },
@@ -2730,9 +2727,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32204-pre"
   },
@@ -2836,9 +2833,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32588-pre"
   },
@@ -2939,9 +2936,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31298-pre"
   },
@@ -3045,9 +3042,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31184-pre"
   },
@@ -3151,9 +3148,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31532-pre"
   },
@@ -3257,9 +3254,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33314-pre"
   },
@@ -3363,9 +3360,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-28841-pre"
   },
@@ -3471,9 +3468,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32220-pre"
   },
@@ -3573,9 +3570,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32520-pre"
   },
@@ -3680,9 +3677,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33936-pre"
   },
@@ -3782,9 +3779,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33012-pre"
   },
@@ -3882,9 +3879,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33345-pre"
   },
@@ -3987,9 +3984,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32649-pre"
   },
@@ -4095,9 +4092,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32206-pre"
   },
@@ -4202,9 +4199,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32286-pre"
   },
@@ -4307,9 +4304,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32202-pre"
   },
@@ -4416,9 +4413,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32122-pre"
   },
@@ -4519,9 +4516,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33281-pre"
   },
@@ -4621,9 +4618,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31582-pre"
   },
@@ -4727,9 +4724,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32124-pre"
   },
@@ -4833,9 +4830,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33282-pre"
   },
@@ -4935,9 +4932,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32586-pre"
   },
@@ -5045,9 +5042,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33177-pre"
   },
@@ -5153,9 +5150,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31340-pre"
   },
@@ -5259,9 +5256,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33014-pre"
   },
@@ -5364,9 +5361,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32190-pre"
   },
@@ -5472,9 +5469,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32187-pre"
   },
@@ -5574,9 +5571,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32137-pre"
   },
@@ -5689,9 +5686,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32171-pre"
   },
@@ -5797,9 +5794,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32985-pre"
   },
@@ -5904,9 +5901,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32981-pre"
   },
@@ -6009,9 +6006,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32205-pre"
   },
@@ -6117,9 +6114,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32716-pre"
   },
@@ -6225,9 +6222,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33342-pre"
   },
@@ -6326,9 +6323,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32553-pre"
   },
@@ -6434,9 +6431,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32623-pre"
   },
@@ -6540,9 +6537,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31074-pre"
   },
@@ -6658,9 +6655,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32554-pre"
   },
@@ -6766,9 +6763,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33969-pre"
   },
@@ -6873,9 +6870,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31301-pre"
   },
@@ -6908,8 +6905,10 @@
    "comp_posted": null,
    "remote": null,
    "location": null,
-   "open_role_count": 0,
-   "open_role_titles": [],
+   "open_role_count": 1,
+   "open_role_titles": [
+    "Founding Engineer"
+   ],
    "has_design_role": false,
    "fit": 72,
    "fit_components": [
@@ -6974,9 +6973,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33310-pre"
   },
@@ -7080,9 +7079,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32526-pre"
   },
@@ -7186,9 +7185,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33022-pre"
   },
@@ -7286,6 +7285,11 @@
      "observation": "Summer 2026, about 3 months ago, so the hiring plan is being written now"
     },
     {
+     "key": "hiring_not_for_design",
+     "direction": "positive",
+     "observation": "1 role(s) open on their own board and none is a design role"
+    },
+    {
      "key": "ai_native",
      "direction": "positive",
      "observation": "the description names ai"
@@ -7294,9 +7298,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33017-pre"
   },
@@ -7401,9 +7405,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32261-pre"
   },
@@ -7509,9 +7513,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32198-pre"
   },
@@ -7617,9 +7621,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33349-pre"
   },
@@ -7723,9 +7727,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32979-pre"
   },
@@ -7830,9 +7834,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33311-pre"
   },
@@ -7938,9 +7942,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32169-pre"
   },
@@ -8046,9 +8050,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32225-pre"
   },
@@ -8152,9 +8156,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32627-pre"
   },
@@ -8270,9 +8274,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31858-pre"
   },
@@ -8377,9 +8381,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33051-pre"
   },
@@ -8483,9 +8487,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31537-pre"
   },
@@ -8588,9 +8592,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33319-pre"
   },
@@ -8696,9 +8700,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32154-pre"
   },
@@ -8804,9 +8808,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31555-pre"
   },
@@ -8904,9 +8908,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31923-pre"
   },
@@ -8935,10 +8939,8 @@
    "comp_posted": null,
    "remote": null,
    "location": null,
-   "open_role_count": 1,
-   "open_role_titles": [
-    "Founding Software Engineer"
-   ],
+   "open_role_count": 0,
+   "open_role_titles": [],
    "has_design_role": false,
    "fit": 71,
    "fit_components": [
@@ -9002,15 +9004,15 @@
     {
      "key": "hiring_not_for_design",
      "direction": "positive",
-     "observation": "1 role(s) open on their own board and none is a design role"
+     "observation": "0 role(s) open on their own board and none is a design role"
     }
    ],
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31485-pre"
   },
@@ -9116,9 +9118,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31434-pre"
   },
@@ -9218,9 +9220,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31576-pre"
   },
@@ -9333,9 +9335,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31497-pre"
   },
@@ -9437,9 +9439,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31411-pre"
   },
@@ -9546,9 +9548,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31487-pre"
   },
@@ -9654,9 +9656,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31451-pre"
   },
@@ -9758,9 +9760,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31475-pre"
   },
@@ -9860,9 +9862,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31413-pre"
   },
@@ -9971,9 +9973,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31535-pre"
   },
@@ -10081,9 +10083,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31463-pre"
   },
@@ -10191,9 +10193,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31528-pre"
   },
@@ -10300,9 +10302,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31465-pre"
   },
@@ -10402,9 +10404,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31373-pre"
   },
@@ -10504,9 +10506,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31510-pre"
   },
@@ -10606,9 +10608,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31423-pre"
   },
@@ -10716,9 +10718,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31477-pre"
   },
@@ -10818,9 +10820,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31293-pre"
   },
@@ -10929,9 +10931,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31416-pre"
   },
@@ -11044,9 +11046,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31513-pre"
   },
@@ -11148,9 +11150,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31117-pre"
   },
@@ -11258,9 +11260,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31063-pre"
   },
@@ -11362,9 +11364,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31395-pre"
   },
@@ -11464,9 +11466,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31157-pre"
   },
@@ -11568,9 +11570,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31489-pre"
   },
@@ -11670,9 +11672,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31516-pre"
   },
@@ -11772,9 +11774,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31102-pre"
   },
@@ -11876,9 +11878,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31536-pre"
   },
@@ -11975,9 +11977,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31391-pre"
   },
@@ -12077,113 +12079,11 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31445-pre"
-  },
-  {
-   "id": "yc-31496:pre",
-   "opportunity_kind": "pre_posting",
-   "company_name": "Hessian",
-   "company_website": "https://hessian.sh",
-   "one_liner": "Forward-deployed AI Agents",
-   "team_size": 3,
-   "cohort": "Spring 2026",
-   "stage": "Early",
-   "industry": "B2B",
-   "investor": "Y Combinator",
-   "locations": [
-    "San Francisco, CA, USA"
-   ],
-   "regions": [
-    "United States of America",
-    "America / Canada"
-   ],
-   "tags": [],
-   "profile_url": "https://www.ycombinator.com/companies/hessian",
-   "title": null,
-   "url": null,
-   "comp_posted": null,
-   "remote": null,
-   "location": null,
-   "open_role_count": 0,
-   "open_role_titles": [],
-   "has_design_role": false,
-   "fit": 71,
-   "fit_components": [
-    {
-     "key": "title_scope",
-     "label": "Title and scope",
-     "points": 25,
-     "max": 30,
-     "pct": 85,
-     "points_exact": 25.5,
-     "basis": "no design role open at source and a team of 3, so the scope available is greenfield and the founding title is unclaimed"
-    },
-    {
-     "key": "geo_remote",
-     "label": "Remote and location",
-     "points": 14,
-     "max": 25,
-     "pct": 55,
-     "points_exact": 13.75,
-     "basis": "an allowed city: San Francisco, CA, USA"
-    },
-    {
-     "key": "comp",
-     "label": "Published pay",
-     "points": 10,
-     "max": 20,
-     "pct": 50,
-     "points_exact": 10.0,
-     "basis": "no posting, so no published pay: the same neutral midpoint this rubric gives a posting that withholds it. Silence is not evidence about salary."
-    },
-    {
-     "key": "freshness",
-     "label": "Freshness",
-     "points": 12,
-     "max": 15,
-     "pct": 79,
-     "points_exact": 11.85,
-     "basis": "Spring 2026, about 5 months ago, against a 12 month FUNDING horizon rather than a posting age"
-    },
-    {
-     "key": "apply_ease",
-     "label": "Apply friction",
-     "points": 10,
-     "max": 10,
-     "pct": 100,
-     "points_exact": 10.0,
-     "basis": "a LinkedIn Connect note: no form, no account, no portal"
-    }
-   ],
-   "signals": [
-    {
-     "key": "team_in_band",
-     "direction": "positive",
-     "observation": "team of 3: funded enough to hire, small enough that no designer exists"
-    },
-    {
-     "key": "recent_cohort",
-     "direction": "positive",
-     "observation": "Spring 2026, about 5 months ago, so the hiring plan is being written now"
-    },
-    {
-     "key": "ai_native",
-     "direction": "positive",
-     "observation": "the description names ai"
-    }
-   ],
-   "provenance": {
-    "source": "yc-oss-api",
-    "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
-   },
-   "slug": "yc-31496-pre"
   },
   {
    "id": "yc-31350:pre",
@@ -12276,9 +12176,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31350-pre"
   },
@@ -12394,9 +12294,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31375-pre"
   },
@@ -12503,9 +12403,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31076-pre"
   },
@@ -12605,9 +12505,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31369-pre"
   },
@@ -12707,9 +12607,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31547-pre"
   },
@@ -12807,9 +12707,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31409-pre"
   },
@@ -12916,9 +12816,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31386-pre"
   },
@@ -13018,9 +12918,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31326-pre"
   },
@@ -13132,9 +13032,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31424-pre"
   },
@@ -13240,9 +13140,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31046-pre"
   },
@@ -13355,9 +13255,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31531-pre"
   },
@@ -13452,9 +13352,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31561-pre"
   },
@@ -13551,9 +13451,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31482-pre"
   },
@@ -13662,9 +13562,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31453-pre"
   },
@@ -13766,9 +13666,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30723-pre"
   },
@@ -13868,9 +13768,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31427-pre"
   },
@@ -13974,9 +13874,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31428-pre"
   },
@@ -14076,9 +13976,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31544-pre"
   },
@@ -14189,9 +14089,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31333-pre"
   },
@@ -14293,9 +14193,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31507-pre"
   },
@@ -14395,9 +14295,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31494-pre"
   },
@@ -14499,9 +14399,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31410-pre"
   },
@@ -14603,9 +14503,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31518-pre"
   },
@@ -14709,9 +14609,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31363-pre"
   },
@@ -14811,9 +14711,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31211-pre"
   },
@@ -14916,9 +14816,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31419-pre"
   },
@@ -15026,9 +14926,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31402-pre"
   },
@@ -15141,9 +15041,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31222-pre"
   },
@@ -15243,9 +15143,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31415-pre"
   },
@@ -15340,9 +15240,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31372-pre"
   },
@@ -15447,9 +15347,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31404-pre"
   },
@@ -15549,9 +15449,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31430-pre"
   },
@@ -15653,9 +15553,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31517-pre"
   },
@@ -15755,9 +15655,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31385-pre"
   },
@@ -15861,9 +15761,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31329-pre"
   },
@@ -15958,9 +15858,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31396-pre"
   },
@@ -16060,9 +15960,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31400-pre"
   },
@@ -16162,9 +16062,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32584-pre"
   },
@@ -16267,9 +16167,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32518-pre"
   },
@@ -16373,9 +16273,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33441-pre"
   },
@@ -16480,9 +16380,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32161-pre"
   },
@@ -16577,9 +16477,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33277-pre"
   },
@@ -16683,9 +16583,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31304-pre"
   },
@@ -16786,9 +16686,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32128-pre"
   },
@@ -16893,9 +16793,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32121-pre"
   },
@@ -17002,9 +16902,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31989-pre"
   },
@@ -17105,9 +17005,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32192-pre"
   },
@@ -17211,9 +17111,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32319-pre"
   },
@@ -17314,9 +17214,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30904-pre"
   },
@@ -17423,9 +17323,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32815-pre"
   },
@@ -17530,9 +17430,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32750-pre"
   },
@@ -17634,9 +17534,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31118-pre"
   },
@@ -17750,9 +17650,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31098-pre"
   },
@@ -17854,9 +17754,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31123-pre"
   },
@@ -17955,9 +17855,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31043-pre"
   },
@@ -18064,9 +17964,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31138-pre"
   },
@@ -18166,9 +18066,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31552-pre"
   },
@@ -18270,9 +18170,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31511-pre"
   },
@@ -18372,9 +18272,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31248-pre"
   },
@@ -18474,9 +18374,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31213-pre"
   },
@@ -18576,9 +18476,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31207-pre"
   },
@@ -18684,9 +18584,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31040-pre"
   },
@@ -18788,9 +18688,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31140-pre"
   },
@@ -18892,9 +18792,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31562-pre"
   },
@@ -18994,9 +18894,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31164-pre"
   },
@@ -19101,9 +19001,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31241-pre"
   },
@@ -19209,9 +19109,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31051-pre"
   },
@@ -19311,9 +19211,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31225-pre"
   },
@@ -19420,9 +19320,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31090-pre"
   },
@@ -19522,9 +19422,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31247-pre"
   },
@@ -19640,9 +19540,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31030-pre"
   },
@@ -19749,9 +19649,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31168-pre"
   },
@@ -19856,9 +19756,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31560-pre"
   },
@@ -19969,9 +19869,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31393-pre"
   },
@@ -20076,9 +19976,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31083-pre"
   },
@@ -20182,9 +20082,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31327-pre"
   },
@@ -20295,9 +20195,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31089-pre"
   },
@@ -20397,9 +20297,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31094-pre"
   },
@@ -20501,9 +20401,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31435-pre"
   },
@@ -20602,9 +20502,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31529-pre"
   },
@@ -20704,9 +20604,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31252-pre"
   },
@@ -20812,9 +20712,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31343-pre"
   },
@@ -20923,9 +20823,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31163-pre"
   },
@@ -21020,9 +20920,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31284-pre"
   },
@@ -21122,9 +21022,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31064-pre"
   },
@@ -21225,9 +21125,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31486-pre"
   },
@@ -21330,9 +21230,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31283-pre"
   },
@@ -21432,9 +21332,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31171-pre"
   },
@@ -21536,9 +21436,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31208-pre"
   },
@@ -21645,9 +21545,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30927-pre"
   },
@@ -21747,9 +21647,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31077-pre"
   },
@@ -21857,9 +21757,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31175-pre"
   },
@@ -21959,9 +21859,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31153-pre"
   },
@@ -22073,9 +21973,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31114-pre"
   },
@@ -22175,9 +22075,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30765-pre"
   },
@@ -22285,9 +22185,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31217-pre"
   },
@@ -22387,9 +22287,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31275-pre"
   },
@@ -22489,9 +22389,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31177-pre"
   },
@@ -22605,9 +22505,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31145-pre"
   },
@@ -22710,9 +22610,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31279-pre"
   },
@@ -22807,9 +22707,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31135-pre"
   },
@@ -22912,9 +22812,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31085-pre"
   },
@@ -23021,9 +22921,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31088-pre"
   },
@@ -23127,9 +23027,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31300-pre"
   },
@@ -23236,9 +23136,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31464-pre"
   },
@@ -23338,9 +23238,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31159-pre"
   },
@@ -23440,9 +23340,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31172-pre"
   },
@@ -23537,9 +23437,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30905-pre"
   },
@@ -23634,9 +23534,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31194-pre"
   },
@@ -23736,9 +23636,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31057-pre"
   },
@@ -23849,9 +23749,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31000-pre"
   },
@@ -23957,9 +23857,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31182-pre"
   },
@@ -24062,9 +23962,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31003-pre"
   },
@@ -24080,11 +23980,11 @@
    "industry": "B2B",
    "investor": "Y Combinator",
    "locations": [
-    "San Francisco, CA, USA"
+    "Bengaluru, KA, India"
    ],
    "regions": [
-    "United States of America",
-    "America / Canada"
+    "India",
+    "South Asia"
    ],
    "tags": [],
    "profile_url": "https://www.ycombinator.com/companies/cardboard",
@@ -24170,9 +24070,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31178-pzuqweq-founding-designer"
   },
@@ -24188,11 +24088,11 @@
    "industry": "B2B",
    "investor": "Y Combinator",
    "locations": [
-    "San Francisco, CA, USA"
+    "Bengaluru, KA, India"
    ],
    "regions": [
-    "United States of America",
-    "America / Canada"
+    "India",
+    "South Asia"
    ],
    "tags": [],
    "profile_url": "https://www.ycombinator.com/companies/cardboard",
@@ -24278,9 +24178,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31178-cpneg9f-founding-design-engineer"
   },
@@ -24387,9 +24287,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30837-pre"
   },
@@ -24497,9 +24397,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30890-pre"
   },
@@ -24609,9 +24509,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30999-pre"
   },
@@ -24717,9 +24617,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30937-pre"
   },
@@ -24824,9 +24724,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30956-pre"
   },
@@ -24932,9 +24832,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31142-pre"
   },
@@ -25040,9 +24940,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30982-pre"
   },
@@ -25142,9 +25042,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30924-pre"
   },
@@ -25251,9 +25151,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31113-pre"
   },
@@ -25353,9 +25253,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31185-pre"
   },
@@ -25460,9 +25360,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30886-pre"
   },
@@ -25575,9 +25475,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31002-pre"
   },
@@ -25677,9 +25577,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31104-pre"
   },
@@ -25779,9 +25679,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31212-pre"
   },
@@ -25887,9 +25787,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30930-pre"
   },
@@ -25986,9 +25886,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31016-pre"
   },
@@ -26095,9 +25995,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30858-pre"
   },
@@ -26202,9 +26102,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30962-pre"
   },
@@ -26317,9 +26217,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30816-pre"
   },
@@ -26426,9 +26326,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30970-pre"
   },
@@ -26533,9 +26433,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31001-pre"
   },
@@ -26646,9 +26546,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30569-pre"
   },
@@ -26752,9 +26652,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30635-pre"
   },
@@ -26864,9 +26764,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30879-pre"
   },
@@ -26982,9 +26882,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30854-pre"
   },
@@ -27096,9 +26996,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30938-pre"
   },
@@ -27209,9 +27109,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30972-pre"
   },
@@ -27315,9 +27215,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30869-pre"
   },
@@ -27432,9 +27332,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30870-pre"
   },
@@ -27540,9 +27440,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30822-pre"
   },
@@ -27658,9 +27558,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30932-pre"
   },
@@ -27769,9 +27669,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30987-pre"
   },
@@ -27877,9 +27777,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30997-pre"
   },
@@ -27987,9 +27887,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30849-pre"
   },
@@ -28102,9 +28002,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30975-pre"
   },
@@ -28207,9 +28107,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31036-pre"
   },
@@ -28319,9 +28219,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31188-pre"
   },
@@ -28436,9 +28336,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31008-pre"
   },
@@ -28541,9 +28441,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31132-pre"
   },
@@ -28650,9 +28550,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30896-pre"
   },
@@ -28760,9 +28660,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30880-pre"
   },
@@ -28866,9 +28766,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30604-pre"
   },
@@ -28966,9 +28866,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30848-pre"
   },
@@ -29067,9 +28967,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30846-pre"
   },
@@ -29175,9 +29075,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30936-pre"
   },
@@ -29295,9 +29195,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30592-pre"
   },
@@ -29400,9 +29300,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30912-pre"
   },
@@ -29514,9 +29414,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31189-pre"
   },
@@ -29623,9 +29523,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31201-pre"
   },
@@ -29725,9 +29625,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31136-pre"
   },
@@ -29832,9 +29732,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30899-pre"
   },
@@ -29939,9 +29839,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30887-pre"
   },
@@ -30041,9 +29941,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30828-pre"
   },
@@ -30155,9 +30055,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30862-pre"
   },
@@ -30268,9 +30168,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30946-pre"
   },
@@ -30374,9 +30274,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31009-pre"
   },
@@ -30488,9 +30388,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30928-pre"
   },
@@ -30585,9 +30485,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31296-pre"
   },
@@ -30701,9 +30601,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30995-pre"
   },
@@ -30807,9 +30707,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30875-pre"
   },
@@ -30916,9 +30816,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31299-pre"
   },
@@ -31028,9 +30928,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31007-pre"
   },
@@ -31142,9 +31042,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30883-pre"
   },
@@ -31256,9 +31156,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31018-pre"
   },
@@ -31361,9 +31261,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30935-pre"
   },
@@ -31472,9 +31372,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30914-pre"
   },
@@ -31578,9 +31478,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31041-pre"
   },
@@ -31683,9 +31583,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30942-v9jd8ed-design-engineer"
   },
@@ -31791,9 +31691,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31506-pre"
   },
@@ -31899,9 +31799,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30958-pre"
   },
@@ -32017,9 +31917,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30895-pre"
   },
@@ -32125,9 +32025,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32749-pre"
   },
@@ -32235,9 +32135,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30857-pre"
   },
@@ -32342,9 +32242,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32222-pre"
   },
@@ -32460,9 +32360,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30591-pre"
   },
@@ -32566,9 +32466,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30861-pre"
   },
@@ -32672,9 +32572,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33021-pre"
   },
@@ -32780,9 +32680,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33673-pre"
   },
@@ -32896,9 +32796,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30993-pre"
   },
@@ -33004,9 +32904,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30939-pre"
   },
@@ -33111,9 +33011,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32987-pre"
   },
@@ -33219,9 +33119,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30981-pre"
   },
@@ -33319,9 +33219,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33144-pre"
   },
@@ -33425,9 +33325,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32914-pre"
   },
@@ -33534,9 +33434,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31005-pre"
   },
@@ -33637,9 +33537,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32521-pre"
   },
@@ -33743,9 +33643,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30950-pre"
   },
@@ -33853,9 +33753,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30657-pre"
   },
@@ -33961,9 +33861,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30868-pre"
   },
@@ -34069,9 +33969,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32913-pre"
   },
@@ -34179,9 +34079,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30925-pre"
   },
@@ -34296,9 +34196,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30977-pre"
   },
@@ -34401,9 +34301,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30964-pre"
   },
@@ -34507,9 +34407,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-33179-pre"
   },
@@ -34621,9 +34521,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30881-pre"
   },
@@ -34727,9 +34627,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32948-pre"
   },
@@ -34832,9 +34732,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/summer-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:03Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-32256-pre"
   },
@@ -34940,9 +34840,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31193-pre"
   },
@@ -35044,9 +34944,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31080-pre"
   },
@@ -35146,9 +35046,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31137-pre"
   },
@@ -35256,9 +35156,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31174-pre"
   },
@@ -35291,11 +35191,11 @@
    "location": null,
    "open_role_count": 5,
    "open_role_titles": [
-    "Founder's Associate",
     "Customer Support Lead",
     "Customer Support Specialist",
     "Backend Engineer",
-    "Engineering Generalist - Product Impact (Full Stack)"
+    "Engineering Generalist - Product Impact (Full Stack)",
+    "Research Engineer - Voice Intelligence"
    ],
    "has_design_role": false,
    "fit": 63,
@@ -35371,9 +35271,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31214-pre"
   },
@@ -35480,9 +35380,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31370-pre"
   },
@@ -35589,9 +35489,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31388-pre"
   },
@@ -35696,11 +35596,113 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30915-pre"
+  },
+  {
+   "id": "yc-31496:pre",
+   "opportunity_kind": "pre_posting",
+   "company_name": "Hessian",
+   "company_website": "https://hessian.sh",
+   "one_liner": "Forward-deployed AI Agents",
+   "team_size": 3,
+   "cohort": "Spring 2026",
+   "stage": "Early",
+   "industry": "B2B",
+   "investor": "Y Combinator",
+   "locations": [
+    "London, England, United Kingdom"
+   ],
+   "regions": [
+    "United Kingdom",
+    "Europe"
+   ],
+   "tags": [],
+   "profile_url": "https://www.ycombinator.com/companies/hessian",
+   "title": null,
+   "url": null,
+   "comp_posted": null,
+   "remote": null,
+   "location": null,
+   "open_role_count": 0,
+   "open_role_titles": [],
+   "has_design_role": false,
+   "fit": 62,
+   "fit_components": [
+    {
+     "key": "title_scope",
+     "label": "Title and scope",
+     "points": 25,
+     "max": 30,
+     "pct": 85,
+     "points_exact": 25.5,
+     "basis": "no design role open at source and a team of 3, so the scope available is greenfield and the founding title is unclaimed"
+    },
+    {
+     "key": "geo_remote",
+     "label": "Remote and location",
+     "points": 5,
+     "max": 25,
+     "pct": 20,
+     "points_exact": 5.0,
+     "basis": "outside the remote rule and outside the allowed cities: London, England, United Kingdom"
+    },
+    {
+     "key": "comp",
+     "label": "Published pay",
+     "points": 10,
+     "max": 20,
+     "pct": 50,
+     "points_exact": 10.0,
+     "basis": "no posting, so no published pay: the same neutral midpoint this rubric gives a posting that withholds it. Silence is not evidence about salary."
+    },
+    {
+     "key": "freshness",
+     "label": "Freshness",
+     "points": 12,
+     "max": 15,
+     "pct": 79,
+     "points_exact": 11.85,
+     "basis": "Spring 2026, about 5 months ago, against a 12 month FUNDING horizon rather than a posting age"
+    },
+    {
+     "key": "apply_ease",
+     "label": "Apply friction",
+     "points": 10,
+     "max": 10,
+     "pct": 100,
+     "points_exact": 10.0,
+     "basis": "a LinkedIn Connect note: no form, no account, no portal"
+    }
+   ],
+   "signals": [
+    {
+     "key": "team_in_band",
+     "direction": "positive",
+     "observation": "team of 3: funded enough to hire, small enough that no designer exists"
+    },
+    {
+     "key": "recent_cohort",
+     "direction": "positive",
+     "observation": "Spring 2026, about 5 months ago, so the hiring plan is being written now"
+    },
+    {
+     "key": "ai_native",
+     "direction": "positive",
+     "observation": "the description names ai"
+    }
+   ],
+   "provenance": {
+    "source": "yc-oss-api",
+    "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
+   },
+   "slug": "yc-31496-pre"
   },
   {
    "id": "yc-31246:pre",
@@ -35806,9 +35808,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31246-pre"
   },
@@ -35915,9 +35917,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31540-pre"
   },
@@ -36017,9 +36019,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31221-pre"
   },
@@ -36117,9 +36119,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31505-dcf4njj-design-engineer-sf"
   },
@@ -36212,9 +36214,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31460-pre"
   },
@@ -36314,9 +36316,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31417-pre"
   },
@@ -36416,9 +36418,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30944-pre"
   },
@@ -36524,9 +36526,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31374-pre"
   },
@@ -36621,9 +36623,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31403-pre"
   },
@@ -36721,9 +36723,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30821-pre"
   },
@@ -36831,9 +36833,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30920-pre"
   },
@@ -36943,9 +36945,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30885-pre"
   },
@@ -37043,9 +37045,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31121-pre"
   },
@@ -37153,9 +37155,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31236-pre"
   },
@@ -37262,9 +37264,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31285-pre"
   },
@@ -37364,9 +37366,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31303-pre"
   },
@@ -37464,9 +37466,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31289-pre"
   },
@@ -37564,9 +37566,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31048-pre"
   },
@@ -37671,9 +37673,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31360-oynuzbu-motion-graphics-designer-videographer"
   },
@@ -37770,9 +37772,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31160-pre"
   },
@@ -37881,9 +37883,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-28879-pre"
   },
@@ -37978,9 +37980,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31144-pre"
   },
@@ -38093,9 +38095,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31146-pre"
   },
@@ -38192,9 +38194,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31183-pre"
   },
@@ -38227,10 +38229,8 @@
    "comp_posted": null,
    "remote": null,
    "location": null,
-   "open_role_count": 1,
-   "open_role_titles": [
-    "GTM Intern"
-   ],
+   "open_role_count": 0,
+   "open_role_titles": [],
    "has_design_role": false,
    "fit": 60,
    "fit_components": [
@@ -38294,7 +38294,7 @@
     {
      "key": "hiring_not_for_design",
      "direction": "positive",
-     "observation": "1 role(s) open on their own board and none is a design role"
+     "observation": "0 role(s) open on their own board and none is a design role"
     },
     {
      "key": "ai_native",
@@ -38305,9 +38305,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31200-pre"
   },
@@ -38413,9 +38413,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31276-pre"
   },
@@ -38521,9 +38521,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31206-pre"
   },
@@ -38641,9 +38641,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31180-pre"
   },
@@ -38738,9 +38738,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31227-pre"
   },
@@ -38852,9 +38852,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31224-pre"
   },
@@ -38961,9 +38961,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31245-pre"
   },
@@ -39072,9 +39072,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31167-pre"
   },
@@ -39177,9 +39177,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/winter-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31219-pre"
   },
@@ -39276,9 +39276,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30992-pre"
   },
@@ -39381,9 +39381,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30919-pre"
   },
@@ -39489,9 +39489,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30918-pre"
   },
@@ -39595,9 +39595,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30949-pre"
   },
@@ -39700,9 +39700,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-29161-pre"
   },
@@ -39810,9 +39810,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30966-pre"
   },
@@ -39921,9 +39921,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30948-pre"
   },
@@ -40029,9 +40029,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31011-pre"
   },
@@ -40136,9 +40136,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30967-pre"
   },
@@ -40245,9 +40245,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-29763-pre"
   },
@@ -40355,9 +40355,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30891-pre"
   },
@@ -40470,9 +40470,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30845-pre"
   },
@@ -40571,9 +40571,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30934-pre"
   },
@@ -40687,9 +40687,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30945-pre"
   },
@@ -40797,9 +40797,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30850-pre"
   },
@@ -40912,9 +40912,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31443-pre"
   },
@@ -41030,9 +41030,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/fall-2025.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:01Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-30835-pre"
   },
@@ -41065,10 +41065,11 @@
    "comp_posted": "$4K - $10K / monthly",
    "remote": false,
    "location": "San Francisco, CA, US",
-   "open_role_count": 2,
+   "open_role_count": 3,
    "open_role_titles": [
     "Founding AI Engineer",
-    "Content & Brand Intern"
+    "Content & Brand Intern",
+    "Insurance Producer"
    ],
    "has_design_role": true,
    "fit": 47,
@@ -41134,9 +41135,9 @@
    "provenance": {
     "source": "yc-oss-api",
     "endpoint": "https://yc-oss.github.io/api/batches/spring-2026.json",
-    "upstream_updated_at": "2026-09-13T02:11:21.481Z",
-    "fetched_at": "2026-09-14T01:00:02Z",
-    "run_id": "2026-09-14"
+    "upstream_updated_at": "2026-09-14T02:29:20.058Z",
+    "fetched_at": "2026-09-15T01:00:02Z",
+    "run_id": "2026-09-15"
    },
    "slug": "yc-31382-tz7vum1-content-brand-intern"
   }
