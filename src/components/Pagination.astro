@@ -122,7 +122,7 @@ const hasNext = linkMode ? Boolean(nextHref) : current < total;
               <input type="hidden" name="per" value={picker.per} />
               <label class="picker-field">
                 <span class="picker-label mono-label">Go to page</span>
-                <input class="picker-number mono" type="number" name="page" min="1" max={Math.max(1, total)} inputmode="numeric" required />
+                <input class="picker-number mono" type="number" name="page" min="1" max={Math.max(1, total)} value={current} inputmode="numeric" required />
               </label>
               <button class="step" type="submit">Go</button>
             </form>
