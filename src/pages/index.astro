@@ -30,7 +30,9 @@ import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
  * same waitlist_email table the sign-up page's "Save my spot" form writes
  * to), so the figure here and the one on that page's eyebrow never disagree.
  */
-Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+// Private, not shared-cached: the board teaser now renders per the visitor's
+// country, so one country's HTML must not be served from the edge to another.
+Astro.response.headers.set('Cache-Control', 'private, no-store');
 
 const stats = await loadStats();
 const stamp = stats ? sweptStamp(stats.swept_at) : null;
@@ -46,18 +48,26 @@ const signUp = (from: string) => `${routeFor('sign-up')}?from=${from}`;
 const boardPath = routeFor('board');
 const HOME_ROWS = 2;   // home is a teaser: two roles, then "Open the full board"
 const bq = parseBoardQuery(new URLSearchParams());
+// The visitor's country, from Vercel's edge headers (absent in local dev and
+// for unknown IPs, where we default to US).
+const country = (Astro.request.headers.get('x-vercel-ip-country') || 'US').toUpperCase();
 const EMPTY_COUNTS = { total: 0, location: {}, comp: {}, freshness: {} };
 let bServed: Awaited<ReturnType<typeof listBoardFiltered>> = { rows: [], total: 0, counts: EMPTY_COUNTS };
 let bAgeJobs: Job[] = [];
 let bStats: Awaited<ReturnType<typeof getBoardStats>> = null;
+// The teaser shows LIVE roles from the visitor's country: a US visitor sees US
+// roles, someone abroad sees their own. The fallback keeps it full and never
+// all-foreign — their country, then US, then any live role.
+const teaserFor = (c: string | null) => listBoardFiltered({
+  q: bq.q, location: bq.location, comp: bq.comp, freshness: bq.freshness,
+  ageMin: bq.ageMin, ageMax: bq.ageMax, sort: bq.sort === 'fit' ? 'age' : bq.sort,
+  page: 1, perPage: HOME_ROWS, sweepDate: sweepDate(), country: c, liveOnly: true
+});
 if (isConfigured()) {
   try {
-    bServed = await listBoardFiltered({
-      q: bq.q, location: bq.location, comp: bq.comp, freshness: bq.freshness,
-      ageMin: bq.ageMin, ageMax: bq.ageMax,
-      sort: bq.sort === 'fit' ? 'age' : bq.sort,
-      page: 1, perPage: HOME_ROWS, sweepDate: sweepDate()
-    });
+    bServed = await teaserFor(country);
+    if (bServed.rows.length < HOME_ROWS && country !== 'US') bServed = await teaserFor('US');
+    if (bServed.rows.length < HOME_ROWS) bServed = await teaserFor(null);
   } catch (error) {
     console.error('home board: the job store did not answer; rendering an empty board.', error);
   }
@@ -424,6 +434,40 @@ const REFUSALS = [
     font-size: var(--fs-11);
     letter-spacing: var(--tc);
     color: var(--muted);
+  }
+  /* The teaser is a taste: each role on ONE line. The role cell normally stacks
+     the title over a second line (the verification mark + company), and the age,
+     location and apply cells each add explanatory sub-lines; that is right on the
+     full board and too tall here. So inline the role cell (title, then mark and
+     company, on one line) and hide the stacked secondaries — the posted/first-
+     seen basis, the workplace label, the "+N more", and the live "why" segments.
+     The cells belong to the JobRow child, so :global reaches them; /board keeps
+     everything. */
+  .board-sec :global(.cell-role) {
+    flex-direction: row;
+    align-items: center;
+    column-gap: var(--space-300);
+    min-width: 0;
+  }
+  .board-sec :global(.title) {
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .board-sec :global(.row-source) { flex: 0 0 auto; margin: 0; }
+  .board-sec :global(.comp),
+  .board-sec :global(.location) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .board-sec :global(.age-basis),
+  .board-sec :global(.workplace),
+  .board-sec :global(.location-more),
+  .board-sec :global(.cell-apply .ease) {
+    display: none;
   }
   .board-more {
     margin: var(--sp-5) 0 0;
