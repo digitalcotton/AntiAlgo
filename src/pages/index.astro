@@ -41,6 +41,15 @@ const inLine = await waitlistEmailCount();
 const LAUNCH = 'Nov 10, 2026';
 const signUp = (from: string) => `${routeFor('sign-up')}?from=${from}`;
 
+// The rubric weights (30/25/20/15/10) rendered in the stack comparison's Fit cell.
+const WEIGHTS = [
+  { part: 'Title scope', weight: 30 },
+  { part: 'Remote and geography', weight: 25 },
+  { part: 'Compensation', weight: 20 },
+  { part: 'Freshness', weight: 15 },
+  { part: 'Apply friction', weight: 10 }
+];
+
 // The board section, page one at the default order, the same load /board does.
 // All filtering, sorting and paging point at the full board (boardPath), so the
 // home page shows the live board as an entry point and interacting opens it in
@@ -170,6 +179,51 @@ const REFUSALS = [
         </p>
       </Board>
       <p class="board-more"><a href={boardPath}>Open the full board</a></p>
+    </section>
+
+    <!-- 3 · the stack between you and a job -->
+    <section class="hsec" aria-labelledby="stack-title">
+      <h2 id="stack-title" class="h2">The stack between you and a job</h2>
+      <div class="stack-box">
+        <div class="stack-head">
+          <span>The layer</span>
+          <span>What it does to you</span>
+          <span>What we do instead</span>
+        </div>
+        <div class="stack-row">
+          <span class="stack-label">The board</span>
+          <span class="stack-desc">Posts anything. Never checks whether it's real.</span>
+          <a class="stack-link" href="https://tokenstoagents.ai/jobs/kills/brex-staff-brand-designer/card">Checked at the source every night. Brex reposted the same text 9 days later. We caught it.</a>
+        </div>
+        <div class="stack-row">
+          <span class="stack-label">The ATS</span>
+          <span class="stack-desc">Reads your resume. Loses a third of it.</span>
+          <span class="stack-note">Tailored to the posting before it meets one. It never leaves your machine.</span>
+        </div>
+        <div class="stack-row">
+          <span class="stack-label">Their AI</span>
+          <span class="stack-desc">Ranks what survived. You never see the score.</span>
+          <div class="fit-col">
+            <span class="fit">
+              <span class="fit-row">
+                {WEIGHTS.map((w) => <span class="fit-w">{w.weight}</span>)}
+              </span>
+              <span class="fit-sum">Fit 100 = 30+25+20+15+10</span>
+            </span>
+            <a class="stack-link" href={`${INDEX.methodology}#rubric`}>You see the score and every weight behind it.</a>
+          </div>
+        </div>
+        <div class="stack-row">
+          <span class="stack-label">The brokers</span>
+          <span class="stack-desc">Sell what you typed in.</span>
+          <a class="stack-link" href={INDEX.notHere}>Nothing you type is stored here. Not your resume, not your key.</a>
+        </div>
+        <div class="stack-row signal">
+          <span class="stack-label">Anti Algo</span>
+          <span class="stack-desc">Checks the board. Shows the score. Runs on your key. Sells nothing.</span>
+          <span class="stack-final">One layer on your side.</span>
+        </div>
+      </div>
     </section>
 
     <!-- 3b · what the research says -->
@@ -426,6 +480,114 @@ const REFUSALS = [
   .count-strong {
     color: var(--ink);
     font-weight: 500;
+  }
+
+  /* ---- 2 · the stack ---- */
+  .stack-box {
+    margin-top: var(--sp-5);
+    border: 1px solid var(--line-strong);
+    background: var(--raise);
+  }
+  .stack-head {
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: var(--sp-4);
+    padding: var(--sp-3) var(--sp-5);
+    border-bottom: 1px solid var(--line);
+    font-family: var(--machine);
+    font-size: var(--fs-10);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .stack-row {
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: var(--sp-4);
+    align-items: baseline;
+    padding: var(--sp-4) var(--sp-5);
+    border-bottom: 1px solid var(--line);
+  }
+  .stack-label {
+    font-family: var(--machine);
+    font-weight: 500;
+    font-size: var(--fs-11);
+    letter-spacing: var(--tc);
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .stack-desc {
+    font-size: var(--fs-15);
+    line-height: 1.5;
+  }
+  .stack-link {
+    font-family: var(--machine);
+    font-size: var(--fs-11);
+    line-height: 1.6;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid var(--line-strong);
+    justify-self: start;
+  }
+  .stack-link:hover {
+    color: var(--ink);
+  }
+  .stack-note {
+    font-family: var(--machine);
+    font-size: var(--fs-11);
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .fit-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    align-items: flex-start;
+    justify-self: start;
+  }
+  .fit {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid var(--line);
+    padding: 8px 10px;
+  }
+  .fit-row {
+    display: flex;
+    gap: 6px;
+    font-family: var(--machine);
+    font-weight: 500;
+    font-size: var(--fs-11);
+  }
+  .fit-w {
+    border: 1px solid var(--line);
+    padding: 1px 6px;
+  }
+  .fit-sum {
+    font-family: var(--machine);
+    font-size: var(--fs-10);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .stack-row.signal {
+    background: var(--signal);
+    color: var(--gray-950);
+    padding: var(--sp-5);
+    border-bottom: none;
+  }
+  .stack-row.signal .stack-label {
+    color: var(--gray-950);
+    font-weight: 600;
+  }
+  .stack-row.signal .stack-desc {
+    font-weight: 600;
+  }
+  .stack-final {
+    font-family: var(--machine);
+    font-weight: 600;
+    font-size: var(--fs-11);
+    line-height: 1.5;
+    justify-self: start;
   }
 
   /* ---- 2 · the board ---- */
@@ -735,9 +897,13 @@ const REFUSALS = [
 
   /* The canvas's own breakpoints. */
   @media (max-width: 820px) {
+    .stack-row,
     .acct-row {
       grid-template-columns: 1fr;
       gap: var(--sp-2);
+    }
+    .stack-head {
+      display: none;
     }
     .price-grid {
       grid-template-columns: 1fr;
