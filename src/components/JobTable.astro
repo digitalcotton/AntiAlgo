@@ -704,6 +704,17 @@ const sweptIso = loadStats().swept_at_utc;
     --table-columns: var(--table-columns-public);
   }
 
+  /* ...and it also needs less min-width. --layout-table-min (71.25rem) is the
+     floor for the six-track table; the public table drops the fit track
+     (3.5rem) and its gap (1rem), so reserving the full value forced a
+     horizontal scrollbar onto a table that fits its column without one —
+     visible even on a wide monitor, where the shell caps at 1200px (~1088px of
+     content) and the six-track floor (1140px) does not fit. Reserve the
+     five-track floor instead so the no-fit board sits within the shell. */
+  .job-table-no-fit .rows-wrap {
+    min-width: 66.75rem; /* 71.25rem − fit track − its gap; ~1068px */
+  }
+
   .assurance {
     position: relative;
     display: flex;
