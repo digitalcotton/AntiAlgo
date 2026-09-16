@@ -998,8 +998,12 @@ const sweptIso = loadStats().swept_at_utc;
   /* Phone: the rows are cards, so there is no fixed grid to scroll and no
      column labels to head it. The labels each cell carries take over, which is
      why they were never optional. */
-  @media (max-width: 60rem) { /* --breakpoint-lap */
-    .rows-wrap {
+  @media (max-width: 76rem) { /* below the board's widened fit: reflow to cards */
+    /* Both variants drop their grid floor here (the no-fit rule above is more
+       specific, so it is restated), letting the rows reflow to cards instead of
+       forcing a sideways scroll. */
+    .rows-wrap,
+    .job-table-no-fit .rows-wrap {
       min-width: 0;
     }
 

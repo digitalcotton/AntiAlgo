@@ -177,6 +177,13 @@ const prospectCount = prospectRows().length;
     flex-direction: column;
     gap: var(--space-700);
     padding-block: var(--space-700) var(--space-800);
+    /* Wider than the default 75rem shell, with tighter side padding, so the full
+       board table fits without a sideways scroll — spending the margin a 75rem
+       shell leaves empty on wide screens. The header title/lede are width-capped
+       internally, so a wider frame does not stretch them. Below this width the
+       table collapses to cards (JobTable's container query), never scrolling. */
+    max-width: 86rem;
+    padding-inline: clamp(16px, 2.5vw, 36px);
   }
 
   .index-head {
