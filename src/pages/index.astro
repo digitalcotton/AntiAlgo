@@ -359,8 +359,11 @@ const REFUSALS = [
     text-wrap: pretty;
   }
   .mono-inline {
-    font-family: var(--machine);
-    font-size: 0.92em;
+    /* Proportional, not the monospace machine face: in a fixed-width font the
+       narrow "." sits centred in a full cell and the price reads "$7 . 25".
+       The sans face renders the figure tight, as "$7.25". */
+    font-family: var(--font-family-sans);
+    font-weight: 600;
   }
   .sweep-wrap {
     margin: var(--sp-4) 0 0;
@@ -561,7 +564,9 @@ const REFUSALS = [
     gap: var(--sp-2);
   }
   .price-big {
-    font-family: var(--machine);
+    /* Proportional (not the monospace machine face) so the decimal is tight:
+       "$7.25", not "$7 . 25". */
+    font-family: var(--font-family-sans);
     font-weight: 600;
     font-size: clamp(48px, 6vw, 76px);
     letter-spacing: -0.02em;
