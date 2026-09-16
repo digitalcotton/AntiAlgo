@@ -2,7 +2,6 @@
 export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
-import SignOut from '../components/SignOut.astro';
 import { INDEX } from '../data/nav';
 import { dayStamp } from '../lib/stats';
 import { accountFacts } from '../lib/viewer';
@@ -40,7 +39,6 @@ if (!facts) return Astro.redirect('/sign-in?next=%2Faccount', 302);
       <a class="cta" href={INDEX.desk}>Open your Desk</a>
       <a class="link-line" href={INDEX.board}>Open the board</a>
     </div>
-    <SignOut />
   </section>
 </BaseLayout>
 

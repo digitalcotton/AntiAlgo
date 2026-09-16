@@ -24,7 +24,7 @@ import { viewerFrom } from '../lib/viewer';
  */
 function safeNext(raw: string | null): string {
   const value = raw ?? '';
-  if (!value.startsWith('/') || value.startsWith('//') || /[\\\p{Cc}]/u.test(value)) return routeFor('account');
+  if (!value.startsWith('/') || value.startsWith('//') || /[\\\p{Cc}]/u.test(value)) return routeFor('desk');
   return value;
 }
 const next = safeNext(Astro.url.searchParams.get('next'));
@@ -84,7 +84,7 @@ const BACKEND = [
 
       <!-- Create account -->
       <div id="panel-signup" class="panel" role="tabpanel" aria-labelledby="tab-signup" hidden={mode !== 'signup'}>
-        <form id="signup-form" class="auth-form" method="POST" action="/auth/sign-up/email" data-next={routeFor('account')}>
+        <form id="signup-form" class="auth-form" method="POST" action="/auth/sign-up/email" data-next={routeFor('desk')}>
           <input class="field-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
           <label class="field">
             <span class="field-label">First name</span>
