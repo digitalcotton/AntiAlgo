@@ -62,10 +62,17 @@ interface Props {
    * rail with the script deciding.
    */
   signedIn?: boolean;
+  /**
+   * Whether the reader has a provider key on file. When the server knows the
+   * reader is signed in but has no key, drafting cannot run in their voice, so
+   * the Generate control routes to key setup instead of a draft that would fall
+   * back to the deterministic writer.
+   */
+  hasKey?: boolean;
   class?: string;
 }
 
-const { job, returnTo, signedIn, class: className } = Astro.props;
+const { job, returnTo, signedIn, hasKey, class: className } = Astro.props;
 
 const startEndpoint = routeFor('desk-job-draft');
 const statusEndpoint = `${jobDraftPath(job.slug)}/status`;
@@ -73,6 +80,9 @@ const draftRoom = jobDraftPath(job.slug);
 const sessionUrl = withBase('/auth/get-session');
 const signUpHref = `${routeFor('sign-up')}?next=${encodeURIComponent(returnTo)}`;
 const settingsHref = routeFor('settings');
+const keySetupHref = `${settingsHref}#keys`;
+// Signed in, server-confirmed, but no key: route to key setup rather than draft.
+const needsKey = signedIn === true && hasKey === false;
 
 // The description is what the tailor reads to aim the documents at this role.
 // Where the crawl captured none, the draft still runs, aimed at the title and
@@ -94,11 +104,21 @@ const slotLine = tailorOn
       <p class="draft-slot-line mono-label">{slotLine}</p>
     </div>
   </section>
+) : needsKey ? (
+  <section class:list={['draft-rail', className]} aria-label="Draft for this role">
+    <p class="draft-title mono-label">Your documents for this role</p>
+    <p class="draft-note mono-label">
+      Applying drafts your resume and cover letter in your voice once you have a
+      provider key. Set yours up to turn drafting on.
+    </p>
+    <a class="draft-submit" href={keySetupHref}>Generate resume and cover letter</a>
+  </section>
 ) : (
 <section
   class:list={['draft-rail', className]}
   aria-label="Draft for this role"
   data-draft-rail
+  data-signed-in={signedIn === true ? 'true' : undefined}
   data-status-url={statusEndpoint}
   data-session-url={sessionUrl}
   data-start-url={startEndpoint}
@@ -287,32 +307,36 @@ const slotLine = tailorOn
     border-color: var(--color-foreground);
   }
 
-  /* The quiet outline control, not a filled one. The filled version of this
-     button shipped once and was reverted for being the loudest thing in a
-     deliberately quiet column; these are the values the aside's own secondary
-     control (Save to my Desk) already uses, so the rail reads as part of the
-     page rather than as an advertisement dropped into it. */
+  /* The primary control: a filled button (owner's call), so Generate is the
+     loud action in this column and Apply on Ashby reads as the secondary. Sized
+     to keep its label on a single line, and shared by the <button> (has a key)
+     and the <a> that routes to key setup (no key yet). */
   .draft-submit {
+    display: block;
     width: 100%;
     padding: var(--space-300) var(--space-400);
-    background: transparent;
-    border: var(--border-hairline) solid var(--color-line-strong);
-    color: var(--color-foreground);
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border: 0;
+    border-radius: var(--radius);
     font-family: var(--font-family-sans);
     font-weight: var(--weight-medium);
     font-size: var(--size-075);
-    letter-spacing: var(--tracking-loose);
+    letter-spacing: var(--tracking-snug);
     text-transform: uppercase;
+    white-space: nowrap;
+    text-align: center;
+    text-decoration: none;
     cursor: pointer;
   }
 
   .draft-submit:hover {
-    border-color: var(--color-foreground);
+    opacity: 0.9;
   }
 
   .draft-submit[disabled] {
+    background: var(--color-line);
     color: var(--color-muted);
-    border-color: var(--color-line);
     cursor: default;
   }
 
@@ -586,13 +610,19 @@ const slotLine = tailorOn
     }
 
     (async () => {
-      let signedIn = false;
-      try {
-        const response = await fetch(sessionUrl, { credentials: 'same-origin' });
-        const body = response.ok ? await response.json() : null;
-        signedIn = Boolean(body && body.user);
-      } catch {
-        signedIn = false;
+      // The server-rendered pages (/role and /board detail) state whether the
+      // reader is signed in, so trust that and skip the probe: it is what the
+      // live rail only ever renders for. The probe is kept only as a fallback
+      // for a page that renders this rail without knowing the reader.
+      let signedIn = rail.dataset.signedIn === 'true';
+      if (!signedIn) {
+        try {
+          const response = await fetch(sessionUrl, { credentials: 'same-origin' });
+          const body = response.ok ? await response.json() : null;
+          signedIn = Boolean(body && body.user);
+        } catch {
+          signedIn = false;
+        }
       }
 
       if (!signedIn) {
