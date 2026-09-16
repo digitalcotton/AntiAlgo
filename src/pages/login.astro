@@ -3,19 +3,24 @@ export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { routeFor } from '../data/nav';
+import { viewerFrom } from '../lib/viewer';
 
 /*
- * /login — a private utility page for the owner to exercise the whole auth
- * flow and reach the back end while the public sign-in is held closed for the
- * waitlist. It is deliberately NOT gated: it does not call isOn('signin') (the
- * check that redirects /sign-in to the waitlist), and it is registered in no
- * nav, flag, or entitlement map, so it renders for whoever loads it. It is
- * noindex and linked from nowhere. Accounts created here default to the
- * waitlisted tier and see nothing until an owner tier write elevates them, so
- * the page exposes no back-end surface by existing.
+ * /login — one card, two modes. A single auth surface that flips in place
+ * between "Sign in" and "Create account" without a page load, the pattern most
+ * SaaS sign-in screens use: one destination, a clear toggle, the two flows kept
+ * visually separate so nobody is unsure which form they are filling. Built for
+ * the owner today; shaped so it can front the product for customers later.
  *
- * Both forms post JSON to Better Auth's own endpoints under /auth, the same
- * way sign-in.astro and sign-up.astro do; there is no client library.
+ * It is intentionally open (never calls isOn('signin')) and registered in no
+ * nav/flag/entitlement map, so it renders during the waitlist phase and is
+ * linked from nowhere. It is noindex. Accounts made here start at the waitlisted
+ * tier and see nothing until elevated, so the page exposes no back-end surface.
+ *
+ * Both modes post JSON to Better Auth's own /auth endpoints, exactly as
+ * sign-in.astro and sign-up.astro do; there is no client SDK. Field and button
+ * styling comes from the site's global .field-input / .cta (one 2px radius, one
+ * hairline border, everywhere), so this page matches the rest of the site.
  */
 function safeNext(raw: string | null): string {
   const value = raw ?? '';
@@ -24,99 +29,157 @@ function safeNext(raw: string | null): string {
 }
 const next = safeNext(Astro.url.searchParams.get('next'));
 
-// The back-end pages the owner checks after logging in. Plain links: the
-// middleware still enforces the tier on each, so listing them exposes nothing.
+// Default to sign-in; ?mode=signup opens on the create-account panel, so a
+// no-JS visitor and a shared link both land on the right one.
+const mode = Astro.url.searchParams.get('mode') === 'signup' ? 'signup' : 'signin';
+
+// Owner-only affordance: the back-end links show only to a signed-in internal
+// account. A customer (or anyone signed out) never sees them, so the page is
+// safe to hand to customers as-is later.
+const viewer = await viewerFrom(Astro).catch(() => null);
+const showBackend = viewer?.tier === 'internal';
 const BACKEND = [
   { href: '/account', label: 'Account' },
   { href: '/profile', label: 'Profile' },
   { href: '/settings', label: 'Settings' },
   { href: '/desk', label: 'Desk' },
   { href: '/prelist', label: 'Prelist' },
-  { href: '/internal', label: 'Internal (top tier)' }
+  { href: '/internal', label: 'Internal' }
 ];
 ---
 
-<BaseLayout title="Log in" description="Private access." noindex>
-  <section class="login-page">
-    <div class="shell login-shell">
-      <span class="kicker muted">Private</span>
-      <h1>Log in</h1>
-      <p class="lede muted">Owner access, for checking the back end. Not linked anywhere.</p>
+<BaseLayout title="Log in" description="Sign in or create your account." noindex>
+  <section class="auth-page">
+    <div class="shell auth-shell" data-mode={mode}>
+      <span class="kicker muted">Account</span>
 
-      <div class="login-cols">
-        <!-- Sign in -->
-        <div class="login-col">
-          <h2 class="col-title">Sign in</h2>
-          <p id="signin-error" class="auth-error" role="alert" hidden>
-            That email and password did not match an account.
-          </p>
-          <form id="signin-form" class="login-form" method="POST" action="/auth/sign-in/email" data-next={next}>
-            <label class="field">
-              <span class="field-label">Email address</span>
-              <input class="field-input" type="email" name="email" required autocomplete="email" />
-            </label>
-            <label class="field">
-              <span class="field-label">Password</span>
-              <input class="field-input" type="password" name="password" required autocomplete="current-password" />
-            </label>
-            <button class="btn" type="submit">Sign in</button>
-          </form>
-        </div>
-
-        <!-- Create account -->
-        <div class="login-col">
-          <h2 class="col-title">Create account</h2>
-          <p id="signup-error" class="auth-error" role="alert" hidden>
-            Something went wrong creating the account. Check the details and try again.
-          </p>
-          <form id="signup-form" class="login-form" method="POST" action="/auth/sign-up/email" data-next={routeFor('account')}>
-            <input class="field-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
-            <label class="field">
-              <span class="field-label">First name</span>
-              <input class="field-input" type="text" name="first_name" required maxlength="120" autocomplete="given-name" />
-            </label>
-            <label class="field">
-              <span class="field-label">Last name</span>
-              <input class="field-input" type="text" name="last_name" required maxlength="120" autocomplete="family-name" />
-            </label>
-            <label class="field">
-              <span class="field-label">Email address</span>
-              <input class="field-input" type="email" name="email" required autocomplete="email" />
-            </label>
-            <label class="field">
-              <span class="field-label">Password</span>
-              <input class="field-input" type="password" name="password" required autocomplete="new-password" minlength="8" />
-              <span class="field-hint muted">Eight characters or more.</span>
-            </label>
-            <button class="btn" type="submit">Create account</button>
-          </form>
-        </div>
+      <div class="seg" role="tablist" aria-label="Sign in or create an account">
+        <button
+          id="tab-signin" class="seg-btn" type="button" role="tab"
+          aria-controls="panel-signin" aria-selected={mode === 'signin' ? 'true' : 'false'}
+        >Sign in</button>
+        <button
+          id="tab-signup" class="seg-btn" type="button" role="tab"
+          aria-controls="panel-signup" aria-selected={mode === 'signup' ? 'true' : 'false'}
+        >Create account</button>
       </div>
 
-      <nav class="backend-links" aria-label="Back-end pages">
-        <span class="field-label">Back end</span>
-        <ul>
-          {BACKEND.map((p) => <li><a href={p.href}>{p.label}</a></li>)}
-        </ul>
-      </nav>
+      <p id="auth-error" class="auth-error" role="alert" hidden></p>
+
+      <!-- Sign in -->
+      <div id="panel-signin" class="panel" role="tabpanel" aria-labelledby="tab-signin" hidden={mode !== 'signin'}>
+        <form id="signin-form" class="auth-form" method="POST" action="/auth/sign-in/email" data-next={next}>
+          <label class="field">
+            <span class="field-label">Email address</span>
+            <input class="field-input" type="email" name="email" required autocomplete="email" />
+          </label>
+          <label class="field">
+            <span class="field-label">Password</span>
+            <input class="field-input" type="password" name="password" required autocomplete="current-password" />
+          </label>
+          <button class="cta" type="submit">Sign in</button>
+        </form>
+        <p class="flip muted">New here? <button type="button" class="flip-link" data-to="signup">Create an account</button></p>
+      </div>
+
+      <!-- Create account -->
+      <div id="panel-signup" class="panel" role="tabpanel" aria-labelledby="tab-signup" hidden={mode !== 'signup'}>
+        <form id="signup-form" class="auth-form" method="POST" action="/auth/sign-up/email" data-next={routeFor('account')}>
+          <input class="field-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
+          <label class="field">
+            <span class="field-label">First name</span>
+            <input class="field-input" type="text" name="first_name" required maxlength="120" autocomplete="given-name" />
+          </label>
+          <label class="field">
+            <span class="field-label">Last name</span>
+            <input class="field-input" type="text" name="last_name" required maxlength="120" autocomplete="family-name" />
+          </label>
+          <label class="field">
+            <span class="field-label">Email address</span>
+            <input class="field-input" type="email" name="email" required autocomplete="email" />
+          </label>
+          <label class="field">
+            <span class="field-label">Password</span>
+            <input class="field-input" type="password" name="password" required autocomplete="new-password" minlength="8" />
+            <span class="field-hint muted">Eight characters or more.</span>
+          </label>
+          <button class="cta" type="submit">Create account</button>
+        </form>
+        <p class="flip muted">Already have an account? <button type="button" class="flip-link" data-to="signin">Sign in</button></p>
+      </div>
+
+      {showBackend && (
+        <nav class="backend" aria-label="Back-end pages">
+          <span class="field-label">Back end</span>
+          <ul>{BACKEND.map((p) => <li><a href={p.href}>{p.label}</a></li>)}</ul>
+        </nav>
+      )}
     </div>
   </section>
 </BaseLayout>
 
 <script>
-  // Both endpoints want JSON and answer with JSON, so native POST is
-  // intercepted. Sign-up synthesizes a single `name` (Better Auth requires it)
-  // and honours the honeypot. On success the reader is already signed in
-  // (autoSignIn on sign-up), so both go to their `data-next`.
-  function wire(formId: string, errorId: string) {
+  const shell = document.querySelector<HTMLElement>('.auth-shell');
+  const tabs = {
+    signin: document.getElementById('tab-signin'),
+    signup: document.getElementById('tab-signup')
+  };
+  const panels = {
+    signin: document.getElementById('panel-signin'),
+    signup: document.getElementById('panel-signup')
+  };
+  const errorEl = document.getElementById('auth-error');
+
+  function firstInput(mode: 'signin' | 'signup'): HTMLInputElement | null {
+    return panels[mode]?.querySelector<HTMLInputElement>('input:not([type="hidden"]):not([tabindex="-1"])') ?? null;
+  }
+
+  // Flip in place: swap the visible panel, keep the two flows separate, carry a
+  // typed email across so a mis-tap does not cost the reader their address, and
+  // reflect the mode in the URL without a reload so a refresh stays put.
+  function setMode(mode: 'signin' | 'signup', focus = true) {
+    const other = mode === 'signin' ? 'signup' : 'signin';
+    const carry = firstEmail(other);
+    (['signin', 'signup'] as const).forEach((m) => {
+      tabs[m]?.setAttribute('aria-selected', String(m === mode));
+      if (panels[m]) panels[m]!.hidden = m !== mode;
+    });
+    shell?.setAttribute('data-mode', mode);
+    if (errorEl) errorEl.hidden = true;
+    if (carry) { const to = firstEmail(mode); if (to && !to.value) to.value = carry; }
+    const url = new URL(window.location.href);
+    if (mode === 'signup') url.searchParams.set('mode', 'signup'); else url.searchParams.delete('mode');
+    history.replaceState(null, '', url);
+    if (focus) firstInput(mode)?.focus();
+  }
+
+  function firstEmail(mode: 'signin' | 'signup'): HTMLInputElement | null {
+    return panels[mode]?.querySelector<HTMLInputElement>('input[type="email"]') ?? null;
+  }
+
+  tabs.signin?.addEventListener('click', () => setMode('signin'));
+  tabs.signup?.addEventListener('click', () => setMode('signup'));
+  document.querySelectorAll<HTMLButtonElement>('.flip-link').forEach((b) =>
+    b.addEventListener('click', () => setMode(b.dataset.to === 'signup' ? 'signup' : 'signin'))
+  );
+  // Left/right arrows move between the two tabs, the expected tablist behaviour.
+  Object.values(tabs).forEach((t) =>
+    t?.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); setMode(t === tabs.signin ? 'signup' : 'signin'); }
+    })
+  );
+
+  // Better Auth wants JSON and answers JSON, so the native POST is intercepted.
+  // Sign-up synthesizes a single `name` and honours the honeypot. Success on
+  // either lands on data-next (sign-up is auto-signed-in).
+  function wire(formId: string) {
     const form = document.getElementById(formId) as HTMLFormElement | null;
-    const errorEl = document.getElementById(errorId);
     form?.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (errorEl) errorEl.hidden = true;
 
       const trap = form.querySelector<HTMLInputElement>('input[name="website"]');
-      if (trap && trap.value) return; // honeypot: a bot filled it
+      if (trap && trap.value) return;
 
       const data = Object.fromEntries(new FormData(form).entries()) as Record<string, string>;
       if ('first_name' in data || 'last_name' in data) {
@@ -132,85 +195,93 @@ const BACKEND = [
           body: JSON.stringify(data)
         });
         if (response.ok) {
-          const next = form.dataset.next;
-          window.location.href = next && next.startsWith('/') ? next : '/';
+          const dest = form.dataset.next;
+          window.location.href = dest && dest.startsWith('/') ? dest : '/';
           return;
         }
       } catch {}
-      if (errorEl) errorEl.hidden = false;
+      if (errorEl) {
+        errorEl.textContent = form.id === 'signup-form'
+          ? 'Something went wrong creating the account. Check the details and try again.'
+          : 'That email and password did not match an account.';
+        errorEl.hidden = false;
+      }
     });
   }
-
-  wire('signin-form', 'signin-error');
-  wire('signup-form', 'signup-error');
+  wire('signin-form');
+  wire('signup-form');
 </script>
 
 <style>
-  .login-shell {
-    padding-block: var(--space-800, 3rem) var(--space-1000, 5rem);
-    max-width: 64ch;
+  /* Layout mirrors sign-in.astro; fields and the primary button come from the
+     site's global .field-input / .cta, so the radius and borders match. */
+  .auth-shell {
+    padding-block: var(--space-800) var(--space-1000);
+    max-width: 40ch;
     margin-inline: auto;
   }
-  .kicker {
-    font-size: var(--fs-12, 0.75rem);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  .lede { margin-bottom: var(--space-600, 2rem); }
-  .login-cols {
+
+  /* The mode toggle: two segments, one hairline box, sharp corners, the signal
+     on the active one — the same visual language as the rest of the site. */
+  .seg {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: var(--space-700, 2.5rem);
+    margin-block: var(--space-500) var(--space-600);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-radius: var(--radius);
+    overflow: hidden;
   }
-  @media (max-width: 640px) {
-    .login-cols { grid-template-columns: 1fr; }
-  }
-  .col-title {
-    font-size: var(--fs-16, 1rem);
-    margin-bottom: var(--space-400, 1rem);
-  }
-  .login-form { display: flex; flex-direction: column; gap: var(--space-400, 1rem); }
-  .field { display: flex; flex-direction: column; gap: 4px; }
-  .field-label {
-    font-size: var(--fs-12, 0.75rem);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--muted, #666);
-  }
-  .field-input {
-    font: inherit;
-    padding: 0.6rem 0.7rem;
-    border: 1px solid var(--rule, #ccc);
-    border-radius: 6px;
-    background: var(--surface, #fff);
-    color: var(--ink, #111);
-  }
-  .field-hint { font-size: var(--fs-12, 0.75rem); }
-  .field-trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
-  .btn {
-    font: inherit;
-    font-weight: 600;
-    padding: 0.65rem 1rem;
+  .seg-btn {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    padding: var(--space-300) var(--space-400);
+    background: transparent;
+    color: var(--color-muted);
     border: none;
-    border-radius: 6px;
-    background: var(--signal, #ff5a1f);
-    color: #fff;
     cursor: pointer;
   }
-  .btn:hover { filter: brightness(0.95); }
+  .seg-btn + .seg-btn { border-inline-start: var(--border-hairline) solid var(--color-line-strong); }
+  .seg-btn[aria-selected='true'] {
+    background: var(--color-signal);
+    color: var(--gray-950);
+    font-weight: var(--weight-bold);
+  }
+  .seg-btn:focus-visible { outline: 2px solid var(--color-focus, var(--color-signal)); outline-offset: -2px; }
+
+  .auth-form { display: flex; flex-direction: column; gap: var(--space-500); align-items: stretch; }
+  .auth-form .cta { margin-top: var(--space-200); align-self: flex-start; }
+  .field { display: flex; flex-direction: column; gap: var(--space-200); width: 100%; }
+  .field-label {
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .field-hint { font-size: var(--size-075); }
+  .field-trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
   .auth-error {
-    font-size: var(--fs-14, 0.875rem);
-    color: var(--danger, #b00020);
-    margin-bottom: var(--space-300, 0.75rem);
+    font-size: var(--size-100);
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-radius: var(--radius);
+    margin-bottom: var(--space-400);
   }
-  .backend-links { margin-top: var(--space-800, 3rem); }
-  .backend-links ul {
-    list-style: none;
+
+  .flip { margin-top: var(--space-500); font-size: var(--size-100); }
+  .flip-link {
+    background: none;
+    border: none;
     padding: 0;
-    margin: 0.5rem 0 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 1.25rem;
+    color: var(--color-foreground);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
   }
-  .backend-links a { color: var(--ink, #111); }
+
+  .backend { margin-top: var(--space-800); padding-top: var(--space-500); border-top: var(--border-hairline) solid var(--color-line); }
+  .backend ul { list-style: none; padding: 0; margin: var(--space-200) 0 0; display: flex; flex-wrap: wrap; gap: var(--space-200) var(--space-500); }
+  .backend a { color: var(--color-foreground); font-size: var(--size-100); }
 </style>
