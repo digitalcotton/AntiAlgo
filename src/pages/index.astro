@@ -44,6 +44,7 @@ const signUp = (from: string) => `${routeFor('sign-up')}?from=${from}`;
 // home page shows the live board as an entry point and interacting opens it in
 // full rather than driving the home URL.
 const boardPath = routeFor('board');
+const HOME_ROWS = 2;   // home is a teaser: two roles, then "Open the full board"
 const bq = parseBoardQuery(new URLSearchParams());
 const EMPTY_COUNTS = { total: 0, location: {}, comp: {}, freshness: {} };
 let bServed: Awaited<ReturnType<typeof listBoardFiltered>> = { rows: [], total: 0, counts: EMPTY_COUNTS };
@@ -55,7 +56,7 @@ if (isConfigured()) {
       q: bq.q, location: bq.location, comp: bq.comp, freshness: bq.freshness,
       ageMin: bq.ageMin, ageMax: bq.ageMax,
       sort: bq.sort === 'fit' ? 'age' : bq.sort,
-      page: 1, perPage: bq.per, sweepDate: sweepDate()
+      page: 1, perPage: HOME_ROWS, sweepDate: sweepDate()
     });
   } catch (error) {
     console.error('home board: the job store did not answer; rendering an empty board.', error);
@@ -65,7 +66,7 @@ if (isConfigured()) {
 }
 const bJobs = bServed.rows.map(boardRowToJob);
 const bGroups = facetGroupsFromCounts(bServed.counts, bq);
-const bPages = Math.max(1, Math.ceil(bServed.total / bq.per));
+const bPages = Math.max(1, Math.ceil(bServed.total / HOME_ROWS));
 const bVerified = bStats?.verified_live ?? bServed.total;
 const bSweepLabel = boardSweptStamp();
 
@@ -129,7 +130,7 @@ const REFUSALS = [
         <a class="cta" href={signUp('home-hero')}>Save my spot</a>
         <span class="count">
           <span><span class="count-strong">{days} {days === 1 ? 'day' : 'days'}</span> to launch · {LAUNCH}</span>
-          <span><span class="count-strong">{count(inLine)}</span> in line</span>
+          {inLine > 0 && <span><span class="count-strong">{count(inLine)}</span> in line</span>}
         </span>
       </div>
     </section>
@@ -139,7 +140,7 @@ const REFUSALS = [
       <Board
         jobs={bJobs}
         mode="server"
-        page={{ total: bServed.total, page: 1, pages: bPages, per: bq.per }}
+        page={{ total: bServed.total, page: 1, pages: bPages, per: HOME_ROWS }}
         query={bq}
         groups={bGroups}
         ageJobs={bAgeJobs}
@@ -245,8 +246,8 @@ const REFUSALS = [
       <div class="act">
         <a class="cta" href={signUp('home-closer')}>Save my spot</a>
         <span class="count count-inline">
-          <span><span class="count-strong">{days} days</span> to launch</span> ·
-          <span><span class="count-strong">{count(inLine)}</span> in line</span>
+          <span><span class="count-strong">{days} days</span> to launch</span>
+          {inLine > 0 && <Fragment> · <span><span class="count-strong">{count(inLine)}</span> in line</span></Fragment>}
         </span>
       </div>
     </section>
