@@ -9,6 +9,12 @@ import { addedSlugFor, POSTING_NOTICES } from '../lib/added-posting';
 import { documentState, getJobRenders, jobDraftState } from '../lib/generated-render-store';
 import { FUNCTION_MAX_DURATION_S } from '../../site.config.mjs';
 import ArchivedRow from '../components/desk/ArchivedRow.astro';
+import OnboardingChecklist from '../components/profile/OnboardingChecklist.astro';
+import { buildOnboarding, type OnboardingStep } from '../lib/onboarding';
+import { listEntries } from '../lib/record-store';
+import { keyMeta } from '../lib/keychain-store';
+import { keyStorageIsConfigured } from '../lib/keychain';
+import { isOn } from '../lib/flags';
 import { routeFor, jobPath, deskDraftPath, jobDraftPath, boardDetailPath } from '../data/nav';
 import { withBase } from '../../site.config.mjs';
 import {
@@ -161,6 +167,14 @@ const now = new Date();
 
 let applications: StoredApplication[] = [];
 let savedJobs: StoredSavedJob[] = [];
+
+// The first-run "Getting started" checklist, shared with /profile so the two
+// pages never disagree (src/lib/onboarding.ts). Shown on the Desk (the post-login
+// landing) until the required steps are done, so a new reader is guided to fill
+// in their record before the empty tracker.
+const onboardingOn = isOn('onboarding');
+let onboardingSteps: OnboardingStep[] = [];
+let showOnboarding = false;
 // "Add a job" rows by application id, with each one's draft state read the
 // same way the room reads it, so the card and the room never disagree. The
 // card only ever prints one line about it (PostingCardStatus) and never
@@ -172,6 +186,20 @@ if (allowed && viewer) {
   const userId = viewer.userId;
   const [rawApplications, rawSavedJobs] = await Promise.all([listApplications(userId), listSavedJobs(userId)]);
   savedJobs = rawSavedJobs;
+
+  if (onboardingOn) {
+    const [entries, keyRows] = await Promise.all([
+      listEntries(userId),
+      keyStorageIsConfigured() && isOn('byok') ? keyMeta(userId) : Promise.resolve([])
+    ]);
+    const result = buildOnboarding({
+      keys: keyRows.length,
+      entries: entries.length,
+      applications: rawApplications.length
+    });
+    onboardingSteps = result.steps;
+    showOnboarding = !result.complete;
+  }
 
   try {
     const rows = await listPostingFetches(userId);
@@ -549,6 +577,8 @@ function columnOf(states: readonly ApplicationState[]): StoredApplication[] {
         the other, and this page never shows you a single status that pretends to be both.
       </p>
     </header>
+
+    {showOnboarding && <OnboardingChecklist steps={onboardingSteps} />}
 
     {
       !allowed && (

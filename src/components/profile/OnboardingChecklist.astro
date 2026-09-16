@@ -20,26 +20,8 @@ import Panel from '../Panel.astro';
  * no per-reader dismissed flag to store, because completing the steps is the
  * dismissal.
  */
-export interface OnboardingStep {
-  /** The short imperative label, e.g. "Add your work history". */
-  label: string;
-  /** One plain sentence: what this step is, or what to do next. */
-  hint: string;
-  /** Whether the reader has already done it. */
-  done: boolean;
-  /** Where the action goes when the step is not done. Omitted for a step that
-      has no single destination (the verified step, already done). */
-  href?: string;
-  /** The call to action shown on an undone step with an href. */
-  action?: string;
-  /** A step that helps but does not block completion, marked so it does not
-      read as a chore the reader must clear to be finished. */
-  optional?: boolean;
-  /** A short badge shown after the label (e.g. "Preferred"). Independent of
-      `optional`: a step can be non-blocking yet still be labelled as wanted
-      rather than as an afterthought. */
-  badge?: string;
-}
+import type { OnboardingStep } from '../../lib/onboarding';
+export type { OnboardingStep };
 
 interface Props {
   steps: OnboardingStep[];

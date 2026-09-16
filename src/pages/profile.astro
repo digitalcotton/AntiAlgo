@@ -94,7 +94,8 @@ import Panel from '../components/Panel.astro';
 import ImportBand from '../components/profile/ImportBand.astro';
 import ProposalForm from '../components/profile/ProposalForm.astro';
 import RecordView from '../components/profile/RecordView.astro';
-import OnboardingChecklist, { type OnboardingStep } from '../components/profile/OnboardingChecklist.astro';
+import OnboardingChecklist from '../components/profile/OnboardingChecklist.astro';
+import { buildOnboarding } from '../lib/onboarding';
 import { KIND_LABELS, CLASSIFICATION_LABELS, MONTH_NAMES, issueMessage } from '../components/profile/entry-presentation';
 import {
   RELAY_COOKIE,
@@ -347,39 +348,12 @@ const linkAction = routeFor('profile-link');
  */
 const onboarding = isOn('onboarding');
 const applications = onboarding && allowed && viewer ? await listApplications(viewer.userId) : [];
-const onboardingSteps: OnboardingStep[] = onboarding
-  ? [
-      {
-        label: 'Verify your email',
-        hint: 'Done. You confirmed your address to reach your profile.',
-        done: true
-      },
-      {
-        label: 'Turn on tailored drafting',
-        hint: 'Connect your own AI provider key so a draft is written in your voice, billed to your key.',
-        done: keyRows.length > 0,
-        optional: true,
-        badge: 'Preferred',
-        href: settingsPath,
-        action: 'Add a provider key'
-      },
-      {
-        label: 'Add your work history',
-        hint: 'Upload a resume to fill it in seconds, or add a role by hand below.',
-        done: entries.length > 0,
-        href: '#get-started',
-        action: 'Upload a resume or add a role'
-      },
-      {
-        label: 'Apply to your first role',
-        hint: 'Applying from a posting tracks it on your Desk and drafts your application.',
-        done: applications.length > 0,
-        href: routeFor('board'),
-        action: 'Browse roles'
-      }
-    ]
-  : [];
-const onboardingComplete = onboardingSteps.filter((step) => !step.optional).every((step) => step.done);
+// The steps, order and completion rules live in one place (src/lib/onboarding.ts)
+// so /profile and /desk render the same checklist. This page already has the
+// three counts, so it hands them in rather than re-querying.
+const { steps: onboardingSteps, complete: onboardingComplete } = onboarding
+  ? buildOnboarding({ keys: keyRows.length, entries: entries.length, applications: applications.length })
+  : { steps: [], complete: true };
 const showOnboarding = onboarding && !onboardingComplete;
 ---
 
