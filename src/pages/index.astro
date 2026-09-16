@@ -46,7 +46,7 @@ const signUp = (from: string) => `${routeFor('sign-up')}?from=${from}`;
 // home page shows the live board as an entry point and interacting opens it in
 // full rather than driving the home URL.
 const boardPath = routeFor('board');
-const HOME_ROWS = 2;   // home is a teaser: two roles, then "Open the full board"
+const HOME_ROWS = 2;   // home is a teaser: the two highest-paying roles, then "Open the full board"
 const bq = parseBoardQuery(new URLSearchParams());
 // The visitor's country, from Vercel's edge headers (absent in local dev and
 // for unknown IPs, where we default to US).
@@ -60,8 +60,8 @@ let bStats: Awaited<ReturnType<typeof getBoardStats>> = null;
 // all-foreign — their country, then US, then any live role.
 const teaserFor = (c: string | null) => listBoardFiltered({
   q: bq.q, location: bq.location, comp: bq.comp, freshness: bq.freshness,
-  ageMin: bq.ageMin, ageMax: bq.ageMax, sort: bq.sort === 'fit' ? 'age' : bq.sort,
-  page: 1, perPage: HOME_ROWS, sweepDate: sweepDate(), country: c, liveOnly: true
+  ageMin: bq.ageMin, ageMax: bq.ageMax, sort: 'comp',
+  page: 1, perPage: HOME_ROWS, sweepDate: sweepDate(), country: c, liveOnly: true, hasComp: true
 });
 if (isConfigured()) {
   try {

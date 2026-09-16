@@ -81,6 +81,9 @@ export interface BoardFilter {
   /** When true, only rows whose status is 'live' — no killed/closed rows. The
    *  teaser uses it; the board leaves it off and keeps showing kills. */
   liveOnly?: boolean;
+  /** When true, only rows that actually show a pay figure (facet_comp is not
+   *  'not-listed'), so every teaser row's pay column is filled. */
+  hasComp?: boolean;
 }
 
 /** How many rows each option would leave, given everything else that is set. */
@@ -176,7 +179,8 @@ matched AS (
                AND ($7::int IS NULL OR age_days >= $7::int)
                AND ($8::int IS NULL OR age_days <= $8::int))) AS match_age,
          ($9::text IS NULL OR country = $9::text) AS match_country,
-         (NOT $10::boolean OR status = 'live')     AS match_live
+         (NOT $10::boolean OR status = 'live')     AS match_live,
+         (NOT $11::boolean OR facet_comp <> 'not-listed') AS match_comp_present
     FROM scored s
 )`;
 
@@ -184,7 +188,7 @@ matched AS (
     range is in every keep clause: it is a filter every count respects, not an
     option any count is taken without. */
 function facetCountSql(): string {
-  const on = (keep: string, extra = '') => `count(*) FILTER (WHERE match_age AND match_country AND match_live AND ${keep}${extra})::int`;
+  const on = (keep: string, extra = '') => `count(*) FILTER (WHERE match_age AND match_country AND match_live AND match_comp_present AND ${keep}${extra})::int`;
   const cols = [
     `${on('match_q AND match_location AND match_comp AND match_freshness')} AS total`,
     `${on('match_q AND match_comp AND match_freshness')} AS location_all`,
@@ -220,7 +224,7 @@ export async function listBoardFiltered(opts: BoardFilter): Promise<BoardFiltere
   const page = Math.max(1, Math.floor(opts.page) || 1);
   const shared: unknown[] = [
     opts.sweepDate, FRESH_WINDOW_DAYS_SQL, likePattern(opts.q), opts.location, opts.comp, opts.freshness,
-    opts.ageMin ?? null, opts.ageMax ?? null, opts.country ?? null, opts.liveOnly ?? false
+    opts.ageMin ?? null, opts.ageMax ?? null, opts.country ?? null, opts.liveOnly ?? false, opts.hasComp ?? false
   ];
 
   const { rows: countRows } = await db().query<Record<string, number>>(facetCountSql(), shared);
@@ -237,9 +241,9 @@ export async function listBoardFiltered(opts: BoardFilter): Promise<BoardFiltere
     `${BOARD_FACET_CTE}
 SELECT ${BOARD_ROW_OUT}
   FROM matched
- WHERE match_age AND match_q AND match_location AND match_comp AND match_freshness AND match_country AND match_live
+ WHERE match_age AND match_q AND match_location AND match_comp AND match_freshness AND match_country AND match_live AND match_comp_present
  ORDER BY ${order}
- LIMIT $11 OFFSET $12`,
+ LIMIT $12 OFFSET $13`,
     [...shared, perPage, (page - 1) * perPage]
   );
   return { rows, total: counts.total, counts };
