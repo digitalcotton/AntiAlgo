@@ -199,6 +199,11 @@ const MEMBER = [
     z-index: 200;
   }
   .account-item { white-space: nowrap; }
+  /* The account menu is a dropdown, not the main nav, so its current page is not
+     marked with the underline the top-level links carry. */
+  .account-item[aria-current='page'] {
+    border-bottom-color: transparent;
+  }
   /* SignOut.astro is a child component (its own style scope), so :global reaches
      its form to trim the standalone-page margin inside this compact menu. */
   .account-panel :global(.signout) { margin-top: var(--space-200); }
