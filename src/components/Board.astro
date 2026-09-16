@@ -210,6 +210,7 @@ const ageHref = serverMode
             open. Nothing is hidden.
           </p>
         )}
+        {!teaser && <span slot="page-span" class="page-span mono-label">{spanText}</span>}
         {!teaser && (
           <Pagination
             slot="pagination"
@@ -221,8 +222,7 @@ const ageHref = serverMode
               action: boardPath,
               hidden: hiddenFields(q, ['per']),
               per: q.per,
-              perOptions: PER_PAGE_OPTIONS,
-              span: spanText
+              perOptions: PER_PAGE_OPTIONS
             }}
           />
         )}
@@ -393,6 +393,15 @@ const ageHref = serverMode
   }
 
   .count {
+    color: var(--color-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  /* The row-count span, slotted into JobTable's footer top row beside the
+     legend (JobTable positions it; this only styles it). */
+  .page-span {
     color: var(--color-muted);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;

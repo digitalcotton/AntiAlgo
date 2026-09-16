@@ -32,8 +32,6 @@ export interface PagePicker {
   hidden: readonly [string, string][];
   per: number;
   perOptions: readonly number[];
-  /** "Rows 1 to 50 of 1,913", already worded by the caller. */
-  span?: string;
 }
 
 interface Props {
@@ -126,7 +124,6 @@ const hasNext = linkMode ? Boolean(nextHref) : current < total;
               </label>
               <button class="step" type="submit">Go</button>
             </form>
-            {picker.span && <span class="page-span mono-label">{picker.span}</span>}
           </>
         )}
       </>
@@ -196,8 +193,7 @@ const hasNext = linkMode ? Boolean(nextHref) : current < total;
     flex-wrap: wrap;
   }
 
-  .page-count,
-  .page-span {
+  .page-count {
     color: var(--color-muted);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
