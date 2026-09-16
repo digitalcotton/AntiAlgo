@@ -1254,6 +1254,9 @@ const showOnboarding = onboarding && !onboardingComplete;
 
   .record-section {
     border: var(--border-hairline) solid var(--color-line);
+    /* Sit on the panel surface like the sections above it, rather than reading
+       as a borderless area on the page. Matches Panel's .panel-page body. */
+    background: var(--color-surface);
   }
   .record-band {
     display: flex;
