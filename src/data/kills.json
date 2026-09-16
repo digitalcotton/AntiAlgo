@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "purpose": "Kills from the sweep of 2026-09-15T19:30:14Z, written by export-site-data.py on the machine.",
+    "purpose": "Kills from the sweep of 2026-09-16T07:30:01Z, written by export-site-data.py on the machine.",
     "contents": "3 records, every one a named rule firing on an observation. Observations only: no field here carries a claim about why a company did anything.",
     "excluded": "0 posting(s) left the list this sweep on a personal filter rather than a rule: a contract role under Ryan's own rate bar, or a link this machine could not verify tonight. Neither says anything about the employer, so neither is named here.",
     "kill_rule": "The enum comes from kill_reason() upstream and is never worked out downstream by reading the prose. touched-not-refreshed is spelled touched_not_refreshed to match the site's schema, which is the one rename this export performs.",
@@ -12,16 +12,16 @@
     {
       "company": "Brex",
       "title": "Staff Brand Designer",
-      "reason": "repost-churn: this posting is dated 2026-09-03 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-03, dated 2024-08-23, and left them 12 day(s) before this one appeared at a new URL",
+      "reason": "repost-churn: this posting is dated 2026-09-03 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-03, dated 2024-08-23, and left them 13 day(s) before this one appeared at a new URL",
       "first_published": "2026-09-03",
-      "killed_on": "2026-09-15",
+      "killed_on": "2026-09-16",
       "duration_open_days": null,
       "duration_provenance": "observed_by_us",
       "kill_rule": "repost_churn",
       "evidence": {
         "previous_published": "2024-08-23",
         "current_published": "2026-09-03",
-        "gap_days": 12,
+        "gap_days": 13,
         "identifier": "new",
         "previous_url": "https://www.brex.com/careers/7595422002?gh_jid=7595422002",
         "current_url": "https://www.brex.com/careers/8782403002?gh_jid=8782403002"
@@ -32,16 +32,16 @@
     {
       "company": "Brex",
       "title": "Staff Brand Designer, Interactive",
-      "reason": "repost-churn: this posting is dated 2026-09-03 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-03, dated 2025-10-03, and left them 12 day(s) before this one appeared at a new URL",
+      "reason": "repost-churn: this posting is dated 2026-09-03 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-03, dated 2025-10-03, and left them 13 day(s) before this one appeared at a new URL",
       "first_published": "2026-09-03",
-      "killed_on": "2026-09-15",
+      "killed_on": "2026-09-16",
       "duration_open_days": null,
       "duration_provenance": "observed_by_us",
       "kill_rule": "repost_churn",
       "evidence": {
         "previous_published": "2025-10-03",
         "current_published": "2026-09-03",
-        "gap_days": 12,
+        "gap_days": 13,
         "identifier": "new",
         "previous_url": "https://www.brex.com/careers/8198574002?gh_jid=8198574002",
         "current_url": "https://www.brex.com/careers/8782404002?gh_jid=8782404002"
@@ -52,16 +52,16 @@
     {
       "company": "Brex",
       "title": "Staff Product Designer",
-      "reason": "repost-churn: this posting is dated 2026-09-02 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-02, dated 2024-10-03, and left them 13 day(s) before this one appeared at a new URL",
+      "reason": "repost-churn: this posting is dated 2026-09-02 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-02, dated 2024-10-03, and left them 14 day(s) before this one appeared at a new URL",
       "first_published": "2026-09-02",
-      "killed_on": "2026-09-15",
+      "killed_on": "2026-09-16",
       "duration_open_days": null,
       "duration_provenance": "observed_by_us",
       "kill_rule": "repost_churn",
       "evidence": {
         "previous_published": "2024-10-03",
         "current_published": "2026-09-02",
-        "gap_days": 13,
+        "gap_days": 14,
         "identifier": "new",
         "previous_url": "https://www.brex.com/careers/7669111002?gh_jid=7669111002",
         "current_url": "https://www.brex.com/careers/8777949002?gh_jid=8777949002"

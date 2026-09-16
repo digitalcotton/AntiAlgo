@@ -1,29 +1,76 @@
 {
   "_meta": {
-    "purpose": "Every kill still standing, from every sweep this machine has run, rebuilt whole from the append-only archive on 2026-09-15T19:30:14Z.",
-    "contents": "121 record(s), one per posting per rule. A rule that fires on the same posting on several nights is one record here with times_fired counting the nights, because that is one finding observed repeatedly and not several findings.",
+    "purpose": "Every kill still standing, from every sweep this machine has run, rebuilt whole from the append-only archive on 2026-09-16T07:30:01Z.",
+    "contents": "123 record(s), one per posting per rule. A rule that fires on the same posting on several nights is one record here with times_fired counting the nights, because that is one finding observed repeatedly and not several findings.",
     "why_this_file_exists": "kills.json holds THIS sweep and nothing else, because stats.killed counts it and the site holds the two to the same number. A kill that only lived in that file disappeared the next night, which made the kill list a claim the site could not keep. This file is the record; that one is the news.",
     "identity": "id is a digest of the posting URL and the rule that fired, so the same posting killed by the same rule is one record no matter which pipeline found it or how many times it has been rebuilt.",
     "excluded": "105 event(s) fired a rule that has since been retired and are not published here: they stay in the archive because it records what the machine did. 0 record(s) have been explicitly vacated.",
     "vacated": "A kill is a dated observation and stays true when a posting reappears, so nothing is withdrawn automatically. A row leaves this file only when a kill_vacated event names it, which is a deliberate act with a reason attached."
   },
-  "swept_at_utc": "2026-09-15T19:30:14Z",
+  "swept_at_utc": "2026-09-16T07:30:01Z",
   "archive_since": "2026-08-18",
-  "total": 121,
+  "total": 123,
   "by_rule": {
-    "repost_churn": 87,
-    "misrepresented": 1,
+    "repost_churn": 88,
+    "misrepresented": 2,
     "zombie": 1,
     "phantom": 0,
     "touched_not_refreshed": 32
   },
   "by_pipeline": {
-    "crawl": 118,
+    "crawl": 120,
     "sweep": 3
   },
   "retired_skipped": 105,
   "vacated": 0,
   "kills": [
+    {
+      "company": "Webflow",
+      "title": "IT Support Specialist",
+      "reason": "misrepresented: the board lists this role as Argentina Remote, and the posting's own description states an in-office requirement with no remote option anywhere in its text",
+      "first_published": "2026-09-15",
+      "killed_on": "2026-09-15",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "misrepresented",
+      "evidence": {
+        "location_as_printed": "Argentina Remote"
+      },
+      "id": "365989d01eec",
+      "url": "https://job-boards.greenhouse.io/webflow/jobs/8201996",
+      "ats": "greenhouse",
+      "first_killed_at_utc": "2026-09-15T19:32:52Z",
+      "last_fired_on": "2026-09-15",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "webflow-it-support-specialist"
+    },
+    {
+      "company": "Salesforce",
+      "title": "Named Account Executive - Media AE 2",
+      "reason": "repost-churn: this posting is dated 2026-09-15 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-14, dated 2026-08-27, and left them 1 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-15",
+      "killed_on": "2026-09-15",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-27",
+        "current_published": "2026-09-15",
+        "gap_days": 1,
+        "identifier": "new",
+        "previous_url": "https://salesforce.wd12.myworkdayjobs.com/External_Career_Site/job/United-Kingdom---London/Named-Account-Executive---Media-AE-2_JR354209",
+        "current_url": "https://salesforce.wd12.myworkdayjobs.com/External_Career_Site/job/United-Kingdom---London/Named-Account-Executive---Media-AE-2_JR354208"
+      },
+      "id": "30d4cf2ef8fc",
+      "url": "https://salesforce.wd12.myworkdayjobs.com/External_Career_Site/job/United-Kingdom---London/Named-Account-Executive---Media-AE-2_JR354208",
+      "ats": "workday",
+      "first_killed_at_utc": "2026-09-15T19:32:52Z",
+      "last_fired_on": "2026-09-15",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "salesforce-named-account-executive-media-ae-2"
+    },
     {
       "company": "Perplexity",
       "title": "Engineering Manager (API Platform)",
@@ -69,7 +116,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 2,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "perplexity-engineering-manager-tlm-agents"
     },
@@ -95,7 +142,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 2,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "perplexity-member-of-technical-staff-ai-software-engineer-agents"
     },
@@ -248,7 +295,7 @@
       "ats": "workday",
       "first_killed_at_utc": "2026-09-15T16:18:18Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "nvidia-senior-chip-design-engineer"
     },
@@ -300,7 +347,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 2,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "n26-senior-legal-counsel-banking-law-e15d59"
     },
@@ -493,7 +540,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 2,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "faire-staff-product-engineer-brand-e3b59a"
     },
@@ -519,7 +566,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T16:18:18Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "basis-customer-experience-associate"
     },
@@ -545,7 +592,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 2,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "alan-bilingual-member-support-expert-en-fr-canada"
     },
@@ -571,7 +618,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 2,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "alan-account-executive-mid-market-826c6e"
     },
@@ -597,7 +644,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 2,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "alan-union-relations-lead-directeur-rice-du-paritarisme-05fecc"
     },
@@ -623,7 +670,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 2,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "alan-business-segment-lead-a1a675"
     },
@@ -649,7 +696,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 2,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "alan-account-executive-small-businesses-849d52"
     },
@@ -675,7 +722,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 2,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "alan-business-segment-lead-6a12c5"
     },
@@ -701,7 +748,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 2,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "alan-account-executive-small-businesses-bb7620"
     },
@@ -753,7 +800,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 2,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "alan-paris-account-executive-recruitment-day-9f20d3"
     },
@@ -828,7 +875,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T16:18:18Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "alan-bordeaux-account-executive-recruitment-day"
     },
@@ -854,7 +901,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T16:18:18Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "alan-key-account-manager-971660"
     },
@@ -880,7 +927,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T16:18:18Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "alan-key-account-manager-b79f35"
     },
@@ -906,7 +953,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T16:18:18Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "alan-pre-sales"
     },
@@ -932,7 +979,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T16:18:18Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "alan-account-executive-mid-market-244651"
     },
@@ -958,7 +1005,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-14T07:32:55Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 3,
+      "times_fired": 4,
       "pipeline": "crawl",
       "slug": "n26-senior-legal-counsel-banking-law-4cc2b4"
     },
@@ -1006,7 +1053,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-14T07:32:55Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 3,
+      "times_fired": 4,
       "pipeline": "crawl",
       "slug": "alan-care-expert-france-bdd873"
     },
@@ -1032,7 +1079,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-14T07:32:55Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 3,
+      "times_fired": 4,
       "pipeline": "crawl",
       "slug": "alan-member-support-expert-canada-339d45"
     },
@@ -1058,7 +1105,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-12T07:32:50Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 5,
+      "times_fired": 6,
       "pipeline": "crawl",
       "slug": "remote-payroll-specialist-lead-japan-individual-contributor"
     },
@@ -1240,7 +1287,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-12T07:32:50Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 5,
+      "times_fired": 6,
       "pipeline": "crawl",
       "slug": "alan-care-expert-belgium-fr-en"
     },
@@ -1266,7 +1313,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-12T07:32:50Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 5,
+      "times_fired": 6,
       "pipeline": "crawl",
       "slug": "alan-care-expert-belgium-nl-en"
     },
@@ -1640,7 +1687,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-11T18:29:05Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 6,
+      "times_fired": 7,
       "pipeline": "crawl",
       "slug": "mercury-sales-development-representative"
     },
@@ -1781,7 +1828,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-11T18:29:05Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 6,
+      "times_fired": 7,
       "pipeline": "crawl",
       "slug": "celonis-associate-ai-solution-consultant-benelux-orbit-program"
     },
@@ -1973,8 +2020,8 @@
       "url": "https://jobs.ashbyhq.com/commure/145d71a2-94d2-40b8-98c3-ea20525c0521",
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-10T07:33:03Z",
-      "last_fired_on": "2026-09-10",
-      "times_fired": 1,
+      "last_fired_on": "2026-09-15",
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "commure-senior-software-engineer-agent-platform"
     },
@@ -2026,7 +2073,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "writer-infrastructure-engineer-uk"
     },
@@ -2052,7 +2099,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "writer-infrastructure-engineer"
     },
@@ -2078,7 +2125,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "writer-security-engineer-detection-and-response-uk"
     },
@@ -2104,7 +2151,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "writer-security-engineer-detection-and-response"
     },
@@ -2130,7 +2177,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "writer-security-engineer-application-security-uk"
     },
@@ -2156,7 +2203,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "writer-security-engineer-application-security"
     },
@@ -2182,7 +2229,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "writer-software-quality-engineer-uk"
     },
@@ -2208,7 +2255,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "writer-software-engineer-connectors-mcp"
     },
@@ -2286,7 +2333,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "remote-sales-development-representative-australia-new-zealand-5afc21"
     },
@@ -2312,7 +2359,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "remote-sales-development-representative-australia-new-zealand-f6c900"
     },
@@ -2338,7 +2385,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "remote-senior-employee-relations-specialist-employee-relations-apac"
     },
@@ -2364,7 +2411,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "remote-senior-hr-specialist-employee-relations-and-transitions-emea"
     },
@@ -2390,7 +2437,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "remote-senior-hr-specialist-employee-relations-apac"
     },
@@ -2468,7 +2515,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "remote-senior-specialist-employee-relations-apac"
     },
@@ -2494,7 +2541,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "remote-senior-specialist-employee-relations-emea-17ef7c"
     },
@@ -2520,7 +2567,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "remote-senior-specialist-employee-relations-emea-eb9bb7"
     },
@@ -2546,7 +2593,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "remote-senior-specialist-employee-relations-emea-c2d64f"
     },
@@ -2567,7 +2614,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "openai-senior-workplace-operations-manager"
     },
@@ -2645,7 +2692,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "brex-senior-brand-designer"
     },
@@ -2853,7 +2900,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-15",
-      "times_fired": 9,
+      "times_fired": 10,
       "pipeline": "crawl",
       "slug": "alan-founding-sales"
     },
@@ -3008,8 +3055,8 @@
       "url": "https://www.brex.com/careers/8782403002?gh_jid=8782403002",
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-08T16:37:26Z",
-      "last_fired_on": "2026-09-15",
-      "times_fired": 25,
+      "last_fired_on": "2026-09-16",
+      "times_fired": 27,
       "pipeline": "sweep",
       "slug": "brex-staff-brand-designer"
     },
@@ -3034,8 +3081,8 @@
       "url": "https://www.brex.com/careers/8782404002?gh_jid=8782404002",
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-08T16:37:26Z",
-      "last_fired_on": "2026-09-15",
-      "times_fired": 25,
+      "last_fired_on": "2026-09-16",
+      "times_fired": 27,
       "pipeline": "sweep",
       "slug": "brex-staff-brand-designer-interactive"
     },
@@ -3060,8 +3107,8 @@
       "url": "https://www.brex.com/careers/8777949002?gh_jid=8777949002",
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-04T07:30:01Z",
-      "last_fired_on": "2026-09-15",
-      "times_fired": 26,
+      "last_fired_on": "2026-09-16",
+      "times_fired": 28,
       "pipeline": "sweep",
       "slug": "brex-staff-product-designer"
     }
