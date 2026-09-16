@@ -13,8 +13,20 @@ import { DEFAULT_TIER, isTier, type Tier, type Viewer } from './entitlement';
 export async function viewerFrom(context: APIContext): Promise<Viewer | null> {
   const session = await getAuth().api.getSession({ headers: context.request.headers });
   if (!session?.user) return null;
-  const tier = await tierFor(session.user.id);
-  return { userId: session.user.id, tier, emailVerified: Boolean(session.user.emailVerified) };
+  // One row for both the tier (entitlement) and the first name (the header's
+  // account-menu label), so a signed-in request pays a single SELECT.
+  const { rows } = await db().query<{ tier: string; first_name: string }>(
+    'SELECT tier, first_name FROM app_user_profile WHERE user_id = $1 LIMIT 1',
+    [session.user.id]
+  );
+  const row = rows[0];
+  const tier = isTier(row?.tier) ? row.tier : DEFAULT_TIER;
+  return {
+    userId: session.user.id,
+    tier,
+    emailVerified: Boolean(session.user.emailVerified),
+    firstName: row?.first_name ?? ''
+  };
 }
 
 /**

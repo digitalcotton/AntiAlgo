@@ -30,12 +30,16 @@
 </style>
 
 <script>
-  const form = document.querySelector<HTMLFormElement>('[data-signout]');
-  form?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    try {
-      await fetch(form.action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-    } catch {}
-    window.location.href = '/';
+  // Bind every sign-out form on the page: the header renders one and a page
+  // (e.g. /account) may render its own, so a single querySelector would leave
+  // the second unbound and it would do a native POST that shows raw JSON.
+  document.querySelectorAll<HTMLFormElement>('[data-signout]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await fetch(form.action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      } catch {}
+      window.location.href = '/';
+    });
   });
 </script>

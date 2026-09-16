@@ -46,6 +46,9 @@ export interface Viewer {
   userId: string;
   tier: Tier;
   emailVerified: boolean;
+  /** The reader's first name, for the header's account menu label. Empty when
+   *  the profile row carries none; readers that don't need it simply ignore it. */
+  firstName?: string;
 }
 
 export interface Verdict {

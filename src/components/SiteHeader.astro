@@ -1,6 +1,7 @@
 ---
 import BrandMark from './BrandMark.astro';
 import ThemeToggle from './ThemeToggle.astro';
+import SignOut from './SignOut.astro';
 import { routeFor } from '../data/nav';
 import { SITE } from '../data/site';
 import { isOn } from '../lib/flags';
@@ -10,11 +11,17 @@ import { isOn } from '../lib/flags';
 const signinOpen = isOn('signin');
 
 /**
- * The header, from the Anti Algo home canvas: the lowercase wordmark with the
- * signal square, the marketing nav (Home, How it works, Evidence, Your key),
- * the theme toggle, and the one action (Save my spot) as the signal-orange
- * button.
+ * The header has two states. SIGNED OUT: the marketing nav (Home, The board,
+ * How it works, Evidence, Your key), the theme toggle, and Save my spot. SIGNED
+ * IN: the member surfaces (The board, The Desk, Pre-List, The Drop), the theme
+ * toggle, and an account menu (Profile, Settings, Sign out) labelled with the
+ * reader's first name — no Save my spot, no Sign in. The viewer is resolved by
+ * middleware on every route when a session cookie is present (src/middleware.ts).
  */
+const viewer = Astro.locals.viewer;
+const signedIn = Boolean(viewer);
+const accountLabel = (viewer?.firstName ?? '').trim() || 'Account';
+
 const here = new URL(Astro.request.url).pathname.replace(/\/$/, '') || '/';
 const isHere = (p: string) => here === p;
 
@@ -25,6 +32,15 @@ const MARKETING = [
   { label: 'Evidence', href: routeFor('evidence') },
   { label: 'Your key', href: routeFor('your-key') }
 ];
+
+// The signed-in surfaces. "The board" points at /board (the full board), not the
+// marketing home; the rest mirror src/data/member-nav.ts's MEMBER_NAV routes.
+const MEMBER = [
+  { label: 'The board', href: routeFor('board') },
+  { label: 'The Desk', href: routeFor('desk') },
+  { label: 'Pre-List', href: routeFor('prelist') },
+  { label: 'The Drop', href: routeFor('drop') }
+];
 ---
 
 <header class="hdr">
@@ -34,12 +50,31 @@ const MARKETING = [
       <span class="wordmark">anti algo</span>
     </a>
     <nav class="nav kicker" aria-label="Site">
-      {MARKETING.map((item) => (
-        <a class="nav-link" href={item.href} aria-current={isHere(item.href) ? 'page' : undefined}>{item.label}</a>
-      ))}
-      <ThemeToggle />
-      {signinOpen && <a class="signin" href={routeFor('sign-in')}>Sign in</a>}
-      <a class="cta cta-header" href={`${routeFor('sign-up')}?from=header`}>Save my spot</a>
+      {signedIn ? (
+        <Fragment>
+          {MEMBER.map((item) => (
+            <a class="nav-link" href={item.href} aria-current={isHere(item.href) ? 'page' : undefined}>{item.label}</a>
+          ))}
+          <ThemeToggle />
+          <details class="account">
+            <summary class="account-trigger">{accountLabel} <span class="account-caret" aria-hidden="true">▾</span></summary>
+            <div class="account-panel">
+              <a class="nav-link account-item" href={routeFor('profile')} aria-current={isHere(routeFor('profile')) ? 'page' : undefined}>Profile</a>
+              <a class="nav-link account-item" href={routeFor('settings')} aria-current={isHere(routeFor('settings')) ? 'page' : undefined}>Settings</a>
+              <SignOut />
+            </div>
+          </details>
+        </Fragment>
+      ) : (
+        <Fragment>
+          {MARKETING.map((item) => (
+            <a class="nav-link" href={item.href} aria-current={isHere(item.href) ? 'page' : undefined}>{item.label}</a>
+          ))}
+          <ThemeToggle />
+          {signinOpen && <a class="signin" href={routeFor('sign-in')}>Sign in</a>}
+          <a class="cta cta-header" href={`${routeFor('sign-up')}?from=header`}>Save my spot</a>
+        </Fragment>
+      )}
     </nav>
   </div>
 </header>
@@ -125,9 +160,69 @@ const MARKETING = [
     }
   }
 
+  /* The account menu: a native <details> disclosure, styled sharp to match the
+     header. The panel is absolutely positioned so opening it never reflows the
+     nav. */
+  .account {
+    position: relative;
+  }
+  .account-trigger {
+    cursor: pointer;
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200);
+    color: var(--color-muted);
+    border-bottom: var(--border-hairline) solid transparent;
+    padding-bottom: 2px;
+  }
+  .account-trigger::-webkit-details-marker { display: none; }
+  .account[open] .account-trigger,
+  .account-trigger:hover {
+    color: var(--color-foreground);
+  }
+  .account-caret { font-size: 0.7em; }
+  .account-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + var(--space-300));
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-300);
+    min-width: 14ch;
+    padding: var(--space-400);
+    background: var(--color-surface);
+    border: var(--border-hairline) solid var(--color-foreground);
+    border-radius: var(--radius);
+    z-index: 200;
+  }
+  .account-item { white-space: nowrap; }
+  /* SignOut.astro is a child component (its own style scope), so :global reaches
+     its form to trim the standalone-page margin inside this compact menu. */
+  .account-panel :global(.signout) { margin-top: var(--space-200); }
+
   @media (max-width: 48rem) { /* --breakpoint-phone */
     .nav {
       gap: var(--space-400);
     }
   }
 </style>
+
+<script>
+  // Close the account menu on Escape or an outside click. The native <details>
+  // already toggles on its summary and is keyboard-focusable; this only adds the
+  // dismiss behaviours a menu is expected to have.
+  const menu = document.querySelector<HTMLDetailsElement>('details.account');
+  if (menu) {
+    document.addEventListener('click', (event) => {
+      if (menu.open && !menu.contains(event.target as Node)) menu.open = false;
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && menu.open) {
+        menu.open = false;
+        menu.querySelector('summary')?.focus();
+      }
+    });
+  }
+</script>

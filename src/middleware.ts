@@ -73,26 +73,19 @@ function needsViewer(pathname: string): boolean {
 }
 
 /**
- * The board pays for a session only when there is one to read. /board and
- * every crawled /board/<slug> are public, and no anonymous request should pay
- * a session lookup on the site's busiest surface. But the fit score, the Fit
- * sort and the draft rail are signed-in features there (flags.config.mjs's
- * fit_public, DraftRail.astro), decided server-side because row order can
- * depend on the answer. So the lookup runs on these paths only when the
- * request carries a session cookie at all: a stranger sends none and pays
- * nothing, and a member's own cookie is what turns the check on. Better
- * Auth's cookie name always ends in session_token, with or without its
- * secure prefix.
+ * A signed-in reader gets a resolved viewer on EVERY route, so the header can
+ * show the member nav (and the board its fit score, Fit sort and draft rail)
+ * site-wide, not only on gated pages. The gate is the session cookie itself: a
+ * stranger sends none and still pays nothing — the guard below short-circuits
+ * to a null viewer before any session lookup — and a member's own cookie is
+ * what turns the lookup on. So an anonymous request on a marketing page reads
+ * neither Better Auth nor Postgres; only a request actually carrying a session
+ * cookie pays the getSession + one SELECT. Better Auth's cookie name always
+ * ends in session_token, with or without its secure prefix.
  */
-const SESSION_IF_COOKIE = ['/board'];
-
 function hasSessionCookie(request: Request): boolean {
   const cookie = request.headers.get('cookie');
   return !!cookie && /session_token=/.test(cookie);
-}
-
-function needsViewerIfCookie(pathname: string, request: Request): boolean {
-  return SESSION_IF_COOKIE.some((p) => pathname === p || pathname.startsWith(p + '/')) && hasSessionCookie(request);
 }
 
 export const onRequest = defineMiddleware(async (context, next) => {
@@ -111,7 +104,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return new Response('Not found.', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
 
-  if (!needsViewer(pathname) && !needsViewerIfCookie(pathname, context.request)) {
+  if (!needsViewer(pathname) && !hasSessionCookie(context.request)) {
     context.locals.viewer = null;
     return next();
   }
