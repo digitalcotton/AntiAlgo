@@ -171,47 +171,6 @@ const prospectCount = prospectRows().length;
   </div>
 </BaseLayout>
 
-<script>
-  /**
-   * Keep the reader's place when they change a filter, the sort, or the page.
-   * Every control on the board is a GET form or a link, so changing one is a
-   * full navigation and the browser would otherwise drop the reader at the top
-   * of the fresh page. This saves the scroll position on the way out and puts
-   * it back on the way in — but only when the path is unchanged (a filter, sort
-   * or page change on the board itself), so arriving on the board from a link
-   * elsewhere still starts at the top, and the back button keeps the browser's
-   * own restoration untouched.
-   */
-  const KEY = 'board:scroll';
-  const here = location.pathname;
-
-  const save = () => {
-    try {
-      sessionStorage.setItem(KEY, JSON.stringify({ p: here, y: window.scrollY }));
-    } catch {
-      /* private mode or quota: the control still works, it just won't persist. */
-    }
-  };
-  window.addEventListener('pagehide', save);
-
-  window.addEventListener('pageshow', (event) => {
-    // A back/forward restore (bfcache) already has the browser's own scroll
-    // position; only same-document GET navigations need us to step in.
-    if (event.persisted) return;
-    try {
-      const raw = sessionStorage.getItem(KEY);
-      if (!raw) return;
-      sessionStorage.removeItem(KEY);
-      const saved = JSON.parse(raw);
-      if (saved && saved.p === here && typeof saved.y === 'number') {
-        window.scrollTo(0, saved.y);
-      }
-    } catch {
-      /* nothing stored, or unreadable: leave the reader at the top. */
-    }
-  });
-</script>
-
 <style>
   .index {
     display: flex;

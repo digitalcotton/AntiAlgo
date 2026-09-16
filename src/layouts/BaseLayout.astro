@@ -109,5 +109,50 @@ const robots = noindex ? 'noindex, follow' : 'index, follow, max-image-preview:l
       <slot />
     </main>
     <SiteFooter />
+
+    <script>
+      /**
+       * Keep the reader's place across a same-page navigation. Many controls on
+       * the site (board filters, sort, paging; settings/profile/desk forms) are a
+       * GET form, a query-param link, or a POST that redirects back to the same
+       * path, so acting on one is a full navigation and the browser would drop
+       * the reader at the top of the fresh page. This saves the scroll position
+       * on the way out and restores it on the way in, but only when the path is
+       * unchanged (a selection on the same page), so arriving on a page from a
+       * link elsewhere still starts at the top and the back button keeps the
+       * browser's own restoration.
+       */
+      const KEY = 'aa:scroll';
+      const here = location.pathname;
+
+      const save = () => {
+        try {
+          sessionStorage.setItem(KEY, JSON.stringify({ p: here, y: window.scrollY }));
+        } catch {
+          /* private mode or quota: the control still works, it just won't persist. */
+        }
+      };
+      window.addEventListener('pagehide', save);
+
+      window.addEventListener('pageshow', (event) => {
+        // A back/forward restore (bfcache) already has the browser's own scroll
+        // position; only same-document GET navigations need us to step in.
+        if (event.persisted) return;
+        // A fragment link (e.g. Settings' #keys) has its own target; let the
+        // browser's anchor scroll stand rather than overriding it.
+        if (location.hash) return;
+        try {
+          const raw = sessionStorage.getItem(KEY);
+          if (!raw) return;
+          sessionStorage.removeItem(KEY);
+          const saved = JSON.parse(raw);
+          if (saved && saved.p === here && typeof saved.y === 'number') {
+            window.scrollTo(0, saved.y);
+          }
+        } catch {
+          /* nothing stored, or unreadable: leave the reader at the top. */
+        }
+      });
+    </script>
   </body>
 </html>
