@@ -67,6 +67,10 @@ interface Props {
    * keeps only the sweep stamp.
    */
   tabs?: boolean;
+  /** A teaser (the homepage): a few rows and "Open the full board", no pager.
+   *  A full page-picker over thousands of pages makes no sense on a 2-row taste
+   *  and only wraps the controls onto a second line. */
+  teaser?: boolean;
   perPage?: number;
   ariaLabel?: string;
 }
@@ -86,6 +90,7 @@ const {
   hrefFor,
   fit = true,
   tabs = true,
+  teaser = false,
   perPage = 8,
   ariaLabel = 'The board'
 } = Astro.props;
@@ -205,20 +210,22 @@ const ageHref = serverMode
             open. Nothing is hidden.
           </p>
         )}
-        <Pagination
-          slot="pagination"
-          current={served.page}
-          total={served.pages}
-          prevHref={prevHref}
-          nextHref={nextHref}
-          picker={{
-            action: boardPath,
-            hidden: hiddenFields(q, ['per']),
-            per: q.per,
-            perOptions: PER_PAGE_OPTIONS,
-            span: spanText
-          }}
-        />
+        {!teaser && (
+          <Pagination
+            slot="pagination"
+            current={served.page}
+            total={served.pages}
+            prevHref={prevHref}
+            nextHref={nextHref}
+            picker={{
+              action: boardPath,
+              hidden: hiddenFields(q, ['per']),
+              per: q.per,
+              perOptions: PER_PAGE_OPTIONS,
+              span: spanText
+            }}
+          />
+        )}
       </JobTable>
     ) : (
       <JobTable jobs={jobs} paging="client" perPage={perPage} hrefFor={hrefFor}>

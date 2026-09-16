@@ -152,6 +152,7 @@ const REFUSALS = [
         hrefFor={(job: Job) => withBase(`/board/${job.slug}`)}
         fit={false}
         tabs={false}
+        teaser={true}
         ariaLabel="This sweep"
       >
         <p slot="stamp" class="index-eyebrow mono" data-swept={bStats?.swept_at} data-fresh-hours={FRESH_WINDOW_HOURS}>
