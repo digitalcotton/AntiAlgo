@@ -35,6 +35,10 @@ export interface OnboardingStep {
   /** A step that helps but does not block completion, marked so it does not
       read as a chore the reader must clear to be finished. */
   optional?: boolean;
+  /** A short badge shown after the label (e.g. "Preferred"). Independent of
+      `optional`: a step can be non-blocking yet still be labelled as wanted
+      rather than as an afterthought. */
+  badge?: string;
 }
 
 interface Props {
@@ -59,7 +63,7 @@ const requiredCount = steps.filter((step) => !step.optional).length;
           <div class="onboarding-body">
             <p class="onboarding-label">
               {step.label}
-              {step.optional && <span class="onboarding-optional mono-label">Optional</span>}
+              {step.badge && <span class="onboarding-optional mono-label">{step.badge}</span>}
             </p>
             <p class="onboarding-hint">{step.hint}</p>
             {!step.done && step.href && step.action && (
