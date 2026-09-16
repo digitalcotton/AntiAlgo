@@ -29,6 +29,9 @@ const rest = records.slice(1);
 const scaleMax = killScaleMax(records);
 const sweptLabel = feed.servedAt ? sweptStamp(feed.servedAt) : null;
 const address = 'tokenstoagents.ai/jobs/kills';
+// The whole-kill-list link is a signed-in affordance; a logged-out reader is
+// sent to the kill list through the page's own copy, not this trailing link.
+const signedIn = Boolean(Astro.locals.viewer);
 ---
 
 <BaseLayout title="Evidence" description="The kill record itself, live from the sweep. One posting the machine caught, and the rule that caught it.">
@@ -69,7 +72,7 @@ const address = 'tokenstoagents.ai/jobs/kills';
         </ul>
       )}
 
-      {featured && (
+      {featured && signedIn && (
         <p class="ev-more"><a href={INDEX.kills}>Read the whole kill list</a></p>
       )}
     </section>
