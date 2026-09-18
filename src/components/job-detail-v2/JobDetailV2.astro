@@ -34,8 +34,12 @@ interface Props {
   /** Where a draft/apply action returns to (this posting's own path). */
   selfPath: string;
   hasKey?: boolean;
+  /** When set, the Apply button posts the outbound click so it lands on the
+      reader's Desk (the board_actions track control), instead of a plain link.
+      Null for the static /role page and signed-out readers. */
+  applyTrack?: { action: string; title: string; company: string } | null;
 }
-const { job, signedIn, selfPath, hasKey = false } = Astro.props;
+const { job, signedIn, selfPath, hasKey = false, applyTrack = null } = Astro.props;
 
 const isClosed = job.status === 'closed';
 const ats = sourceLabel(job);
@@ -225,10 +229,19 @@ const signInHref = `${withBase('/sign-in')}?next=${encodeURIComponent(selfPath)}
   <!-- action rail -->
   <div class="jd-actions" id="jd-actions">
     {!isClosed && <DraftRail job={job} returnTo={selfPath} signedIn={signedIn} hasKey={hasKey} />}
-    {applyUrl && (
+    {applyUrl && (applyTrack ? (
+      <form class="jd-apply-form" method="POST" action={applyTrack.action} target="_blank" data-apply-url={applyUrl}>
+        <input type="hidden" name="intent" value="click" />
+        <input type="hidden" name="url" value={applyUrl} />
+        <input type="hidden" name="then" value="posting" />
+        {applyTrack.title && <input type="hidden" name="titleOverride" value={applyTrack.title} />}
+        <input type="hidden" name="companyOverride" value={applyTrack.company} />
+        <button type="submit" class="jd-btn jd-btn-outline">Apply on {ats} &#8599;</button>
+      </form>
+    ) : (
       <a class="jd-btn jd-btn-outline" href={applyUrl} target="_blank" rel="noopener nofollow">Apply on {ats} &#8599;</a>
-    )}
-    <p class="jd-actions-note">Apply now if your documents are ready. Either way the role lands on your desk and stays tracked.</p>
+    ))}
+    <p class="jd-actions-note">Apply now if your documents are ready.{applyTrack ? ' Either way the role lands on your desk and stays tracked.' : ''}</p>
   </div>
 
   <!-- description, verbatim -->
@@ -344,7 +357,8 @@ const signInHref = `${withBase('/sign-in')}?next=${encodeURIComponent(selfPath)}
 
   /* actions */
   .jd-actions { border: var(--border-hairline) solid var(--color-line); background: var(--color-surface); padding: var(--space-600); display: flex; flex-direction: column; gap: var(--space-400); }
-  .jd-btn { display: block; text-align: center; padding: var(--space-400); font-family: var(--font-family-mono); font-size: var(--size-100); text-decoration: none; border: var(--border-hairline) solid var(--color-foreground); }
+  .jd-apply-form { margin: 0; }
+  .jd-btn { display: block; width: 100%; text-align: center; padding: var(--space-400); font-family: var(--font-family-mono); font-size: var(--size-100); text-decoration: none; cursor: pointer; border: var(--border-hairline) solid var(--color-foreground); }
   .jd-btn-outline { color: var(--color-foreground); background: transparent; }
   .jd-btn-outline:hover { background: var(--color-surface-raised); }
   .jd-btn-inline { display: inline-block; padding: var(--space-300) var(--space-500); }

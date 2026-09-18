@@ -62,6 +62,7 @@ import DraftRail from '../../components/job-detail/DraftRail.astro';
 import PostingProgress from '../../components/desk/PostingProgress.astro';
 import PostingReadState from '../../components/desk/PostingReadState.astro';
 import AddedPostingNote from '../../components/desk/AddedPostingNote.astro';
+import JobDetailV2 from '../../components/job-detail-v2/JobDetailV2.astro';
 import {
   ABSENCE,
   ageOf,
@@ -228,6 +229,14 @@ const opportunitiesHref = routeFor('opportunities');
 // renders as a hatched slot with no link, so this line is the only ask on the
 // page, at the point of action, and it names both things an account unlocks.
 const signUpHref = `${routeFor('sign-up')}?next=${encodeURIComponent(selfPath)}`;
+
+// A live crawled posting (not an added slug, not closed) renders the new
+// pixel-perfect JobDetailV2. The added-posting waiting room / settled views and
+// the closed record keep their own dedicated layouts below.
+const useV2 = Boolean(job) && !isClosed && !fetchRow;
+// The tracking apply control (board_actions) carried into JobDetailV2's Apply
+// button, so a signed-in reader's click still lands on their Desk.
+const applyTrack = showTrack && job?.apply_url ? { action: deskApplicationPath, title: job.title, company: job.company } : null;
 ---
 
 <BaseLayout
@@ -237,7 +246,8 @@ const signUpHref = `${routeFor('sign-up')}?next=${encodeURIComponent(selfPath)}`
   noindex={added}
 >
   <div class="shell">
-    <article class="detail">
+    <article class:list={['detail', { 'detail-plain': useV2 }]}>
+      {!useV2 && (
       <div class="detail-bar">
         {fetchRow ? (
           <a class="detail-back" href={opportunitiesHref}>Back to Opportunities</a>
@@ -246,6 +256,7 @@ const signUpHref = `${routeFor('sign-up')}?next=${encodeURIComponent(selfPath)}`
         )}
         {fetchRow ? <p class="detail-stamp mono">Added by you</p> : job && <p class="detail-stamp mono">{barStamp}</p>}
       </div>
+      )}
       {noticeText && <p class="posting-notice" role="status">{noticeText}</p>}
 
       {
@@ -361,6 +372,7 @@ const signUpHref = `${routeFor('sign-up')}?next=${encodeURIComponent(selfPath)}`
             </aside>
           </div>
         ) : job ? (
+          isClosed ? (
           <div class="detail-grid">
             <div class="detail-main">
               <div class="detail-card">
@@ -499,6 +511,15 @@ const signUpHref = `${routeFor('sign-up')}?next=${encodeURIComponent(selfPath)}`
               )}
             </aside>
           </div>
+          ) : (
+            <JobDetailV2
+              job={job}
+              signedIn={signedIn}
+              selfPath={selfPath}
+              hasKey={hasKey}
+              applyTrack={applyTrack}
+            />
+          )
         ) : (
           <div class="detail-grid detail-grid-empty">
             <div class="detail-main">
@@ -606,6 +627,13 @@ const signUpHref = `${routeFor('sign-up')}?next=${encodeURIComponent(selfPath)}`
     margin-block: var(--space-500) var(--space-800);
     border: var(--border-hairline) solid var(--color-line-strong);
     background: var(--color-surface);
+  }
+  /* The live posting renders JobDetailV2, which draws its own cards; the outer
+     record frame would be a second border around it. */
+  .detail-plain {
+    border: none;
+    background: none;
+    margin-block: var(--space-500) var(--space-800);
   }
 
   .detail-bar {
