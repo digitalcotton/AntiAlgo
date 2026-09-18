@@ -93,7 +93,7 @@ const isReady =
   !hasNoDraft && resume !== null && cover !== null && resume.status !== 'pending' && cover.status !== 'pending';
 const isPending = !hasNoDraft && !isReady;
 
-const deskPath = routeFor('desk');
+const deskPath = routeFor('opportunities');
 const settingsPath = routeFor('settings');
 
 const postingLabel = application.snapshot.title
@@ -110,7 +110,7 @@ const postingLabel = application.snapshot.title
 >
   <section class="draft-page">
     <div class="shell draft-shell">
-      <span class="kicker">The Desk</span>
+      <span class="kicker">Opportunities</span>
       <h1>Draft room</h1>
       <p class="muted">Targeted at: {postingLabel}</p>
 
@@ -157,7 +157,7 @@ const postingLabel = application.snapshot.title
       }
 
       <div class="draft-back no-print">
-        <a class="draft-link" href={deskPath}>Back to the Desk</a>
+        <a class="draft-link" href={deskPath}>Back to Opportunities</a>
       </div>
     </div>
   </section>

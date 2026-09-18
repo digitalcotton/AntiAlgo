@@ -245,10 +245,14 @@ export const FLAGGED_ROUTES = {
   // The two machine routes are called by the Mac mini with a shared secret,
   // never by a browser. Dark flag, flat 404.
   '/machine': 'add_posting',
-  // src/pages/desk.astro, desk/save.ts and desk/application.ts all carry
-  // `export const prerender = false`. Longest-prefix matching in
-  // flagForRoute() below covers all three with this one entry.
+  // src/pages/desk.astro (the titles home), desk/save.ts and
+  // desk/application.ts all carry `export const prerender = false`.
+  // Longest-prefix matching in flagForRoute() below covers all with this entry.
   '/desk': 'desk',
+  // /opportunities is the applications tracker (formerly The Desk at /desk); it
+  // rides the same `desk` flag so the tracker and the machine that feeds it turn
+  // dark together, exactly as when it lived at /desk.
+  '/opportunities': 'desk',
   // The flag is `prelist`, not `prelist_paid`. The dark one is the tier, and
   // a tier is not a door: gating the whole surface on it would wall the
   // Pre-List behind a payment nobody can make. Sign-in gates the rows, in

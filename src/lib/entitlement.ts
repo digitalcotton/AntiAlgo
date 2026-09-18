@@ -86,12 +86,16 @@ export const ROUTE_POLICY: Record<string, Tier> = {
   // The signed-in account page: who you are, your tier, sign out. A member's
   // landing after admission. A waitlisted account is sent to /waitlist instead.
   '/account': 'member',
-  // The Desk (MASTER-SPEC 3.5, F4): covers /desk and, by prefix, every
+  // The Desk (the titles-driven member home) covers /desk and, by prefix, every
   // endpoint under it (desk/save.ts, desk/application.ts, desk/posting.ts,
-  // desk/job-draft*). Keeps a real shop window for a signed-out reader (see
-  // src/pages/desk.astro's own header): the gate controls the tracker
-  // itself, not whether the page exists.
+  // desk/job-draft*). Member reaches the page; the paid content gates in-page
+  // with isPaidViewer (a non-paid member sees the upsell), the same split
+  // /ledger uses.
   '/desk': 'member',
+  // The Opportunities tracker (formerly The Desk, MASTER-SPEC 3.5, F4). Same
+  // member wall the tracker always had; its action endpoints still live under
+  // /desk above.
+  '/opportunities': 'member',
   // Settings: name, email, handle, drafting with provider keys, and the data
   // controls (export, delete, saved filters). Covers /settings and, by
   // prefix, every endpoint under it.
@@ -111,7 +115,7 @@ export const ROUTE_POLICY: Record<string, Tier> = {
 };
 
 /** Prefixes that are gated. Anything at or under one of these must have a policy. */
-export const GATED_PREFIXES = ['/account', '/desk', '/settings', '/profile', '/drafts', '/prelist', '/internal'] as const;
+export const GATED_PREFIXES = ['/account', '/desk', '/opportunities', '/settings', '/profile', '/drafts', '/prelist', '/internal'] as const;
 
 function assertEveryGatedPrefixHasAPolicy(): void {
   const missing = GATED_PREFIXES.filter((p) => !(p in ROUTE_POLICY));

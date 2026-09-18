@@ -223,7 +223,7 @@ const trackable = Boolean(job) && Boolean(job?.apply_url) && job?.status !== 'cl
 const showTrack = boardActions && trackable && signedIn;
 const showTrackInvite = boardActions && trackable && !signedIn;
 const deskApplicationPath = routeFor('desk-application');
-const deskHref = routeFor('desk');
+const opportunitiesHref = routeFor('opportunities');
 // The one door on a signed-out posting. The draft rail above the apply control
 // renders as a hatched slot with no link, so this line is the only ask on the
 // page, at the point of action, and it names both things an account unlocks.
@@ -240,7 +240,7 @@ const signUpHref = `${routeFor('sign-up')}?next=${encodeURIComponent(selfPath)}`
     <article class="detail">
       <div class="detail-bar">
         {fetchRow ? (
-          <a class="detail-back" href={deskHref}>Back to your Desk</a>
+          <a class="detail-back" href={opportunitiesHref}>Back to Opportunities</a>
         ) : (
           <a class="detail-back" href={boardHref}>Back to all jobs</a>
         )}
@@ -479,7 +479,7 @@ const signUpHref = `${routeFor('sign-up')}?next=${encodeURIComponent(selfPath)}`
                     </form>
                     <p class="apply-track-caption mono-label">Opens the posting and tracks it on your Desk.</p>
                     <p class="apply-tracked mono-label" id="apply-tracked" hidden>
-                      Tracking on your Desk. <a href={deskHref}>Open your Desk</a>
+                      Tracking in Opportunities. <a href={opportunitiesHref}>Open Opportunities</a>
                     </p>
                   </div>
                 ) : (

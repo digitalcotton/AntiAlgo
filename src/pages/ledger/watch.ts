@@ -1,71 +1,62 @@
 /**
- * POST /ledger/watch: add, remove or reshelf one watched title for the
- * signed-in paid caller. db/137_ledger_watch.sql; the store is
- * src/lib/ledger-watch-store.ts.
+ * POST /ledger/watch: add, remove, or reshelf one watched title for the signed-in
+ * paid reader. The watch list this edits is the same one The Desk reads and the
+ * one that narrows /board (job-store listBoardFiltered titles), so a change here
+ * changes both surfaces on the next render.
  *
- * NOT UNDER /api, for the same forced reason src/pages/prelist/follow.ts is
- * not: this repo's root api/ directory claims every /api/* path before Astro's
- * router. Mounted under /ledger with the page.
+ * NOT UNDER A GATED PREFIX. /ledger is deliberately absent from entitlement.ts
+ * ROUTE_POLICY (the page renders a preview for everyone), so middleware sets no
+ * verdict here. This endpoint resolves the reader itself with paidViewerFrom and
+ * refuses a non-paid caller, the same self-guard the Ledger's own surfaces use.
+ * The userId is the resolved viewer's, never a form field.
  *
- * GATED IN THIS FILE, NOT BY MIDDLEWARE. /ledger is deliberately absent from
- * entitlement.ts's ROUTE_POLICY (see src/lib/ledger-access.ts for why), so this
- * endpoint resolves the paid viewer itself via paidViewerFrom() rather than
- * trusting a verdict the middleware only sets for gated prefixes. userId comes
- * only from that resolved viewer, never from the POSTed body.
- *
- * WORKS WITHOUT JAVASCRIPT. A plain HTML form posting here and redirecting back
- * to /ledger, the same shape prelist/follow.ts uses.
- *
- * ADDING A TITLE ALREADY WATCHED MOVES ITS SHELF, IT IS NOT AN ERROR: the
- * store's upsert against (user_id, title) guarantees that (db/137).
+ * Mounted under /ledger, not /api, for the same routing reason desk/save.ts is
+ * under /desk (see that file's header): the root api/ directory would claim an
+ * /api/* path before Astro's router runs.
  */
 import type { APIContext } from 'astro';
-import { addWatch, removeWatch, setShelf, type Shelf } from '../../lib/ledger-watch-store';
 import { paidViewerFrom } from '../../lib/ledger-access';
+import { addWatch, removeWatch, setShelf, type Shelf } from '../../lib/ledger-watch-store';
 import { withBase } from '../../../site.config.mjs';
 
 export const prerender = false;
 
-const LEDGER_PATH = '/ledger';
-const MAX_TITLE = 200;
+const DESK_PATH = '/desk';
+/** ledger_watch.title is CHECK (length BETWEEN 1 AND 200); clamp so a long paste
+    is trimmed rather than rejected by the database. */
+const TITLE_MAX = 200;
 
 function redirect(): Response {
-  return new Response(null, { status: 303, headers: { Location: withBase(LEDGER_PATH) } });
+  return new Response(null, { status: 303, headers: { Location: withBase(DESK_PATH) } });
 }
 
-/** The shelf a form field names, defaulting to 'core' for anything else so a
-    stray value never throws; the DB's own CHECK is the backstop. */
-function shelfOf(value: FormDataEntryValue | null): Shelf {
-  return value === 'stretch' ? 'stretch' : 'core';
-}
-
-/** A posted title, trimmed and bounded. Empty or over-long is rejected upstream
-    by returning '', which every intent below treats as nothing to do. */
-function titleOf(form: FormData): string {
-  const raw = String(form.get('title') ?? '').trim();
-  return raw.length >= 1 && raw.length <= MAX_TITLE ? raw : '';
+function shelfFrom(form: FormData): Shelf {
+  return form.get('shelf') === 'stretch' ? 'stretch' : 'core';
 }
 
 export async function POST(context: APIContext): Promise<Response> {
   const viewer = await paidViewerFrom(context);
-  if (!viewer) return new Response('Not available on your account.', { status: 403 });
+  if (!viewer) {
+    return new Response('Not available on your account.', { status: 403 });
+  }
 
+  const userId = viewer.userId;
   const form = await context.request.formData();
   const intent = form.get('intent');
-  const title = titleOf(form);
-
-  if (!title) return redirect();
+  const title = String(form.get('title') ?? '').trim().slice(0, TITLE_MAX);
 
   if (intent === 'add') {
-    await addWatch(viewer.userId, title, shelfOf(form.get('shelf')));
+    if (title) await addWatch(userId, title, shelfFrom(form));
     return redirect();
   }
+
   if (intent === 'reshelf') {
-    await setShelf(viewer.userId, title, shelfOf(form.get('shelf')));
+    if (title) await setShelf(userId, title, shelfFrom(form));
     return redirect();
   }
+
   if (intent === 'remove') {
-    await removeWatch(viewer.userId, title);
+    if (title) await removeWatch(userId, title);
     return redirect();
   }
 

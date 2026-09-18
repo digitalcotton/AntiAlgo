@@ -100,7 +100,9 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   const { t, roles } = tokensForEmail();
-  const deskUrl = absoluteUrl(routeFor('desk'));
+  // The nudge is about pending application cards, which live on the Opportunities
+  // tracker (formerly The Desk). buildConfirmNudge still names its param deskUrl.
+  const deskUrl = absoluteUrl(routeFor('opportunities'));
   const byUser = groupByUser(candidates);
 
   let sent = 0;
