@@ -1,0 +1,61 @@
+---
+import { formatDate } from '../../lib/data';
+
+/**
+ * The "LAST NIGHT'S SWEEP" panel. The design shows a per-second timeline
+ * (07:30:01 ...); the sweep does not log one, so this renders the SAME steps with
+ * their REAL counts and the one real swept date, and no fabricated clock. Every
+ * number is passed in from the live sweep stats and the member's own lane.
+ */
+interface Props {
+  boardsSwept: number | null;
+  verifiedLive: number | null;
+  liveUnderTitles: number;
+  newCoreCount: number;
+  diedCount: number;
+  sweptAt: string | null;
+}
+const { boardsSwept, verifiedLive, liveUnderTitles, newCoreCount, diedCount, sweptAt } = Astro.props;
+const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'not counted');
+
+const steps = [
+  { text: `read ${n(boardsSwept)} company sources`, accent: false },
+  { text: `verified ${n(verifiedLive)} postings live`, accent: false },
+  { text: `${liveUnderTitles.toLocaleString()} live under your titles`, accent: false },
+  { text: `${newCoreCount} new under core`, accent: true },
+  { text: `${diedCount} came down by rule`, accent: false },
+  { text: `saved tonight's snapshot`, accent: false }
+];
+---
+
+<aside class="sp">
+  <div class="sp-head">
+    <span class="sp-title mono-label">Last night's sweep</span>
+    <span class="sp-utc mono-label">UTC</span>
+  </div>
+  <ol class="sp-steps">
+    {steps.map((s) => (
+      <li class={`sp-step${s.accent ? ' sp-step-accent' : ''}`}>{s.text}</li>
+    ))}
+  </ol>
+  <p class="sp-foot mono-label">{sweptAt ? `swept ${formatDate(sweptAt)}` : 'sweep pending'}</p>
+</aside>
+
+<style>
+  .sp {
+    border: var(--border-hairline) solid var(--color-line);
+    background: var(--color-surface);
+    padding: var(--space-400) var(--space-500);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    font-family: var(--font-family-mono);
+  }
+  .sp-head { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: var(--space-300); border-bottom: var(--border-hairline) solid var(--color-line); }
+  .sp-title { color: var(--color-foreground); }
+  .sp-utc { color: var(--color-muted); }
+  .sp-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-200); }
+  .sp-step { font-size: var(--size-075); color: var(--color-foreground); }
+  .sp-step-accent { color: var(--color-stat-loss); }
+  .sp-foot { margin: var(--space-200) 0 0; padding-top: var(--space-300); border-top: var(--border-hairline) solid var(--color-line); color: var(--color-muted); }
+</style>

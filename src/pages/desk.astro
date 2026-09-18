@@ -2,7 +2,9 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Panel from '../components/Panel.astro';
 import EmptyState from '../components/EmptyState.astro';
-import RoleLane from '../components/desk-home/RoleLane.astro';
+import SweepPanel from '../components/desk-home/SweepPanel.astro';
+import WatchList from '../components/desk-home/WatchList.astro';
+import RoleCard from '../components/desk-home/RoleCard.astro';
 import { isPaidViewer } from '../lib/ledger-access';
 import { isConfigured } from '../lib/db';
 import { buildDeskHome, type DeskHomeData } from '../lib/desk-home';
@@ -11,28 +13,30 @@ import { routeFor } from '../data/nav';
 import { formatDate } from '../lib/data';
 
 /**
- * /desk: The Desk, the titles-driven member home (2026-09-18). The member names
- * the titles they want; the board learns every alias those titles go by and
- * narrows the whole sweep down to the handful that are theirs. This page is the
- * nightly read of that: an executive summary, the titles themselves with live
- * counts, the roles that are new under them since the reader last looked, and
- * the ones that died on their list.
+ * /desk: The Desk, the titles-driven member home (2026-09-18, pixel-perfect pass
+ * 2026-09-18). The member names the titles they want; the board learns every
+ * alias those titles go by and narrows the whole sweep to the handful that are
+ * theirs. This page is the nightly read of that: an executive summary and a real
+ * sweep panel, the titles with live and alias counts, the roles new under them
+ * since the reader last looked (with the arrival-curve HEAD START bar and fit),
+ * and the ones that died on their list.
  *
- * GATED AT 'member' BY MIDDLEWARE (entitlement.ts '/desk'), so a signed-out
- * reader is sent to sign-in and a member reaches the page. The PAID content
- * gates in-page with isPaidViewer: a member who has not paid sees the upsell,
- * the same split /ledger draws. No member data is built for a non-paid reader.
+ * GATED AT 'member' BY MIDDLEWARE (entitlement.ts '/desk'): signed-out is sent to
+ * sign-in, a member reaches the page, and the PAID content gates in-page with
+ * isPaidViewer (a non-paid member sees the upsell; no member data is built).
  *
- * The watch list this page edits is the SAME one that narrows /board (job-store
- * listBoardFiltered titles param): name a title here, and the board is your
- * titles there. Every mutation posts to /ledger/watch or /ledger/prefs, which
- * resolve the userId from the session, never the form. Role cards link straight
- * to the posting (/board/<slug>), where the working track action already lives;
- * there are no draft buttons.
+ * REAL DATA ONLY. Every number is measured or a cited estimate: counts from the
+ * sweep and the member's lane; the HEAD START bar from each role's age; the
+ * "ahead of X%" line from the NBER arrival model. Nothing is invented: the ease
+ * chip is the real ATS ("via Greenhouse"), the sweep panel carries real counts
+ * with no fabricated per-second clock, and there is no Stretch requirement list
+ * because measured fit components do not exist. The two role actions are real:
+ * "Draft this on your key" (POST /desk/job-draft, resolves the crawl slug) and
+ * "Track on the Desk" (POST /desk/application click intent). The watch list this
+ * page edits is the same one that narrows /board.
  *
- * THE 'NEW SINCE' CLOCK. buildDeskHome reads the reader's last_seen_at to decide
- * what counts as new, and this page advances it with touchLastSeen AFTER the
- * build, so the next visit measures against this one.
+ * THE 'NEW SINCE' CLOCK. buildDeskHome reads last_seen_at to decide what is new;
+ * this page advances it with touchLastSeen AFTER the build.
  */
 export const prerender = false;
 
@@ -43,7 +47,6 @@ let data: DeskHomeData | null = null;
 if (paid && viewer && isConfigured()) {
   try {
     data = await buildDeskHome(viewer.userId);
-    // Advance the "new since you last looked" clock, after the build read it.
     await touchLastSeen(viewer.userId);
   } catch (error) {
     console.error('desk: could not build the home; rendering the empty state.', error);
@@ -55,13 +58,10 @@ const prefsAction = routeFor('ledger-prefs');
 const boardHref = routeFor('board');
 const accountHref = routeFor('account');
 
-// A const alias so the non-null narrowing below holds inside .map callbacks
-// (a `let` would lose it in a nested closure).
 const home = data;
-const prefs = data?.prefs ?? {};
-// The datalist is capped so a member on the whole crawl does not ship thousands
-// of options; the most common titles are the ones worth suggesting anyway.
 const titleOptions = (data?.titleIndex ?? []).slice(0, 200);
+const titleCount = home ? home.coreTitles.length + home.stretchTitles.length : 0;
+const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'not counted');
 ---
 
 <BaseLayout
@@ -72,165 +72,111 @@ const titleOptions = (data?.titleIndex ?? []).slice(0, 200);
 >
   {paid ? (
     <div class="shell desk-home">
-      <header class="dh-head">
-        <p class="dh-kicker mono-label">The Desk</p>
-        <h1 class="dh-title">The titles you want, and what the sweep found.</h1>
-        {home && (
-          <p class="dh-lede">
-            You name the titles. The board learns what they are called everywhere else and narrows
-            {' '}last night's sweep of{' '}
-            <strong>{(home.sweep.postingsObserved ?? 0).toLocaleString()}</strong>{' '}
-            postings down to the{' '}
-            <strong>{home.liveUnderTitles.toLocaleString()}</strong>{' '}
-            that are live under your titles.{' '}
-            <strong>{home.newCoreCount}</strong> new under core,{' '}
-            <strong>{home.newStretchCount}</strong> under stretch, and{' '}
-            <strong>{home.diedCount}</strong> came down by rule.
-            {home.sweep.sweptAt && <span class="dh-stamp"> Swept {formatDate(home.sweep.sweptAt)}.</span>}
-          </p>
-        )}
-      </header>
-
       {home ? (
         <>
-          <section class="dh-section" aria-labelledby="your-titles">
-            <div class="dh-section-head">
-              <h2 id="your-titles" class="dh-h2">Your titles</h2>
-              <p class="dh-section-note">
-                Core is what you are aiming at; Stretch is a reach. Both narrow the board to you.
-              </p>
+          <header class="dh-daily">
+            <p class="dh-eyebrow mono-label"><span class="dh-tick" aria-hidden="true"></span> Daily</p>
+            <div class="dh-daily-right">
+              {home.hasTitles && (
+                <nav class="dh-anchors mono-label" aria-label="On this page">
+                  <a href="#watch-list">Watch list</a>
+                  <a href="#new-core">Core</a>
+                  <a href="#new-stretch">Stretch</a>
+                  <a href="#died">What died</a>
+                </nav>
+              )}
+              <p class="dh-swept mono-label">{home.sweep.sweptAt ? `swept ${formatDate(home.sweep.sweptAt)}` : 'sweep pending'}</p>
             </div>
+          </header>
 
-            {home.hasTitles ? (
-              <div class="dh-titles">
-                {['core', 'stretch'].map((shelf) => {
-                  const list = shelf === 'core' ? home.coreTitles : home.stretchTitles;
-                  return (
-                    <div class="dh-shelf">
-                      <p class="dh-shelf-label mono-label">{shelf === 'core' ? 'Core' : 'Stretch'}</p>
-                      {list.length === 0 ? (
-                        <p class="dh-empty-line">No {shelf} titles yet.</p>
-                      ) : (
-                        <ul class="dh-title-list">
-                          {list.map((t) => (
-                            <li class={`dh-title-row${t.covered ? '' : ' dh-title-uncovered'}`}>
-                              <span class="dh-title-name">{t.title}</span>
-                              <span class="dh-title-meta mono-label">
-                                {t.covered ? `${t.liveCount} live · ${t.matchedTitles} titles` : 'not covered yet'}
-                              </span>
-                              <span class="dh-title-actions">
-                                <form method="POST" action={watchAction} class="dh-inline-form">
-                                  <input type="hidden" name="intent" value="reshelf" />
-                                  <input type="hidden" name="title" value={t.title} />
-                                  <input type="hidden" name="shelf" value={shelf === 'core' ? 'stretch' : 'core'} />
-                                  <button type="submit" class="dh-mini-button">
-                                    Move to {shelf === 'core' ? 'stretch' : 'core'}
-                                  </button>
-                                </form>
-                                <form method="POST" action={watchAction} class="dh-inline-form">
-                                  <input type="hidden" name="intent" value="remove" />
-                                  <input type="hidden" name="title" value={t.title} />
-                                  <button type="submit" class="dh-mini-button dh-mini-remove">Remove</button>
-                                </form>
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <EmptyState
-                title="Name your first title"
-                detail="Add a title below. The board narrows to it right away, and this page fills in with what is new under it."
-              />
-            )}
-
-            <form method="POST" action={watchAction} class="dh-add-form">
-              <input type="hidden" name="intent" value="add" />
-              <label class="dh-add-label" for="dh-add-title">Add a title</label>
-              <input
-                id="dh-add-title"
-                class="dh-add-input"
-                name="title"
-                list="dh-title-index"
-                placeholder="Product Designer, Design Engineer, Brand Designer"
-                maxlength="120"
-                autocomplete="off"
-                required
-              />
-              <datalist id="dh-title-index">
-                {titleOptions.map((o) => (
-                  <option value={o.title}>{o.count.toLocaleString()} live</option>
-                ))}
-              </datalist>
-              <select class="dh-add-shelf" name="shelf" aria-label="Which shelf">
-                <option value="core">Core</option>
-                <option value="stretch">Stretch</option>
-              </select>
-              <button type="submit" class="dh-button">Add title</button>
-            </form>
-
-            <form method="POST" action={prefsAction} class="dh-filters-form">
-              <span class="dh-filters-label mono-label">Filters</span>
-              <label class="dh-filter">
-                <input type="checkbox" name="remoteOnly" value="1" checked={Boolean(prefs.remoteOnly)} />
-                Remote only
-              </label>
-              <label class="dh-filter">
-                Pay floor
-                <input
-                  class="dh-filter-num"
-                  type="number"
-                  name="compFloor"
-                  min="0"
-                  step="5000"
-                  value={typeof prefs.compFloor === 'number' ? String(prefs.compFloor) : ''}
-                  placeholder="150000"
-                />
-              </label>
-              <button type="submit" class="dh-mini-button">Apply filters</button>
-            </form>
-
-            {home.uncovered.length > 0 && (
-              <p class="dh-uncovered-note">
-                Not on the board yet: {home.uncovered.join(', ')}. We recorded these as titles you want, and this
-                page fills in the moment one appears.
-              </p>
-            )}
-
-            <p class="dh-board-link">
-              <a href={boardHref}>See these on the board</a>, narrowed to your titles.
-            </p>
+          <section class="dh-summary">
+            <div class="dh-summary-text">
+              {home.hasTitles ? (
+                <p class="dh-lede">
+                  Last night the sweep read <span class="num">{n(home.sweep.postingsObserved)}</span> postings at
+                  companies' own careers pages. <span class="num num-accent">{home.newCoreCount}</span> new roles came
+                  through under your core titles, <span class="num">{home.newStretchCount}</span> under stretch, and
+                  <span class="num">{home.diedCount}</span> came down by rule. <span class="num">{home.liveUnderTitles.toLocaleString()}</span>
+                  {' '}are live right now under the {titleCount} titles you named.
+                </p>
+              ) : (
+                <p class="dh-lede">
+                  Last night the sweep read <span class="num">{n(home.sweep.postingsObserved)}</span> postings at
+                  companies' own careers pages. Name the titles you want below, and this becomes your executive
+                  summary: what is new under them, what pays, and what died.
+                </p>
+              )}
+              <p class="dh-note">At anti algo you are the executive, so this is your executive summary. Every number in it carries the night it was read.</p>
+            </div>
+            <SweepPanel
+              boardsSwept={home.sweep.boardsSwept}
+              verifiedLive={home.sweep.verifiedLive}
+              liveUnderTitles={home.liveUnderTitles}
+              newCoreCount={home.newCoreCount}
+              diedCount={home.diedCount}
+              sweptAt={home.sweep.sweptAt}
+            />
           </section>
 
-          <RoleLane title="New in Core" roles={home.newCore} />
-          <RoleLane title="New in Stretch" roles={home.newStretch} />
+          <WatchList
+            coreTitles={home.coreTitles}
+            stretchTitles={home.stretchTitles}
+            uncovered={home.uncovered}
+            prefs={home.prefs}
+            titleOptions={titleOptions}
+            watchAction={watchAction}
+            prefsAction={prefsAction}
+          />
 
-          <section class="dh-section" aria-labelledby="died">
-            <div class="dh-section-head">
-              <h2 id="died" class="dh-h2">Died on your list</h2>
-              <p class="dh-section-note">Do not spend your first hours on these. Company held, as on every kill row.</p>
-            </div>
-            {home.died.length === 0 ? (
-              <p class="dh-empty-line">Nothing under your titles has come down.</p>
-            ) : (
-              <ul class="dh-kill-list">
-                {home.died.map((k) => (
-                  <li class="dh-kill">
-                    <span class="dh-kill-title">{k.title}</span>
-                    <span class="dh-kill-rule mono-label">{k.killRuleLabel}</span>
-                    <span class="dh-kill-meta mono-label">
-                      {k.stoodDays !== null && `stood ${k.stoodDays} days`}
-                      {k.killedOn && ` · ${k.killedOn}`}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          {home.hasTitles && (
+            <>
+              <section class="dh-lane" id="new-core" aria-labelledby="nc-h">
+                <p class="dh-lane-index mono-label"><span>02</span> New in core</p>
+                <h2 id="nc-h" class="dh-lane-title">{home.newCoreCount} {home.newCoreCount === 1 ? 'role' : 'roles'} first seen since your last visit.</h2>
+                <p class="dh-lane-note">Ranked by fit, each verified live at the company's own careers page last night. The clock is where the role sits on the arrival curve, not a countdown.</p>
+                {home.newCore.length > 0 ? (
+                  <ol class="dh-cards">{home.newCore.map((r, i) => <RoleCard role={r} rank={i + 1} />)}</ol>
+                ) : (
+                  <p class="dh-empty">Nothing new under your core titles since you last looked.</p>
+                )}
+                <p class="dh-cite mono-label">Arrival curve: NBER WP 32320, about 45% of applications in the first 48 hours.</p>
+              </section>
+
+              <section class="dh-lane" id="new-stretch" aria-labelledby="ns-h">
+                <p class="dh-lane-index mono-label"><span>03</span> New in stretch</p>
+                <h2 id="ns-h" class="dh-lane-title">{home.newStretchCount} {home.newStretchCount === 1 ? 'role' : 'roles'} you are working toward.</h2>
+                <p class="dh-lane-note">A reach is a reach because the fit is lower, not because we scored your resume against the posting line by line: we do not measure that yet, so we do not claim it.</p>
+                {home.newStretch.length > 0 ? (
+                  <ol class="dh-cards">{home.newStretch.map((r, i) => <RoleCard role={r} rank={i + 1} />)}</ol>
+                ) : (
+                  <p class="dh-empty">Nothing new under your stretch titles since you last looked.</p>
+                )}
+              </section>
+
+              <section class="dh-lane" id="died" aria-labelledby="dd-h">
+                <p class="dh-lane-index mono-label"><span>04</span> Died on your list</p>
+                <h2 id="dd-h" class="dh-lane-title">Do not spend your first hours on these.</h2>
+                <p class="dh-lane-note">Company held on kill rows, as everywhere on a paid surface.</p>
+                {home.died.length > 0 ? (
+                  <ul class="dh-kills">
+                    {home.died.map((k) => (
+                      <li class="dh-kill">
+                        <span class="dh-kill-title">{k.title}</span>
+                        <span class="dh-kill-rule mono-label">{k.killRuleLabel}</span>
+                        <span class="dh-kill-meta mono-label">
+                          {k.stoodDays !== null && `stood ${k.stoodDays} days`}{k.killedOn && ` · ${k.killedOn}`}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p class="dh-empty">Nothing under your titles has come down.</p>
+                )}
+              </section>
+            </>
+          )}
+
+          <p class="dh-board-link"><a href={boardHref}>See these on the board</a>, narrowed to your titles.</p>
         </>
       ) : (
         <EmptyState
@@ -270,76 +216,50 @@ const titleOptions = (data?.titleIndex ?? []).slice(0, 200);
     display: flex;
     flex-direction: column;
     gap: var(--space-700);
-    padding-block: var(--space-700) var(--space-800);
-    max-width: 72rem;
+    padding-block: var(--space-600) var(--space-800);
+    max-width: 78rem;
   }
-  .dh-head { display: flex; flex-direction: column; gap: var(--space-200); }
-  .dh-kicker { margin: 0; color: var(--color-muted); }
-  .dh-title { margin: 0; font-size: clamp(1.7rem, 3.5vw, 2.6rem); line-height: 1.08; letter-spacing: -0.02em; max-width: 24ch; }
-  .dh-lede { margin: 0; color: var(--color-muted); max-width: 68ch; line-height: 1.6; }
-  .dh-lede strong { color: var(--color-foreground); font-weight: var(--weight-bold); }
-  .dh-stamp { color: var(--color-muted); }
 
-  .dh-section { display: flex; flex-direction: column; gap: var(--space-400); border-top: var(--border-hairline) solid var(--color-line); padding-top: var(--space-600); }
-  .dh-section-head { display: flex; flex-direction: column; gap: var(--space-100); }
-  .dh-h2 { margin: 0; font-size: var(--size-400); letter-spacing: -0.01em; }
-  .dh-section-note { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
+  /* DAILY header row + swept stamp + in-page anchors. */
+  .dh-daily { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-400); flex-wrap: wrap; padding-bottom: var(--space-400); border-bottom: var(--border-hairline) solid var(--color-line); }
+  .dh-eyebrow { margin: 0; color: var(--color-muted); display: inline-flex; align-items: center; gap: var(--space-200); }
+  .dh-tick { width: 8px; height: 8px; background: var(--color-stat-loss); display: inline-block; }
+  .dh-daily-right { display: flex; align-items: baseline; gap: var(--space-500); flex-wrap: wrap; }
+  .dh-anchors { display: inline-flex; gap: var(--space-400); }
+  .dh-anchors a { color: var(--color-muted); text-decoration: none; }
+  .dh-anchors a:hover { color: var(--color-foreground); }
+  .dh-swept { color: var(--color-muted); }
 
-  .dh-titles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-500); }
-  @media (max-width: 40rem) { .dh-titles { grid-template-columns: 1fr; } }
-  .dh-shelf { display: flex; flex-direction: column; gap: var(--space-200); }
-  .dh-shelf-label { color: var(--color-muted); }
-  .dh-title-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-200); }
-  .dh-title-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-200) var(--space-300); padding: var(--space-200) 0; border-bottom: var(--border-hairline) solid var(--color-line); }
-  .dh-title-name { font-weight: var(--weight-medium); }
-  .dh-title-meta { color: var(--color-muted); }
-  .dh-title-uncovered .dh-title-meta { color: var(--color-signal); }
-  .dh-title-actions { display: inline-flex; gap: var(--space-300); margin-left: auto; }
-  .dh-inline-form { display: inline; }
-  .dh-empty-line { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
+  /* Executive summary + sweep panel, two columns. */
+  .dh-summary { display: grid; grid-template-columns: 1.5fr 1fr; gap: var(--space-700); align-items: start; }
+  .dh-summary-text { display: flex; flex-direction: column; gap: var(--space-400); }
+  .dh-lede { margin: 0; font-family: var(--font-family-sans); font-size: clamp(1.4rem, 2.6vw, 2rem); line-height: 1.28; letter-spacing: -0.015em; }
+  .num { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-line-strong); font-weight: var(--weight-bold); }
+  .num-accent { color: var(--color-stat-loss); text-decoration-color: var(--color-stat-loss); }
+  .dh-note { margin: 0; color: var(--color-muted); font-size: var(--size-100); max-width: 52ch; }
 
-  .dh-mini-button {
-    background: none; border: none; padding: 0; cursor: pointer;
-    color: var(--color-muted); font-family: var(--font-family-mono); font-size: var(--size-075);
-    text-decoration: underline; text-underline-offset: 3px;
-  }
-  .dh-mini-button:hover { color: var(--color-foreground); }
-  .dh-mini-remove:hover { color: var(--color-signal); }
+  .dh-lane { display: flex; flex-direction: column; gap: var(--space-300); border-top: var(--border-hairline) solid var(--color-line); padding-top: var(--space-600); }
+  .dh-lane-index { margin: 0; color: var(--color-muted); }
+  .dh-lane-index span { margin-right: var(--space-200); }
+  .dh-lane-title { margin: 0; font-size: clamp(1.5rem, 3vw, 2.2rem); line-height: 1.1; letter-spacing: -0.02em; }
+  .dh-lane-note { margin: 0 0 var(--space-300); color: var(--color-muted); font-size: var(--size-100); max-width: 68ch; }
+  .dh-cards { list-style: none; margin: 0; padding: 0; }
+  .dh-cite { margin: var(--space-300) 0 0; color: var(--color-muted); }
+  .dh-empty { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
 
-  .dh-add-form, .dh-filters-form {
-    display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-300);
-    padding: var(--space-400); border: var(--border-hairline) solid var(--color-line); border-radius: var(--radius);
-  }
-  .dh-add-label, .dh-filters-label { color: var(--color-muted); }
-  .dh-add-input { flex: 1 1 22ch; min-width: 18ch; padding: var(--space-200) var(--space-300); border: var(--border-hairline) solid var(--color-line-strong); border-radius: var(--radius); background: var(--color-surface); color: var(--color-foreground); font-size: var(--size-100); }
-  .dh-add-shelf, .dh-filter-num { padding: var(--space-200) var(--space-300); border: var(--border-hairline) solid var(--color-line-strong); border-radius: var(--radius); background: var(--color-surface); color: var(--color-foreground); }
-  .dh-filter-num { width: 12ch; }
-  .dh-filter { display: inline-flex; align-items: center; gap: var(--space-200); color: var(--color-muted); font-size: var(--size-100); }
-  .dh-button {
-    padding: var(--space-200) var(--space-400); border-radius: var(--radius);
-    background: var(--color-surface-inverse); color: var(--color-foreground-inverse);
-    font-family: var(--font-family-mono); font-size: var(--size-100); border: none; cursor: pointer; white-space: nowrap;
-  }
-  .dh-uncovered-note, .dh-board-link { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
-  .dh-board-link a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-signal); }
-
-  .dh-lane-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-  .dh-role { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-200) var(--space-400); padding: var(--space-400) 0; border-bottom: var(--border-hairline) solid var(--color-line); }
-  .dh-role-main { display: flex; flex-direction: column; gap: var(--space-100); flex: 1 1 26ch; min-width: 20ch; }
-  .dh-role-title { font-weight: var(--weight-medium); color: var(--color-foreground); text-decoration: none; }
-  .dh-role-title:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-signal); }
-  .dh-role-sub { color: var(--color-muted); font-size: var(--size-100); }
-  .dh-role-matched { color: var(--color-muted); font-family: var(--font-family-mono); font-size: var(--size-075); }
-  .dh-role-fit { margin-left: auto; text-align: right; white-space: nowrap; }
-  .dh-role-fit-score { font-weight: var(--weight-bold); font-size: var(--size-300); }
-  .dh-role-fit-label { display: block; color: var(--color-muted); font-family: var(--font-family-mono); font-size: var(--size-075); }
-  .dh-role-age { color: var(--color-muted); font-family: var(--font-family-mono); font-size: var(--size-075); white-space: nowrap; }
-
-  .dh-kill-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .dh-kills { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
   .dh-kill { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-200) var(--space-300); padding: var(--space-300) 0; border-bottom: var(--border-hairline) solid var(--color-line); }
+  .dh-kill:first-child { border-top: var(--border-hairline) solid var(--color-line); }
   .dh-kill-title { font-weight: var(--weight-medium); }
-  .dh-kill-rule { color: var(--color-signal); }
+  .dh-kill-rule { color: var(--color-stat-loss); }
   .dh-kill-meta { color: var(--color-muted); margin-left: auto; }
+
+  .dh-board-link { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
+  .dh-board-link a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-stat-loss); }
+
+  @media (max-width: 52rem) {
+    .dh-summary { grid-template-columns: 1fr; gap: var(--space-500); }
+  }
 
   /* The preview / upsell for a signed-in member who has not paid. */
   .desk-preview { padding-block: var(--space-700) var(--space-800); display: flex; flex-direction: column; gap: var(--space-600); }
@@ -349,10 +269,6 @@ const titleOptions = (data?.titleIndex ?? []).slice(0, 200);
   .dp-lede { margin: 0; color: var(--color-muted); max-width: 62ch; line-height: 1.55; }
   .dp-list { margin: 0; padding-left: 1.1rem; color: var(--color-muted); display: flex; flex-direction: column; gap: var(--space-100); }
   .dp-cta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-400); margin: var(--space-400) 0 0; }
-  .dp-button {
-    display: inline-block; padding: 0.6rem 1rem; border-radius: var(--radius);
-    background: var(--color-surface-inverse); color: var(--color-foreground-inverse);
-    font-family: var(--font-family-mono); font-size: var(--size-100); text-decoration: none; white-space: nowrap;
-  }
+  .dp-button { display: inline-block; padding: 0.6rem 1rem; border-radius: var(--radius); background: var(--color-surface-inverse); color: var(--color-foreground-inverse); font-family: var(--font-family-mono); font-size: var(--size-100); text-decoration: none; white-space: nowrap; }
   .dp-link { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-line-strong); font-size: var(--size-100); }
 </style>

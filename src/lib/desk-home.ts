@@ -23,22 +23,39 @@ import type { BoardRow } from './board-jobs';
 import { boardRowToJob } from './board-jobs';
 import { listWatches, type Shelf } from './ledger-watch-store';
 import { getPrefs, type LedgerSelection } from './ledger-prefs-store';
-import { buildTitleIndex, laneFor, matchesTitle, isCovered, type TitleCount } from './ledger-titles';
-import { compShort, daysBetween, formatDate, sweepDate, type KillRule } from './data';
+import { buildTitleIndex, laneFor, matchesTitle, type TitleCount } from './ledger-titles';
+import { atsLabel, compShort, daysBetween, formatDate, sweepDate, type KillRule } from './data';
 import { ruleLabel } from './readings';
 
 /** One watched title, with how much of the live board it actually catches. */
 export interface DeskTitleVM {
   title: string;
   shelf: Shelf;
-  /** Live roles matching this title, after the member's own filters. */
+  /** Live roles matching this title right now (the whole market for it, before
+      the member's remote/pay filters, which narrow the lanes not this total). */
   liveCount: number;
-  /** Distinct board titles this watch matches (the aliases it goes by). */
-  matchedTitles: number;
-  /** Whether the board carries this title at all (ignoring the member's
-      filters): a covered title with liveCount 0 was filtered out, an uncovered
+  /** N of "N of M titles": distinct board titles this watch matches that have a
+      live role. */
+  titlesLive: number;
+  /** M of "N of M titles": distinct board titles this watch matches across live
+      AND killed rows, so a title that only shows on dead roles still counts. */
+  titlesTotal: number;
+  /** Whether the board carries this title at all (live or killed): an uncovered
       one is simply not on the board yet. */
   covered: boolean;
+}
+
+/**
+ * Where the role sits on the applicant arrival curve, derived from its age
+ * against NBER WP 32320 (about 45% of applications land in the first 48 hours,
+ * about 60% by 96 hours). aheadPct is 100 minus that share: the fraction of
+ * eventual applicants a reader is ahead of by acting now. Null past the curve,
+ * where the model makes no claim. This is a cited estimate, not a measurement.
+ */
+export interface HeadStart {
+  label: string;
+  aheadPct: number | null;
+  zone: '48h' | '96h' | 'later';
 }
 
 /** One role in a lane: enough to render a card and link straight to the job. */
@@ -49,14 +66,21 @@ export interface DeskRoleVM {
   pay: string | null;
   remote: boolean;
   location: string | null;
+  /** The applicant system the posting is on (Greenhouse, Ashby, ...), for the
+      "via X" chip. The honest stand-in for the design's unmeasured ease chip. */
+  ats: string;
+  /** The posting URL, for the Track action's click intent. */
+  url: string | null;
   /** Which watched titles pulled this role in (the "matched X" line). */
   matched: string[];
   /** fit_total, a signed-in reading, 0..100. */
   fit: number;
   /** First observed, as an ISO date, for the head-start timeline. */
   firstSeen: string | null;
-  /** Whole days since first observed, to place the role on the arrival curve. */
+  /** Whole days since first observed, to place the marker on the arrival curve. */
   ageDays: number | null;
+  /** Where the role sits on the arrival curve, or null when age is unknown. */
+  headStart: HeadStart | null;
 }
 
 /** One kill matched to the member's titles. Company deliberately absent. */
@@ -87,8 +111,10 @@ export interface DeskHomeData {
   newCoreCount: number;
   newStretchCount: number;
   diedCount: number;
-  /** Last night's sweep, for the summary and the stamp. */
+  /** Last night's sweep, for the summary and the sweep panel (real counts, no
+      per-second timeline, which the sweep does not log). */
   sweep: {
+    boardsSwept: number | null;
     postingsObserved: number | null;
     verifiedLive: number | null;
     killed: number | null;
@@ -151,8 +177,17 @@ function isNew(firstSeen: Date | string | null, lastSeenDay: string | null, swee
   return age !== null && age >= 0 && age <= FIRST_VISIT_WINDOW_DAYS;
 }
 
+/** The arrival-curve reading for a role's age. See HeadStart. */
+function headStartFor(ageDays: number | null): HeadStart | null {
+  if (ageDays === null || ageDays < 0) return null;
+  if (ageDays <= 2) return { label: 'inside the first 48 hours', aheadPct: 55, zone: '48h' };
+  if (ageDays <= 4) return { label: 'inside the first 96 hours', aheadPct: 40, zone: '96h' };
+  return { label: 'past the first 96 hours', aheadPct: null, zone: 'later' };
+}
+
 function roleVM(row: BoardRow, matched: string[], sweepIso: string): DeskRoleVM {
   const job = boardRowToJob(row);
+  const ageDays = daysBetween(isoDay(row.first_seen), sweepIso);
   return {
     slug: row.slug,
     title: row.title,
@@ -160,10 +195,13 @@ function roleVM(row: BoardRow, matched: string[], sweepIso: string): DeskRoleVM 
     pay: compShort(job),
     remote: row.remote,
     location: row.location,
+    ats: atsLabel(row.ats),
+    url: row.url,
     matched,
     fit: typeof row.fit_total === 'number' && Number.isFinite(row.fit_total) ? row.fit_total : 0,
     firstSeen: isoDay(row.first_seen),
-    ageDays: daysBetween(isoDay(row.first_seen), sweepIso)
+    ageDays,
+    headStart: headStartFor(ageDays)
   };
 }
 
@@ -198,26 +236,29 @@ export async function buildDeskHome(userId: string): Promise<DeskHomeData> {
   const lastSeenDay = isoDay(lastSeenAt);
   const sweepIso = sweepDate();
 
-  const shelfByTitle = new Map<string, Shelf>();
-  for (const w of watches) shelfByTitle.set(w.title, w.shelf);
   const allTitles = watches.map((w) => w.title);
   const coreSet = new Set(watches.filter((w) => w.shelf === 'core').map((w) => w.title));
 
   // The member's own filters narrow the live set before anything is counted.
   const filtered = liveRows.filter((row) => passesPrefs(row, prefs));
 
-  // Per-title live counts and alias counts, computed over the filtered set; the
-  // covered test reads the whole live set, so a filtered-out title still reads
-  // as covered rather than as one the board does not carry.
+  // Per-title counts: liveCount and titlesLive over the whole LIVE set (the
+  // title's real market, before the member's remote/pay filters, which narrow
+  // the lanes below, not this total), and titlesTotal folding in killed titles
+  // so "N of M" counts an alias that only appears on dead roles.
+  const killTitles = kills.map((k) => k.title);
   const titleVMs: DeskTitleVM[] = watches.map((w) => {
-    const rows = filtered.filter((row) => matchesTitle(w.title, row.title));
-    const distinct = new Set(rows.map((row) => row.title));
+    const liveMatching = liveRows.filter((row) => matchesTitle(w.title, row.title));
+    const liveTitleSet = new Set(liveMatching.map((row) => row.title));
+    const allTitleSet = new Set(liveTitleSet);
+    for (const t of killTitles) if (matchesTitle(w.title, t)) allTitleSet.add(t);
     return {
       title: w.title,
       shelf: w.shelf,
-      liveCount: rows.length,
-      matchedTitles: distinct.size,
-      covered: isCovered(w.title, liveRows)
+      liveCount: liveMatching.length,
+      titlesLive: liveTitleSet.size,
+      titlesTotal: allTitleSet.size,
+      covered: allTitleSet.size > 0
     };
   });
   const coreTitles = titleVMs.filter((t) => t.shelf === 'core');
@@ -261,6 +302,7 @@ export async function buildDeskHome(userId: string): Promise<DeskHomeData> {
     newStretchCount: newStretch.length,
     diedCount: laneKills.length,
     sweep: {
+      boardsSwept: stats?.boards_swept ?? null,
       postingsObserved: stats?.postings_observed ?? null,
       verifiedLive: stats?.verified_live ?? null,
       killed: stats?.killed ?? null,
