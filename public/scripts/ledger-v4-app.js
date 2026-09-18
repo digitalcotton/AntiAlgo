@@ -564,9 +564,10 @@
       rowsOpenStr: st.rowsOpen ? 'true' : 'false',
       rowsToggleLabel: st.rowsOpen ? 'Hide the rows' : 'Read the rows',
       rowsToggleGlyph: st.rowsOpen ? '−' : '+',
-      rowsCountNote: cut.length + (cut.length === 1 ? ' row' : ' rows') + ' · ' + pricedCut.length + ' priced · read ' + SWEEP.stamp,
+      rowsCountNote: cut.length + (cut.length === 1 ? ' row' : ' rows') + ' · ' + pricedCut.length + ' priced'
+        + (cut.length > 250 ? ' · showing the first 250, copy the cut for all ' + cut.length : '') + ' · read ' + SWEEP.stamp,
       rowSortChips: [['fit', 'fit'], ['pay', 'pay'], ['age', 'newest'], ['title', 'title']].map(function (c) { return chip(c[1], st.rowSort === c[0], 'set-rowsort', c[0]); }),
-      rowTable: cutSorted.map(function (r) {
+      rowTable: cutSorted.slice(0, 250).map(function (r) {
         var rec = coRecord(r.co);
         return {
           title: r.title,
@@ -675,7 +676,7 @@
         { tag: 'measured', ink: 'var(--color-foreground)', text: 'Company, title, location, remote, applicant system, printed range, published date, first observed, status and apply friction are read at the company careers page on each sweep and stamped with the night they were read.' },
         { tag: 'computed', ink: 'var(--color-foreground)', text: 'Lifespan is killed date minus first published date, because the stored lifespan field is empty. Fit is the weighted sum of five components at 30, 25, 20, 15 and 10. Negotiation band is printed ceiling over printed floor. Medians, quartiles and shares on this page are computed from the rows in your cut, not from a cached total.' },
         { tag: 'absent', ink: 'var(--accent)', text: 'No range is printed on ' + (LIVE.length - LIVE.filter(function (r) { return r.priced; }).length) + ' of the ' + LIVE.length + ' rows on the board. An absent range is shown as a gap in sans, never as a zero and never as a number below your floor.' },
-        { tag: 'pending', ink: 'var(--accent)', text: 'Family and seniority are read from the sweep tags (role_family, tier), never parsed from the title. Until the exporter emits them, every family and seniority grouped view here is left as a gap rather than guessed. Market level night over night, pay drift and kill rate trend need a second published sweep and stay Tier 2 until the record holds two nights.' },
+        { tag: 'pending', ink: 'var(--accent)', text: 'Family is the applicant system department read at the source, a measured field. Seniority is read from the posted title (Senior, Staff, Lead, Director) and shown as title-derived, because no structured level field is collected; the exporter role_family and tier tags refine both when they ship. Market level night over night, pay drift and kill rate trend need a second published sweep and stay Tier 2 until the record holds two nights.' },
         { tag: 'held', ink: 'var(--color-muted)', text: 'Company names on kill rows and issuer rows are held on the public surface and shown on a paid one. Every kill row carries the rule it tripped and the dated evidence, and never a motive.' },
         { tag: 'not claimed', ink: 'var(--color-muted)', text: 'Nothing on this page states intent. A posting reposted 28 times is a count we measured. Why it came back is a mind state no sweep can read, so this page does not print one.' }
       ],

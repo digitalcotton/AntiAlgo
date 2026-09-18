@@ -29,7 +29,7 @@ const paid = isPaidViewer(viewer);
 
 let dataJson = '';
 if (paid) {
-  const raw = JSON.stringify(buildLedgerData());
+  const raw = JSON.stringify(await buildLedgerData());
   // Char classes built from codes so this source holds no dash/curly byte itself.
   const cc = String.fromCharCode;
   const cls = (a: number, b: number) => new RegExp('[' + cc(a, b) + ']', 'g');
