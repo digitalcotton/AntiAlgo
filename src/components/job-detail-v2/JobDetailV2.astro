@@ -1,0 +1,390 @@
+---
+/**
+ * JobDetailV2.astro: the pixel-perfect job detail page (design: Job Detail v2),
+ * the one presentation both detail routes render. It takes the shared Job model,
+ * so /role/[slug] (static, SEO, always signed-out presentation) and
+ * /board/[slug] (dynamic, member) render the same page, differing only in the
+ * fit slot.
+ *
+ * HONESTY, decided with the owner 2026-09-18:
+ * - Fit is a signed-in reading. Signed-out visitors get a sign-in prompt where
+ *   the "Fit for you" stat and the "Why this fits you" card would be, never a
+ *   personalised fit without a viewer.
+ * - The design's role-family category tabs and its cross-company "More <family>"
+ *   related-roles row need role_family tags that do not exist upstream yet, so
+ *   both are omitted (not stubbed with invented counts) until the tags land.
+ * - Every fit component score is real: job.fit carries title_scope (max 30),
+ *   remote_geo (25), comp (20), freshness (15), apply_friction (10), summing to
+ *   fit_total. The one-line notes under each are derived from the record, not
+ *   invented personalisation.
+ * - The subtitle carries no "team" (the Job model holds none) and the stats row
+ *   names the real apply destination rather than an unmeasured "~10 min" figure.
+ */
+import DescriptionSlot from '../job-detail/DescriptionSlot.astro';
+import DraftRail from '../job-detail/DraftRail.astro';
+import { expiryOf } from '../job-detail/detail';
+import { compShort, formatDate, daysBetween, sweepDate, sweptAt, sourceLabel } from '../../lib/data';
+import { routeFor } from '../../data/nav';
+import { withBase } from '../../../site.config.mjs';
+import type { Job } from '../../lib/data';
+
+interface Props {
+  job: Job;
+  signedIn: boolean;
+  /** Where a draft/apply action returns to (this posting's own path). */
+  selfPath: string;
+  hasKey?: boolean;
+}
+const { job, signedIn, selfPath, hasKey = false } = Astro.props;
+
+const isClosed = job.status === 'closed';
+const ats = sourceLabel(job);
+
+// --- comp: full numbers for the stats row ("$245,000 - $310,000"), short form
+// for the sticky bar ("$245K-$310K"). ---
+function compFull(): string | null {
+  const r = job.comp_range;
+  if (r && typeof r.min === 'number' && r.min > 0) {
+    const sym = r.currency === 'USD' || !r.currency ? '$' : `${r.currency} `;
+    const n = (v: number) => `${sym}${v.toLocaleString('en-US')}`;
+    const max = typeof r.max === 'number' && r.max > r.min ? r.max : null;
+    return max ? `${n(r.min)} - ${n(r.max)}` : n(r.min);
+  }
+  return job.comp_posted;
+}
+const compFullText = compFull();
+const compShortText = compShort(job);
+
+// --- dates and age (all real record fields) ---
+const sweepIso = sweepDate();
+const firstSeenIso = job.first_observed;
+const publishedIso = job.published_date;
+const lastVerifiedIso = job.last_verified;
+const ageDays = daysBetween(firstSeenIso ?? publishedIso, sweepIso);
+const verifiedTime = sweptAt(); // the "07:30 UTC" verified-at stamp, one clock
+const verifiedTimeShort = /T(\d{2}:\d{2})/.exec(verifiedTime)?.[1] ?? null;
+
+// --- provenance (the expanded "full history") ---
+const expiry = expiryOf(job);
+const recordRows: { label: string; value: string; accent?: boolean }[] = [];
+if (publishedIso) recordRows.push({ label: 'Published date', value: `${formatDate(publishedIso)}, as printed at source` });
+if (firstSeenIso) recordRows.push({ label: 'First seen', value: `${formatDate(firstSeenIso)}, nightly sweep` });
+if (lastVerifiedIso) recordRows.push({ label: 'Last verified', value: `${formatDate(lastVerifiedIso)}${verifiedTimeShort ? `, ${verifiedTimeShort} UTC` : ''}` });
+recordRows.push({ label: 'Source', value: `${ats}, read direct` });
+recordRows.push({ label: 'Status', value: isClosed ? 'Closed' : 'Live', accent: !isClosed });
+if (expiry && !isClosed) recordRows.push({ label: 'Good until', value: formatDate(expiry.date) ?? expiry.date });
+
+// The sweep timeline: only endpoints the record actually holds, and the span
+// between them stated as a span, never fabricated per-night rows.
+const sweeps: { when: string; note: string; current?: boolean }[] = [];
+if (firstSeenIso) {
+  const samePublish = publishedIso && publishedIso === firstSeenIso;
+  sweeps.push({ when: formatDate(firstSeenIso)!, note: samePublish ? 'First read in the feed, the same day the company printed it.' : 'First read in the feed.' });
+}
+if (firstSeenIso && lastVerifiedIso && lastVerifiedIso > firstSeenIso) {
+  const span = daysBetween(firstSeenIso, lastVerifiedIso);
+  if (span && span > 1) sweeps.push({ when: `Through ${formatDate(lastVerifiedIso)}`, note: `Still there on every sweep since. ${span} nights, no change to the posting.` });
+}
+if (lastVerifiedIso) sweeps.push({ when: `${formatDate(lastVerifiedIso)}${verifiedTimeShort ? `, ${verifiedTimeShort} UTC` : ''}`, note: isClosed ? 'Last seen live at source, this sweep.' : 'Verified at source, this sweep.', current: true });
+
+// --- fit (signed-in only) ---
+const FIT_ROWS: { key: keyof typeof job.fit; label: string; max: number }[] = [
+  { key: 'title_scope', label: 'Title and scope', max: 30 },
+  { key: 'remote_geo', label: 'Location', max: 25 },
+  { key: 'comp', label: 'Compensation', max: 20 },
+  { key: 'freshness', label: 'Freshness', max: 15 },
+  { key: 'apply_friction', label: 'Apply friction', max: 10 }
+];
+/** An honest one-line note per component, read off the record, never invented. */
+function fitNote(key: string, score: number, max: number): string {
+  const full = score >= max;
+  switch (key) {
+    case 'title_scope': return full ? 'Title and scope match a lane you saved.' : 'Partial match to your saved lanes.';
+    case 'remote_geo': return job.remote ? 'Remote, inside the geographies you allow.' : `${job.location}${full ? ', inside the metros you allow.' : '.'}`;
+    case 'comp': return compFullText ? (full ? 'Full range printed, floor above your number.' : 'Pay printed, below your floor.') : 'No pay printed.';
+    case 'freshness': return ageDays !== null ? `${ageDays} ${ageDays === 1 ? 'day' : 'days'} old, verified this sweep.` : 'Age unknown.';
+    case 'apply_friction': return `Applies on ${ats}.`;
+    default: return '';
+  }
+}
+const fitRows = FIT_ROWS.map((r) => {
+  const score = (job.fit[r.key] as number) ?? 0;
+  return { ...r, score, note: fitNote(r.key as string, score, r.max) };
+});
+const fitTotal = job.fit.total;
+
+const applyUrl = job.apply_url;
+const draftAction = routeFor('desk-job-draft');
+const subtitleParts = [job.company, job.location, `via ${ats}`].filter(Boolean);
+const boardHref = routeFor('board');
+const methodHref = routeFor('evidence');
+const signInHref = `${withBase('/sign-in')}?next=${encodeURIComponent(selfPath)}`;
+---
+
+<article class="jd" data-slug={job.slug}>
+  <!-- breadcrumb (the role-family tabs are omitted until tags land) -->
+  <nav class="jd-crumbs" aria-label="Breadcrumb">
+    <a href={boardHref}>&larr; The board</a>
+  </nav>
+
+  <!-- sticky mini action bar, revealed on scroll past the header -->
+  <div class="jd-sticky" data-jd-sticky hidden>
+    <div class="jd-sticky-inner">
+      <p class="jd-sticky-title"><strong>{job.title}</strong> <span>{job.company}{compShortText ? ` · ${compShortText}` : ''}</span></p>
+      <div class="jd-sticky-actions">
+        {applyUrl && <a class="jd-sticky-apply" href={applyUrl} target="_blank" rel="noopener nofollow">Apply on {ats}</a>}
+        <a class="jd-sticky-draft" href={`#jd-actions`}>Draft documents</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="jd-card" data-jd-top>
+    <p class="jd-verified">
+      <span class={`jd-dot ${isClosed ? 'is-closed' : 'is-live'}`} aria-hidden="true"></span>
+      <strong>{isClosed ? 'Closed, last read at the source' : 'Verified today at the source'}</strong>
+      <span class="jd-verified-sub">Read direct from {job.company}'s {ats} board{verifiedTimeShort ? `, ${verifiedTimeShort} UTC` : ''}</span>
+    </p>
+
+    <h1 class="jd-title">{job.title}</h1>
+    <p class="jd-subtitle">{subtitleParts.join('  ·  ')}</p>
+
+    <dl class="jd-stats">
+      <div class="jd-stat">
+        <dt>Compensation, as posted</dt>
+        <dd>{compFullText ?? 'Not stated'}</dd>
+      </div>
+      <div class="jd-stat">
+        <dt>Age of posting</dt>
+        <dd>{ageDays !== null ? `${ageDays} ${ageDays === 1 ? 'day' : 'days'}` : 'Unknown'}</dd>
+      </div>
+      {signedIn ? (
+        <div class="jd-stat">
+          <dt>Fit for you</dt>
+          <dd class="jd-stat-fit">{fitTotal}<span>/100</span></dd>
+        </div>
+      ) : (
+        <div class="jd-stat">
+          <dt>Fit for you</dt>
+          <dd class="jd-stat-muted"><a href={signInHref}>Sign in</a></dd>
+        </div>
+      )}
+      <div class="jd-stat">
+        <dt>Apply on</dt>
+        <dd>{ats}, direct</dd>
+      </div>
+    </dl>
+
+    <div class="jd-dates">
+      <p class="jd-dates-line mono-label">
+        {publishedIso && <>Posted {formatDate(publishedIso)}</>}
+        {publishedIso && firstSeenIso && <span class="jd-sep">·</span>}
+        {firstSeenIso && <>First seen {formatDate(firstSeenIso)}</>}
+        <span class="jd-sep">·</span>
+        <span class={isClosed ? '' : 'jd-verified-word'}>{isClosed ? 'Closed' : 'Verified today'}</span>
+      </p>
+      <p class="jd-dates-note">Posted is the date the company printed. First seen is the night our sweep first read it. When those two dates drift apart, the posting sat somewhere before it reached you.</p>
+      <details class="jd-history">
+        <summary><span class="jd-history-show">Show the full history</span><span class="jd-history-hide">Hide the full history</span></summary>
+        <div class="jd-history-body">
+          <div class="jd-history-cols">
+            <section class="jd-record" aria-label="The record we hold">
+              <h2 class="jd-h">The record we hold</h2>
+              <dl class="jd-record-list">
+                {recordRows.map((r) => (
+                  <div class="jd-record-row">
+                    <dt>{r.label}</dt>
+                    <dd class={r.accent ? 'jd-record-live' : ''}>{r.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+            <section class="jd-sweeps" aria-label="What the sweeps saw">
+              <h2 class="jd-h">What the sweeps saw</h2>
+              <ol class="jd-sweeps-list">
+                {sweeps.map((s) => (
+                  <li class={`jd-sweep ${s.current ? 'is-current' : ''}`}>
+                    <span class="jd-sweep-dot" aria-hidden="true"></span>
+                    <span class="jd-sweep-when mono-label">{s.when}</span>
+                    <span class="jd-sweep-note">{s.note}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          </div>
+          <div class="jd-howto">
+            <h2 class="jd-h">How to read this</h2>
+            <p>Every line is a machine observation, stamped at the sweep that made it. Nothing here is inferred.</p>
+            <p>Good until is ours, not the employer's: the date we stop standing behind this reading unless a later sweep refreshes it.</p>
+            <p><a href={methodHref}>Read the method</a></p>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- action rail -->
+  <div class="jd-actions" id="jd-actions">
+    {!isClosed && <DraftRail job={job} returnTo={selfPath} signedIn={signedIn} hasKey={hasKey} />}
+    {applyUrl && (
+      <a class="jd-btn jd-btn-outline" href={applyUrl} target="_blank" rel="noopener nofollow">Apply on {ats} &#8599;</a>
+    )}
+    <p class="jd-actions-note">Apply now if your documents are ready. Either way the role lands on your desk and stays tracked.</p>
+  </div>
+
+  <!-- description, verbatim -->
+  <DescriptionSlot job={job} class="jd-desc" />
+
+  {!isClosed && (
+    <p class="jd-fresh mono-label">
+      {ageDays !== null ? `${ageDays} ${ageDays === 1 ? 'day' : 'days'} old and still live as of this morning's sweep.` : "Live as of this morning's sweep."} Most applications land in the first 96 hours.
+    </p>
+  )}
+
+  <!-- why this fits you (signed-in) / sign-in prompt (signed-out) -->
+  {signedIn ? (
+    <section class="jd-fit" aria-labelledby="jd-fit-h">
+      <div class="jd-fit-head">
+        <h2 id="jd-fit-h" class="jd-fit-title">Why this fits you</h2>
+        <p class="jd-fit-total">{fitTotal}<span>/100</span></p>
+      </div>
+      <ol class="jd-fit-rows">
+        {fitRows.map((r) => (
+          <li class="jd-fit-row">
+            <div class="jd-fit-row-head">
+              <span class="jd-fit-label">{r.label}</span>
+              <span class="jd-fit-score mono-label">{r.score}/{r.max}</span>
+            </div>
+            <div class="jd-fit-bar" aria-hidden="true"><span style={`width:${Math.round((r.score / r.max) * 100)}%`}></span></div>
+            <p class="jd-fit-note">{r.note}</p>
+          </li>
+        ))}
+      </ol>
+      <p class="jd-fit-foot"><a href={methodHref}>How fit is scored</a></p>
+    </section>
+  ) : (
+    <section class="jd-fit jd-fit-signin" aria-label="Fit">
+      <h2 class="jd-fit-title">Fit is a signed-in reading</h2>
+      <p class="jd-fit-note">We score every posting against the titles, pay and geographies you save, and show you the breakdown. Sign in to see how this one scores for you.</p>
+      <p class="jd-fit-foot"><a class="jd-btn jd-btn-outline jd-btn-inline" href={signInHref}>Sign in to see your fit</a></p>
+    </section>
+  )}
+</article>
+
+<script>
+  // Reveal the sticky bar once the header card has scrolled out of view.
+  const top = document.querySelector('[data-jd-top]');
+  const sticky = document.querySelector('[data-jd-sticky]');
+  if (top && sticky) {
+    const io = new IntersectionObserver(
+      ([e]) => { (sticky as HTMLElement).hidden = e.isIntersecting; },
+      { rootMargin: '-72px 0px 0px 0px' }
+    );
+    io.observe(top);
+  }
+</script>
+
+<style>
+  .jd { max-width: 64rem; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-600); }
+
+  .jd-crumbs { font-family: var(--font-family-mono); font-size: var(--size-100); }
+  .jd-crumbs a { color: var(--color-muted); text-decoration: none; }
+  .jd-crumbs a:hover { color: var(--color-foreground); }
+
+  /* card */
+  .jd-card { border: var(--border-hairline) solid var(--color-line); background: var(--color-surface-raised); padding: var(--space-700); display: flex; flex-direction: column; gap: var(--space-400); }
+
+  .jd-verified { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-200) var(--space-300); font-size: var(--size-100); }
+  .jd-verified strong { font-weight: var(--weight-bold); }
+  .jd-verified-sub { color: var(--color-muted); }
+  .jd-dot { width: 9px; height: 9px; border-radius: 50%; align-self: center; }
+  .jd-dot.is-live { background: var(--color-mark-live); }
+  .jd-dot.is-closed { background: var(--color-stat-loss); }
+
+  .jd-title { margin: 0; font-size: clamp(2rem, 4vw, 2.8rem); line-height: 1.05; letter-spacing: -0.02em; }
+  .jd-subtitle { margin: 0; font-size: var(--size-200); font-weight: var(--weight-medium); }
+
+  .jd-stats { margin: var(--space-300) 0 0; display: grid; grid-template-columns: repeat(4, auto); gap: var(--space-300) var(--space-700); border-top: var(--border-hairline) solid var(--color-line); border-bottom: var(--border-hairline) solid var(--color-line); padding: var(--space-400) 0; }
+  .jd-stat dt { margin: 0 0 var(--space-100); font-size: var(--size-075); color: var(--color-muted); }
+  .jd-stat dd { margin: 0; font-family: var(--font-family-mono); font-size: var(--size-200); font-weight: var(--weight-semibold, 600); }
+  .jd-stat-fit span { color: var(--color-muted); font-weight: 400; font-size: var(--size-100); }
+  .jd-stat-muted { font-family: var(--font-family-sans); font-size: var(--size-100); }
+  .jd-stat-muted a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; }
+
+  .jd-dates-line { margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-200); color: var(--color-foreground); }
+  .jd-sep { color: var(--color-muted); }
+  .jd-verified-word { color: var(--color-mark-live); }
+  .jd-dates-note { margin: var(--space-200) 0 0; max-width: 60ch; color: var(--color-muted); font-size: var(--size-100); }
+
+  .jd-history { margin-top: var(--space-300); }
+  .jd-history > summary { list-style: none; cursor: pointer; font-size: var(--size-100); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-line); width: fit-content; }
+  .jd-history > summary::-webkit-details-marker { display: none; }
+  .jd-history .jd-history-hide { display: none; }
+  .jd-history[open] .jd-history-show { display: none; }
+  .jd-history[open] .jd-history-hide { display: inline; }
+  .jd-history-body { margin-top: var(--space-500); display: flex; flex-direction: column; gap: var(--space-500); }
+  .jd-history-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-600); }
+  .jd-h { margin: 0 0 var(--space-300); font-size: var(--size-200); }
+
+  .jd-record-list { margin: 0; display: flex; flex-direction: column; gap: var(--space-200); }
+  .jd-record-row { display: grid; grid-template-columns: 8.5rem 1fr; gap: var(--space-300); align-items: baseline; }
+  .jd-record-row dt { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
+  .jd-record-row dd { margin: 0; font-family: var(--font-family-mono); font-size: var(--size-100); }
+  .jd-record-live { color: var(--color-mark-live); }
+
+  .jd-sweeps-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-400); }
+  .jd-sweep { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: var(--space-300); }
+  .jd-sweep-dot { grid-row: 1 / 3; width: 8px; height: 8px; margin-top: 5px; background: var(--color-muted); }
+  .jd-sweep.is-current .jd-sweep-dot { background: var(--color-mark-live); }
+  .jd-sweep-when { font-size: var(--size-100); }
+  .jd-sweep.is-current .jd-sweep-when { color: var(--color-mark-live); }
+  .jd-sweep-note { grid-column: 2; color: var(--color-muted); font-size: var(--size-100); }
+
+  .jd-howto p { margin: 0 0 var(--space-200); color: var(--color-muted); font-size: var(--size-100); max-width: 70ch; }
+  .jd-howto a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; }
+
+  /* actions */
+  .jd-actions { border: var(--border-hairline) solid var(--color-line); background: var(--color-surface); padding: var(--space-600); display: flex; flex-direction: column; gap: var(--space-400); }
+  .jd-btn { display: block; text-align: center; padding: var(--space-400); font-family: var(--font-family-mono); font-size: var(--size-100); text-decoration: none; border: var(--border-hairline) solid var(--color-foreground); }
+  .jd-btn-outline { color: var(--color-foreground); background: transparent; }
+  .jd-btn-outline:hover { background: var(--color-surface-raised); }
+  .jd-btn-inline { display: inline-block; padding: var(--space-300) var(--space-500); }
+  .jd-actions-note { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
+
+  /* description */
+  .jd-desc { }
+
+  .jd-fresh { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
+
+  /* fit */
+  .jd-fit { border: var(--border-hairline) solid var(--color-line); background: var(--color-surface-raised); padding: var(--space-600); }
+  .jd-fit-head { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: var(--space-400); border-bottom: var(--border-hairline) solid var(--color-line); }
+  .jd-fit-title { margin: 0; font-size: var(--size-300); }
+  .jd-fit-total { margin: 0; font-family: var(--font-family-mono); font-size: var(--size-400); font-weight: var(--weight-semibold, 600); }
+  .jd-fit-total span { color: var(--color-muted); font-size: var(--size-100); font-weight: 400; }
+  .jd-fit-rows { margin: 0; padding: 0; list-style: none; }
+  .jd-fit-row { padding: var(--space-400) 0; border-bottom: var(--border-hairline) solid var(--color-line); }
+  .jd-fit-row-head { display: flex; align-items: baseline; justify-content: space-between; }
+  .jd-fit-label { font-weight: var(--weight-medium); }
+  .jd-fit-score { color: var(--color-muted); font-size: var(--size-100); }
+  .jd-fit-bar { height: 3px; margin: var(--space-200) 0; background: var(--color-line); }
+  .jd-fit-bar > span { display: block; height: 100%; background: var(--color-foreground); }
+  .jd-fit-note { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
+  .jd-fit-foot { margin: var(--space-400) 0 0; }
+  .jd-fit-foot a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; font-size: var(--size-100); }
+  .jd-fit-signin .jd-fit-title { margin-bottom: var(--space-300); }
+
+  /* sticky bar */
+  .jd-sticky { position: sticky; top: 0; z-index: 20; background: var(--color-surface-raised); border-bottom: var(--border-hairline) solid var(--color-line); margin: 0 calc(-1 * var(--space-600)); }
+  .jd-sticky-inner { max-width: 64rem; margin: 0 auto; padding: var(--space-300) var(--space-600); display: flex; align-items: center; justify-content: space-between; gap: var(--space-400); }
+  .jd-sticky-title { margin: 0; font-size: var(--size-100); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .jd-sticky-title span { color: var(--color-muted); font-family: var(--font-family-mono); }
+  .jd-sticky-actions { display: flex; gap: var(--space-300); flex: none; }
+  .jd-sticky-apply { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; font-size: var(--size-100); }
+  .jd-sticky-draft { background: var(--color-surface-inverse); color: var(--color-foreground-inverse); padding: var(--space-200) var(--space-400); font-family: var(--font-family-mono); font-size: var(--size-075); text-decoration: none; }
+
+  @media (max-width: 48rem) {
+    .jd-card, .jd-actions, .jd-fit { padding: var(--space-500); }
+    .jd-stats { grid-template-columns: repeat(2, 1fr); gap: var(--space-400); }
+    .jd-history-cols { grid-template-columns: 1fr; gap: var(--space-500); }
+  }
+</style>
