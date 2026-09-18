@@ -348,7 +348,7 @@
               <div aria-hidden="true" style="position:absolute;bottom:${vm.scatterMedY}%;left:0;right:0;height:1px;background:var(--color-line);"></div>
               ${vm.scatter.map(p => `
               <span tabindex="0" data-read-key="scatter" data-read-text="${esc(p.aria)}" aria-label="${esc(p.aria)}" style="position:absolute;left:${p.x}%;bottom:${p.y}%;width:5px;height:5px;margin-left:-2.5px;margin-bottom:-2.5px;background:${p.fill};border-radius:1px;opacity:0.68;"></span>`).join('')}
-              <span aria-hidden="true" style="position:absolute;right:6px;top:4px;font-family:var(--font-family-mono);font-size:0.62rem;color:var(--color-line-strong);">${esc(vm.scatterQuadLabel)}</span>
+              <span aria-hidden="true" style="position:absolute;right:6px;top:4px;font-family:var(--font-family-mono);font-size:0.62rem;color:var(--color-muted);background:var(--color-surface);padding:2px 6px;border:1px solid var(--color-line);border-radius:var(--radius);white-space:nowrap;">${esc(vm.scatterQuadLabel)}</span>
             </div>
             <div aria-hidden="true" style="position:relative;height:14px;margin-top:6px;font-family:var(--font-family-mono);font-size:0.62rem;color:var(--color-line-strong);">
               ${payAxis()}
