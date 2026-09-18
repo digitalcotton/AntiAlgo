@@ -321,11 +321,14 @@ export interface BoardKillRow {
   company: string; title: string; ats: string | null; kill_rule: string;
   killed_on: Date | string | null; first_published: Date | string | null;
   times_fired: number; pipeline: string | null; slug: string | null; url: string;
+  /** The evidence sentence the ingest wrote for this kill (board_kills.reason),
+      e.g. the byte-for-byte repost comparison. Prefixed with the rule name. */
+  reason: string | null;
 }
 /** Every standing kill on record (not vacated), across the whole crawl. */
 export async function listAllKills(): Promise<BoardKillRow[]> {
   const { rows } = await db().query<BoardKillRow>(
-    `SELECT company, title, ats, kill_rule, killed_on, first_published, times_fired, pipeline, slug, url
+    `SELECT company, title, ats, kill_rule, killed_on, first_published, times_fired, pipeline, slug, url, reason
        FROM board_kills WHERE vacated_at IS NULL`
   );
   return rows;

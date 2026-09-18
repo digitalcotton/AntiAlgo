@@ -24,7 +24,7 @@ import { boardRowToJob } from './board-jobs';
 import { listWatches, type Shelf } from './ledger-watch-store';
 import { getPrefs, type LedgerSelection } from './ledger-prefs-store';
 import { buildTitleIndex, laneFor, matchesTitle, type TitleCount } from './ledger-titles';
-import { atsLabel, compShort, daysBetween, formatDate, sweepDate, type KillRule } from './data';
+import { atsLabel, compShort, daysBetween, sweepDate, type KillRule } from './data';
 import { ruleLabel } from './readings';
 
 /** One watched title, with how much of the live board it actually catches. */
@@ -92,8 +92,16 @@ export interface DeskKillVM {
   title: string;
   killRule: string;
   killRuleLabel: string;
+  /** ISO calendar days, to match the mockup's mono date chips. */
   killedOn: string | null;
+  firstPublished: string | null;
   stoodDays: number | null;
+  /** How many times this posting fired a rule (the "fired Nx" chip, shown only
+      when it fired more than once). */
+  timesFired: number;
+  /** The ingest's evidence sentence, its leading "rule-name:" prefix removed
+      (the rule chip already carries the rule). Null when none was written. */
+  reason: string | null;
   matched: string[];
 }
 
@@ -219,13 +227,24 @@ function roleVM(row: BoardRow, matched: string[], sweepIso: string, isNewFlag: b
   };
 }
 
+/** The stored evidence sentence with its leading "rule-name: " prefix stripped:
+    the red rule chip already names the rule, so the prefix is noise on the card. */
+function cleanReason(reason: string | null): string | null {
+  if (!reason) return null;
+  const trimmed = reason.replace(/^[a-z][a-z-]*:\s+/i, '').trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function killVM(kill: BoardKillRow, matched: string[]): DeskKillVM {
   return {
     title: kill.title,
     killRule: kill.kill_rule,
     killRuleLabel: ruleLabel(kill.kill_rule as KillRule),
-    killedOn: formatDate(isoDay(kill.killed_on)),
+    killedOn: isoDay(kill.killed_on),
+    firstPublished: isoDay(kill.first_published),
     stoodDays: daysBetween(isoDay(kill.first_published), isoDay(kill.killed_on)),
+    timesFired: kill.times_fired,
+    reason: cleanReason(kill.reason),
     matched
   };
 }

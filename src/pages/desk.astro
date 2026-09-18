@@ -5,6 +5,7 @@ import EmptyState from '../components/EmptyState.astro';
 import SweepPanel from '../components/desk-home/SweepPanel.astro';
 import WatchList from '../components/desk-home/WatchList.astro';
 import RoleCard from '../components/desk-home/RoleCard.astro';
+import DiedList from '../components/desk-home/DiedList.astro';
 import { isPaidViewer } from '../lib/ledger-access';
 import { isConfigured } from '../lib/db';
 import { buildDeskHome, type DeskHomeData } from '../lib/desk-home';
@@ -176,26 +177,7 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
                 )}
               </section>
 
-              <section class="dh-lane" id="died" aria-labelledby="dd-h">
-                <p class="dh-lane-index mono-label"><span>04</span> Died on your list</p>
-                <h2 id="dd-h" class="dh-lane-title">Do not spend your first hours on these.</h2>
-                <p class="dh-lane-note">Company held on kill rows, as everywhere on a paid surface.</p>
-                {home.died.length > 0 ? (
-                  <ul class="dh-kills">
-                    {home.died.map((k) => (
-                      <li class="dh-kill">
-                        <span class="dh-kill-title">{k.title}</span>
-                        <span class="dh-kill-rule mono-label">{k.killRuleLabel}</span>
-                        <span class="dh-kill-meta mono-label">
-                          {k.stoodDays !== null && `stood ${k.stoodDays} days`}{k.killedOn && ` · ${k.killedOn}`}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p class="dh-empty">Nothing under your titles has come down.</p>
-                )}
-              </section>
+              <DiedList died={home.died} />
             </>
           )}
 
@@ -270,12 +252,6 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
   .dh-cite { margin: var(--space-300) 0 0; color: var(--color-muted); }
   .dh-empty { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
 
-  .dh-kills { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-  .dh-kill { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-200) var(--space-300); padding: var(--space-300) 0; border-bottom: var(--border-hairline) solid var(--color-line); }
-  .dh-kill:first-child { border-top: var(--border-hairline) solid var(--color-line); }
-  .dh-kill-title { font-weight: var(--weight-medium); }
-  .dh-kill-rule { color: var(--color-stat-loss); }
-  .dh-kill-meta { color: var(--color-muted); margin-left: auto; }
 
   .dh-board-link { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
   .dh-board-link a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-stat-loss); }

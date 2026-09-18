@@ -1,0 +1,123 @@
+---
+import type { DeskKillVM } from '../../lib/desk-home';
+
+/**
+ * "Died on your list" (section 04), a card grid built to NewDeskScreen.html:
+ * one card per matched kill with the title and a held "company redacted" chip,
+ * the red kill-rule chip, the killed date, a "fired Nx" chip when the posting
+ * fired more than once, the ingest's plain-language evidence sentence, and a
+ * footer of "stood N days" over a red bar whose length is that stand against a
+ * four-week reference. Company is deliberately absent, as on every paid surface.
+ * Every value is real: reason is board_kills.reason, timesFired is times_fired,
+ * the dates are first_published and killed_on. Nothing here is invented.
+ */
+interface Props {
+  died: DeskKillVM[];
+}
+const { died } = Astro.props;
+
+/** A stand's bar length: days stood against a four-week reference, floored at a
+    visible sliver so a one-day stand still reads. Not a percentage of anything
+    claimed; a comparative sense of how long a dead posting sat up. */
+const STAND_REFERENCE_DAYS = 28;
+function barPct(stoodDays: number | null): number {
+  if (stoodDays === null || stoodDays <= 0) return 6;
+  return Math.max(6, Math.min(100, Math.round((stoodDays / STAND_REFERENCE_DAYS) * 100)));
+}
+---
+
+<section class="dh-lane" id="died" aria-labelledby="dd-h">
+  <p class="dh-lane-index mono-label"><span>04</span> Died on your list</p>
+  <h2 id="dd-h" class="dh-lane-title">Do not spend your first 48 hours on these.</h2>
+
+  {died.length > 0 ? (
+    <div class="dl-grid">
+      {died.map((k) => (
+        <article class="dl-card">
+          <p class="dl-head">
+            <span class="dl-title">{k.title}</span>
+            <span class="dl-chip dl-redacted mono-label">company redacted</span>
+          </p>
+          <p class="dl-chips">
+            <span class="dl-chip dl-rule mono-label">{k.killRuleLabel}</span>
+            {k.killedOn && <span class="dl-chip mono-label">killed {k.killedOn}</span>}
+            {k.timesFired > 1 && <span class="dl-chip dl-fired mono-label">fired {k.timesFired}x</span>}
+          </p>
+          {k.reason && <p class="dl-reason">{k.reason}</p>}
+          <div class="dl-foot">
+            <span class="dl-stood mono-label">{k.stoodDays !== null ? `stood ${k.stoodDays} days` : 'stand unknown'}</span>
+            {k.firstPublished && <span class="dl-date mono-label">{k.firstPublished}</span>}
+          </div>
+          <div class="dl-bar" aria-hidden="true"><span style={`width:${barPct(k.stoodDays)}%`}></span></div>
+        </article>
+      ))}
+    </div>
+  ) : (
+    <p class="dh-empty">Nothing under your titles has come down.</p>
+  )}
+
+  <p class="dl-note mono-label">Company names are held on kill rows by default. Naming them on a paid surface is an owner decision, not a design one.</p>
+</section>
+
+<style>
+  .dh-lane { display: flex; flex-direction: column; gap: var(--space-300); border-top: var(--border-hairline) solid var(--color-line); padding-top: var(--space-600); }
+  .dh-lane-index { margin: 0; color: var(--color-muted); }
+  .dh-lane-index span { margin-right: var(--space-200); }
+  .dh-lane-title { margin: 0 0 var(--space-400); font-size: clamp(1.5rem, 3vw, 2.2rem); line-height: 1.1; letter-spacing: -0.02em; }
+  .dh-empty { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
+
+  /* The connected grid: cards draw their right and bottom hairline, the grid its
+     top and left, so shared edges are a single line. Unfilled tracks show the
+     grid's sunken tint, the way the mockup shades its empty cells. */
+  .dl-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-top: var(--border-hairline) solid var(--color-line);
+    border-left: var(--border-hairline) solid var(--color-line);
+    background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+  }
+  .dl-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    padding: var(--space-500);
+    border-right: var(--border-hairline) solid var(--color-line);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    background: var(--color-surface);
+  }
+
+  .dl-head { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-300); }
+  .dl-title { font-weight: var(--weight-bold); font-size: var(--size-200); letter-spacing: -0.01em; }
+
+  .dl-chips { margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-200); }
+  .dl-chip {
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    border: var(--border-hairline) solid var(--color-line);
+    padding: 2px var(--space-200);
+    white-space: nowrap;
+  }
+  .dl-redacted { color: var(--color-muted); }
+  .dl-rule { color: var(--color-stat-loss); border-color: var(--color-stat-loss); }
+  .dl-fired { color: var(--color-foreground); border-color: var(--color-foreground); }
+
+  .dl-reason {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    line-height: 1.5;
+    color: var(--color-muted);
+  }
+
+  .dl-foot { margin-top: auto; display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-300); color: var(--color-muted); }
+  .dl-date { color: var(--color-muted); }
+
+  .dl-bar { height: 4px; background: var(--color-line); }
+  .dl-bar > span { display: block; height: 100%; background: var(--color-stat-loss); }
+
+  .dl-note { margin: var(--space-300) 0 0; color: var(--color-muted); }
+
+  @media (max-width: 60rem) {
+    .dl-grid { grid-template-columns: 1fr; }
+  }
+</style>
