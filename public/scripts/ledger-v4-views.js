@@ -342,13 +342,15 @@
               <h3 style="margin:0;font-size:1.04rem;font-weight:600;letter-spacing:-0.01em;">Fit against pay</h3>
               <span style="font-family:var(--font-family-mono);font-size:0.62rem;letter-spacing:0.08em;border:1px solid var(--color-line);color:var(--color-line-strong);padding:2px 6px;white-space:nowrap;">TIER 1</span>
             </div>
-            <p style="margin:7px 0 0;font-size:0.88rem;line-height:1.5;color:var(--color-muted);max-width:52ch;">Are the roles that suit you best also the ones that pay best?</p>
+            <div style="margin:7px 0 0;display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between;align-items:baseline;">
+              <p style="margin:0;font-size:0.88rem;line-height:1.5;color:var(--color-muted);max-width:44ch;">Are the roles that suit you best also the ones that pay best?</p>
+              <span style="font-family:var(--font-family-mono);font-size:0.66rem;color:var(--color-muted);white-space:nowrap;">${esc(vm.scatterQuadLabel)}</span>
+            </div>
             <div role="img" aria-label="${esc(vm.scatterAria)}" style="margin-top:20px;position:relative;height:250px;border-left:1px solid var(--color-line-strong);border-bottom:1px solid var(--color-line-strong);">
               <div aria-hidden="true" style="position:absolute;left:${vm.scatterMedX}%;top:0;bottom:0;width:1px;background:var(--color-line);"></div>
               <div aria-hidden="true" style="position:absolute;bottom:${vm.scatterMedY}%;left:0;right:0;height:1px;background:var(--color-line);"></div>
               ${vm.scatter.map(p => `
               <span tabindex="0" data-read-key="scatter" data-read-text="${esc(p.aria)}" aria-label="${esc(p.aria)}" style="position:absolute;left:${p.x}%;bottom:${p.y}%;width:5px;height:5px;margin-left:-2.5px;margin-bottom:-2.5px;background:${p.fill};border-radius:1px;opacity:0.68;"></span>`).join('')}
-              <span aria-hidden="true" style="position:absolute;right:6px;top:4px;font-family:var(--font-family-mono);font-size:0.62rem;color:var(--color-muted);background:var(--color-surface);padding:2px 6px;border:1px solid var(--color-line);border-radius:var(--radius);white-space:nowrap;">${esc(vm.scatterQuadLabel)}</span>
             </div>
             <div aria-hidden="true" style="position:relative;height:14px;margin-top:6px;font-family:var(--font-family-mono);font-size:0.62rem;color:var(--color-line-strong);">
               ${payAxis()}
