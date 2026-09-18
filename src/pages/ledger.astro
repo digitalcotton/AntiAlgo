@@ -1,0 +1,707 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Panel from '../components/Panel.astro';
+import EmptyState from '../components/EmptyState.astro';
+import JobRow from '../components/JobRow.astro';
+import KillRow from '../components/KillRow.astro';
+import {
+  verifiedJobs,
+  killArchive,
+  sweepDate,
+  sweptStamp,
+  daysBetween,
+  KILL_RULES,
+  type Job,
+  type Kill
+} from '../lib/data';
+import { ruleLabel } from '../lib/readings';
+import BarChart from '../components/ledger/BarChart.astro';
+import { dropWindow, killsInWindow } from '../components/drop/window';
+import { isPaidViewer } from '../lib/ledger-access';
+import { listWatches, type StoredWatch } from '../lib/ledger-watch-store';
+import { getPrefs, touchLastSeen } from '../lib/ledger-prefs-store';
+import { buildTitleIndex, isCovered, laneFor, matchesTitle } from '../lib/ledger-titles';
+import { routeFor } from '../data/nav';
+import { withBase } from '../../site.config.mjs';
+
+/**
+ * /ledger: The Ledger. A paid, behind-login personal read of the market against
+ * the titles a member watches. What entered their lane since they last looked,
+ * what died in it, and what it pays.
+ *
+ * GATED IN THIS PAGE, NOT BY MIDDLEWARE. /ledger is deliberately absent from
+ * entitlement.ts's ROUTE_POLICY: a gated route there would redirect a signed-out
+ * reader and 403 a non-paid one, but this page wants to render for everyone and
+ * show a preview plus an upsell to a reader who is not paid yet. So the gate is
+ * isPaidViewer() here, and the same predicate guards the two POST endpoints
+ * under /ledger. See src/lib/ledger-access.ts.
+ *
+ * EVERY NUMBER IS A LIVE READ, NEVER A LITERAL. Counts are .length over the
+ * filtered rows at render, the same discipline /drop uses (src/components/drop/
+ * window.ts); nothing about the sweep is typed into this page.
+ *
+ * THE BOARD READ IS THE PUBLISHED LAYER, the same source /drop reads
+ * (verifiedJobs(), killArchive()), so the page renders without a database and
+ * stays consistent with the drop it grew out of. The member's own rows (their
+ * watch list and settings) are the only database reads, and a paid viewer
+ * already came from that database, so it is up by the time we get here.
+ */
+export const prerender = false;
+
+const viewer = Astro.locals.viewer ?? null;
+const paid = isPaidViewer(viewer);
+
+const stamp = sweptStamp();
+
+// The market, unfiltered, for every reader (the free hook). Tier 1: compositions
+// and distributions from tonight's snapshot and the standing kill archive, each
+// counted here at render, never typed. A trend over time is Tier 2 and waits on
+// more nights on record.
+const marketLive = verifiedJobs();
+const marketArchive = killArchive();
+const verifiedCount = marketLive.length;
+
+const ruleComposition = KILL_RULES.map((rule) => ({
+  label: ruleLabel(rule),
+  n: marketArchive.filter((k) => k.kill_rule === rule).length
+}));
+
+const lifeBuckets = [
+  { label: '1-2', lo: 1, hi: 2 },
+  { label: '3-5', lo: 3, hi: 5 },
+  { label: '6-9', lo: 6, hi: 9 },
+  { label: '10-14', lo: 10, hi: 14 },
+  { label: '15-21', lo: 15, hi: 21 },
+  { label: '22+', lo: 22, hi: Infinity }
+];
+const lifespans = marketArchive
+  .map((k) => (k.first_published && k.killed_on ? daysBetween(k.first_published, k.killed_on) : null))
+  .filter((n): n is number => typeof n === 'number' && n >= 1);
+const lifespanDist = lifeBuckets.map((b) => ({
+  label: b.label,
+  n: lifespans.filter((d) => d >= b.lo && d <= b.hi).length
+}));
+
+const compLabelOf = (n: number): string =>
+  n < 150000 ? '<150k' : n < 200000 ? '150-200' : n < 250000 ? '200-250' : n < 300000 ? '250-300' : '300k+';
+const compMins = marketLive
+  .map((j) => j.comp_range?.min)
+  .filter((n): n is number => typeof n === 'number' && n > 0);
+const compDist = ['<150k', '150-200', '200-250', '250-300', '300k+'].map((label) => ({
+  label,
+  n: compMins.filter((n) => compLabelOf(n) === label).length
+}));
+
+const offenderMap = new Map<string, number>();
+for (const k of marketArchive) offenderMap.set(k.company, (offenderMap.get(k.company) ?? 0) + 1);
+const offenders = [...offenderMap.entries()]
+  .map(([label, n]) => ({ label, n }))
+  .sort((a, b) => b.n - a.n)
+  .slice(0, 7);
+
+const sourceMap = new Map<string, number>();
+for (const j of marketLive) sourceMap.set(j.source_system, (sourceMap.get(j.source_system) ?? 0) + 1);
+const sourceMix = [...sourceMap.entries()].map(([label, n]) => ({ label, n })).sort((a, b) => b.n - a.n);
+
+const riskMix = ['LOW', 'MED', 'HIGH'].map((label) => ({
+  label,
+  n: marketLive.filter((j) => j.risk === label).length
+}));
+
+let watches: StoredWatch[] = [];
+let remoteOnly = false;
+let compFloor: number | null = null;
+let titleOptions: string[] = [];
+let laneNew: Job[] = [];
+let laneKills: Kill[] = [];
+let compMedian: number | null = null;
+let compCount = 0;
+let lastSeenLabel = '';
+let storeError = false;
+/** Watched titles that match no live role tonight: covered later, honest now. */
+let uncovered: string[] = [];
+
+if (paid && viewer) {
+  const live = verifiedJobs();
+  titleOptions = buildTitleIndex(live).map((t) => t.title).slice(0, 120);
+
+  // The member's own state. A paid viewer came from the database, so it is
+  // configured; the try/catch degrades to an empty, honest page rather than a
+  // 500 if a read fails mid-request.
+  let lastSeenAt: Date | null = null;
+  try {
+    watches = await listWatches(viewer.userId);
+    const prefs = await getPrefs(viewer.userId);
+    lastSeenAt = prefs?.lastSeenAt ?? null;
+    const sel = prefs?.selection ?? {};
+    remoteOnly = sel.remoteOnly === true;
+    compFloor = typeof sel.compFloor === 'number' && sel.compFloor > 0 ? sel.compFloor : null;
+  } catch (error) {
+    console.error('ledger: could not read the watch list:', error);
+    storeError = true;
+  }
+
+  const coreTitles = watches.filter((w) => w.shelf === 'core').map((w) => w.title);
+  const allTitles = watches.map((w) => w.title);
+  uncovered = allTitles.filter((title) => !isCovered(title, live));
+
+  // A role is new when it was first seen after the reader last looked. On a
+  // first visit (no stored clock) every matched role reads as new.
+  const lastSeenISO = lastSeenAt ? lastSeenAt.toISOString().slice(0, 10) : null;
+  const isNew = (job: Job): boolean =>
+    Boolean(job.first_observed) && (!lastSeenISO || (job.first_observed as string) > lastSeenISO);
+  const isCore = (job: Job): boolean => coreTitles.some((t) => matchesTitle(t, job.title));
+
+  // The lane: live roles matching any watched title. Core titles lead; within a
+  // shelf, by the whole fit total (the honest number; the five components are
+  // not measured, so they are not re-weighted here).
+  const matched = laneFor(live, allTitles)
+    .map((m) => m.role)
+    .sort((a, b) => {
+      const core = Number(!isCore(a)) - Number(!isCore(b));
+      if (core !== 0) return core;
+      return (b.fit?.total ?? 0) - (a.fit?.total ?? 0);
+    });
+
+  // The chips narrow the lane by real board fields only (remote, a pay floor),
+  // never by re-weighting the fit score. An absent chip narrows nothing. floor
+  // is a const so its narrowing survives into the filter closure.
+  const floor = compFloor;
+  let inLane = matched;
+  if (remoteOnly) inLane = inLane.filter((j) => j.remote);
+  if (floor) inLane = inLane.filter((j) => (j.comp_range?.min ?? 0) >= floor);
+
+  laneNew = inLane.filter(isNew);
+
+  // What died in the lane this week: the kill archive filtered to the watched
+  // titles and the drop's own seven-day window, the same window and source
+  // /drop reads.
+  const window = dropWindow(sweepDate());
+  laneKills = killsInWindow(killArchive(), window, daysBetween).filter((k) =>
+    allTitles.some((t) => matchesTitle(t, k.title))
+  );
+
+  // Pay under the watched titles: the median posted floor across matched live
+  // roles that print a range. A live read; null when too few to be a median.
+  const floors = inLane
+    .map((job) => job.comp_range?.min)
+    .filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0);
+  compCount = floors.length;
+  if (floors.length >= 2) {
+    const sorted = [...floors].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    compMedian = sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+  }
+
+  lastSeenLabel = lastSeenISO ?? '';
+
+  // Advance the clock AFTER reading it, so the next visit measures new against
+  // this one. Best effort: a failed touch must not fail the render.
+  try {
+    await touchLastSeen(viewer.userId);
+  } catch (error) {
+    console.error('ledger: could not advance last-seen:', error);
+  }
+}
+
+const compK = (n: number): string => `$${Math.round(n / 1000)}k`;
+const watchPost = withBase('/ledger/watch');
+const prefsPost = withBase('/ledger/prefs');
+const boardHref = routeFor('board');
+const settingsHref = routeFor('settings');
+const accountHref = routeFor('account');
+const signUpHref = routeFor('sign-up');
+---
+
+<BaseLayout title="The Ledger" description="Your market, read against the titles you watch: what entered, what died, and what it pays, counted from last night's sweep.">
+  <main class="shell ledger">
+    <header class="ledger-head">
+      <p class="ledger-eyebrow mono-label">SWEPT {stamp}</p>
+      <h1 class="ledger-title">The Ledger.</h1>
+      <p class="ledger-lede">
+        Your market, read against the titles you watch. What entered your lane, what died in it, and
+        what it pays, counted from last night's sweep. Nothing here is estimated.
+      </p>
+    </header>
+
+    {!paid && (
+      <section class="ledger-preview">
+        <Panel title="A daily read, on your titles">
+          <p class="preview-copy">
+            The Ledger watches the titles you name and tells you, each morning, what is new in your
+            lane while you are still early, what died so you do not spend an application on it, and
+            what the roles under your titles pay. It is part of the paid account.
+          </p>
+          <ul class="preview-list">
+            <li>New roles under your titles, since you last looked.</li>
+            <li>Kills in your lane, with the rule each one tripped.</li>
+            <li>Posted pay across the roles your titles match.</li>
+          </ul>
+          <p class="preview-cta">
+            {viewer
+              ? (<a class="ledger-button" href={accountHref}>See your account</a>)
+              : (<a class="ledger-button" href={signUpHref}>Save my spot</a>)}
+            <a class="ledger-link" href={boardHref}>Browse the free board</a>
+          </p>
+        </Panel>
+      </section>
+    )}
+
+    {paid && (
+      <div class="ledger-body">
+        <Panel title="Your titles">
+          <p class="watch-lede">
+            Name a title the index carries, or any title you want; a title we do not cover yet is
+            marked, never hidden. Core titles lead your report, stretch titles come after.
+          </p>
+
+          <form class="watch-add" method="post" action={watchPost}>
+            <input type="hidden" name="intent" value="add" />
+            <input
+              class="watch-input mono"
+              type="text"
+              name="title"
+              list="ledger-titles"
+              maxlength="200"
+              required
+              placeholder="Product Designer, Brand Designer, Design Engineer"
+              aria-label="A job title to watch"
+            />
+            <datalist id="ledger-titles">
+              {titleOptions.map((t) => (<option value={t} />))}
+            </datalist>
+            <div class="watch-add-actions">
+              <button class="ledger-button" type="submit" name="shelf" value="core">Add as core</button>
+              <button class="ledger-button ledger-button--quiet" type="submit" name="shelf" value="stretch">Add as stretch</button>
+            </div>
+          </form>
+
+          {watches.length === 0 && !storeError && (
+            <p class="watch-empty">No titles watched yet. Add one above to build your lane.</p>
+          )}
+          {storeError && (
+            <p class="watch-empty">Your watch list could not be read this moment. Reload to try again.</p>
+          )}
+
+          {watches.length > 0 && (
+            <ul class="watch-list">
+              {watches.map((w) => (
+                <li class="watch-item">
+                  <span class="watch-name">{w.title}</span>
+                  <span class="watch-shelf mono-label">{w.shelf}</span>
+                  {uncovered.includes(w.title) && (
+                    <span class="watch-uncovered mono-label">not covered yet</span>
+                  )}
+                  <span class="watch-actions">
+                    <form method="post" action={watchPost}>
+                      <input type="hidden" name="intent" value="reshelf" />
+                      <input type="hidden" name="title" value={w.title} />
+                      <input type="hidden" name="shelf" value={w.shelf === 'core' ? 'stretch' : 'core'} />
+                      <button class="watch-link" type="submit">{w.shelf === 'core' ? 'To stretch' : 'To core'}</button>
+                    </form>
+                    <form method="post" action={watchPost}>
+                      <input type="hidden" name="intent" value="remove" />
+                      <input type="hidden" name="title" value={w.title} />
+                      <button class="watch-link watch-link--danger" type="submit" aria-label={`Remove ${w.title}`}>Remove</button>
+                    </form>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+
+        {watches.length > 0 && (
+          <Panel title="Narrow your lane">
+            <p class="section-lede">
+              Real fields only: remote, and a pay floor. These do not re-weight anything, they only
+              hold the lane to roles that clear the bar.
+            </p>
+            <form class="chips" method="post" action={prefsPost}>
+              <label class="chip">
+                <input type="checkbox" name="remoteOnly" checked={remoteOnly} />
+                <span>Remote only</span>
+              </label>
+              <label class="chip">
+                <span>Pay floor</span>
+                <input
+                  class="chip-num mono"
+                  type="number"
+                  name="compFloor"
+                  min="0"
+                  step="10000"
+                  value={compFloor ?? ''}
+                  placeholder="150000"
+                  aria-label="Minimum posted pay floor"
+                />
+              </label>
+              <button class="ledger-button ledger-button--quiet" type="submit">Apply</button>
+            </form>
+          </Panel>
+        )}
+
+        {watches.length > 0 && (
+          <Panel title="New in your lane">
+            <p class="section-lede">
+              {lastSeenLabel
+                ? `Live roles under your titles, first seen since you last looked on ${lastSeenLabel}. Apply while you are early.`
+                : 'Live roles under your titles. Apply while you are early.'}
+            </p>
+            {laneNew.length === 0 ? (
+              <EmptyState
+                title="Nothing new in your lane"
+                detail="No role under your titles was first seen since your last visit. The lane fills as the sweep runs."
+              />
+            ) : (
+              <ul class="row-list">
+                {laneNew.map((job) => (<li><JobRow job={job} surface="raised" /></li>))}
+              </ul>
+            )}
+          </Panel>
+        )}
+
+        {watches.length > 0 && (
+          <Panel title="Do not spend your first 48 hours on these">
+            <p class="section-lede">
+              Roles under your titles that tripped a rule this week: recycled, moved on the date, or
+              gone at the source. The machine states what it observed and nothing about intent.
+            </p>
+            {laneKills.length === 0 ? (
+              <EmptyState
+                title="Nothing in your lane died this week"
+                detail="No role under your titles tripped a rule in the last seven days."
+              />
+            ) : (
+              <ul class="row-list">
+                {laneKills.map((kill, index) => (<li><KillRow kill={kill} referenceCaption={index === 0} /></li>))}
+              </ul>
+            )}
+          </Panel>
+        )}
+
+        {watches.length > 0 && (
+          <Panel title="Pay under your titles">
+            {compMedian !== null ? (
+              <p class="pay-read">
+                Median posted floor across the <span class="mono">{compCount}</span> roles in your lane
+                that print a range: <span class="mono pay-figure">{compK(compMedian)}</span>.
+              </p>
+            ) : (
+              <p class="pay-read">
+                Too few roles in your lane print a pay range to read a median yet. It fills as more roles
+                post a number.
+              </p>
+            )}
+            <p class="section-foot">
+              <a class="ledger-link" href={boardHref}>Open the full board</a>
+              <a class="ledger-link" href={settingsHref}>Settings</a>
+            </p>
+          </Panel>
+        )}
+      </div>
+    )}
+
+    <section class="ledger-market">
+      <header class="market-head">
+        <h2 class="market-title">The market</h2>
+        <p class="section-lede">
+          The whole board, not just your lane, counted from last night. A trend over time waits on
+          more nights on record; these read the sweep we hold.
+        </p>
+      </header>
+      <div class="market-grid">
+        <Panel title="Verified live">
+          <p class="pay-read">
+            <span class="mono pay-figure">{verifiedCount}</span> roles verified at their own source
+            last night. A night-over-night line needs two published sweeps to compare; this holds the
+            latest.
+          </p>
+        </Panel>
+        <Panel title="Kill-rule composition">
+          <BarChart rows={ruleComposition} />
+        </Panel>
+        <Panel title="Posting lifespan">
+          <BarChart rows={lifespanDist} />
+          <p class="chart-foot">Days a killed posting stood, killed on minus first published.</p>
+        </Panel>
+        <Panel title="Pay on the board">
+          <BarChart rows={compDist} />
+          <p class="chart-foot">Posted floor, USD per year, across roles that print a range.</p>
+        </Panel>
+        <Panel title="Repeat offenders">
+          <BarChart rows={offenders} />
+          <p class="chart-foot">Companies with the most kills on record.</p>
+        </Panel>
+        <Panel title="Where roles live">
+          <BarChart rows={sourceMix} />
+        </Panel>
+        <Panel title="Apply risk">
+          <BarChart rows={riskMix} />
+        </Panel>
+      </div>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  .ledger {
+    padding-block: var(--space-700, 2.5rem) var(--space-800, 4rem);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-600, 2rem);
+  }
+
+  .ledger-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200, 0.5rem);
+  }
+
+  .ledger-eyebrow {
+    margin: 0;
+    color: var(--color-muted);
+  }
+
+  .ledger-title {
+    margin: 0;
+    font-size: var(--size-700, 2rem);
+    letter-spacing: var(--tracking-tight, -0.01em);
+  }
+
+  .ledger-lede,
+  .preview-copy,
+  .watch-lede,
+  .section-lede {
+    margin: 0;
+    color: var(--color-muted);
+    max-width: 60ch;
+    line-height: var(--leading-normal, 1.5);
+  }
+
+  .ledger-body,
+  .preview-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-500, 1.5rem);
+  }
+
+  .preview-list {
+    margin: var(--space-300, 0.75rem) 0 0;
+    padding-left: 1.1rem;
+    color: var(--color-muted);
+    gap: var(--space-100, 0.25rem);
+  }
+
+  .preview-cta,
+  .section-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-400, 1rem);
+    margin: var(--space-400, 1rem) 0 0;
+  }
+
+  .ledger-button {
+    display: inline-block;
+    padding: 0.6rem 1rem;
+    border: var(--border-hairline, 1px) solid var(--color-surface-inverse, #111);
+    border-radius: var(--radius, 2px);
+    background: var(--color-surface-inverse, #111);
+    color: var(--color-foreground-inverse, #fff);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--size-100, 0.85rem);
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .ledger-button--quiet {
+    background: transparent;
+    color: var(--color-foreground);
+    border-color: var(--color-line-strong, #888);
+  }
+
+  .ledger-link {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset, 3px);
+    text-decoration-color: var(--color-line-strong, #888);
+    font-size: var(--size-100, 0.85rem);
+  }
+
+  .ledger-link:hover {
+    text-decoration-color: var(--color-foreground);
+  }
+
+  .watch-add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-300, 0.75rem);
+    margin: var(--space-400, 1rem) 0;
+    align-items: center;
+  }
+
+  .watch-input {
+    flex: 1;
+    min-width: 240px;
+    min-height: 44px;
+    padding: 0.7rem 0.85rem;
+    border: var(--border-hairline, 1px) solid var(--color-line-strong, #888);
+    border-radius: var(--radius, 2px);
+    background: var(--color-surface, #fff);
+    color: var(--color-foreground);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--size-200, 0.9rem);
+  }
+
+  .watch-add-actions {
+    display: flex;
+    gap: var(--space-200, 0.5rem);
+    flex-wrap: wrap;
+  }
+
+  .watch-empty {
+    margin: var(--space-300, 0.75rem) 0 0;
+    color: var(--color-muted);
+  }
+
+  .watch-list {
+    list-style: none;
+    margin: var(--space-300, 0.75rem) 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .watch-item {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-300, 0.75rem);
+    flex-wrap: wrap;
+    padding: var(--space-300, 0.75rem) 0;
+    border-top: var(--border-hairline, 1px) solid var(--color-line, #e5e5e5);
+  }
+
+  .watch-name {
+    font-weight: var(--weight-medium, 500);
+  }
+
+  .watch-shelf,
+  .watch-uncovered {
+    color: var(--color-muted);
+  }
+
+  .watch-uncovered {
+    color: var(--color-accent, #c0392b);
+  }
+
+  .watch-actions {
+    display: flex;
+    gap: var(--space-300, 0.75rem);
+    margin-left: auto;
+  }
+
+  .watch-actions form {
+    margin: 0;
+  }
+
+  .watch-link {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    color: var(--color-foreground);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--size-50, 0.75rem);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset, 3px);
+  }
+
+  .watch-link--danger {
+    color: var(--color-muted);
+  }
+
+  .watch-link--danger:hover {
+    color: var(--color-accent, #c0392b);
+  }
+
+  .row-list {
+    list-style: none;
+    margin: var(--space-300, 0.75rem) 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300, 0.75rem);
+  }
+
+  .pay-read {
+    margin: 0;
+    line-height: var(--leading-normal, 1.5);
+  }
+
+  .pay-figure {
+    font-size: var(--size-300, 1.1rem);
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-400, 1rem);
+    margin: var(--space-300, 0.75rem) 0 0;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200, 0.5rem);
+    font-size: var(--size-100, 0.85rem);
+    color: var(--color-foreground);
+  }
+
+  .chip-num {
+    width: 8rem;
+    min-height: 36px;
+    padding: 0.4rem 0.6rem;
+    border: var(--border-hairline, 1px) solid var(--color-line-strong, #888);
+    border-radius: var(--radius, 2px);
+    background: var(--color-surface, #fff);
+    color: var(--color-foreground);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--size-100, 0.85rem);
+  }
+
+  .ledger-market {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400, 1rem);
+    border-top: var(--border-hairline, 1px) solid var(--color-line-strong, #888);
+    padding-top: var(--space-600, 2rem);
+  }
+
+  .market-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200, 0.5rem);
+  }
+
+  .market-title {
+    margin: 0;
+    font-size: var(--size-500, 1.5rem);
+    letter-spacing: var(--tracking-tight, -0.01em);
+  }
+
+  .market-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    gap: var(--space-400, 1rem);
+    align-items: start;
+  }
+
+  .chart-foot {
+    margin: var(--space-300, 0.75rem) 0 0;
+    color: var(--color-muted);
+    font-size: var(--size-50, 0.75rem);
+    line-height: var(--leading-snug, 1.35);
+  }
+</style>

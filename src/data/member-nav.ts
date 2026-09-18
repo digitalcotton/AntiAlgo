@@ -40,6 +40,7 @@ export const MEMBER_NAV: MemberNavItem[] = [
   { key: 'desk', label: 'The Desk', href: routeFor('desk'), built: true },
   { key: 'prelist', label: 'Pre-List', href: routeFor('prelist'), built: true },
   { key: 'drop', label: 'The Drop', href: routeFor('drop'), built: true },
+  { key: 'ledger', label: 'The Ledger', href: routeFor('ledger'), built: true },
   { key: 'profile', label: 'Profile', href: routeFor('profile'), built: true },
   { key: 'settings', label: 'Settings', href: routeFor('settings'), built: true }
 ];

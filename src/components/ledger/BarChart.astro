@@ -1,0 +1,92 @@
+---
+/**
+ * A horizontal bar chart for the Ledger's market section. Accessible by
+ * construction: every bar is a label and a number in text, the bar is the same
+ * fact drawn, so a reader who cannot see the fill still reads the value. The
+ * width is the only thing colour carries, and it is redundant with the number
+ * beside it. Theme-aware through the site's own tokens; the fill is the signal
+ * accent, used only here to say "this is the measured quantity".
+ *
+ * Pure view: it counts nothing. The caller hands it rows already counted from
+ * the real sweep, the same discipline the drop and kill pages hold to.
+ */
+interface Row {
+  /** What the bar measures, in the machine voice. */
+  label: string;
+  /** The measured count. */
+  n: number;
+}
+
+interface Props {
+  rows: Row[];
+  /** The scale every bar is drawn against. Defaults to the largest row, so a
+      chart shown alone still fills its width; pass a shared max to compare two
+      charts on one scale. */
+  max?: number;
+  class?: string;
+}
+
+const { rows, max, class: className } = Astro.props;
+const top = Math.max(1, max ?? Math.max(0, ...rows.map((r) => r.n)));
+---
+
+<ul class:list={['bars', className]}>
+  {
+    rows.map((row) => (
+      <li class="bar-row">
+        <span class="bar-label mono-label">{row.label}</span>
+        <span class="bar-track" aria-hidden="true">
+          <span class="bar-fill" style={`width:${Math.round((row.n / top) * 100)}%`}></span>
+        </span>
+        <span class="bar-val mono">{row.n}</span>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .bars {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200, 0.5rem);
+  }
+
+  .bar-row {
+    display: grid;
+    grid-template-columns: minmax(6rem, 12rem) 1fr auto;
+    align-items: center;
+    gap: var(--space-300, 0.75rem);
+  }
+
+  .bar-label {
+    color: var(--color-foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .bar-track {
+    position: relative;
+    height: 0.85rem;
+    background: var(--color-surface-2, var(--color-line, #eee));
+    border-radius: var(--radius, 2px);
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    display: block;
+    height: 100%;
+    min-width: 2px;
+    background: var(--color-accent, #c0392b);
+    border-radius: var(--radius, 2px);
+  }
+
+  .bar-val {
+    color: var(--color-foreground);
+    text-align: right;
+    min-width: 2.5ch;
+  }
+</style>
