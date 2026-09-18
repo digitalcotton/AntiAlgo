@@ -53,10 +53,7 @@ const NAME = 'ingest-on-build';
 const env = process.env.VERCEL_ENV || '';
 const hasCredentials = Boolean(process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL);
 
-if (!existsSync(FILE)) {
-  console.log(`${NAME}: no crawl file at src/data/board-latest.json.gz, nothing to load. The board keeps its current rows.`);
-  process.exit(0);
-}
+// Non-production builds touch nothing: no migrations, no load.
 if (env !== 'production') {
   console.log(`${NAME}: VERCEL_ENV is ${JSON.stringify(env || '')}, not "production", so the live table is left alone.`);
   process.exit(0);
@@ -70,12 +67,18 @@ if (!hasCredentials) {
   process.exit(1);
 }
 
-// MIGRATIONS FIRST, IN THE SAME DEPLOY. The GitHub Action that used to apply
-// db/*.sql is gone with the rest of the Actions data path, so the deploy that
-// needs a column is the deploy that adds it. migrate.mjs is idempotent (it
-// records what it ran in schema_migrations, per file, in a transaction) and
-// takes an advisory lock, so a second build the same night is a no-op. A
-// migration that fails fails the build, for the same reason the load does.
+// MIGRATIONS FIRST, IN THE SAME DEPLOY, AND BEFORE THE CRAWL-FILE CHECK. The
+// GitHub Action that used to apply db/*.sql is gone with the rest of the Actions
+// data path, so the deploy that needs a column is the deploy that adds it. This
+// runs on EVERY production build, not only the nights a fresh crawl file is
+// present: a code-only deploy (a merge with no new board-latest.json.gz) still
+// has to apply pending migrations, or a page that reads a new table 500s in
+// production until a crawl happens to land. (That is exactly what shipped the
+// Desk with ledger_watch/account_ledger_prefs missing: the old order bailed at
+// the crawl-file check above before it ever reached this step.) migrate.mjs is
+// idempotent (it records what it ran in schema_migrations, per file, in a
+// transaction) and takes an advisory lock, so a second build the same night is a
+// no-op. A migration that fails fails the build, for the same reason a load does.
 console.log(`${NAME}: production build, applying db/*.sql that have not run yet`);
 const migrate = spawnSync(process.execPath, [join(REPO, 'db', 'migrate.mjs')], {
   cwd: REPO,
@@ -85,6 +88,13 @@ const migrate = spawnSync(process.execPath, [join(REPO, 'db', 'migrate.mjs')], {
 if (migrate.status !== 0) {
   console.error(`${NAME}: migrations failed (exit ${migrate.status ?? 'signal'}). Failing the build; the database is unchanged by the failed file.`);
   process.exit(migrate.status || 1);
+}
+
+// The crawl load is separate, and only runs when the mini has pushed a fresh
+// file. A build with no crawl file has still applied the migrations above.
+if (!existsSync(FILE)) {
+  console.log(`${NAME}: no crawl file at src/data/board-latest.json.gz, nothing to load. Migrations applied; the board keeps its current rows.`);
+  process.exit(0);
 }
 
 console.log(`${NAME}: loading the board from src/data/board-latest.json.gz`);
