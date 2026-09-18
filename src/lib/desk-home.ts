@@ -131,13 +131,23 @@ function passesPrefs(row: BoardRow, prefs: LedgerSelection): boolean {
   return true;
 }
 
-/** True when a role entered after the reader last looked. On a first visit
-    (no last_seen), "new" falls back to the last FIRST_VISIT_WINDOW_DAYS. */
-function isNew(firstSeen: Date | string | null, lastSeenMs: number | null, sweepIso: string): boolean {
-  const firstMs = toMs(firstSeen);
-  if (firstMs === null) return false;
-  if (lastSeenMs !== null) return firstMs > lastSeenMs;
-  const age = daysBetween(isoDay(firstSeen), sweepIso);
+/**
+ * True when a role first appeared on or after the reader last looked, compared
+ * at DATE granularity on purpose. first_seen is a DATE (db/117), so it has no
+ * time of day; last_seen_at is a precise timestamp. Comparing the raw instants
+ * (a midnight date against an afternoon visit) would silently drop a role first
+ * seen later on the same calendar day as a prior visit, and it would stay hidden
+ * forever. So both sides collapse to their calendar day and the test is "on or
+ * after" (>=): the safe direction, which may re-show a role from the last visit
+ * day but never hides a genuinely new one. On a first visit (no last_seen) "new"
+ * falls back to the last FIRST_VISIT_WINDOW_DAYS.
+ */
+function isNew(firstSeen: Date | string | null, lastSeenDay: string | null, sweepIso: string): boolean {
+  const firstDay = isoDay(firstSeen);
+  if (firstDay === null) return false;
+  // ISO calendar days compare correctly as plain strings.
+  if (lastSeenDay !== null) return firstDay >= lastSeenDay;
+  const age = daysBetween(firstDay, sweepIso);
   return age !== null && age >= 0 && age <= FIRST_VISIT_WINDOW_DAYS;
 }
 
@@ -184,7 +194,8 @@ export async function buildDeskHome(userId: string): Promise<DeskHomeData> {
 
   const prefs: LedgerSelection = prefsRow?.selection ?? {};
   const lastSeenAt = prefsRow?.lastSeenAt ?? null;
-  const lastSeenMs = toMs(lastSeenAt);
+  // Compared at date granularity against first_seen (a DATE); see isNew.
+  const lastSeenDay = isoDay(lastSeenAt);
   const sweepIso = sweepDate();
 
   const shelfByTitle = new Map<string, Shelf>();
@@ -223,7 +234,7 @@ export async function buildDeskHome(userId: string): Promise<DeskHomeData> {
   const newCore: DeskRoleVM[] = [];
   const newStretch: DeskRoleVM[] = [];
   for (const { role, matched } of laneRanked) {
-    if (!isNew(role.first_seen, lastSeenMs, sweepIso)) continue;
+    if (!isNew(role.first_seen, lastSeenDay, sweepIso)) continue;
     const isCore = matched.some((title) => coreSet.has(title));
     (isCore ? newCore : newStretch).push(roleVM(role, matched, sweepIso));
   }
