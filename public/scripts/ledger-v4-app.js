@@ -283,18 +283,39 @@
 
     // ---- cross cut 3: fit against pay
     var pricedCut = cut.filter(function (r) { return r.priced; });
+    var pricedN = pricedCut.length;
     var mids = pricedCut.map(function (r) { return r.mid; });
     var fits = pricedCut.map(function (r) { return r.fit; });
     var midMed = mids.length ? med(mids) : 200;
     var fitMed = fits.length ? med(fits) : 70;
-    var scatter = pricedCut.map(function (r) {
-      var high = r.fit >= fitMed && r.mid >= midMed;
-      var text = (named ? r.co : 'source held') + ' · ' + r.title + ' · $' + r.min + 'k to $' + r.max + 'k · fit ' + r.fit + ' · published ' + r.published + ' · read ' + SWEEP.clock;
-      return { x: payPct(r.mid), y: fitPct(r.fit), aria: text, readKey: 'scatter',
-        fill: high ? 'var(--accent)' : 'var(--color-foreground)', stroke: high ? 'var(--accent)' : 'var(--color-foreground)' };
-    });
+    // The fit axis scales to the data in this cut, not the theoretical 30-100:
+    // real fit clusters high, so a fixed axis would pile every point at the top.
+    // No y tick labels are printed, so this rescale mislabels nothing.
+    var fitLo = fits.length ? Math.min.apply(null, fits) : 30;
+    var fitHi = fits.length ? Math.max.apply(null, fits) : 100;
+    var fitSpan = (fitHi - fitLo) || 1;
+    var fitScaleY = function (f) { return Math.max(0, Math.min(100, ((f - fitLo) / fitSpan) * 92 + 4)); };
+    // A readable scatter is hundreds of points, not thousands: sample by an even
+    // stride, and jitter each point a hair so rows that share an integer fit
+    // value do not stack into a solid bar. Deterministic (no Math.random), so it
+    // is stable across renders. The quadrant count below is over ALL priced rows.
+    var SCATTER_MAX = 500;
+    var stride = Math.max(1, Math.ceil(pricedN / SCATTER_MAX));
+    var jit = function (i) { var v = Math.sin((i + 1) * 12.9898) * 43758.5453; return (v - Math.floor(v)) - 0.5; };
+    var scatter = [];
+    for (var si = 0; si < pricedN; si += stride) {
+      var sr = pricedCut[si];
+      var hi = sr.fit >= fitMed && sr.mid >= midMed;
+      var stext = (named ? sr.co : 'source held') + ' · ' + sr.title + ' · $' + sr.min + 'k to $' + sr.max + 'k · fit ' + sr.fit + ' · published ' + sr.published + ' · read ' + SWEEP.clock;
+      scatter.push({
+        x: Math.max(0, Math.min(100, payPct(sr.mid) + jit(si) * 2.2)),
+        y: Math.max(0, Math.min(100, fitScaleY(sr.fit) + jit(si + 7) * 4.2)),
+        aria: stext, readKey: 'scatter',
+        fill: hi ? 'var(--accent)' : 'var(--color-foreground)', stroke: hi ? 'var(--accent)' : 'var(--color-foreground)'
+      });
+    }
     var quadN = pricedCut.filter(function (r) { return r.fit >= fitMed && r.mid >= midMed; }).length;
-    var unpricedCut = cut.length - pricedCut.length;
+    var unpricedCut = cut.length - pricedN;
 
     // ---- cross cut 4: negotiation band
     var bands = pricedCut.map(function (r) { return (r.max - r.min) / r.min; });
@@ -604,11 +625,11 @@
       readPlace: st.read.place || placeRead,
       placeCaveat: placeCaveat,
 
-      scatter: scatter, scatterMedX: payPct(midMed), scatterMedY: fitPct(fitMed),
+      scatter: scatter, scatterMedX: payPct(midMed), scatterMedY: fitScaleY(fitMed),
       scatterQuadLabel: 'high fit, high pay: ' + quadN,
-      scatterAria: 'Scatter of fit score against posted pay midpoint for ' + scatter.length + ' priced rows in this cut. ' + quadN + ' rows sit above both medians.',
-      readScatter: st.read.scatter || (scatter.length
-        ? 'n ' + scatter.length + ' priced · median fit ' + fitMed + ' · median midpoint $' + midMed + 'k · ' + quadN + ' rows clear both · ' + unpricedCut + ' rows in this cut print no range'
+      scatterAria: 'Scatter of fit score against posted pay midpoint for ' + pricedN + ' priced rows in this cut. ' + quadN + ' rows sit above both medians.',
+      readScatter: st.read.scatter || (pricedN
+        ? 'n ' + pricedN + ' priced' + (pricedN > scatter.length ? ' (a ' + scatter.length + ' point sample is plotted)' : '') + ' · median fit ' + fitMed + ' · median midpoint $' + midMed + 'k · ' + quadN + ' rows clear both · ' + unpricedCut + ' rows in this cut print no range'
         : 'No priced rows in this cut, so nothing can be plotted here.'),
 
       bandBuckets: bandBuckets,
