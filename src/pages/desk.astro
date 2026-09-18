@@ -45,11 +45,24 @@ const paid = isPaidViewer(viewer);
 
 let data: DeskHomeData | null = null;
 if (paid && viewer && isConfigured()) {
-  try {
-    data = await buildDeskHome(viewer.userId);
-    await touchLastSeen(viewer.userId);
-  } catch (error) {
-    console.error('desk: could not build the home; rendering the empty state.', error);
+  // Retry once. The home reads the whole live board in one pass, and a cold
+  // serverless function can hit a transient connection error on the first try
+  // that a second attempt clears; without the retry that blip falls through to
+  // the "warming up" state, which reads as a page error. touchLastSeen is
+  // separated so its own failure never discards a good build.
+  for (let attempt = 0; attempt < 2 && data === null; attempt++) {
+    try {
+      data = await buildDeskHome(viewer.userId);
+    } catch (error) {
+      console.error(`desk: build attempt ${attempt + 1} failed.`, error);
+    }
+  }
+  if (data) {
+    try {
+      await touchLastSeen(viewer.userId);
+    } catch (error) {
+      console.error('desk: touchLastSeen failed (build kept).', error);
+    }
   }
 }
 

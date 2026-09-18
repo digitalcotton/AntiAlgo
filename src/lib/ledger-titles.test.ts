@@ -17,15 +17,19 @@ describe('normalizeTitle', () => {
 });
 
 describe('matchesTitle', () => {
-  it('matches when every watch word is a role word, order ignored', () => {
+  it('matches the watch as a contiguous run of whole words, in order', () => {
     expect(matchesTitle('Product Designer', 'Senior Product Designer, AI')).toBe(true);
-    expect(matchesTitle('designer product', 'Product Designer')).toBe(true);
+    expect(matchesTitle('Product Designer', 'Staff Product Designer')).toBe(true);
+    // Order matters now (whole-phrase, not any-order tokens).
+    expect(matchesTitle('designer product', 'Product Designer')).toBe(false);
   });
 
-  it('does not match a partial-word or a missing word', () => {
-    // "Product Designer" must not match "Design Engineer": designer is not a
-    // word of that title.
+  it('does not match when the phrase is broken by another word or reordered', () => {
+    // "Product Designer" must not match "Design Engineer": the phrase is absent.
     expect(matchesTitle('Product Designer', 'Design Engineer')).toBe(false);
+    // Tightened: the two words are present but not adjacent in that order.
+    expect(matchesTitle('Product Designer', 'Product Design Engineer')).toBe(false);
+    expect(matchesTitle('Design Engineer', 'Design Systems Engineer')).toBe(false);
     // A profession the index does not carry matches nothing.
     expect(matchesTitle('welder', 'Staff Brand Designer')).toBe(false);
   });

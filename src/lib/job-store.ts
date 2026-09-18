@@ -226,28 +226,27 @@ export function likePattern(q: string): string | null {
 
 /**
  * The member's watched titles, compiled to one SQL keep-clause that mirrors
- * ledger-titles.matchesTitle: a role keeps if, for ANY watched title, EVERY one
- * of that title's normalised tokens appears as a whole word in the role title.
- * So "Product Designer" keeps "Senior Product Designer, AI" but not "Design
- * Engineer". Each token is a bound parameter (`$n`) matched with a word-boundary
- * regex, the same `\y` idiom the location facet uses above; nothing but the
- * clause STRUCTURE is generated, and normalizeTitle leaves only [a-z0-9 ] so no
- * token can carry a regex metacharacter. Bound params start at `start`; the
- * caller appends `params` to its bind array in order. Empty (no titles, or all
- * blank) returns the always-true clause and no params, so the board is unnarrowed.
+ * ledger-titles.matchesTitle EXACTLY: a role keeps if, for ANY watched title,
+ * that title appears in the role title as a contiguous run of whole words (a
+ * WHOLE-PHRASE match, tightened 2026-09-18 from any-order tokens). So "Product
+ * Designer" keeps "Senior Product Designer, AI" but not "Product Design Engineer".
+ * The title is normalised inline the same way normalizeTitle does (lowercased,
+ * punctuation to spaces) and space-padded, then a bound phrase param is matched
+ * as a padded LIKE, so the phrase only lands on word boundaries. normalizeTitle
+ * leaves only [a-z0-9 ], so the phrase carries no LIKE wildcard and only the
+ * outer % are wildcards; nothing but the clause STRUCTURE is generated. Bound
+ * params start at `start`; the caller appends `params` in order. Empty (no
+ * titles, or all blank) returns the always-true clause, so the board is unnarrowed.
  */
 function titleKeepClause(titles: string[] | undefined, start: number): { clause: string; params: string[] } {
   const groups: string[] = [];
   const params: string[] = [];
   let n = start;
   for (const raw of titles ?? []) {
-    const tokens = normalizeTitle(raw).split(' ').filter(Boolean);
-    if (tokens.length === 0) continue;
-    const conds = tokens.map((tok) => {
-      params.push(tok);
-      return `title ~* ('\\y' || $${n++} || '\\y')`;
-    });
-    groups.push(`(${conds.join(' AND ')})`);
+    const phrase = normalizeTitle(raw);
+    if (!phrase) continue;
+    params.push(phrase);
+    groups.push(`(' ' || regexp_replace(lower(title), '[^a-z0-9]+', ' ', 'g') || ' ') LIKE ('% ' || $${n++} || ' %')`);
   }
   if (groups.length === 0) return { clause: 'TRUE', params: [] };
   return { clause: `(${groups.join(' OR ')})`, params };

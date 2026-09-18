@@ -84,7 +84,8 @@ const shelves: { key: 'core' | 'stretch'; label: string; caption: string; list: 
         <datalist id="wl-title-index">
           {titleOptions.map((o) => <option value={o.title}>{o.count.toLocaleString()} live</option>)}
         </datalist>
-        <span class="wl-add-hint mono-label">type at least two letters</span>
+        <span class="wl-add-hint mono-label">at least two letters</span>
+        <button type="submit" class="wl-add-btn">Add to core</button>
       </form>
 
       <div class="wl-cols">
@@ -225,6 +226,7 @@ const shelves: { key: 'core' | 'stretch'; label: string; caption: string; list: 
   .wl-input { flex: 1 1 auto; min-width: 12ch; padding: var(--space-200) 0; border: none; background: transparent; color: var(--color-foreground); font-size: var(--size-200); font-family: var(--font-family-mono); }
   .wl-input:focus { outline: none; }
   .wl-add-hint { color: var(--color-muted); white-space: nowrap; }
+  .wl-add-btn { padding: var(--space-200) var(--space-400); border: none; border-radius: var(--radius); background: var(--color-surface-inverse); color: var(--color-foreground-inverse); font-family: var(--font-family-mono); font-size: var(--size-075); cursor: pointer; white-space: nowrap; }
 
   .wl-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-500); }
   @media (max-width: 44rem) { .wl-cols { grid-template-columns: 1fr; } }
