@@ -34,7 +34,6 @@ const show = signedIn && inCluster;
   show && (
     <nav class="subnav" aria-label="Your desk">
       <div class="shell subnav-inner">
-        <span class="subnav-label mono-label">Your desk</span>
         <div class="subnav-links kicker">
           {WORKSPACE_NAV.map((item) =>
             item.built ? (
@@ -71,12 +70,6 @@ const show = signedIn && inCluster;
     padding-block: var(--space-300);
     flex-wrap: wrap;
   }
-  /* The eyebrow: names the row without competing with the links. Hidden on
-     narrow screens so the links keep the full width. */
-  .subnav-label {
-    color: var(--color-muted);
-    white-space: nowrap;
-  }
   .subnav-links {
     display: flex;
     align-items: baseline;
@@ -105,9 +98,6 @@ const show = signedIn && inCluster;
   }
 
   @media (max-width: 48rem) { /* --breakpoint-phone */
-    .subnav-label {
-      display: none;
-    }
     .subnav-inner,
     .subnav-links {
       gap: var(--space-400);
