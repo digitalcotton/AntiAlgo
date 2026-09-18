@@ -6,7 +6,7 @@ import JobRow from '../components/JobRow.astro';
 import KillRow from '../components/KillRow.astro';
 import {
   verifiedJobs,
-  killArchive,
+  killsOnRecord,
   sweepDate,
   sweptStamp,
   daysBetween,
@@ -39,7 +39,7 @@ import { withBase } from '../../site.config.mjs';
  * window.ts); nothing about the sweep is typed into this page.
  *
  * THE BOARD READ IS THE PUBLISHED LAYER, the same source /drop reads
- * (verifiedJobs(), killArchive()), so the page renders without a database and
+ * (verifiedJobs(), killsOnRecord()), so the page renders without a database and
  * stays consistent with the drop it grew out of. The member's own rows (their
  * watch list and settings) are the only database reads, and a paid viewer
  * already came from that database, so it is up by the time we get here.
@@ -55,7 +55,7 @@ const stamp = sweptStamp();
 // and distributions from tonight's snapshot and the standing kill archive, each
 // counted here at render, never typed. Geometry matches the design brief exactly.
 const marketLive = verifiedJobs();
-const marketArchive = killArchive();
+const marketArchive = killsOnRecord();
 const verifiedCount = marketLive.length;
 
 // Bar-height scaler from the reference: a 3px floor so a nonzero bar always
@@ -231,7 +231,7 @@ if (paid && viewer) {
   // titles and the drop's own seven-day window, the same window and source
   // /drop reads.
   const window = dropWindow(sweepDate());
-  laneKills = killsInWindow(killArchive(), window, daysBetween).filter((k) =>
+  laneKills = killsInWindow(killsOnRecord(), window, daysBetween).filter((k) =>
     allTitles.some((t) => matchesTitle(t, k.title))
   );
 
