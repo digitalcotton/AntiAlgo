@@ -77,8 +77,9 @@ export const ROUTES = [
   { key: 'verify-email', pattern: '/verify-email', kind: 'static', note: 'Where a verification link lands. Dormant while email verification is off.', sitemap: false },
   { key: 'reset-password', pattern: '/reset-password', kind: 'static', note: 'Request a reset, and set a new password from a mailed link.', sitemap: false },
 
-  // --- The Desk ---
-  { key: 'desk', pattern: '/desk', kind: 'static', note: 'The command center for applications sent.', sitemap: true },
+  // --- The Desk (the titles-driven member home) and the Opportunities tracker ---
+  { key: 'desk', pattern: '/desk', kind: 'static', note: 'The Desk: the paid member home. Name the titles you want and the board narrows to them; a nightly read of what is new and what died under those titles.', sitemap: false },
+  { key: 'opportunities', pattern: '/opportunities', kind: 'static', note: 'The applications tracker (formerly The Desk): what you did with an application vs what the sweep observed, two tracks, never one status. Behind sign-in.', sitemap: false },
   { key: 'desk-save', pattern: '/desk/save', kind: 'asset', note: 'POST. Saves or unsaves one verified posting for the signed-in account.', sitemap: false },
   { key: 'desk-application', pattern: '/desk/application', kind: 'asset', note: 'POST. Creates, confirms, transitions, archives or unarchives one application, by intent field.', sitemap: false },
   { key: 'desk-draft', pattern: '/desk/draft/[id]', kind: 'dynamic', note: "One application's drafted resume and cover, cited to the record.", sitemap: false },

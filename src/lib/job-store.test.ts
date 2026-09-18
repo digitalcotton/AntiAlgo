@@ -20,13 +20,36 @@ describe('listBoardFiltered', () => {
     expect(query).toHaveBeenCalledTimes(2);
     const [countSql, countParams] = query.mock.calls[0];
     const [pageSql, pageParams] = query.mock.calls[1];
-    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null]);
-    expect(pageParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, 50, 50]);
+    // The eleven shared params: sweep, fresh window, search, the three facets,
+    // the age range, then country/liveOnly/hasComp (the teaser's extra filters,
+    // defaulted here). No watched titles, so nothing binds past them.
+    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, false, false]);
+    expect(pageParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, false, false, 50, 50]);
     expect(countSql).toContain('FILTER (WHERE match_age AND');
-    expect(pageSql).toContain('LIMIT $9 OFFSET $10');
+    expect(pageSql).toContain('LIMIT $12 OFFSET $13');
     expect(pageSql).toContain('ORDER BY fit_total DESC, company ASC, title ASC, id ASC');
     expect(result.total).toBe(3);
     expect(result.counts.location).toEqual({ all: 3, remote: 1, onsite: 2 });
+  });
+  it('narrows to the watched titles by token-subset word-boundary match, in count and page alike', async () => {
+    await listBoardFiltered({ ...FILTER, titles: ['Product Designer'] });
+    const [countSql, countParams] = query.mock.calls[0];
+    const [pageSql, pageParams] = query.mock.calls[1];
+    // The two normalised tokens bind after the eleven shared params ($12, $13).
+    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, false, false, 'product', 'designer']);
+    // Then limit and offset shift past the tokens.
+    expect(pageParams.slice(-2)).toEqual([50, 50]);
+    expect(pageSql).toContain('LIMIT $14 OFFSET $15');
+    // Every token is a word-boundary regex, ANDed within a title; and the clause
+    // is applied to the facet counts too, so the counts describe the narrowed board.
+    expect(pageSql).toContain(String.raw`title ~* ('\y' || $12 || '\y') AND title ~* ('\y' || $13 || '\y')`);
+    expect(countSql).toContain(String.raw`title ~* ('\y' || $12 || '\y')`);
+  });
+  it('leaves the board unnarrowed when no titles are watched', async () => {
+    await listBoardFiltered({ ...FILTER, titles: [] });
+    const [, countParams] = query.mock.calls[0];
+    expect(countParams).toHaveLength(11);
+    expect(query.mock.calls[1][0]).toContain('LIMIT $12 OFFSET $13');
   });
   it('mirrors the TypeScript facet rules in SQL', async () => {
     await listBoardFiltered(FILTER);

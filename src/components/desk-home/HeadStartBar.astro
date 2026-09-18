@@ -1,0 +1,66 @@
+---
+/**
+ * The HEAD START bar: a fixed applicant arrival curve (0 to 14 days, zoned at
+ * 48h / 96h / 7d) with a marker at where THIS role sits by age. The zones are the
+ * same on every card (the curve is a fact about postings in general, NBER WP
+ * 32320); only the marker moves. Nothing here is invented: the marker is the
+ * role's real age, and the zones are the model's, cited once per section by the
+ * card. Past 14 days the marker pins to the end.
+ */
+interface Props {
+  ageDays: number | null;
+}
+const { ageDays } = Astro.props;
+const SPAN = 14;
+// Marker position as a percentage of the 14-day track, clamped in range.
+const pos = ageDays === null ? null : Math.max(0, Math.min(SPAN, ageDays)) / SPAN * 100;
+---
+
+<div class="hs">
+  <div class="hs-label mono-label">Head start</div>
+  <div class="hs-track" role="img" aria-label={ageDays === null ? 'Age unknown' : `About ${ageDays} days old on a 14 day arrival curve`}>
+    {/* Fixed zones: the first 48h, then to 96h, then to 7d, then to 14d. */}
+    <span class="hs-zone hs-zone-48"></span>
+    <span class="hs-zone hs-zone-96"></span>
+    <span class="hs-zone hs-zone-7d"></span>
+    <span class="hs-zone hs-zone-14d"></span>
+    {pos !== null && <span class="hs-marker" style={`left:${pos}%`}></span>}
+  </div>
+  <div class="hs-ticks mono-label" aria-hidden="true">
+    <span style="left:14.29%">48h</span>
+    <span style="left:28.57%">96h</span>
+    <span style="left:50%">7d</span>
+    <span style="left:100%">14d</span>
+  </div>
+</div>
+
+<style>
+  .hs { display: flex; flex-direction: column; gap: var(--space-200); }
+  .hs-label { color: var(--color-muted); }
+  .hs-track {
+    position: relative;
+    display: flex;
+    height: 14px;
+    border: var(--border-hairline) solid var(--color-line);
+    background: var(--color-surface);
+  }
+  .hs-zone { display: block; height: 100%; }
+  /* The hot window is the loss/alarm red the site reserves for statistics; used
+     here as the Desk's freshness accent to match the design. Flip to
+     --color-signal to keep red for loss only. */
+  .hs-zone-48 { width: 14.29%; background: var(--color-stat-loss); }
+  .hs-zone-96 { width: 14.29%; background: color-mix(in srgb, var(--color-stat-loss) 45%, transparent); }
+  .hs-zone-7d { width: 21.43%; background: var(--gray-200); }
+  .hs-zone-14d { width: 50%; background: transparent; }
+  .hs-marker {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    background: var(--color-foreground);
+    transform: translateX(-1px);
+  }
+  .hs-ticks { position: relative; height: 1em; color: var(--color-muted); }
+  .hs-ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .hs-ticks span:last-child { transform: translateX(-100%); }
+</style>

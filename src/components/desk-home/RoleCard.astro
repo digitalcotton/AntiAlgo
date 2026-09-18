@@ -1,0 +1,121 @@
+---
+import HeadStartBar from './HeadStartBar.astro';
+import { routeFor, boardDetailPath } from '../../data/nav';
+import { formatDate } from '../../lib/data';
+import type { DeskRoleVM } from '../../lib/desk-home';
+
+/**
+ * One role card on The Desk, pixel-faithful to NewDeskScreen.html: rank, title
+ * (links to the posting), company - pay - location, three chips (which of your
+ * titles matched, the applicant system it is on, when it was first seen), the
+ * HEAD START arrival-curve bar with a plain reading of where it sits, the fit
+ * score, and two REAL actions. "Draft this on your key" posts the posting slug
+ * to /desk/job-draft (drafts a resume + cover, works without a provider key via
+ * the fallback writer). "Track on the Desk" posts the click intent + the posting
+ * URL to /desk/application (records a clicked application). No draft/track is
+ * faked: both resolve an arbitrary crawl row.
+ */
+interface Props {
+  role: DeskRoleVM;
+  rank: number;
+}
+const { role, rank } = Astro.props;
+const draftAction = routeFor('desk-job-draft');
+const trackAction = routeFor('desk-application');
+const rankLabel = String(rank).padStart(2, '0');
+const sub = [role.company, role.pay, role.remote ? 'Remote' : role.location].filter(Boolean).join('  ·  ');
+---
+
+<li class="rc">
+  <div class="rc-main">
+    <p class="rc-head">
+      <span class="rc-rank mono-label">{rankLabel}</span>
+      {role.slug ? (
+        <a class="rc-title" href={boardDetailPath(role.slug)}>{role.title}</a>
+      ) : (
+        <span class="rc-title">{role.title}</span>
+      )}
+    </p>
+    <p class="rc-sub">{sub}</p>
+    <p class="rc-chips">
+      {role.matched.length > 0 && <span class="rc-chip">matched {role.matched.join(', ')}</span>}
+      {role.ats && <span class="rc-chip">via {role.ats}</span>}
+      {role.firstSeen && <span class="rc-chip">first seen {formatDate(role.firstSeen)}</span>}
+    </p>
+    <HeadStartBar ageDays={role.ageDays} />
+    {role.headStart && (
+      <p class="rc-narrative">
+        {role.headStart.label}{role.headStart.aheadPct !== null && `, ahead of ${role.headStart.aheadPct}% of applicants`}
+      </p>
+    )}
+  </div>
+
+  <div class="rc-side">
+    <p class="rc-fit"><span class="rc-fit-score">{role.fit}</span><span class="rc-fit-max">/100</span></p>
+    <p class="rc-fit-label mono-label">Your fit</p>
+    <form method="POST" action={draftAction} class="rc-form">
+      <input type="hidden" name="slug" value={role.slug ?? ''} />
+      <button type="submit" class="rc-btn rc-btn-primary" disabled={!role.slug}>Draft this on your key</button>
+    </form>
+    <form method="POST" action={trackAction} class="rc-form">
+      <input type="hidden" name="intent" value="click" />
+      <input type="hidden" name="url" value={role.url ?? ''} />
+      <button type="submit" class="rc-btn rc-btn-ghost" disabled={!role.url}>Track on the Desk</button>
+    </form>
+  </div>
+</li>
+
+<style>
+  .rc {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-500) var(--space-600);
+    align-items: start;
+    padding: var(--space-500);
+    border: var(--border-hairline) solid var(--color-line);
+    border-top: none;
+  }
+  .rc:first-child { border-top: var(--border-hairline) solid var(--color-line); }
+  .rc-main { display: flex; flex-direction: column; gap: var(--space-300); min-width: 0; }
+  .rc-head { margin: 0; display: flex; align-items: baseline; gap: var(--space-300); }
+  .rc-rank { color: var(--color-muted); }
+  .rc-title { font-weight: var(--weight-bold); font-size: var(--size-200); color: var(--color-foreground); text-decoration: none; letter-spacing: -0.01em; }
+  .rc-title:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-stat-loss); }
+  .rc-sub { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
+  .rc-chips { margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-200); }
+  .rc-chip {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    color: var(--color-muted);
+    border: var(--border-hairline) solid var(--color-line);
+    padding: 2px var(--space-200);
+    white-space: nowrap;
+  }
+  .rc-narrative { margin: 0; color: var(--color-stat-loss); font-family: var(--font-family-mono); font-size: var(--size-075); }
+
+  .rc-side { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-200); min-width: 16ch; }
+  .rc-fit { margin: 0; display: flex; align-items: baseline; gap: 2px; font-family: var(--font-family-mono); }
+  .rc-fit-score { font-size: 1.8rem; font-weight: var(--weight-semibold, 600); line-height: 1; }
+  .rc-fit-max { color: var(--color-muted); font-size: var(--size-100); }
+  .rc-fit-label { color: var(--color-muted); margin: 0 0 var(--space-200); }
+  .rc-form { margin: 0; width: 100%; }
+  .rc-btn {
+    width: 100%;
+    padding: var(--space-300) var(--space-400);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    border-radius: var(--radius);
+    cursor: pointer;
+    white-space: nowrap;
+    border: var(--border-hairline) solid var(--color-foreground);
+  }
+  .rc-btn-primary { background: var(--color-surface-inverse); color: var(--color-foreground-inverse); }
+  .rc-btn-ghost { background: transparent; color: var(--color-foreground); }
+  .rc-btn:disabled { opacity: 0.4; cursor: default; }
+
+  @media (max-width: 40rem) {
+    .rc { grid-template-columns: 1fr; }
+    .rc-side { align-items: stretch; min-width: 0; }
+    .rc-fit, .rc-fit-label { align-self: flex-start; }
+  }
+</style>

@@ -38,6 +38,7 @@ export interface MemberNavItem {
 export const MEMBER_NAV: MemberNavItem[] = [
   { key: 'index', label: 'Index', href: routeFor('index'), built: true },
   { key: 'desk', label: 'The Desk', href: routeFor('desk'), built: true },
+  { key: 'opportunities', label: 'Opportunities', href: routeFor('opportunities'), built: true },
   { key: 'prelist', label: 'Pre-List', href: routeFor('prelist'), built: true },
   { key: 'drop', label: 'The Drop', href: routeFor('drop'), built: true },
   { key: 'ledger', label: 'The Ledger', href: routeFor('ledger'), built: true },
@@ -66,6 +67,7 @@ export const MEMBER_NAV: MemberNavItem[] = [
  */
 export const WORKSPACE_NAV: MemberNavItem[] = [
   { key: 'desk', label: 'The Desk', href: routeFor('desk'), built: true },
+  { key: 'opportunities', label: 'Opportunities', href: routeFor('opportunities'), built: true },
   { key: 'ledger', label: 'The Ledger', href: routeFor('ledger'), built: true },
   { key: 'prelist', label: 'Pre-List', href: routeFor('prelist'), built: true }
 ];

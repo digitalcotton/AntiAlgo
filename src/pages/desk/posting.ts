@@ -70,10 +70,11 @@ function wantsJson(request: Request): boolean {
   return (request.headers.get('accept') ?? '').includes('application/json');
 }
 
-/** The Desk, for a bounce with nowhere better to land (a bad URL from the
-    modal, an application that is not this person's). */
+/** The Opportunities tracker, for a bounce with nowhere better to land (a bad
+    URL from the modal, an application that is not this person's). The add-a-job
+    modal that posts here lives on /opportunities, so a bounce returns there. */
 function deskPath(view: string, notice?: string): string {
-  const base = `${routeFor('desk')}?view=${view === 'table' ? 'table' : 'board'}`;
+  const base = `${routeFor('opportunities')}?view=${view === 'table' ? 'table' : 'board'}`;
   return notice ? `${base}&posting=${notice}` : base;
 }
 

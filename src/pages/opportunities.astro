@@ -1,0 +1,1606 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Panel from '../components/Panel.astro';
+import EmptyState from '../components/EmptyState.astro';
+import AddJobModal from '../components/desk/AddJobModal.astro';
+import PostingCardStatus from '../components/desk/PostingCardStatus.astro';
+import { listPostingFetches, type StoredPostingFetch } from '../lib/posting-fetch-store';
+import { addedSlugFor, POSTING_NOTICES } from '../lib/added-posting';
+import { documentState, getJobRenders, jobDraftState } from '../lib/generated-render-store';
+import { FUNCTION_MAX_DURATION_S } from '../../site.config.mjs';
+import ArchivedRow from '../components/desk/ArchivedRow.astro';
+import OnboardingChecklist from '../components/profile/OnboardingChecklist.astro';
+import { buildOnboarding, type OnboardingStep } from '../lib/onboarding';
+import { listEntries } from '../lib/record-store';
+import { keyMeta } from '../lib/keychain-store';
+import { keyStorageIsConfigured } from '../lib/keychain';
+import { isOn } from '../lib/flags';
+import { routeFor, jobPath, deskDraftPath, jobDraftPath, boardDetailPath } from '../data/nav';
+import { withBase } from '../../site.config.mjs';
+import {
+  archiveApplication,
+  listApplications,
+  listSavedJobs,
+  type StoredApplication,
+  type StoredSavedJob
+} from '../lib/desk-store';
+import {
+  ABANDON_REASONS,
+  CLOSED_REASONS,
+  SELF_ARCHIVE_DAYS,
+  fateOf,
+  promptTiming,
+  shouldSelfArchive,
+  type AbandonReason,
+  type ApplicationState,
+  type ClosedReason,
+  type PostingFate
+} from '../lib/desk';
+import { formatDate, killArchive, loadJobs, type Job, type Kill } from '../lib/data';
+import { ruleLabel } from '../lib/readings';
+
+/**
+ * /opportunities: the applications tracker (MASTER-SPEC 3.5, F4). Formerly
+ * "The Desk" at /desk; renamed on 2026-09-18 when /desk became the titles-driven
+ * member home, and this tracker moved here under its own name. Its POST endpoints
+ * stay mounted under /desk (desk-application, desk-posting, desk-save) as the
+ * shared action layer. What happens after a person applies, tracked from their
+ * own outbound clicks and the sweep's own nightly re-reading of the postings they
+ * point at.
+ *
+ * GATED, LIKE /profile AND /settings, BUT WITH A REAL SHOP WINDOW, UNLIKE
+ * THEM. This page reads Astro.locals.verdict, set by middleware before this
+ * file ever runs (src/lib/entitlement.ts's '/desk' entry, GATED_PREFIXES,
+ * ROUTE_POLICY), and it also carries flags.config.mjs's `desk` flag; both
+ * gates run before this file is reached (see src/middleware.ts's own header
+ * for the order: the flag gate first, answering a 404 to a stranger if the
+ * feature is dark for this edition, then entitlement). Signed out, this page
+ * still explains what the Desk does, honestly, in the present tense, because
+ * it is real now: the difference from the private account pages is that there
+ * is something here worth showing before a person signs in, which is why this
+ * page window-shops and /profile and /settings do not.
+ *
+ * THE TWO TRACKS NEVER MERGE. Every application below renders two labeled
+ * lines, never one combined status: "You told us" (src/lib/desk.ts's
+ * ApplicationState, resolved only through the confirm loop or a direct
+ * choice, never inferred) and "We observed" (src/lib/desk.ts's fateOf(),
+ * computed only from the published sweep and kill files, never a guess).
+ * See desk.ts's own header for why those two types cannot be combined by
+ * construction; this page is the render side of that same rule, restated
+ * as a design constraint rather than a type system one: nowhere below does
+ * a single line or a single colour try to say both things at once. The
+ * 2026-08-25 redesign below (see UI-PUNCHLIST.md, "The Desk") trims how
+ * much of each track's sentence a scanning view shows, never which track
+ * exists: every place a card or a row narrows to a short label still
+ * carries the full "You told us" / "We observed" pair somewhere on the
+ * page (the board card's own <dl>, or a table row's own detail disclosure).
+ *
+ * CLICK IS NOT APPLIED, RENDERED. A freshly clicked card reads "You clicked
+ * out. Not yet confirmed." and offers the confirm loop's own three answers
+ * as the only way to move it, exactly as F4.1 describes. There is no
+ * control on this page that marks a card applied without going through
+ * that loop; see src/pages/desk/application.ts's own header for the one
+ * call site in this codebase that is allowed to do that. The same rule
+ * bounds this redesign's one new inline control (a Saved row's "Start
+ * tracking" button, below): it posts the existing 'click' intent and
+ * nothing else, so a saved job can only ever become a freshly clicked,
+ * unconfirmed application, never an applied one, from this page.
+ *
+ * NO FABRICATED STATES. Every line this page renders is either
+ * src/lib/desk.ts's own ApplicationState (a person's own answer) or its
+ * PostingFate (the sweep's own finding), in that file's own words, styled
+ * but never invented. There is no "under review", no "viewed", no progress
+ * bar anywhere below, and closed cards are never rendered in the site's
+ * loss colour: MASTER-SPEC F4.4 cites a user asking for exactly that
+ * change, and this page writes closure in the same plain voice the rest of
+ * the site uses for an absence.
+ *
+ * THE 14-DAY SELF-ARCHIVE RUNS HERE, LAZILY, BECAUSE THIS REPOSITORY HAS NO
+ * CRON. src/lib/desk.ts's shouldSelfArchive() is a pure predicate over
+ * timestamps; something has to call it and write the result. Absent a
+ * nightly job outside this repository's own reach (see the codebase's own
+ * notes on where the sweep's machine actually runs), the honest place to
+ * evaluate it is the one moment this page is already reading every
+ * application anyway: a page view. It is reversible by construction either
+ * way (src/lib/desk-store.ts's archiveApplication()/unarchiveApplication()
+ * only ever set or clear archived_at), so evaluating it on read costs
+ * nothing a nightly job would have done more cheaply, only later.
+ *
+ * WORKS WITHOUT JAVASCRIPT, WITH ONE NAMED EXCEPTION. Every action (confirm,
+ * abandon, transition, close, save a job, start tracking a saved job, track a
+ * new application, archive, unarchive) is a plain HTML form posting to
+ * src/pages/desk/application.ts or src/pages/desk/save.ts, which redirect back
+ * here. The one exception is opening the "Add a job" modal
+ * (src/components/desk/AddJobModal.astro): it is a native <dialog> opened by
+ * a small client script, the Desk's only script, because a real modal (focus
+ * trap, Escape, dimmed backdrop, top layer) needs showModal(), which needs
+ * JavaScript. See that component's own header for the full reasoning and its
+ * cost. Every other action on this page still runs with no script at all.
+ *
+ * ONE TRACKER, NOT TWO SECTIONS, ONE TAB. The 2026-08-25 screenshot review
+ * (UI-PUNCHLIST.md, "The Desk") asked for Saved and Applications to become
+ * one element, the LinkedIn "My Jobs" shape: a saved-but-not-yet-clicked job
+ * is one more stage in the same funnel an applied one sits in, not a
+ * separate surface a reader has to leave and come back to. The BOARD/TABLE
+ * toggle that already existed becomes that element's own tab, unchanged in
+ * mechanism (a query-string ?view=, read below, same as before), just
+ * relabelled as switching views on one tracker instead of switching views
+ * on "Applications" alone. A saved job graduates out of the Saved column
+ * the same way it always could act on an application: by posting the
+ * 'click' intent (now reachable inline from its own row, not only from the
+ * track-an-application modal), which is the one and only door out of
+ * "saved" in this whole page, same as it is the one door into the tracker
+ * from anywhere else.
+ *
+ * "NEEDS A WORD FROM YOU" IS GONE AS A SECTION; ITS PROMPT IS NOT.
+ * UI-PUNCHLIST.md also asked to remove that section. It was never its own
+ * top-level section in this file, only the label BOARD_COLUMNS gave the
+ * 'clicked' column; renaming that column to plain "Clicked" removes the
+ * separate callout without removing the prompt itself, because the prompt
+ * was never the column label to begin with: clickPrompt() below already
+ * renders "Did you finish?" (or the next-visit equivalent) inline, inside
+ * each freshly clicked card, and that render is untouched by this pass.
+ */
+
+export const prerender = false;
+
+const verdict = Astro.locals.verdict;
+const allowed = verdict?.allow === true;
+const reason = verdict?.reason ?? 'signed-out';
+const viewer = Astro.locals.viewer;
+
+const view = Astro.url.searchParams.get('view') === 'table' ? 'table' : 'board';
+// One-line notices the posting route sends back on a bad submit.
+const postingNotice = Astro.url.searchParams.get('posting');
+const postingNoticeText = postingNotice ? (POSTING_NOTICES[postingNotice] ?? null) : null;
+
+// The action endpoints stay mounted under /desk (the invisible POST layer this
+// page shares with the new Desk home); only this page's own self-links moved to
+// /opportunities when the tracker was renamed from "The Desk".
+const applicationAction = routeFor('desk-application');
+const postingAction = routeFor('desk-posting');
+const saveAction = routeFor('desk-save');
+const opportunitiesPath = routeFor('opportunities');
+
+/* ---------------------------------------------------------------------------
+   Data, only once the viewer is actually allowed here. The 14-day
+   self-archive (see this file's own header) is evaluated right after the
+   read: any unconfirmed application past its window is archived before
+   this page ever renders a state for it, so the render and the database
+   agree from the first paint rather than catching up on a later visit.
+   --------------------------------------------------------------------------- */
+
+const now = new Date();
+
+let applications: StoredApplication[] = [];
+let savedJobs: StoredSavedJob[] = [];
+
+// The first-run "Getting started" checklist, shared with /profile so the two
+// pages never disagree (src/lib/onboarding.ts). Shown on the Desk (the post-login
+// landing) until the required steps are done, so a new reader is guided to fill
+// in their record before the empty tracker.
+const onboardingOn = isOn('onboarding');
+let onboardingSteps: OnboardingStep[] = [];
+let showOnboarding = false;
+// "Add a job" rows by application id, with each one's draft state read the
+// same way the room reads it, so the card and the room never disagree. The
+// card only ever prints one line about it (PostingCardStatus) and never
+// refreshes itself: the posting's own page is where the read is watched.
+type AddedDraft = 'none' | 'pending' | 'ready' | 'failed';
+const postingFetches = new Map<number, { row: StoredPostingFetch; draft: AddedDraft }>();
+
+if (allowed && viewer) {
+  const userId = viewer.userId;
+  const [rawApplications, rawSavedJobs] = await Promise.all([listApplications(userId), listSavedJobs(userId)]);
+  savedJobs = rawSavedJobs;
+
+  if (onboardingOn) {
+    const [entries, keyRows] = await Promise.all([
+      listEntries(userId),
+      keyStorageIsConfigured() && isOn('byok') ? keyMeta(userId) : Promise.resolve([])
+    ]);
+    const result = buildOnboarding({
+      keys: keyRows.length,
+      entries: entries.length,
+      applications: rawApplications.length
+    });
+    onboardingSteps = result.steps;
+    showOnboarding = !result.complete;
+  }
+
+  try {
+    const rows = await listPostingFetches(userId);
+    const ceilingMs = FUNCTION_MAX_DURATION_S * 1000;
+    for (const row of rows) {
+      let draft: AddedDraft = 'none';
+      if (row.status === 'ready' || row.status === 'pasted') {
+        const renders = await getJobRenders(userId, addedSlugFor(row.applicationId));
+        const pair = jobDraftState(renders, now.getTime(), ceilingMs);
+        const resumeState = documentState(renders.resume, now.getTime(), ceilingMs);
+        const coverState = documentState(renders.cover, now.getTime(), ceilingMs);
+        draft =
+          pair === 'none' ? 'none' : resumeState === 'pending' || coverState === 'pending' ? 'pending' : pair === 'failed' ? 'failed' : 'ready';
+      }
+      postingFetches.set(row.applicationId, { row, draft });
+    }
+  } catch (error) {
+    console.error(`desk: could not read the added postings for user ${userId}.`, error);
+  }
+
+  applications = await Promise.all(
+    rawApplications.map(async (application) => {
+      if (application.archivedAt !== null) return application;
+      if (!shouldSelfArchive(application.clickedAt, application.confirmedAt, now)) return application;
+      const archived = await archiveApplication(userId, application.id, now);
+      return archived ?? application;
+    })
+  );
+}
+
+const activeApplications = applications.filter((a) => a.archivedAt === null);
+const archivedApplications = applications.filter((a) => a.archivedAt !== null);
+
+/** A saved job graduates out of "Saved" the moment any application exists
+    for its jobId, in any state, active or archived: that application is
+    where its truth lives from then on, and showing the same job in both
+    places would be the two tracks' own discipline broken sideways, one
+    posting narrated twice. Nothing here deletes the desk_saved_job row (the
+    bookmark stands, per save.ts's own idempotent-save comment); this is
+    only which list a jobId renders in. */
+const appliedJobIds = new Set(applications.map((a) => a.jobId).filter((id): id is string => id !== null));
+const savedOnlyJobs = savedJobs.filter((saved) => !appliedJobIds.has(saved.jobId));
+
+/* Nothing tracked yet, at all: the true empty state, read off the
+   unfiltered lists so an archived-only account (nothing saved, nothing
+   active) does not see this panel while its Archived section below still
+   has something to show. */
+const nothingTrackedYet = applications.length === 0 && savedJobs.length === 0;
+/* Whether the tracker itself (table or board) has anything to draw: a
+   saved-but-unclicked job, or an active application. Archived rows live in
+   their own section below regardless of this. */
+const trackerHasRows = savedOnlyJobs.length > 0 || activeApplications.length > 0;
+
+/* ---------------------------------------------------------------------------
+   Matching an application back to a published posting, and a posting to a
+   kill, by the same identity src/lib/desk.ts's fateOf() documents: company
+   and title. Local to this page, not added to src/lib/data.ts (out of this
+   task's touchable files), the same way src/lib/desk.ts's own comment on
+   fateOf() describes the caller as the one that supplies `kill`.
+   --------------------------------------------------------------------------- */
+
+const jobs = loadJobs();
+const kills = killArchive();
+
+function jobById(jobId: string): Job | null {
+  return jobs.find((job) => job.id === jobId) ?? null;
+}
+
+function killForJob(job: Job): Kill | null {
+  return kills.find((kill) => kill.company === job.company && kill.title === job.title) ?? null;
+}
+
+/* ---------------------------------------------------------------------------
+   Copy: closed and abandoned reasons, written humanely and plainly
+   (MASTER-SPEC F4.4: never a red REJECTED). No motive language anywhere in
+   either map: an employer's silence is a fact about our observation, not a
+   claim about their intent. Short enough on their own, post-redesign, to
+   double as the trimmed table's "Your status" cell (task 4 below); no
+   separate short-label map was needed for these two.
+   --------------------------------------------------------------------------- */
+
+const CLOSED_REASON_LABEL: Record<ClosedReason, string> = {
+  accepted: 'Offer accepted',
+  withdrawn: 'You withdrew',
+  rejected: 'Not moving forward',
+  no_answer: 'No answer came',
+  presumed_closed: 'Presumed closed'
+};
+
+const ABANDON_REASON_LABEL: Record<AbandonReason, string> = {
+  form_too_long: 'The form was too long',
+  account_wall: 'It wanted an account first',
+  salary_missing: 'No salary was listed',
+  posting_dead: 'The posting was already dead',
+  changed_my_mind: 'You changed your mind',
+  other: 'Something else'
+};
+
+/** The "you told us" line, in full: exactly what the person reported,
+    nothing else. Still used verbatim on the board card (unchanged) and in
+    the table's per-row detail disclosure (task 4: "folding the verbose
+    sentences into ... a detail affordance", not dropping them). */
+function youToldUs(application: StoredApplication): string {
+  switch (application.state) {
+    case 'clicked':
+      return 'You clicked out. Not yet confirmed.';
+    case 'still_working':
+      return 'Still working on it.';
+    case 'applied':
+      return 'You applied.';
+    case 'interviewing':
+      return application.interviewSubstage ? `Interviewing: ${application.interviewSubstage}.` : 'Interviewing.';
+    case 'offer':
+      return 'You have an offer.';
+    case 'abandoned':
+      return `Didn't finish: ${application.abandonReason ? ABANDON_REASON_LABEL[application.abandonReason].toLowerCase() : 'no reason given'}.`;
+    case 'closed':
+      return application.closedReason ? `${CLOSED_REASON_LABEL[application.closedReason]}.` : 'Closed.';
+    default:
+      return 'Unknown.';
+  }
+}
+
+/** The short form of the same fact, for the trimmed table (task 4) and
+    nowhere else: the board card keeps youToldUs()'s full sentence, because
+    a kanban card has the room a table cell does not. */
+function yourStatusShort(application: StoredApplication): string {
+  switch (application.state) {
+    case 'clicked':
+      return 'Clicked';
+    case 'still_working':
+      return 'In progress';
+    case 'applied':
+      return 'Applied';
+    case 'interviewing':
+      return 'Interviewing';
+    case 'offer':
+      return 'Offer';
+    case 'abandoned':
+      return application.abandonReason ? ABANDON_REASON_LABEL[application.abandonReason] : "Didn't finish";
+    case 'closed':
+      return application.closedReason ? CLOSED_REASON_LABEL[application.closedReason] : 'Closed';
+    default:
+      return 'Unknown';
+  }
+}
+
+interface Observed {
+  /** The full "we observed" sentence, unchanged from before this redesign. */
+  text: string;
+  /** A scanning-width label for the same finding, for the trimmed table. */
+  short: string;
+  asOf: string | null;
+  stale: boolean;
+}
+
+/** Turns one already-computed PostingFate (or its absence) into both the
+    full sentence and the short label, so a saved job and an application
+    pointed at the same job read the fate identically: this is the one place
+    that decision is made, called from weObserved() below for an
+    application and from savedObserved() for a saved-but-unclicked job. */
+function describeFate(fate: PostingFate | null, kill: Kill | null): Observed {
+  if (!fate) {
+    return { text: 'No observation of this posting.', short: 'Not observed', asOf: null, stale: false };
+  }
+  const asOf = formatDate(fate.asOf);
+  switch (fate.kind) {
+    case 'posting_live':
+      return { text: 'Still open.', short: 'Open', asOf, stale: fate.staleSweep };
+    case 'posting_aging':
+      return { text: 'Still open, past its usual window.', short: 'Aging', asOf, stale: fate.staleSweep };
+    case 'posting_came_down':
+      return { text: 'The posting came down.', short: 'Closed', asOf, stale: fate.staleSweep };
+    case 'posting_killed_by_rule': {
+      const detail = kill?.reason ? ` ${kill.reason}` : '';
+      return {
+        text: `The posting came down: ${ruleLabel(fate.rule)}.${detail}`,
+        short: 'Closed',
+        asOf,
+        stale: fate.staleSweep
+      };
+    }
+    case 'posting_reposted':
+      return {
+        text: 'The posting came down and reappeared as a new listing.',
+        short: 'Reposted',
+        asOf,
+        stale: fate.staleSweep
+      };
+    default:
+      return { text: 'No observation of this posting.', short: 'Not observed', asOf: null, stale: false };
+  }
+}
+
+/** The "we observed" line for one application: computed only from
+    fateOf(), never a guess. An external URL, or a job this database cannot
+    find, renders the absence (MASTER-SPEC F4.4: "where the sweep has no
+    basis for a fate, render the absence, never a guess"). */
+function weObserved(application: StoredApplication): Observed {
+  if (application.externalUrl) {
+    return { text: 'External link. Not one of ours to verify.', short: 'External', asOf: null, stale: false };
+  }
+  const job = application.jobId ? jobById(application.jobId) : null;
+  if (!job) {
+    return { text: 'No observation of this posting.', short: 'Not observed', asOf: null, stale: false };
+  }
+  return savedObserved(job);
+}
+
+/** The same fate overlay, for a saved-but-unclicked job (and, via
+    weObserved() above, for an internal-posting application too, since both
+    ultimately read the same Job): save.ts scopes a save to a verified
+    posting only ("a save has nothing of ours to attach to a posting we
+    never verified"), so there is no externalUrl branch to mirror from
+    weObserved() here; every saved job has a real Job to read fateOf()
+    from. */
+function savedObserved(job: Job): Observed {
+  const kill = killForJob(job);
+  return describeFate(fateOf(job, kill, now), kill);
+}
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * The employer clock (F4.3): "Follow-up nudges keyed to observed
+ * benchmarks, each with its citation shown ... so the tracker presents the
+ * employer-side clock and lets the person decide." This function supplies
+ * the one half of that line this file can actually stand behind: how long
+ * since the person's own "I applied" confirmation (StoredApplication's
+ * confirmedAt, stamped by src/pages/desk/application.ts's 'confirm' intent and left
+ * untouched by the later interviewing/offer transitions, so it still reads
+ * as the applied date on an interviewing card).
+ *
+ * THE BENCHMARK HALF IS DELIBERATELY ABSENT. F4.3's own spec text cites
+ * three employer-side figures: Ashby's median-6-days-to-silent-rejection,
+ * CandE's 3-to-5-day decision window for award-winning employers, and
+ * CandE's 24%-wait-2+-months figure. src/data/facts.json holds NONE of the
+ * three. Its one Ashby entry is "time-to-fill" ("Median time to first fill
+ * runs 71 days for senior roles and 75 for technical"), a different
+ * statistic from the same source family, about how long a ROLE takes to
+ * fill, not how long a CANDIDATE waits to hear back. Rendering that number
+ * beside a "since you applied" line would read as the missing follow-up
+ * benchmark and would not be one: a person could reasonably misread "71
+ * days" as license to wait 71 days for silence that already resolved,
+ * which is exactly the "advice dressed as observation" this build's
+ * constraints forbid. Gate 2 (test/gates/truth.mjs) only ever allows a
+ * verbatim fact string on a route facts.json licenses for it, and this
+ * function's job is to not go looking for a loophole in that: a citation
+ * F4.3 asks for that facts.json does not hold does not render, full stop.
+ * See this task's own report for the same finding stated for a human.
+ */
+function employerClockDays(application: StoredApplication): number | null {
+  if (application.state !== 'applied' && application.state !== 'interviewing') return null;
+  if (!application.confirmedAt) return null;
+  const elapsedMs = now.getTime() - application.confirmedAt.getTime();
+  return Math.max(0, Math.floor(elapsedMs / MS_PER_DAY));
+}
+
+interface ClickPrompt {
+  headline: string;
+  body: string;
+  /** true for an in-session posting: F4.1's own example is "Did you
+      finish?" asked prominently, right now. false renders the next-visit
+      case plainly instead, never a countdown this page cannot honestly
+      keep (nothing here schedules a future visit; the card just reads
+      differently the next time the person is actually back). */
+  emphasize: boolean;
+}
+
+/**
+ * F4.1's friction-aware timing, wired to copy for a freshly clicked,
+ * unconfirmed card. src/lib/desk.ts's promptTiming() is the one place the
+ * in-session/next-visit boundary is decided (its own comment there derives
+ * the 10-minute cutoff from MASTER-SPEC 9.3's 15-minute completion-collapse
+ * figure); this function only turns that pure answer into the two copy
+ * states F4.1 describes by example: a 4-minute no-account posting asks now,
+ * a 25-minute account-wall posting says plainly it will ask on the next
+ * visit rather than nagging in the meantime. No fake timer, no promise of
+ * exactly when "next visit" is: this page has no cron and cannot know.
+ *
+ * THIS IS "NEEDS A WORD FROM YOU," STILL, JUST NOT A SECTION OF ITS OWN.
+ * See this file's own header on the removed section: this function and its
+ * call site (the freshly clicked board card) are exactly where that prompt
+ * still lives.
+ */
+function clickPrompt(application: StoredApplication): ClickPrompt {
+  const job = application.jobId ? jobById(application.jobId) : null;
+  const timing = promptTiming(job ? job.ease : null);
+  if (timing === 'in_session') {
+    return {
+      headline: 'Did you finish?',
+      body: 'This one is usually quick. Tell us now if you have an answer.',
+      emphasize: true
+    };
+  }
+  return {
+    headline: 'Still on this one?',
+    body: 'This one usually takes more than one sitting, so we will ask again on your next visit rather than now. Answer any time before then if you already know.',
+    emphasize: false
+  };
+}
+
+/** One saved-but-unclicked job, resolved to the fields a row or a card
+    needs to render it: title, company and the role's own page (task 1:
+    "Saved rows link to the opportunity"). A job that has since left
+    src/lib/data.ts's own bundle (never observed in practice; save.ts only
+    ever saves a jobId loadJobs() already matched) renders the same honest
+    absence the rest of this page uses rather than a broken link. */
+interface SavedDisplay {
+  title: string;
+  company: string;
+  href: string | null;
+  applyUrl: string | null;
+  savedAtLabel: string | null;
+  observed: Observed;
+}
+
+function describeSaved(saved: StoredSavedJob): SavedDisplay {
+  const job = jobById(saved.jobId);
+  if (!job) {
+    return {
+      title: 'Unknown posting',
+      company: '',
+      href: null,
+      applyUrl: null,
+      savedAtLabel: formatDate(saved.savedAt.toISOString()),
+      observed: { text: 'No observation of this posting.', short: 'Not observed', asOf: null, stale: false }
+    };
+  }
+  return {
+    title: job.title ?? 'Untitled role',
+    company: job.company,
+    href: jobPath(job.slug),
+    applyUrl: job.apply_url,
+    savedAtLabel: formatDate(saved.savedAt.toISOString()),
+    observed: savedObserved(job)
+  };
+}
+
+/** Board/table columns, one per STM-0002 state, closed and abandoned merged
+    into one terminal column: both are endings, and F4.4 asks that they read
+    as endings, not as two different shelves. The 'clicked' column is
+    labelled plainly now ("Clicked"), not "Needs a word from you": see this
+    file's own header for where that prompt still lives. A "Saved" column
+    is rendered separately, ahead of this list, for the saved-but-unclicked
+    jobs this array has no vocabulary for (they are not a StoredApplication
+    and carry no ApplicationState). */
+const BOARD_COLUMNS: { key: string; label: string; states: readonly ApplicationState[] }[] = [
+  { key: 'clicked', label: 'Clicked', states: ['clicked'] },
+  { key: 'still_working', label: 'Still working on it', states: ['still_working'] },
+  { key: 'applied', label: 'Applied', states: ['applied'] },
+  { key: 'interviewing', label: 'Interviewing', states: ['interviewing'] },
+  { key: 'offer', label: 'Offer', states: ['offer'] },
+  { key: 'closed', label: 'Closed', states: ['closed', 'abandoned'] }
+];
+
+function columnOf(states: readonly ApplicationState[]): StoredApplication[] {
+  return activeApplications.filter((application) => states.includes(application.state));
+}
+---
+
+<BaseLayout
+  title="Opportunities"
+  active="opportunities"
+  description="Opportunities: what you did with an application, tracked separately from what the sweep observed about the posting. Two tracks, never one status."
+  noindex={allowed}
+>
+  <div class="shell desk">
+    <header class="desk-head">
+      <p class="desk-kicker mono-label">Opportunities</p>
+      <h1 class="desk-title">What happened after you applied.</h1>
+      <p class="desk-lede">
+        Two things, always kept apart. What you told us: whether you applied, what stage you are at, how it ended.
+        What the sweep observed: whether the posting is still open, aging, come down, or reposted. Neither one is
+        the other, and this page never shows you a single status that pretends to be both.
+      </p>
+    </header>
+
+    {showOnboarding && <OnboardingChecklist steps={onboardingSteps} />}
+
+    {
+      !allowed && (
+        <section class="desk-section" aria-labelledby="what-it-does">
+          <h2 id="what-it-does">What the Desk does</h2>
+          <ol class="capabilities">
+            <li class="capability">
+              <h3 class="capability-title">Tracks what you actually did, not a guess</h3>
+              <p class="capability-body">
+                Paste the URL of a role you clicked out to, and the Desk records the click and a snapshot of the
+                posting at that instant. A click is recorded as a click. It never becomes "applied" until you say so,
+                through a short confirm loop the next time you are here: did you finish, are you still working on it,
+                or did you not finish. Nothing here infers an answer for you.
+              </p>
+            </li>
+            <li class="capability">
+              <h3 class="capability-title">Watches the posting, separately, every night</h3>
+              <p class="capability-body">
+                The same machine that verifies every posting on this site re-reads the ones you have applied to.
+                Still open, aging past its usual window, come down, or reposted under a new listing: an observation
+                with a date on it, on the same clock as the index, never mixed into your own status.
+              </p>
+            </li>
+            <li class="capability">
+              <h3 class="capability-title">Says plainly what neither of us can see</h3>
+              <p class="capability-body">
+                Neither the sweep nor you can see an employer's inbox. This page will never tell you a role is
+                "under review," because nobody told us that and the sweep cannot observe it. Silence stays silence,
+                shown as an absence, not read as a verdict.
+              </p>
+            </li>
+          </ol>
+          {reason === 'email-unverified' ? (
+            <>
+              <p class="desk-preview-note">Confirm your email and this page opens.</p>
+              <div class="desk-links">
+                <a class="text-link" href={withBase('/verify-email')}>Resend the link</a>
+              </div>
+            </>
+          ) : (
+            <>
+              <p class="desk-preview-note">Sign in to start tracking. Nothing here works without an account, because it is your own record of your own applications.</p>
+              <div class="desk-links">
+                <a class="text-link" href={withBase('/sign-in')}>Sign in</a>
+                <a class="text-link" href={withBase('/sign-up')}>No account yet? Create one.</a>
+              </div>
+            </>
+          )}
+        </section>
+      )
+    }
+
+    {
+      allowed && (
+        <>
+          {nothingTrackedYet && (
+            <section class="desk-section" aria-labelledby="empty">
+              <h2 id="empty" class="visually-hidden">Nothing tracked yet</h2>
+              <Panel title="How this works">
+                <p class="desk-panel-line">
+                  We observe two things, and only two: the posting itself, re-read every night the same way the
+                  index verifies it, and your own click, the instant you tell us about it. We cannot observe an
+                  employer's inbox, a hiring manager's calendar, or anything that happens between your click and
+                  their reply. When neither of us has seen anything new, this page says nothing new, rather than
+                  guessing at "under review" to fill the space.
+                </p>
+              </Panel>
+              <EmptyState
+                title="Nothing tracked yet"
+                detail="Add a job by its link, or save a posting from the index. Either one starts your record."
+              />
+            </section>
+          )}
+
+          <section class="desk-section" aria-labelledby="tracker">
+            {postingNoticeText && <p class="posting-notice" role="status">{postingNoticeText}</p>}
+            <div class="desk-section-head">
+              <h2 id="tracker">Tracker</h2>
+              <div class="tracker-controls">
+                <AddJobModal action={postingAction} view={view} />
+                {trackerHasRows && (
+                  <div class="view-toggle" role="group" aria-label="Choose a view">
+                    <a
+                      class="view-toggle-link"
+                      aria-current={view === 'board' ? 'true' : undefined}
+                      href={`${opportunitiesPath}?view=board`}
+                    >
+                      Board
+                    </a>
+                    <a
+                      class="view-toggle-link"
+                      aria-current={view === 'table' ? 'true' : undefined}
+                      href={`${opportunitiesPath}?view=table`}
+                    >
+                      Table
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {
+              !trackerHasRows ? (
+                !nothingTrackedYet && (
+                  <p class="section-note">Nothing active right now. Everything you have tracked is archived, below.</p>
+                )
+              ) : view === 'table' ? (
+                <div class="table-scroll">
+                  <table class="app-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Role</th>
+                        <th scope="col">Company</th>
+                        <th scope="col">Your status</th>
+                        <th scope="col">Observed</th>
+                        <th scope="col">Date</th>
+                        <th scope="col"><span class="visually-hidden">Actions</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {savedOnlyJobs.map((saved) => {
+                        const info = describeSaved(saved);
+                        return (
+                          <tr class="app-row-saved">
+                            <td>
+                              {info.href ? (
+                                <a class="text-link" href={info.href}>{info.title}</a>
+                              ) : (
+                                info.title
+                              )}
+                            </td>
+                            <td>{info.company}</td>
+                            <td>
+                              <span class="status-chip">Saved</span>
+                            </td>
+                            <td>
+                              {info.observed.short}
+                              {info.observed.asOf && (
+                                <span class="cell-detail"> as of {info.observed.asOf}</span>
+                              )}
+                            </td>
+                            <td>{info.savedAtLabel}</td>
+                            <td class="app-table-actions">
+                              <div class="app-table-actions-row">
+                              {info.applyUrl && (
+                                <form class="app-action-form" method="POST" action={applicationAction}>
+                                  <input type="hidden" name="intent" value="click" />
+                                  <input type="hidden" name="url" value={info.applyUrl} />
+                                  <input type="hidden" name="view" value={view} />
+                                  <button class="app-action-quiet" type="submit">Start tracking</button>
+                                </form>
+                              )}
+                              <form class="app-action-form" method="POST" action={saveAction}>
+                                <input type="hidden" name="intent" value="unsave" />
+                                <input type="hidden" name="jobId" value={saved.jobId} />
+                                <input type="hidden" name="view" value={view} />
+                                <button class="app-action-quiet" type="submit">Unsave</button>
+                              </form></div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {activeApplications.map((application) => {
+                        const observed = weObserved(application);
+                        return (
+                          <tr>
+                            <td>
+                              <a class="text-link" href={`${opportunitiesPath}?view=board#app-${application.id}`}>
+                                {application.snapshot.title ?? 'Untitled role'}
+                              </a>
+                            </td>
+                            <td>{application.snapshot.company ?? 'Unknown company'}</td>
+                            <td>
+                              <span class="status-chip">{yourStatusShort(application)}</span>
+                              <details class="cell-more">
+                                <summary class="cell-more-summary">More</summary>
+                                <p class="cell-more-body">{youToldUs(application)}</p>
+                              </details>
+                            </td>
+                            <td>
+                              {observed.short}
+                              {observed.asOf && <span class="cell-detail"> as of {observed.asOf}</span>}
+                              <details class="cell-more">
+                                <summary class="cell-more-summary">More</summary>
+                                <p class="cell-more-body">
+                                  {observed.text}
+                                  {observed.stale && ' The sweep has not confirmed this recently.'}
+                                </p>
+                                {postingFetches.has(application.id) && (
+                                  <PostingCardStatus
+                                    row={postingFetches.get(application.id)!.row}
+                                    draft={postingFetches.get(application.id)!.draft}
+                                    detailHref={boardDetailPath(addedSlugFor(application.id))}
+                                    roomHref={jobDraftPath(addedSlugFor(application.id))}
+                                    nowMs={now.getTime()}
+                                  />
+                                )}
+                              </details>
+                            </td>
+                            <td>{formatDate(application.clickedAt.toISOString())}</td>
+                            <td class="app-table-actions">
+                              <div class="app-table-actions-row">
+                              {
+                                /* The draft room link, table view (this task's own
+                                   addition). resumeRenderId is only ever set once a
+                                   render has actually been produced (see
+                                   src/lib/generation-preference-store.ts's own
+                                   header), so its presence alone is the honest gate:
+                                   no render, no link, never a link to an empty
+                                   draft room. */
+                              }
+                              {postingFetches.has(application.id) ? (
+                                <>
+                                  <a class="app-action-quiet" href={boardDetailPath(addedSlugFor(application.id))}>Open</a>
+                                  {postingFetches.get(application.id)!.draft === 'ready' && (
+                                    <a class="app-action-quiet" href={jobDraftPath(addedSlugFor(application.id))}>View draft</a>
+                                  )}
+                                </>
+                              ) : (
+                                application.resumeRenderId && (
+                                  <a class="app-action-quiet" href={deskDraftPath(String(application.id))}>View draft</a>
+                                )
+                              )}
+                              <form class="app-action-form" method="POST" action={applicationAction}>
+                                <input type="hidden" name="intent" value="archive" />
+                                <input type="hidden" name="applicationId" value={application.id} />
+                                <input type="hidden" name="view" value={view} />
+                                <button class="app-action-quiet" type="submit">Archive</button>
+                              </form></div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div class="board-scroll">
+                  <div class="board-column">
+                    <h3 class="board-column-title mono-label">
+                      Saved <span class="board-column-count">{savedOnlyJobs.length}</span>
+                    </h3>
+                    {savedOnlyJobs.length === 0 ? (
+                      <p class="board-column-empty">Nothing here.</p>
+                    ) : (
+                      <ul class="board-cards">
+                        {savedOnlyJobs.map((saved) => {
+                          const info = describeSaved(saved);
+                          return (
+                            <li class="app-card">
+                              <p class="app-card-title">
+                                {info.href ? <a class="text-link" href={info.href}>{info.title}</a> : info.title}
+                              </p>
+                              <p class="app-card-company">{info.company}</p>
+                              <p class="app-track-value">
+                                {info.observed.short}
+                                {info.observed.asOf && ` Last checked ${info.observed.asOf}.`}
+                              </p>
+                              <div class="app-actions">
+                                {info.applyUrl && (
+                                  <form class="app-action-form" method="POST" action={applicationAction}>
+                                    <input type="hidden" name="intent" value="click" />
+                                    <input type="hidden" name="url" value={info.applyUrl} />
+                                    <input type="hidden" name="view" value={view} />
+                                    <button class="app-action-button app-action-primary" type="submit">Start tracking</button>
+                                  </form>
+                                )}
+                                <form class="app-action-form" method="POST" action={saveAction}>
+                                  <input type="hidden" name="intent" value="unsave" />
+                                  <input type="hidden" name="jobId" value={saved.jobId} />
+                                  <input type="hidden" name="view" value={view} />
+                                  <button class="app-action-quiet" type="submit">Unsave</button>
+                                </form>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+
+                  {BOARD_COLUMNS.map((column) => {
+                    const cards = columnOf(column.states);
+                    return (
+                      <div class="board-column">
+                        <h3 class="board-column-title mono-label">
+                          {column.label} <span class="board-column-count">{cards.length}</span>
+                        </h3>
+                        {cards.length === 0 ? (
+                          <p class="board-column-empty">Nothing here.</p>
+                        ) : (
+                          <ul class="board-cards">
+                            {cards.map((application) => {
+                              const observed = weObserved(application);
+                              const clockDays = employerClockDays(application);
+                              const prompt = application.state === 'clicked' ? clickPrompt(application) : null;
+                              return (
+                                <li class="app-card" id={`app-${application.id}`}>
+                                  <p class="app-card-title">{application.snapshot.title ?? 'Untitled role'}</p>
+                                  <p class="app-card-company">{application.snapshot.company ?? 'Unknown company'}</p>
+
+                                  <dl class="app-tracks">
+                                    <div class="app-track">
+                                      <dt class="track-tag mono-label">You told us</dt>
+                                      <dd class="app-track-value">{youToldUs(application)}</dd>
+                                    </div>
+                                    <div class="app-track">
+                                      <dt class="track-tag mono-label">We observed</dt>
+                                      <dd class="app-track-value">
+                                        {observed.text}
+                                        {observed.asOf && ` Last checked ${observed.asOf}.`}
+                                        {observed.stale && ' The sweep has not confirmed this recently.'}
+                                      </dd>
+                                    </div>
+                                  </dl>
+
+                                  {postingFetches.has(application.id) && (
+                                    <PostingCardStatus
+                                      row={postingFetches.get(application.id)!.row}
+                                      draft={postingFetches.get(application.id)!.draft}
+                                      detailHref={boardDetailPath(addedSlugFor(application.id))}
+                                      roomHref={jobDraftPath(addedSlugFor(application.id))}
+                                      nowMs={now.getTime()}
+                                    />
+                                  )}
+
+                                  {
+                                    /*
+                                      F4.3's employer clock. See employerClockDays()'s own
+                                      comment above for why this states only the elapsed
+                                      time, never a benchmark: no fact.json entry matches
+                                      the figures F4.3 cites, so there is no citation this
+                                      page can honestly show beside it. No advice, no
+                                      verdict: the observation stops at the number.
+                                    */
+                                    clockDays !== null && (
+                                      <p class="app-clock">
+                                        You applied{' '}
+                                        <span class="mono" data-truth="machine">
+                                          {clockDays} {clockDays === 1 ? 'day' : 'days'}
+                                        </span>{' '}
+                                        ago. No benchmark to compare it to yet: nothing sourced covers a follow-up
+                                        window we can cite honestly. That is yours to weigh.
+                                      </p>
+                                    )
+                                  }
+
+                                  <div class="app-actions">
+                                    {(application.state === 'clicked' || application.state === 'still_working') && (
+                                      <>
+                                        {
+                                          /* F4.1's friction-aware timing (clickPrompt(), above),
+                                             on the freshly clicked, unconfirmed card only: the
+                                             still_working column has already given its one
+                                             answer, so it does not get a second "did you finish"
+                                             emphasis line. */
+                                          prompt && (
+                                            <p class:list={['app-prompt-timing', { 'app-prompt-timing-now': prompt.emphasize }]}>
+                                              <strong class="app-prompt-headline">{prompt.headline}</strong> {prompt.body}
+                                            </p>
+                                          )
+                                        }
+                                        <form class="app-action-form" method="POST" action={applicationAction}>
+                                          <input type="hidden" name="intent" value="confirm" />
+                                          <input type="hidden" name="applicationId" value={application.id} />
+                                          <input type="hidden" name="answer" value="applied" />
+                                          <input type="hidden" name="view" value={view} />
+                                          <button class="app-action-button app-action-primary" type="submit">I applied</button>
+                                        </form>
+                                        {application.state === 'clicked' && (
+                                          <form class="app-action-form" method="POST" action={applicationAction}>
+                                            <input type="hidden" name="intent" value="confirm" />
+                                            <input type="hidden" name="applicationId" value={application.id} />
+                                            <input type="hidden" name="answer" value="still_working" />
+                                            <input type="hidden" name="view" value={view} />
+                                            <button class="app-action-button" type="submit">Still working on it</button>
+                                          </form>
+                                        )}
+                                        <details class="app-abandon">
+                                          <summary class="app-abandon-summary">Didn't finish</summary>
+                                          <div class="app-abandon-chips">
+                                            {ABANDON_REASONS.map((abandonReason) => (
+                                              <form class="app-action-form" method="POST" action={applicationAction}>
+                                                <input type="hidden" name="intent" value="abandon" />
+                                                <input type="hidden" name="applicationId" value={application.id} />
+                                                <input type="hidden" name="reason" value={abandonReason} />
+                                                <input type="hidden" name="view" value={view} />
+                                                <button class="app-action-chip" type="submit">{ABANDON_REASON_LABEL[abandonReason]}</button>
+                                              </form>
+                                            ))}
+                                          </div>
+                                        </details>
+                                      </>
+                                    )}
+
+                                    {application.state === 'applied' && (
+                                      <>
+                                        <form class="app-action-form app-action-inline" method="POST" action={applicationAction}>
+                                          <input type="hidden" name="intent" value="transition" />
+                                          <input type="hidden" name="applicationId" value={application.id} />
+                                          <input type="hidden" name="to" value="interviewing" />
+                                          <input type="hidden" name="view" value={view} />
+                                          <label class="field-label" for={`substage-${application.id}`}>Sub-stage, optional</label>
+                                          <input class="field-input field-input-narrow" id={`substage-${application.id}`} name="interviewSubstage" type="text" maxlength="200" />
+                                          <button class="app-action-button" type="submit">Interviewing</button>
+                                        </form>
+                                        <details class="app-abandon">
+                                          <summary class="app-abandon-summary">Closed</summary>
+                                          <div class="app-abandon-chips">
+                                            {CLOSED_REASONS.map((closedReason) => (
+                                              <form class="app-action-form" method="POST" action={applicationAction}>
+                                                <input type="hidden" name="intent" value="close" />
+                                                <input type="hidden" name="applicationId" value={application.id} />
+                                                <input type="hidden" name="reason" value={closedReason} />
+                                                <input type="hidden" name="view" value={view} />
+                                                <button class="app-action-chip" type="submit">{CLOSED_REASON_LABEL[closedReason]}</button>
+                                              </form>
+                                            ))}
+                                          </div>
+                                        </details>
+                                      </>
+                                    )}
+
+                                    {application.state === 'interviewing' && (
+                                      <>
+                                        <form class="app-action-form" method="POST" action={applicationAction}>
+                                          <input type="hidden" name="intent" value="transition" />
+                                          <input type="hidden" name="applicationId" value={application.id} />
+                                          <input type="hidden" name="to" value="offer" />
+                                          <input type="hidden" name="view" value={view} />
+                                          <button class="app-action-button app-action-primary" type="submit">Offer</button>
+                                        </form>
+                                        <details class="app-abandon">
+                                          <summary class="app-abandon-summary">Closed</summary>
+                                          <div class="app-abandon-chips">
+                                            {CLOSED_REASONS.map((closedReason) => (
+                                              <form class="app-action-form" method="POST" action={applicationAction}>
+                                                <input type="hidden" name="intent" value="close" />
+                                                <input type="hidden" name="applicationId" value={application.id} />
+                                                <input type="hidden" name="reason" value={closedReason} />
+                                                <input type="hidden" name="view" value={view} />
+                                                <button class="app-action-chip" type="submit">{CLOSED_REASON_LABEL[closedReason]}</button>
+                                              </form>
+                                            ))}
+                                          </div>
+                                        </details>
+                                      </>
+                                    )}
+
+                                    {application.state === 'offer' && (
+                                      <>
+                                        <form class="app-action-form app-action-inline" method="POST" action={applicationAction}>
+                                          <input type="hidden" name="intent" value="comp" />
+                                          <input type="hidden" name="applicationId" value={application.id} />
+                                          <input type="hidden" name="view" value={view} />
+                                          <label class="field-label" for={`comp-${application.id}`}>Offered comp</label>
+                                          <input
+                                            class="field-input field-input-narrow"
+                                            id={`comp-${application.id}`}
+                                            name="offeredComp"
+                                            type="text"
+                                            maxlength="200"
+                                            value={application.offeredComp ?? ''}
+                                          />
+                                          <button class="app-action-button" type="submit">Save</button>
+                                        </form>
+                                        <details class="app-abandon">
+                                          <summary class="app-abandon-summary">Closed</summary>
+                                          <div class="app-abandon-chips">
+                                            {CLOSED_REASONS.map((closedReason) => (
+                                              <form class="app-action-form" method="POST" action={applicationAction}>
+                                                <input type="hidden" name="intent" value="close" />
+                                                <input type="hidden" name="applicationId" value={application.id} />
+                                                <input type="hidden" name="reason" value={closedReason} />
+                                                <input type="hidden" name="view" value={view} />
+                                                <button class="app-action-chip" type="submit">{CLOSED_REASON_LABEL[closedReason]}</button>
+                                              </form>
+                                            ))}
+                                          </div>
+                                        </details>
+                                      </>
+                                    )}
+
+                                    {(application.state === 'closed' || application.state === 'abandoned') && (
+                                      <p class="app-terminal-note">Nothing further to do here.</p>
+                                    )}
+
+                                    {
+                                      /* The draft room link, board view: the same
+                                         resumeRenderId gate the table view above
+                                         uses, so a card only ever offers this once a
+                                         render actually exists for it. */
+                                    }
+                                    {postingFetches.has(application.id) ? (
+                                      <>
+                                        <a class="app-action-quiet" href={boardDetailPath(addedSlugFor(application.id))}>Open</a>
+                                        {postingFetches.get(application.id)!.draft === 'ready' && (
+                                          <a class="app-action-quiet" href={jobDraftPath(addedSlugFor(application.id))}>View draft</a>
+                                        )}
+                                      </>
+                                    ) : (
+                                      application.resumeRenderId && (
+                                        <a class="app-action-quiet" href={deskDraftPath(String(application.id))}>View draft</a>
+                                      )
+                                    )}
+
+                                    <form class="app-action-form" method="POST" action={applicationAction}>
+                                      <input type="hidden" name="intent" value="archive" />
+                                      <input type="hidden" name="applicationId" value={application.id} />
+                                      <input type="hidden" name="view" value={view} />
+                                      <button class="app-action-quiet" type="submit">Archive</button>
+                                    </form>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            }
+          </section>
+
+          {archivedApplications.length > 0 && (
+            <section class="desk-section" aria-labelledby="archived">
+              <h2 id="archived">Archived</h2>
+              <p class="section-note">
+                Unconfirmed after {SELF_ARCHIVE_DAYS} days, self-archived, or archived by hand. Reversible:
+                unarchiving puts a card back exactly where it was, with nothing lost.
+              </p>
+              <ul class="archived-list">
+                {archivedApplications.map((application) => (
+                  <ArchivedRow
+                    title={application.snapshot.title ?? 'Untitled role'}
+                    company={application.snapshot.company ?? 'Unknown company'}
+                    archivedAtLabel={application.archivedAt ? formatDate(application.archivedAt.toISOString()) : null}
+                    applicationId={application.id}
+                    action={applicationAction}
+                    view={view}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
+      )
+    }
+  </div>
+</BaseLayout>
+
+<style>
+  .desk {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-800);
+    padding-block: var(--space-700) var(--space-800);
+  }
+
+  .desk-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+
+  .desk-kicker {
+    color: var(--color-muted);
+  }
+
+  .desk-title {
+    max-width: 20ch;
+  }
+
+  .desk-lede {
+    font-size: var(--size-300);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  .desk-preview-note {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  .desk-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-400);
+    margin-top: var(--space-200);
+  }
+
+  .desk-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-500);
+  }
+
+  .posting-notice {
+    margin: 0 0 var(--space-300);
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-foreground);
+  }
+
+  .desk-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-300);
+  }
+
+  .tracker-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-400);
+  }
+
+  .section-note {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    max-width: var(--layout-measure);
+    color: var(--color-muted);
+  }
+
+  .desk-panel-line {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* Capabilities: same treatment desk.astro's earlier preview used. */
+  .capabilities {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-600);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .capability {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    border-top: var(--border-heavy) solid var(--color-foreground);
+    padding-top: var(--space-300);
+    min-width: 0;
+  }
+  .capability-title {
+    font-size: var(--size-300);
+    line-height: var(--leading-snug);
+    text-wrap: balance;
+  }
+  .capability-body {
+    font-size: var(--size-200);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  .text-link {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .text-link {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  /* Forms still inline on this page (the interview sub-stage and offered-comp
+     fields on an active board card): AddJobModal.astro keeps its own copy of
+     this vocabulary, prefixed ap-, because Astro scopes a <style> block to
+     the component that wrote it. */
+  .field-label {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  /* The view toggle, matching SortControl.astro's segmented shape: same
+     background/colour distinction only, no layout shift on switch. Now the
+     combined tracker's own tab between its table and board reading, rather
+     than "Applications"'s alone. */
+  .view-toggle {
+    display: inline-flex;
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .view-toggle-link {
+    padding: var(--space-200) var(--space-400);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-foreground);
+    text-decoration: none;
+  }
+  .view-toggle-link[aria-current='true'] {
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+  }
+
+  /* The two tracks, rendered as two, never merged. */
+  .track-tag {
+    display: inline-block;
+    margin-right: var(--space-200);
+    color: var(--color-muted);
+  }
+  .app-tracks {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+  .app-track {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-100);
+  }
+  .app-track-value {
+    margin: 0;
+    font-size: var(--size-150);
+    line-height: var(--leading-snug);
+    color: var(--color-foreground);
+  }
+
+  /* Table view: trimmed to what a person scanning needs (task 4). A short
+     status chip per track, each with its own "More" disclosure carrying the
+     full You told us / We observed sentence, so neither track is dropped,
+     only tightened. */
+  .table-scroll {
+    overflow-x: auto;
+  }
+  .app-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--size-150);
+  }
+  .app-table th,
+  .app-table td {
+    text-align: left;
+    vertical-align: top;
+    padding: var(--space-300) var(--space-400);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+  .app-table th {
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .status-chip {
+    color: var(--color-foreground);
+  }
+  .cell-detail {
+    color: var(--color-muted);
+  }
+  .cell-more {
+    margin-top: var(--space-100);
+  }
+  .cell-more-summary {
+    cursor: pointer;
+    font-family: var(--font-family-sans);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .cell-more-body {
+    margin: var(--space-100) 0 0;
+    font-size: var(--size-150);
+    line-height: var(--leading-snug);
+    color: var(--color-foreground);
+    max-width: 32ch;
+  }
+  /* The cell stays a cell, so its rule sits on the row's rule; the flex row
+     is an element inside it. A td displayed as flex stops being a table cell
+     and drew its border under its own short content, a few pixels above the
+     rest of the row (fixed 2026-09-12). */
+  .app-table-actions {
+    white-space: nowrap;
+  }
+
+  .app-table-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-300);
+  }
+  .app-row-saved {
+    background: var(--color-hover-surface);
+  }
+
+  /* Board view. */
+  .board-scroll {
+    display: flex;
+    gap: var(--space-500);
+    overflow-x: auto;
+    padding-bottom: var(--space-300);
+  }
+  .board-column {
+    flex: 0 0 20rem;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+  .board-column-title {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-200);
+    color: var(--color-muted);
+    border-bottom: var(--border-heavy) solid var(--color-foreground);
+    padding-bottom: var(--space-200);
+  }
+  .board-column-count {
+    color: var(--color-foreground);
+  }
+  .board-column-empty {
+    margin: 0;
+    font-size: var(--size-150);
+    color: var(--color-muted);
+  }
+  .board-cards {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-400);
+  }
+  .app-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    border: var(--border-hairline) solid var(--color-line);
+    padding: var(--space-400);
+  }
+  .app-card-title {
+    margin: 0;
+    font-size: var(--size-200);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-snug);
+  }
+  .app-card-company {
+    margin: 0;
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+
+  /* Actions. */
+  .app-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-300);
+  }
+  .app-action-form {
+    display: flex;
+    align-items: center;
+    gap: var(--space-200);
+  }
+  .app-action-inline {
+    flex-wrap: wrap;
+  }
+  .app-action-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-200) var(--space-400);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-foreground);
+  }
+  .app-action-primary {
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border-color: var(--color-surface-inverse);
+  }
+  .app-action-quiet {
+    align-self: flex-start;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    padding: 0;
+    font-family: var(--font-family-sans);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+  .app-terminal-note {
+    margin: 0;
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+
+  /* F4.3's employer clock: the observation only, no benchmark, no verdict.
+     Same muted register as .app-track-value's neighbours rather than the
+     foreground colour app-track-value uses, because this line is closer to
+     a caveat than to a status. */
+  .app-clock {
+    margin: 0;
+    font-size: var(--size-150);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+
+  /* F4.1's friction-aware timing on a freshly clicked card. Default state
+     reads plainly; the in-session state (.app-prompt-timing-now) is the
+     only place this card raises its voice, because F4.1 asks for the
+     in-session prompt to be prominent and the next-visit one to say its
+     piece without nagging. */
+  .app-prompt-timing {
+    margin: 0;
+    font-size: var(--size-150);
+    line-height: var(--leading-snug);
+    color: var(--color-muted);
+  }
+  .app-prompt-timing-now {
+    color: var(--color-foreground);
+  }
+  .app-prompt-headline {
+    font-weight: var(--weight-medium);
+    color: var(--color-foreground);
+  }
+  .app-abandon {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+  .app-abandon-summary {
+    cursor: pointer;
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-foreground);
+  }
+  .app-abandon-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-200);
+    padding-top: var(--space-200);
+  }
+  .app-action-chip {
+    background: transparent;
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-100) var(--space-300);
+    font-family: var(--font-family-sans);
+    font-size: var(--size-075);
+    color: var(--color-foreground);
+  }
+
+  /* Archived: a plain list; ArchivedRow.astro owns every row's own layout. */
+  .archived-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  @media (max-width: 60rem) { /* --breakpoint-lap */
+    .capabilities {
+      grid-template-columns: 1fr;
+      gap: var(--space-500);
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .desk {
+      gap: var(--space-700);
+    }
+    .board-column {
+      flex: 0 0 16rem;
+    }
+  }
+</style>

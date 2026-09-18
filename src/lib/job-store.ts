@@ -11,6 +11,7 @@
  */
 import { db } from './db';
 import type { BoardRow } from './board-jobs';
+import { normalizeTitle } from './ledger-titles';
 
 /**
  * The columns the board adapter (board-jobs.ts) reads, in one place. ghost is
@@ -84,6 +85,14 @@ export interface BoardFilter {
   /** When true, only rows that actually show a pay figure (facet_comp is not
    *  'not-listed'), so every teaser row's pay column is filled. */
   hasComp?: boolean;
+  /** The signed-in member's watched titles (The Desk). When present and
+   *  non-empty, the board is narrowed to rows whose title matches one of them by
+   *  the same token-subset rule ledger-titles.matchesTitle uses, so a reader sees
+   *  only their own titles instead of the whole sweep. Undefined/empty = the full
+   *  board, the default for a signed-out reader or a member with no watch list.
+   *  It narrows every facet count too, so the counts describe the narrowed board.
+   *  Resolved from Astro.locals.viewer, never from the query string. */
+  titles?: string[];
 }
 
 /** How many rows each option would leave, given everything else that is set. */
@@ -187,8 +196,8 @@ matched AS (
 /** The count line: every option, leave-one-out, in one round trip. The age
     range is in every keep clause: it is a filter every count respects, not an
     option any count is taken without. */
-function facetCountSql(): string {
-  const on = (keep: string, extra = '') => `count(*) FILTER (WHERE match_age AND match_country AND match_live AND match_comp_present AND ${keep}${extra})::int`;
+function facetCountSql(titleClause: string): string {
+  const on = (keep: string, extra = '') => `count(*) FILTER (WHERE match_age AND match_country AND match_live AND match_comp_present AND ${titleClause} AND ${keep}${extra})::int`;
   const cols = [
     `${on('match_q AND match_location AND match_comp AND match_freshness')} AS total`,
     `${on('match_q AND match_comp AND match_freshness')} AS location_all`,
@@ -216,6 +225,35 @@ export function likePattern(q: string): string | null {
 }
 
 /**
+ * The member's watched titles, compiled to one SQL keep-clause that mirrors
+ * ledger-titles.matchesTitle: a role keeps if, for ANY watched title, EVERY one
+ * of that title's normalised tokens appears as a whole word in the role title.
+ * So "Product Designer" keeps "Senior Product Designer, AI" but not "Design
+ * Engineer". Each token is a bound parameter (`$n`) matched with a word-boundary
+ * regex, the same `\y` idiom the location facet uses above; nothing but the
+ * clause STRUCTURE is generated, and normalizeTitle leaves only [a-z0-9 ] so no
+ * token can carry a regex metacharacter. Bound params start at `start`; the
+ * caller appends `params` to its bind array in order. Empty (no titles, or all
+ * blank) returns the always-true clause and no params, so the board is unnarrowed.
+ */
+function titleKeepClause(titles: string[] | undefined, start: number): { clause: string; params: string[] } {
+  const groups: string[] = [];
+  const params: string[] = [];
+  let n = start;
+  for (const raw of titles ?? []) {
+    const tokens = normalizeTitle(raw).split(' ').filter(Boolean);
+    if (tokens.length === 0) continue;
+    const conds = tokens.map((tok) => {
+      params.push(tok);
+      return `title ~* ('\\y' || $${n++} || '\\y')`;
+    });
+    groups.push(`(${conds.join(' AND ')})`);
+  }
+  if (groups.length === 0) return { clause: 'TRUE', params: [] };
+  return { clause: `(${groups.join(' OR ')})`, params };
+}
+
+/**
  * One page of the board under the reader's filters, with the count every
  * option would leave. Two queries, one shared CTE, every value bound.
  */
@@ -226,8 +264,11 @@ export async function listBoardFiltered(opts: BoardFilter): Promise<BoardFiltere
     opts.sweepDate, FRESH_WINDOW_DAYS_SQL, likePattern(opts.q), opts.location, opts.comp, opts.freshness,
     opts.ageMin ?? null, opts.ageMax ?? null, opts.country ?? null, opts.liveOnly ?? false, opts.hasComp ?? false
   ];
+  // The watched-titles narrowing binds after the 11 shared params ($12..), so
+  // the LIMIT/OFFSET indices shift by however many title tokens there are.
+  const { clause: titleClause, params: titleParams } = titleKeepClause(opts.titles, shared.length + 1);
 
-  const { rows: countRows } = await db().query<Record<string, number>>(facetCountSql(), shared);
+  const { rows: countRows } = await db().query<Record<string, number>>(facetCountSql(titleClause), [...shared, ...titleParams]);
   const c = countRows[0] ?? {};
   const counts: FacetCounts = {
     total: c.total ?? 0,
@@ -237,14 +278,16 @@ export async function listBoardFiltered(opts: BoardFilter): Promise<BoardFiltere
   };
 
   const order = BOARD_ORDER[opts.sort] ?? BOARD_ORDER.fit;
+  const limIdx = shared.length + titleParams.length + 1;
+  const offIdx = limIdx + 1;
   const { rows } = await db().query<BoardRow>(
     `${BOARD_FACET_CTE}
 SELECT ${BOARD_ROW_OUT}
   FROM matched
- WHERE match_age AND match_q AND match_location AND match_comp AND match_freshness AND match_country AND match_live AND match_comp_present
+ WHERE match_age AND match_q AND match_location AND match_comp AND match_freshness AND match_country AND match_live AND match_comp_present AND ${titleClause}
  ORDER BY ${order}
- LIMIT $12 OFFSET $13`,
-    [...shared, perPage, (page - 1) * perPage]
+ LIMIT $${limIdx} OFFSET $${offIdx}`,
+    [...shared, ...titleParams, perPage, (page - 1) * perPage]
   );
   return { rows, total: counts.total, counts };
 }

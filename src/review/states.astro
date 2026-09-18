@@ -53,7 +53,7 @@ import type { EntryProposal } from '../lib/resume-parse';
 const killsHref = routeFor('kills');
 const reportHref = routeFor('report');
 const indexHref = routeFor('index');
-const deskHref = routeFor('desk');
+const opportunitiesHref = routeFor('opportunities');
 const profileHref = routeFor('profile');
 const settingsHref = routeFor('settings');
 
@@ -333,7 +333,7 @@ const PROPOSAL_STATE: EntryProposal[] = [
     </section>
 
     <section class="group" aria-labelledby="capture-states">
-      <h2 id="capture-states">The capture module, at <a class="group-link" href={deskHref}>/desk</a> and on the index</h2>
+      <h2 id="capture-states">The capture module, at <a class="group-link" href={opportunitiesHref}>/opportunities</a> and on the index</h2>
       <p class="group-note">
         Four outcomes, from `CaptureModule.astro`, which is the same file both capture surfaces
         compose. A reader reaches one of these by submitting the form and being redirected back to a
@@ -455,7 +455,7 @@ const PROPOSAL_STATE: EntryProposal[] = [
     </section>
 
     <section class="group" aria-labelledby="draft-states">
-      <h2 id="draft-states">The drafted documents, at <a class="group-link" href={deskHref}>/desk</a></h2>
+      <h2 id="draft-states">The drafted documents, at <a class="group-link" href={opportunitiesHref}>/opportunities</a></h2>
       <p class="group-note">
         The draft room is signed in, so no gate had ever photographed a drafted resume or cover
         letter. This is the real <span class="mono">DraftDocuments</span> the desk renders, given a
