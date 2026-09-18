@@ -10,12 +10,14 @@ import { BASE_PATH, FUNCTION_MAX_DURATION_S, SITE_ORIGIN } from './site.config.m
  * totals per request). A route becomes dynamic only by saying
  * `export const prerender = false` in its own file.
  *
- * `security.checkOrigin` stays at Astro's default of true. This site is served
- * from its own origin with no rewrite in front of it, so the framework's own
- * CSRF check is correct here, unlike the Index's old deployment behind the
- * mothership's proxy (which is why its own astro.config.mjs turned this off —
- * that reason does not apply once the board is served from this same origin,
- * so that override is deliberately not carried over).
+ * `security.checkOrigin` is OFF. Astro's built-in check compares the browser
+ * Origin to the Host header, which on Vercel is the internal deploy host, not
+ * the public www.antialgo.ai the browser posts from (that arrives only in
+ * x-forwarded-host), so it refused every legitimate form POST (proven in
+ * production 2026-09-18: a POST with a matching www.antialgo.ai Origin was
+ * still 403'd). The CSRF defense moves into src/middleware.ts's ORIGIN GATE
+ * (isAllowedOrigin), which checks the Origin against the real forwarded host
+ * and this site's own hosts, the same hand-rolled guard the Index runs.
  *
  * maxDuration: the job draft's provider calls finish AFTER the response goes
  * out, held alive by waitUntil, which inherits this ceiling. The number lives
@@ -29,6 +31,7 @@ export default defineConfig({
   base: BASE_PATH,
   adapter: vercel({ maxDuration: FUNCTION_MAX_DURATION_S }),
   trailingSlash: 'never',
+  security: { checkOrigin: false },
   markdown: { smartypants: false },
   build: { inlineStylesheets: 'auto' }
 });

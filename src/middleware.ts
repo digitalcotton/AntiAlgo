@@ -17,22 +17,23 @@
  * ROUTE_POLICY covers the gated prefixes, and SESSION_AWARE / SESSION_IF_COOKIE
  * below cover the two owner-or-404 cases.
  *
- * ORIGIN-CSRF: DROPPED THE INDEX'S HAND-ROLLED GATE, KEPT ASTRO'S OWN. The
- * Index turned `security.checkOrigin` off and ran its own isAllowedOrigin()
- * check instead, because its deployment sat behind the mothership's
- * server-side rewrite: the browser's Origin header (tokenstoagents.ai) never
- * matched the Vercel host Astro actually saw, so the framework's own check
- * would have 403'd every legitimate form POST. AntiAlgo has no such rewrite —
- * this site is reached at its own origin directly — so that reason does not
- * apply, and astro.config.mjs leaves `security.checkOrigin` at Astro's
- * default of true. See the note on isServerToServer's absence below for what
- * that means for /machine and /desk/**\/run.
+ * ORIGIN-CSRF: ADOPTED THE INDEX'S HAND-ROLLED GATE, TURNED ASTRO'S OFF. Astro's
+ * built-in checkOrigin compares the browser's Origin to the Host header, but on
+ * Vercel that Host is the internal deploy host; the public host the browser
+ * actually posts from (www.antialgo.ai) arrives only in x-forwarded-host. So the
+ * framework check refused every legitimate form POST, proven in production on
+ * 2026-09-18 when a POST carrying a matching www.antialgo.ai Origin was still
+ * 403'd "Cross-site POST form submissions are forbidden". astro.config.mjs now
+ * sets `security.checkOrigin` to false and the CSRF defense lives in the ORIGIN
+ * GATE below (isAllowedOrigin), which validates the Origin against the real
+ * forwarded host and this site's own hosts instead. isServerToServer exempts the
+ * /machine and /desk/**\/run server-to-server callers that POST with no Origin.
  */
 import { defineMiddleware } from 'astro:middleware';
 import { decide, isGated } from './lib/entitlement';
 import { routeIsLit } from './lib/flags';
 import { viewerFrom } from './lib/viewer';
-import { stripBase } from '../site.config.mjs';
+import { SITE_ORIGIN, stripBase } from '../site.config.mjs';
 import { isAddedDetailPath } from './lib/added-posting';
 
 /**
@@ -88,12 +89,96 @@ function hasSessionCookie(request: Request): boolean {
   return !!cookie && /session_token=/.test(cookie);
 }
 
+/** Methods that change nothing, so they never need the origin gate. */
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/**
+ * This site's own hosts: SITE_ORIGIN's host and its apex/www sibling. The domain
+ * is reached at both (antialgo.ai answers with a 307 to www.antialgo.ai), so a
+ * form posted from either is ours, not a forgery. Computed once at load.
+ */
+const SITE_HOSTS: ReadonlySet<string> = (() => {
+  const hosts = new Set<string>();
+  try {
+    const host = new URL(SITE_ORIGIN).host;
+    hosts.add(host);
+    hosts.add(host.startsWith('www.') ? host.slice(4) : `www.${host}`);
+  } catch {
+    // SITE_ORIGIN is a valid URL in every real deployment; an empty set here
+    // just leaves the decision to the other allow-branches below.
+  }
+  return hosts;
+})();
+
+/**
+ * Callers that legitimately POST with no browser Origin: the draft run dispatch
+ * (/desk/job-draft/<slug>/run) and the crawler's machine endpoints (/machine/**).
+ * A missing Origin is already allowed below; naming them here also lets one that
+ * sends a non-browser Origin through. Base-free pathname, like every other match
+ * in this file.
+ */
+function isServerToServer(pathname: string): boolean {
+  return /^\/desk\/job-draft\/[^/]+\/run$/.test(pathname) || pathname.startsWith('/machine/');
+}
+
+/**
+ * An Origin we serve. Astro's own checkOrigin compares the browser Origin to the
+ * Host header, which on Vercel is the internal deploy host, not the public
+ * www.antialgo.ai the browser sees (only x-forwarded-host carries that), so the
+ * framework check refuses every real form POST and is turned off in
+ * astro.config.mjs. This is the replacement, and it checks the real public
+ * origin: same-origin as Astro resolved it, SITE_ORIGIN, the public origin
+ * rebuilt from the forwarded headers, this site's own hosts (apex and www),
+ * localhost in dev, and this exact Vercel deployment. A cross-site attacker's
+ * browser sends its own Origin, and Vercel sets x-forwarded-host to our host, so
+ * the two never line up and none of these branches match.
+ */
+function isAllowedOrigin(origin: string, url: URL, headers: Headers): boolean {
+  if (origin === url.origin || origin === SITE_ORIGIN) return true;
+  const fwdHost = headers.get('x-forwarded-host');
+  if (fwdHost) {
+    const proto = headers.get('x-forwarded-proto') ?? 'https';
+    if (origin === `${proto}://${fwdHost}`) return true;
+  }
+  try {
+    const parsed = new URL(origin);
+    if (parsed.protocol === 'https:' && SITE_HOSTS.has(parsed.host)) return true;
+  } catch {
+    return false;
+  }
+  if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return true;
+  for (const host of [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL]) {
+    if (host && origin === `https://${host}`) return true;
+  }
+  return false;
+}
+
 export const onRequest = defineMiddleware(async (context, next) => {
   const pathname = stripBase(context.url.pathname);
 
   // Better Auth answers its own routes. Resolving a viewer first would be a
   // session lookup in front of the endpoint whose job is to create the session.
   if (pathname.startsWith('/auth/')) return next();
+
+  // ORIGIN GATE (CSRF). Astro's built-in checkOrigin is off (see
+  // astro.config.mjs): on Vercel it compares the browser Origin to the internal
+  // deploy host, not the public host, so it refused every legitimate form POST
+  // (a POST carrying a matching www.antialgo.ai Origin was still 403'd in
+  // production, 2026-09-18). The defense moves here: a state-changing request
+  // whose Origin header is present and is not one we serve is a cross-site
+  // forgery and is refused. A missing Origin is allowed (server-to-server
+  // callers send none, and a victim's browser cannot suppress Origin on a
+  // cross-site POST, so absence is not an attacker's lever). Better Auth
+  // validates its own trustedOrigins and returned above.
+  if (!SAFE_METHODS.has(context.request.method) && !isServerToServer(pathname)) {
+    const origin = context.request.headers.get('origin');
+    if (origin && !isAllowedOrigin(origin, context.url, context.request.headers)) {
+      return new Response('Cross-origin request refused.', {
+        status: 403,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+      });
+    }
+  }
 
   // A dark flag is a flat 404, before entitlement ever runs: a stranger
   // cannot tell a feature that does not exist in this edition from one that
