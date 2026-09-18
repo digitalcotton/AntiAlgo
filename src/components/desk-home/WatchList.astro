@@ -4,11 +4,18 @@ import type { LedgerSelection } from '../../lib/ledger-prefs-store';
 import type { TitleCount } from '../../lib/ledger-titles';
 
 /**
- * "01 Your watch list": the Core and Stretch titles as the design's chips
- * ("{title}  {N} live - {N} of {M} titles"), the filter summary, and an
- * on-demand "Edit watch list" disclosure that reveals the add / reshelf / remove
- * forms and the filter form. Read view stays clean and pixel-faithful; editing
- * posts to /ledger/watch and /ledger/prefs (userId from the session).
+ * "01 Your watch list", pixel-faithful to NewDeskScreen.html. Closed, it is the
+ * read view: Core/Stretch chips ("{title}  {N} live - {N} of {M} titles") and a
+ * filter summary. Open ("Edit watch list"), it swaps to the full editor: the
+ * "Name a title" panel with the title autocomplete, Core/Stretch as cards with
+ * Move / remove and a matched-titles count, and the "True of any job" segmented
+ * controls for where and pay floor. Every control is its own no-JS form posting
+ * to /ledger/watch or /ledger/prefs (per-field, so one control does not clear
+ * another); userId is resolved server-side, never from the form.
+ *
+ * NOT BUILT, ON PURPOSE: the design's "onsite near me" (we do not collect the
+ * reader's location) and "your weights" (re-weighting the fit score across
+ * measured components and friction, neither of which is measured yet).
  */
 interface Props {
   coreTitles: DeskTitleVM[];
@@ -22,123 +29,234 @@ interface Props {
 const { coreTitles, stretchTitles, uncovered, prefs, titleOptions, watchAction, prefsAction } = Astro.props;
 const hasTitles = coreTitles.length + stretchTitles.length > 0;
 
+const remoteOnly = Boolean(prefs.remoteOnly);
+const floor = typeof prefs.compFloor === 'number' ? prefs.compFloor : 0;
+const PAY_FLOORS: { label: string; value: number }[] = [
+  { label: 'any', value: 0 },
+  { label: '150k+', value: 150_000 },
+  { label: '200k+', value: 200_000 },
+  { label: '250k+', value: 250_000 },
+  { label: '300k+', value: 300_000 },
+  { label: '400k+', value: 400_000 },
+  { label: '500k+', value: 500_000 },
+  { label: '700k+', value: 700_000 }
+];
+
 const filterBits: string[] = [];
-if (prefs.remoteOnly) filterBits.push('remote only');
-if (typeof prefs.compFloor === 'number' && prefs.compFloor > 0) filterBits.push(`pay floor $${Math.round(prefs.compFloor / 1000)}k+`);
+if (remoteOnly) filterBits.push('remote only');
+if (floor > 0) filterBits.push(`pay floor $${Math.round(floor / 1000)}k+`);
 const filterSummary = filterBits.length > 0 ? filterBits.join('  ·  ') : 'none set';
 
-const shelves: { key: 'core' | 'stretch'; label: string; list: DeskTitleVM[] }[] = [
-  { key: 'core', label: 'Core', list: coreTitles },
-  { key: 'stretch', label: 'Stretch', list: stretchTitles }
+const shelves: { key: 'core' | 'stretch'; label: string; caption: string; list: DeskTitleVM[] }[] = [
+  { key: 'core', label: 'Core', caption: 'apply today', list: coreTitles },
+  { key: 'stretch', label: 'Stretch', caption: 'working toward', list: stretchTitles }
 ];
 ---
 
-<section class="wl" id="watch-list" aria-labelledby="wl-h">
-  <div class="wl-head">
-    <h2 id="wl-h" class="wl-index"><span class="mono-label">01</span> Your watch list</h2>
-    <a class="wl-edit" href="#wl-edit">Edit watch list +</a>
-  </div>
+<section class="wl" id="watch-list">
+  <details class="wl-d">
+    <summary class="wl-head">
+      <span class="wl-index"><span class="mono-label">01</span> Your watch list</span>
+      <span class="wl-toggle mono-label" aria-hidden="true"></span>
+    </summary>
 
-  {hasTitles ? (
-    <dl class="wl-shelves">
-      {shelves.map((s) => (
-        <div class="wl-row">
-          <dt class="wl-shelf mono-label">{s.label}</dt>
-          <dd class="wl-chips">
-            {s.list.length === 0 ? (
-              <span class="wl-empty">none</span>
-            ) : (
-              s.list.map((t) => (
-                <span class={`wl-chip${t.covered ? '' : ' wl-chip-uncovered'}`}>
-                  <span class="wl-chip-title">{t.title}</span>
-                  <span class="wl-chip-meta">
-                    {t.covered ? `${t.liveCount} live  ·  ${t.titlesLive} of ${t.titlesTotal} titles` : 'not covered yet'}
-                  </span>
-                </span>
-              ))
-            )}
-          </dd>
-        </div>
-      ))}
-      <div class="wl-row">
-        <dt class="wl-shelf mono-label">Filters</dt>
-        <dd class="wl-filters">{filterSummary}</dd>
-      </div>
-    </dl>
-  ) : (
-    <p class="wl-firstrun">Name your first title below. The board narrows to it right away, and this page fills in with what is new under it.</p>
-  )}
+    <div class="wl-editor">
+      <h3 class="wl-editor-title">Name a title. Any field, any level.</h3>
+      <p class="wl-editor-copy">
+        There is no list of categories to pick from, because no fixed list survives a sweep this size. You type
+        what you do, or what you want to do next, and the board tells you what that title is called everywhere else
+        and how many of them are live tonight.
+      </p>
 
-  {uncovered.length > 0 && (
-    <p class="wl-uncovered">Not on the board yet: {uncovered.join(', ')}. Recorded as titles you want; this page fills in the moment one appears.</p>
-  )}
-
-  <details class="wl-editor" id="wl-edit">
-    <summary class="wl-editor-summary mono-label">Edit watch list</summary>
-    <div class="wl-editor-body">
       <form method="POST" action={watchAction} class="wl-add">
         <input type="hidden" name="intent" value="add" />
+        <input type="hidden" name="shelf" value="core" />
         <input
           class="wl-input"
           name="title"
           list="wl-title-index"
-          placeholder="Product Designer, Design Engineer, Brand Designer"
+          placeholder="litigation, nurse practitioner, data engineer, welder"
           maxlength="120"
+          minlength="2"
           autocomplete="off"
           required
         />
         <datalist id="wl-title-index">
           {titleOptions.map((o) => <option value={o.title}>{o.count.toLocaleString()} live</option>)}
         </datalist>
-        <select class="wl-select" name="shelf" aria-label="Which shelf">
-          <option value="core">Core</option>
-          <option value="stretch">Stretch</option>
-        </select>
-        <button type="submit" class="wl-btn">Add title</button>
+        <span class="wl-add-hint mono-label">type at least two letters</span>
       </form>
 
-      {hasTitles && (
-        <ul class="wl-manage">
-          {[...coreTitles, ...stretchTitles].map((t) => (
-            <li class="wl-manage-row">
-              <span class="wl-manage-title">{t.title}</span>
-              <span class="wl-manage-shelf mono-label">{t.shelf}</span>
-              <span class="wl-manage-actions">
-                <form method="POST" action={watchAction} class="wl-inline">
-                  <input type="hidden" name="intent" value="reshelf" />
-                  <input type="hidden" name="title" value={t.title} />
-                  <input type="hidden" name="shelf" value={t.shelf === 'core' ? 'stretch' : 'core'} />
-                  <button type="submit" class="wl-mini">to {t.shelf === 'core' ? 'stretch' : 'core'}</button>
-                </form>
-                <form method="POST" action={watchAction} class="wl-inline">
-                  <input type="hidden" name="intent" value="remove" />
-                  <input type="hidden" name="title" value={t.title} />
-                  <button type="submit" class="wl-mini wl-mini-remove">remove</button>
-                </form>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div class="wl-cols">
+        {shelves.map((s) => (
+          <div class="wl-col">
+            <div class="wl-col-head">
+              <span class="wl-col-label mono-label">{s.label}</span>
+              <span class="wl-col-caption mono-label">{s.caption}</span>
+            </div>
+            {s.list.length === 0 ? (
+              <p class="wl-col-empty mono-label">none yet</p>
+            ) : (
+              s.list.map((t) => (
+                <div class="wl-card">
+                  <div class="wl-card-main">
+                    <p class="wl-card-title">{t.title}</p>
+                    <p class="wl-card-meta mono-label">
+                      {t.covered ? `${t.liveCount} live  ·  ${t.titlesLive} of ${t.titlesTotal} titles` : 'not covered yet'}
+                    </p>
+                  </div>
+                  <div class="wl-card-actions">
+                    <form method="POST" action={watchAction} class="wl-inline">
+                      <input type="hidden" name="intent" value="reshelf" />
+                      <input type="hidden" name="title" value={t.title} />
+                      <input type="hidden" name="shelf" value={s.key === 'core' ? 'stretch' : 'core'} />
+                      <button type="submit" class="wl-move">Move to {s.key === 'core' ? 'stretch' : 'core'}</button>
+                    </form>
+                    <form method="POST" action={watchAction} class="wl-inline">
+                      <input type="hidden" name="intent" value="remove" />
+                      <input type="hidden" name="title" value={t.title} />
+                      <button type="submit" class="wl-remove" aria-label={`Remove ${t.title}`}>&times;</button>
+                    </form>
+                  </div>
+                  {t.covered && <span class="wl-card-matched mono-label">{t.titlesTotal} matched titles</span>}
+                </div>
+              ))
+            )}
+          </div>
+        ))}
+      </div>
 
-      <form method="POST" action={prefsAction} class="wl-filter-form">
-        <span class="wl-shelf mono-label">Filters</span>
-        <label class="wl-filter"><input type="checkbox" name="remoteOnly" value="1" checked={Boolean(prefs.remoteOnly)} /> Remote only</label>
-        <label class="wl-filter">Pay floor <input class="wl-num" type="number" name="compFloor" min="0" step="5000" value={typeof prefs.compFloor === 'number' ? String(prefs.compFloor) : ''} placeholder="150000" /></label>
-        <button type="submit" class="wl-mini">Apply filters</button>
-      </form>
+      <div class="wl-controls">
+        <div class="wl-controls-head">
+          <span class="wl-col-label mono-label">True of any job</span>
+          <span class="wl-controls-note mono-label">these are controls because they mean the same thing in every field</span>
+        </div>
+
+        <div class="wl-control-row">
+          <span class="wl-control-label mono-label">where</span>
+          <div class="wl-seg">
+            <form method="POST" action={prefsAction} class="wl-inline">
+              <input type="hidden" name="field" value="remote" />
+              <input type="hidden" name="value" value="1" />
+              <button type="submit" class={`wl-seg-btn${remoteOnly ? ' is-on' : ''}`} aria-pressed={remoteOnly}>remote only</button>
+            </form>
+            <form method="POST" action={prefsAction} class="wl-inline">
+              <input type="hidden" name="field" value="remote" />
+              <input type="hidden" name="value" value="0" />
+              <button type="submit" class={`wl-seg-btn${!remoteOnly ? ' is-on' : ''}`} aria-pressed={!remoteOnly}>anywhere</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="wl-control-row">
+          <span class="wl-control-label mono-label">pay floor</span>
+          <div class="wl-seg">
+            {PAY_FLOORS.map((p) => (
+              <form method="POST" action={prefsAction} class="wl-inline">
+                <input type="hidden" name="field" value="floor" />
+                <input type="hidden" name="value" value={String(p.value)} />
+                <button type="submit" class={`wl-seg-btn${floor === p.value ? ' is-on' : ''}`} aria-pressed={floor === p.value}>{p.label}</button>
+              </form>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   </details>
+
+  <div class="wl-read">
+    {hasTitles ? (
+      <dl class="wl-shelves">
+        {shelves.map((s) => (
+          <div class="wl-row">
+            <dt class="wl-shelf mono-label">{s.label}</dt>
+            <dd class="wl-chips">
+              {s.list.length === 0 ? (
+                <span class="wl-empty">none</span>
+              ) : (
+                s.list.map((t) => (
+                  <span class={`wl-chip${t.covered ? '' : ' wl-chip-uncovered'}`}>
+                    <span class="wl-chip-title">{t.title}</span>
+                    <span class="wl-chip-meta">
+                      {t.covered ? `${t.liveCount} live  ·  ${t.titlesLive} of ${t.titlesTotal} titles` : 'not covered yet'}
+                    </span>
+                  </span>
+                ))
+              )}
+            </dd>
+          </div>
+        ))}
+        <div class="wl-row">
+          <dt class="wl-shelf mono-label">Filters</dt>
+          <dd class="wl-filters">{filterSummary}</dd>
+        </div>
+      </dl>
+    ) : (
+      <p class="wl-firstrun">Name your first title in the editor above. The board narrows to it right away, and this page fills in with what is new under it.</p>
+    )}
+
+    {uncovered.length > 0 && (
+      <p class="wl-uncovered">Not on the board yet: {uncovered.join(', ')}. Recorded as titles you want; this page fills in the moment one appears.</p>
+    )}
+  </div>
 </section>
 
 <style>
   .wl { display: flex; flex-direction: column; gap: var(--space-400); }
-  .wl-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-400); }
-  .wl-index { margin: 0; font-size: var(--size-100); font-weight: var(--weight-medium); letter-spacing: var(--tracking-loose); text-transform: uppercase; color: var(--color-muted); }
-  .wl-index .mono-label { color: var(--color-muted); margin-right: var(--space-200); }
-  .wl-edit { font-family: var(--font-family-mono); font-size: var(--size-075); color: var(--color-muted); text-decoration: none; }
-  .wl-edit:hover { color: var(--color-foreground); }
+  /* When the editor is open, the read chips give way to it (a swap, like the
+     design), via :has(); browsers without :has() simply show both, never broken. */
+  .wl:has(.wl-d[open]) .wl-read { display: none; }
 
+  .wl-d { }
+  .wl-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-400); cursor: pointer; list-style: none; }
+  .wl-head::-webkit-details-marker { display: none; }
+  .wl-index { font-size: var(--size-100); font-weight: var(--weight-medium); letter-spacing: var(--tracking-loose); text-transform: uppercase; color: var(--color-muted); }
+  .wl-index .mono-label { margin-right: var(--space-200); }
+  .wl-toggle { color: var(--color-muted); }
+  .wl-toggle::after { content: 'Edit watch list +'; }
+  .wl-d[open] .wl-toggle::after { content: 'Done editing \2212'; }
+  .wl-head:hover .wl-toggle { color: var(--color-foreground); }
+
+  /* Editor. */
+  .wl-editor { display: flex; flex-direction: column; gap: var(--space-500); padding-top: var(--space-500); }
+  .wl-editor-title { margin: 0; font-size: clamp(1.4rem, 2.6vw, 2rem); letter-spacing: -0.02em; }
+  .wl-editor-copy { margin: 0; color: var(--color-muted); max-width: 70ch; line-height: 1.55; }
+  .wl-add { display: flex; align-items: center; gap: var(--space-300); border: var(--border-hairline) solid var(--color-line); padding: var(--space-400); }
+  .wl-input { flex: 1 1 auto; min-width: 12ch; padding: var(--space-200) 0; border: none; background: transparent; color: var(--color-foreground); font-size: var(--size-200); font-family: var(--font-family-mono); }
+  .wl-input:focus { outline: none; }
+  .wl-add-hint { color: var(--color-muted); white-space: nowrap; }
+
+  .wl-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-500); }
+  @media (max-width: 44rem) { .wl-cols { grid-template-columns: 1fr; } }
+  .wl-col { border: var(--border-hairline) solid var(--color-line); display: flex; flex-direction: column; }
+  .wl-col-head { display: flex; justify-content: space-between; align-items: baseline; padding: var(--space-300) var(--space-400); border-bottom: var(--border-hairline) solid var(--color-line); }
+  .wl-col-label { color: var(--color-foreground); }
+  .wl-col-caption, .wl-controls-note { color: var(--color-muted); }
+  .wl-col-empty { color: var(--color-muted); padding: var(--space-400); }
+  .wl-card { display: grid; grid-template-columns: 1fr auto; gap: var(--space-200) var(--space-300); align-items: start; padding: var(--space-400); border-bottom: var(--border-hairline) solid var(--color-line); }
+  .wl-col > .wl-card:last-child { border-bottom: none; }
+  .wl-card-main { min-width: 0; }
+  .wl-card-title { margin: 0; font-weight: var(--weight-bold); }
+  .wl-card-meta { margin: 2px 0 0; color: var(--color-muted); }
+  .wl-card-actions { display: inline-flex; gap: var(--space-200); align-items: center; }
+  .wl-inline { display: inline; margin: 0; }
+  .wl-move { background: transparent; border: var(--border-hairline) solid var(--color-line-strong); padding: var(--space-100) var(--space-300); font-family: var(--font-family-mono); font-size: var(--size-075); cursor: pointer; color: var(--color-foreground); white-space: nowrap; }
+  .wl-move:hover { border-color: var(--color-foreground); }
+  .wl-remove { background: transparent; border: var(--border-hairline) solid var(--color-line-strong); width: 1.9em; height: 1.9em; line-height: 1; padding: 0; font-size: var(--size-100); cursor: pointer; color: var(--color-muted); }
+  .wl-remove:hover { color: var(--color-stat-loss); border-color: var(--color-stat-loss); }
+  .wl-card-matched { grid-column: 1 / -1; align-self: start; color: var(--color-muted); border: var(--border-hairline) solid var(--color-line); padding: 2px var(--space-200); justify-self: start; }
+
+  /* True of any job controls. */
+  .wl-controls { border: var(--border-hairline) solid var(--color-line); display: flex; flex-direction: column; }
+  .wl-controls-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-400); padding: var(--space-300) var(--space-400); border-bottom: var(--border-hairline) solid var(--color-line); flex-wrap: wrap; }
+  .wl-control-row { display: flex; align-items: center; gap: var(--space-400); padding: var(--space-300) var(--space-400); flex-wrap: wrap; }
+  .wl-control-label { color: var(--color-muted); width: 6rem; flex: none; }
+  .wl-seg { display: inline-flex; flex-wrap: wrap; gap: var(--space-200); }
+  .wl-seg-btn { background: transparent; border: var(--border-hairline) solid var(--color-line-strong); padding: var(--space-200) var(--space-300); font-family: var(--font-family-mono); font-size: var(--size-075); cursor: pointer; color: var(--color-foreground); white-space: nowrap; }
+  .wl-seg-btn:hover { border-color: var(--color-foreground); }
+  .wl-seg-btn.is-on { background: var(--color-surface-inverse); color: var(--color-foreground-inverse); border-color: var(--color-surface-inverse); }
+
+  /* Read view. */
   .wl-shelves { margin: 0; display: flex; flex-direction: column; gap: var(--space-300); }
   .wl-row { display: grid; grid-template-columns: 6rem 1fr; gap: var(--space-400); align-items: start; }
   .wl-shelf { color: var(--color-muted); padding-top: 4px; }
@@ -149,27 +267,7 @@ const shelves: { key: 'core' | 'stretch'; label: string; list: DeskTitleVM[] }[]
   .wl-chip-uncovered .wl-chip-meta { color: var(--color-stat-loss); }
   .wl-empty, .wl-filters { color: var(--color-muted); font-size: var(--size-100); }
   .wl-filters { font-family: var(--font-family-mono); font-size: var(--size-075); }
-  .wl-firstrun, .wl-uncovered { margin: 0; color: var(--color-muted); font-size: var(--size-100); max-width: 68ch; }
+  .wl-firstrun, .wl-uncovered { margin: var(--space-300) 0 0; color: var(--color-muted); font-size: var(--size-100); max-width: 68ch; }
 
-  .wl-editor { border-top: var(--border-hairline) solid var(--color-line); padding-top: var(--space-400); }
-  .wl-editor-summary { cursor: pointer; color: var(--color-muted); }
-  .wl-editor-summary:hover { color: var(--color-foreground); }
-  .wl-editor-body { display: flex; flex-direction: column; gap: var(--space-400); padding-top: var(--space-400); }
-  .wl-add, .wl-filter-form { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-300); }
-  .wl-input { flex: 1 1 22ch; min-width: 18ch; padding: var(--space-200) var(--space-300); border: var(--border-hairline) solid var(--color-line-strong); background: var(--color-surface); color: var(--color-foreground); font-size: var(--size-100); }
-  .wl-select, .wl-num { padding: var(--space-200) var(--space-300); border: var(--border-hairline) solid var(--color-line-strong); background: var(--color-surface); color: var(--color-foreground); }
-  .wl-num { width: 12ch; }
-  .wl-filter { display: inline-flex; align-items: center; gap: var(--space-200); color: var(--color-muted); font-size: var(--size-100); }
-  .wl-btn { padding: var(--space-200) var(--space-400); border: none; border-radius: var(--radius); background: var(--color-surface-inverse); color: var(--color-foreground-inverse); font-family: var(--font-family-mono); font-size: var(--size-075); cursor: pointer; }
-  .wl-manage { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-200); }
-  .wl-manage-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-200) var(--space-300); }
-  .wl-manage-title { font-weight: var(--weight-medium); }
-  .wl-manage-shelf { color: var(--color-muted); }
-  .wl-manage-actions { display: inline-flex; gap: var(--space-300); margin-left: auto; }
-  .wl-inline { display: inline; }
-  .wl-mini { background: none; border: none; padding: 0; cursor: pointer; color: var(--color-muted); font-family: var(--font-family-mono); font-size: var(--size-075); text-decoration: underline; text-underline-offset: 3px; }
-  .wl-mini:hover { color: var(--color-foreground); }
-  .wl-mini-remove:hover { color: var(--color-stat-loss); }
-
-  @media (max-width: 40rem) { .wl-row { grid-template-columns: 1fr; gap: var(--space-200); } }
+  @media (max-width: 44rem) { .wl-row { grid-template-columns: 1fr; gap: var(--space-200); } .wl-control-label { width: auto; } }
 </style>

@@ -1,15 +1,12 @@
 /**
- * POST /ledger/prefs: save the signed-in paid reader's Desk filters (remote only,
- * pay floor). These narrow The Desk's own read of the roles under the reader's
- * titles. Same self-guard and routing reasons as /ledger/watch (see its header):
- * /ledger is not a gated prefix, so this resolves the reader with paidViewerFrom
- * and the userId is the viewer's, never a form field.
- *
- * The selection is REBUILT from the form each save (an unchecked box sends
- * nothing, so it must clear, not persist), merged onto the stored selection so a
- * field this form does not edit (country) is not dropped. ledger-prefs-store
- * persists whatever object it is handed, so the narrowing to real board fields
- * happens here.
+ * POST /ledger/prefs: save one of the signed-in paid reader's Desk filters. The
+ * editor's "where" and "pay floor" controls each submit ONE field, so a click on
+ * a pay-floor button must not clear the where choice and vice versa: this merges
+ * the one field named in `field` onto the stored selection rather than rebuilding
+ * the whole thing from the form. Same self-guard and routing reasons as
+ * /ledger/watch (see its header): /ledger is not a gated prefix, so this resolves
+ * the reader with paidViewerFrom and takes the userId from the viewer, never the
+ * form.
  */
 import type { APIContext } from 'astro';
 import { paidViewerFrom } from '../../lib/ledger-access';
@@ -34,19 +31,21 @@ export async function POST(context: APIContext): Promise<Response> {
 
   const userId = viewer.userId;
   const form = await context.request.formData();
+  const field = String(form.get('field') ?? '');
+  const value = String(form.get('value') ?? '');
 
-  const existing = (await getPrefs(userId))?.selection ?? {};
-  const next: LedgerSelection = { ...existing };
+  const next: LedgerSelection = { ...((await getPrefs(userId))?.selection ?? {}) };
 
-  // A checkbox that is off sends no field, so the absence must clear it.
-  if (form.get('remoteOnly')) next.remoteOnly = true;
-  else delete next.remoteOnly;
-
-  const rawFloor = Number(form.get('compFloor'));
-  if (Number.isFinite(rawFloor) && rawFloor > 0) {
-    next.compFloor = Math.min(Math.floor(rawFloor), COMP_FLOOR_MAX);
+  if (field === 'remote') {
+    // "remote only" sets it; "anywhere" clears it.
+    if (value === '1') next.remoteOnly = true;
+    else delete next.remoteOnly;
+  } else if (field === 'floor') {
+    const floor = Number(value);
+    if (Number.isFinite(floor) && floor > 0) next.compFloor = Math.min(Math.floor(floor), COMP_FLOOR_MAX);
+    else delete next.compFloor;
   } else {
-    delete next.compFloor;
+    return new Response('Unrecognised field.', { status: 400 });
   }
 
   await savePrefs(userId, next);
