@@ -143,26 +143,36 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
 
           {home.hasTitles && (
             <>
-              <section class="dh-lane" id="new-core" aria-labelledby="nc-h">
-                <p class="dh-lane-index mono-label"><span>02</span> New in core</p>
-                <h2 id="nc-h" class="dh-lane-title">{home.newCoreCount} {home.newCoreCount === 1 ? 'role' : 'roles'} first seen since your last visit.</h2>
-                <p class="dh-lane-note">Ranked by fit, each verified live at the company's own careers page last night. The clock is where the role sits on the arrival curve, not a countdown.</p>
-                {home.newCore.length > 0 ? (
-                  <ol class="dh-cards">{home.newCore.map((r, i) => <RoleCard role={r} rank={i + 1} />)}</ol>
+              <section class="dh-lane" id="core" aria-labelledby="nc-h">
+                <p class="dh-lane-index mono-label"><span>02</span> In core</p>
+                <h2 id="nc-h" class="dh-lane-title">{home.coreLiveCount} {home.coreLiveCount === 1 ? 'role' : 'roles'} live under your core titles.</h2>
+                <p class="dh-lane-note">Ranked by fit, each verified live at the company's own careers page. {home.newCoreCount > 0 ? `${home.newCoreCount} new since your last visit, tagged below.` : 'None new since your last visit.'} The clock is where the role sits on the arrival curve, not a countdown.</p>
+                {home.core.length > 0 ? (
+                  <>
+                    <ol class="dh-cards">{home.core.map((r, i) => <RoleCard role={r} rank={i + 1} />)}</ol>
+                    {home.coreLiveCount > home.core.length && (
+                      <p class="dh-lane-more"><a href={boardHref}>See all {home.coreLiveCount} on the board</a>, narrowed to your titles.</p>
+                    )}
+                  </>
                 ) : (
-                  <p class="dh-empty">Nothing new under your core titles since you last looked.</p>
+                  <p class="dh-empty">{home.coreTitles.length === 0 ? 'Name a core title above and its live roles land here.' : 'Nothing live under your core titles right now. The board will fill this the night one appears.'}</p>
                 )}
                 <p class="dh-cite mono-label">Arrival curve: NBER WP 32320, about 45% of applications in the first 48 hours.</p>
               </section>
 
-              <section class="dh-lane" id="new-stretch" aria-labelledby="ns-h">
-                <p class="dh-lane-index mono-label"><span>03</span> New in stretch</p>
-                <h2 id="ns-h" class="dh-lane-title">{home.newStretchCount} {home.newStretchCount === 1 ? 'role' : 'roles'} you are working toward.</h2>
+              <section class="dh-lane" id="stretch" aria-labelledby="ns-h">
+                <p class="dh-lane-index mono-label"><span>03</span> In stretch</p>
+                <h2 id="ns-h" class="dh-lane-title">{home.stretchLiveCount} {home.stretchLiveCount === 1 ? 'role' : 'roles'} you are working toward.</h2>
                 <p class="dh-lane-note">A reach is a reach because the fit is lower, not because we scored your resume against the posting line by line: we do not measure that yet, so we do not claim it.</p>
-                {home.newStretch.length > 0 ? (
-                  <ol class="dh-cards">{home.newStretch.map((r, i) => <RoleCard role={r} rank={i + 1} />)}</ol>
+                {home.stretch.length > 0 ? (
+                  <>
+                    <ol class="dh-cards">{home.stretch.map((r, i) => <RoleCard role={r} rank={i + 1} />)}</ol>
+                    {home.stretchLiveCount > home.stretch.length && (
+                      <p class="dh-lane-more"><a href={boardHref}>See all {home.stretchLiveCount} on the board</a>, narrowed to your titles.</p>
+                    )}
+                  </>
                 ) : (
-                  <p class="dh-empty">Nothing new under your stretch titles since you last looked.</p>
+                  <p class="dh-empty">{home.stretchTitles.length === 0 ? 'No stretch titles yet. Add one above to track roles you are working toward.' : 'Nothing live under your stretch titles right now.'}</p>
                 )}
               </section>
 
@@ -212,7 +222,7 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
       <Panel title="What the account opens">
         <ul class="dp-list">
           <li>Name your titles once; the board narrows to them everywhere.</li>
-          <li>What is new under your titles since you last looked, ranked by fit.</li>
+          <li>The live roles under your titles, ranked by fit, new arrivals tagged.</li>
           <li>What died on your list, so you do not chase a role that is already gone.</li>
         </ul>
         <p class="dp-cta">
@@ -269,6 +279,8 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
 
   .dh-board-link { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
   .dh-board-link a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-stat-loss); }
+  .dh-lane-more { margin: var(--space-300) 0 0; color: var(--color-muted); font-size: var(--size-100); }
+  .dh-lane-more a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-stat-loss); }
 
   @media (max-width: 52rem) {
     .dh-summary { grid-template-columns: 1fr; gap: var(--space-500); }

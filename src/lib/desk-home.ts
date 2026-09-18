@@ -81,6 +81,10 @@ export interface DeskRoleVM {
   ageDays: number | null;
   /** Where the role sits on the arrival curve, or null when age is unknown. */
   headStart: HeadStart | null;
+  /** True when the role first appeared on or after the reader last looked (date
+      granularity). The lane shows fit-ranked live roles and tags the new ones,
+      rather than showing new arrivals alone. */
+  isNew: boolean;
 }
 
 /** One kill matched to the member's titles. Company deliberately absent. */
@@ -104,10 +108,17 @@ export interface DeskHomeData {
   prefs: LedgerSelection;
   /** Distinct live roles under all watched titles, after filters. */
   liveUnderTitles: number;
-  newCore: DeskRoleVM[];
-  newStretch: DeskRoleVM[];
+  /** Fit-ranked top slice of the live roles under core titles, new ones tagged.
+      All matches, not only new arrivals; the rest are on the board. */
+  core: DeskRoleVM[];
+  /** Fit-ranked top slice of the live roles under stretch titles. */
+  stretch: DeskRoleVM[];
   died: DeskKillVM[];
-  /** Counts for the executive summary line. */
+  /** Total live roles under core / stretch titles (after filters): the lane
+      heading count and what the "see all N on the board" link points at. */
+  coreLiveCount: number;
+  stretchLiveCount: number;
+  /** New-since-last-visit counts, for the summary line and the lane tag note. */
   newCoreCount: number;
   newStretchCount: number;
   diedCount: number;
@@ -126,8 +137,10 @@ export interface DeskHomeData {
   lastSeenAt: string | null;
 }
 
-/** How many recent lane roles and matched kills a page renders at most. */
-const LANE_CAP = 40;
+/** How many fit-ranked lane roles the Desk shows before it links out to the full
+    board. A digest, not the whole market: the rest is one click away. */
+const DESK_SHOW = 6;
+/** How many matched kills the died lane renders at most. */
 const DIED_CAP = 20;
 /** On a first visit (no last_seen), "new" falls back to this many days. */
 const FIRST_VISIT_WINDOW_DAYS = 7;
@@ -185,7 +198,7 @@ function headStartFor(ageDays: number | null): HeadStart | null {
   return { label: 'past the first 96 hours', aheadPct: null, zone: 'later' };
 }
 
-function roleVM(row: BoardRow, matched: string[], sweepIso: string): DeskRoleVM {
+function roleVM(row: BoardRow, matched: string[], sweepIso: string, isNewFlag: boolean): DeskRoleVM {
   const job = boardRowToJob(row);
   const ageDays = daysBetween(isoDay(row.first_seen), sweepIso);
   return {
@@ -201,7 +214,8 @@ function roleVM(row: BoardRow, matched: string[], sweepIso: string): DeskRoleVM 
     fit: typeof row.fit_total === 'number' && Number.isFinite(row.fit_total) ? row.fit_total : 0,
     firstSeen: isoDay(row.first_seen),
     ageDays,
-    headStart: headStartFor(ageDays)
+    headStart: headStartFor(ageDays),
+    isNew: isNewFlag
   };
 }
 
@@ -266,19 +280,36 @@ export async function buildDeskHome(userId: string): Promise<DeskHomeData> {
   const uncovered = titleVMs.filter((t) => !t.covered).map((t) => t.title);
 
   // The lane: every filtered role under any watched title, tagged with which
-  // titles caught it, then ranked by fit. A role a core title caught is core,
-  // even if a stretch title also caught it.
+  // titles caught it, then ranked by fit (newest breaking a tie).
   const lane = laneFor(filtered, allTitles);
   const liveUnderTitles = lane.length;
 
-  const laneRanked = [...lane].sort((a, b) => (b.role.fit_total ?? 0) - (a.role.fit_total ?? 0));
-  const newCore: DeskRoleVM[] = [];
-  const newStretch: DeskRoleVM[] = [];
-  for (const { role, matched } of laneRanked) {
-    if (!isNew(role.first_seen, lastSeenDay, sweepIso)) continue;
-    const isCore = matched.some((title) => coreSet.has(title));
-    (isCore ? newCore : newStretch).push(roleVM(role, matched, sweepIso));
+  const laneRanked = [...lane].sort(
+    (a, b) =>
+      (b.role.fit_total ?? 0) - (a.role.fit_total ?? 0) ||
+      (toMs(b.role.first_seen) ?? 0) - (toMs(a.role.first_seen) ?? 0)
+  );
+
+  // Split the whole matched live set into core and stretch (a role a core title
+  // caught is core, even if a stretch title also caught it). The Desk shows a
+  // fit-ranked top slice of each, NOT only what arrived since the last visit: a
+  // member with live matches has to see them, or the page is a wall of zeros
+  // sitting on top of real roles. New arrivals are tagged, and the full set is
+  // one click away on the board, which narrows to these same titles.
+  const coreLane: { role: BoardRow; matched: string[] }[] = [];
+  const stretchLane: { role: BoardRow; matched: string[] }[] = [];
+  for (const item of laneRanked) {
+    (item.matched.some((title) => coreSet.has(title)) ? coreLane : stretchLane).push(item);
   }
+  const flagNew = (role: BoardRow): boolean => isNew(role.first_seen, lastSeenDay, sweepIso);
+  const toShown = (items: { role: BoardRow; matched: string[] }[]): DeskRoleVM[] =>
+    items.slice(0, DESK_SHOW).map(({ role, matched }) => roleVM(role, matched, sweepIso, flagNew(role)));
+  const core = toShown(coreLane);
+  const stretch = toShown(stretchLane);
+  const coreLiveCount = coreLane.length;
+  const stretchLiveCount = stretchLane.length;
+  const newCoreCount = coreLane.reduce((count, x) => count + (flagNew(x.role) ? 1 : 0), 0);
+  const newStretchCount = stretchLane.reduce((count, x) => count + (flagNew(x.role) ? 1 : 0), 0);
 
   // Kills matched to the watched titles, most recent first (sorted on the raw
   // timestamp, before it is formatted for display). Company held.
@@ -295,11 +326,13 @@ export async function buildDeskHome(userId: string): Promise<DeskHomeData> {
     uncovered,
     prefs,
     liveUnderTitles,
-    newCore: newCore.slice(0, LANE_CAP),
-    newStretch: newStretch.slice(0, LANE_CAP),
+    core,
+    stretch,
     died: laneKills.slice(0, DIED_CAP),
-    newCoreCount: newCore.length,
-    newStretchCount: newStretch.length,
+    coreLiveCount,
+    stretchLiveCount,
+    newCoreCount,
+    newStretchCount,
     diedCount: laneKills.length,
     sweep: {
       boardsSwept: stats?.boards_swept ?? null,
