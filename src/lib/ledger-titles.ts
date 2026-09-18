@@ -24,24 +24,23 @@ export function normalizeTitle(raw: string): string {
     .replace(/\s+/g, ' ');
 }
 
-/** The normalised words of a title, in no particular order. Empty for a title
-    that is all punctuation. */
-function tokensOf(raw: string): string[] {
-  const norm = normalizeTitle(raw);
-  return norm ? norm.split(' ') : [];
-}
-
 /**
- * True when every word of the watch appears as a word of the role title. A
- * watch with no words (all punctuation) matches nothing, so a stray "," never
- * pulls the whole board into a lane.
+ * True when the watch appears in the role title as a contiguous run of whole
+ * words (a WHOLE-PHRASE match, tightened 2026-09-18 from the old any-order
+ * token-subset). "Product Designer" matches "Senior Product Designer, AI" and
+ * "Staff Product Designer", but no longer "Product Design Engineer" or "Design
+ * Product Manager", where the two words are not adjacent in that order. Both
+ * sides are normalised (lowercased, punctuation to spaces), then padded so the
+ * phrase only matches on word boundaries: " product designer " inside
+ * " senior product designer ai ", never as a fragment of a larger word. A watch
+ * with no words (all punctuation) matches nothing.
  */
 export function matchesTitle(watch: string, roleTitle: string | null): boolean {
   if (!roleTitle) return false;
-  const want = tokensOf(watch);
-  if (want.length === 0) return false;
-  const have = new Set(tokensOf(roleTitle));
-  return want.every((word) => have.has(word));
+  const phrase = normalizeTitle(watch);
+  if (!phrase) return false;
+  const role = normalizeTitle(roleTitle);
+  return ` ${role} `.includes(` ${phrase} `);
 }
 
 export interface TitleCount {

@@ -31,19 +31,20 @@ describe('listBoardFiltered', () => {
     expect(result.total).toBe(3);
     expect(result.counts.location).toEqual({ all: 3, remote: 1, onsite: 2 });
   });
-  it('narrows to the watched titles by token-subset word-boundary match, in count and page alike', async () => {
+  it('narrows to the watched titles by whole-phrase match, in count and page alike', async () => {
     await listBoardFiltered({ ...FILTER, titles: ['Product Designer'] });
     const [countSql, countParams] = query.mock.calls[0];
     const [pageSql, pageParams] = query.mock.calls[1];
-    // The two normalised tokens bind after the eleven shared params ($12, $13).
-    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, false, false, 'product', 'designer']);
-    // Then limit and offset shift past the tokens.
+    // The title normalises to ONE phrase param, bound after the eleven shared ($12).
+    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, false, false, 'product designer']);
+    // Then limit and offset shift past the phrase.
     expect(pageParams.slice(-2)).toEqual([50, 50]);
-    expect(pageSql).toContain('LIMIT $14 OFFSET $15');
-    // Every token is a word-boundary regex, ANDed within a title; and the clause
-    // is applied to the facet counts too, so the counts describe the narrowed board.
-    expect(pageSql).toContain(String.raw`title ~* ('\y' || $12 || '\y') AND title ~* ('\y' || $13 || '\y')`);
-    expect(countSql).toContain(String.raw`title ~* ('\y' || $12 || '\y')`);
+    expect(pageSql).toContain('LIMIT $13 OFFSET $14');
+    // A normalised, padded whole-phrase LIKE (mirroring ledger-titles.matchesTitle),
+    // applied to the facet counts too, so the counts describe the narrowed board.
+    expect(pageSql).toContain(String.raw`regexp_replace(lower(title), '[^a-z0-9]+', ' ', 'g')`);
+    expect(pageSql).toContain(`LIKE ('% ' || $12 || ' %')`);
+    expect(countSql).toContain(`LIKE ('% ' || $12 || ' %')`);
   });
   it('leaves the board unnarrowed when no titles are watched', async () => {
     await listBoardFiltered({ ...FILTER, titles: [] });
