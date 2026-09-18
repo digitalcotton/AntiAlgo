@@ -2,6 +2,7 @@
 import BrandMark from './BrandMark.astro';
 import ThemeToggle from './ThemeToggle.astro';
 import SignOut from './SignOut.astro';
+import MemberSubnav from './MemberSubnav.astro';
 import { routeFor } from '../data/nav';
 import { SITE } from '../data/site';
 import { isOn } from '../lib/flags';
@@ -78,6 +79,11 @@ const MEMBER = [
       )}
     </nav>
   </div>
+  {/* The workspace sub-row. Self-gating: it renders only for a signed-in
+      reader standing in the desk cluster, and nothing otherwise, so the header
+      stays one row everywhere else. Inside <header> so both rows stick together
+      under the one heavy bottom border. */}
+  <MemberSubnav />
 </header>
 
 <style>

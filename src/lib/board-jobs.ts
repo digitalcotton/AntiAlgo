@@ -81,7 +81,19 @@ export interface BoardRow {
  * company site". Honest and generic beats naming a board the label table cannot
  * spell.
  */
-const KNOWN_SOURCES = new Set<SourceSystem>(['greenhouse', 'ashby', 'workable', 'jobvite', 'yc']);
+const KNOWN_SOURCES = new Set<SourceSystem>([
+  'greenhouse',
+  'ashby',
+  'workday',
+  'amazon',
+  'lever',
+  'netflix',
+  'workable',
+  'rippling',
+  'jobvite',
+  'usajobs',
+  'yc'
+]);
 function sourceSystemOf(ats: string): SourceSystem {
   const key = (ats || '').toLowerCase();
   return KNOWN_SOURCES.has(key as SourceSystem) ? (key as SourceSystem) : 'custom';

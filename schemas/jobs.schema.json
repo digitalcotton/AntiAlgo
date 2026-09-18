@@ -74,6 +74,10 @@
           "minLength": 1,
           "description": "As the source states it. Never cleaned up, never normalised, never title-cased."
         },
+        "role_family": { "oneOf": [{ "enum": ["product", "design_engineering", "brand", "design_systems"] }, { "type": "null" }], "description": "The design family the sweep tagged this posting with, from the ATS department or the title. Null is an honest absence, never a guess. Absent until the exporter emits it. See the exporter field contract." },
+        "tier": { "oneOf": [{ "enum": ["Senior", "Staff", "Lead", "Director"] }, { "type": "null" }], "description": "The seniority bucket, or null when no seniority signal was read. Never defaulted to Senior." },
+        "role_family_source": { "oneOf": [{ "enum": ["ats_department", "title"] }, { "type": "null" }] },
+        "tier_source": { "oneOf": [{ "enum": ["ats_level", "title"] }, { "type": "null" }] },
         "comp_posted": {
           "type": ["string", "null"],
           "description": "The range as posted, verbatim. Null where the source posted none, which renders as Not listed."
@@ -81,7 +85,7 @@
         "location": { "type": "string", "minLength": 1 },
         "remote": { "type": "boolean" },
         "source_system": {
-          "enum": ["greenhouse", "ashby", "workable", "jobvite", "yc", "custom", "founder_post"],
+          "enum": ["greenhouse", "ashby", "workday", "amazon", "lever", "netflix", "workable", "rippling", "jobvite", "usajobs", "yc", "custom", "founder_post"],
           "description": "The board this record was read from, and the name the site prints beside both links below: Apply on X, X read direct, Destination X. A schema cannot check a value against another field, so the build and the export do: the named system has to agree with the host of source_url and of apply_url, and custom and founder_post are the two labels that name the absence of a board. One sweep 001 record said ashby over two links to the company's own site, which is why the check exists."
         },
         "source_url": { "type": "string", "format": "uri" },

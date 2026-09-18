@@ -116,8 +116,14 @@ export type Friction = 'EASY' | 'MEDIUM' | 'HARD';
 export type SourceSystem =
   | 'greenhouse'
   | 'ashby'
+  | 'workday'
+  | 'amazon'
+  | 'lever'
+  | 'netflix'
   | 'workable'
+  | 'rippling'
   | 'jobvite'
+  | 'usajobs'
   | 'yc'
   | 'custom'
   | 'founder_post';
@@ -150,6 +156,14 @@ export interface JobWindow {
   day: number;
 }
 
+/** The design family a posting was tagged with by the sweep. Closed vocabulary;
+ *  see the exporter field contract. A posting the sweep could not place is null,
+ *  never guessed. */
+export type RoleFamily = 'product' | 'design_engineering' | 'brand' | 'design_systems';
+/** The seniority bucket a posting was tagged with. Null when no seniority signal
+ *  was read; never defaulted to Senior. */
+export type RoleTier = 'Senior' | 'Staff' | 'Lead' | 'Director';
+
 export interface Job {
   id: string;
   slug: string;
@@ -162,6 +176,17 @@ export interface Job {
    * rather than a placeholder that would read as the company's own words.
    */
   title: string | null;
+  /**
+   * The design family and seniority the sweep tagged this posting with, from the
+   * ATS department or the title, per the exporter field contract. Measured
+   * upstream, never parsed at render. Null is an honest absence: the Ledger draws
+   * a gap and never buckets a null by inference. Absent on every row until the
+   * exporter emits them, which reads as null here.
+   */
+  role_family?: RoleFamily | null;
+  tier?: RoleTier | null;
+  role_family_source?: 'ats_department' | 'title' | null;
+  tier_source?: 'ats_level' | 'title' | null;
   /** Which population this row came from. See OpportunityKind. */
   kind: OpportunityKind;
   /** Present only on a pre-posting row. Null on every posted one. */
@@ -423,6 +448,10 @@ export interface KillRecord extends Kill {
   /** Nights this rule has fired on this posting. One finding, observed n times. */
   times_fired?: number;
   pipeline?: 'sweep' | 'crawl';
+  /** The design family and seniority the sweep tagged this killed posting with,
+   *  per the exporter field contract. Null until the exporter emits them. */
+  role_family?: RoleFamily | null;
+  tier?: RoleTier | null;
 }
 
 interface KillArchiveDoc {
@@ -2360,14 +2389,36 @@ export function markStateOf(job: Job): 'verified' | 're-verified' | 'closed' {
 const SOURCE_LABELS: Record<SourceSystem, string> = {
   greenhouse: 'Greenhouse',
   ashby: 'Ashby',
+  workday: 'Workday',
+  amazon: 'Amazon',
+  lever: 'Lever',
+  netflix: 'Netflix',
   workable: 'Workable',
+  rippling: 'Rippling',
   jobvite: 'Jobvite',
+  usajobs: 'USAJOBS',
   yc: 'Work at a Startup',
   custom: 'the company site',
   founder_post: 'the founder posting'
 };
 
 export const sourceLabel = (job: Job): string => SOURCE_LABELS[job.source_system];
+
+/**
+ * A display label for ANY applicant-system string, including a board this file
+ * does not yet name. Known systems get their SOURCE_LABELS entry; anything else
+ * gets a title-cased version of its own key rather than being dropped or
+ * relabelled. This is how the Ledger's system dimension stays complete without a
+ * hand-maintained list: whatever the sweep emits, it is named, never missed.
+ */
+export const atsLabel = (ats: string | null | undefined): string => {
+  const key = (ats ?? '').trim().toLowerCase();
+  if (!key) return 'the company site';
+  if (key in SOURCE_LABELS) return SOURCE_LABELS[key as SourceSystem];
+  return key
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
+};
 
 /**
  * How a posting is worked, said only where the posting's own words support it.

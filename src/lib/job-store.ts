@@ -255,6 +255,40 @@ const BOARD_ROW_OUT = `id, slug, company, title, url, location, country, remote,
   fit_total, fit_components, source, description, status, kill_id,
   kill_rule, kill_reason, killed_on, kill_first_published, kill_pipeline`;
 
+/**
+ * Every board row, full columns, no pagination and no facet counts: the
+ * total-coverage read the Ledger uses to hold the whole crawl at once.
+ * description is NULL::text so the heavy column never leaves the database in
+ * bulk. liveOnly excludes killed rows (the default); pass false for everything.
+ */
+export async function listBoardAll(opts?: { liveOnly?: boolean }): Promise<BoardRow[]> {
+  const where = opts && opts.liveOnly === false ? '' : "WHERE j.status <> 'killed'";
+  const { rows } = await db().query<BoardRow>(
+    `SELECT j.id, j.slug, j.company, j.title, j.url, j.location, j.country, j.remote, j.published, j.ats,
+            j.posting_id, j.department, j.comp_posted, j.comp_range, j.days_up, j.first_seen, j.last_seen,
+            j.fit_total, j.fit_components, j.source, NULL::text AS description, j.status, j.kill_id,
+            ${KILL_COLUMNS}
+       FROM jobs j LEFT JOIN board_kills k ON k.id = j.kill_id
+       ${where}`
+  );
+  return rows;
+}
+
+/** One standing kill from board_kills, as the Ledger reads the whole archive. */
+export interface BoardKillRow {
+  company: string; title: string; ats: string | null; kill_rule: string;
+  killed_on: Date | string | null; first_published: Date | string | null;
+  times_fired: number; pipeline: string | null; slug: string | null; url: string;
+}
+/** Every standing kill on record (not vacated), across the whole crawl. */
+export async function listAllKills(): Promise<BoardKillRow[]> {
+  const { rows } = await db().query<BoardKillRow>(
+    `SELECT company, title, ats, kill_rule, killed_on, first_published, times_fired, pipeline, slug, url
+       FROM board_kills WHERE vacated_at IS NULL`
+  );
+  return rows;
+}
+
 /** data.ts's FRESH_WINDOW_DAYS, restated as the SQL parameter. Imported rather
     than typed so the two cannot drift. */
 import { FRESH_WINDOW_DAYS as FRESH_WINDOW_DAYS_SQL } from './data';
