@@ -7,14 +7,20 @@ import KillRow from '../components/KillRow.astro';
 import {
   verifiedJobs,
   killsOnRecord,
+  loadKills,
+  loadStats,
+  killsRecordSince,
+  prospectRows,
+  closedJobs,
   sweepDate,
   sweptStamp,
   daysBetween,
   KILL_RULES,
   type Job,
-  type Kill
+  type Kill,
+  type KillRecord
 } from '../lib/data';
-import { dropWindow, killsInWindow } from '../components/drop/window';
+import { dropWindow, enteredInWindow, killsInWindow, closedInWindow } from '../components/drop/window';
 import { isPaidViewer } from '../lib/ledger-access';
 import { listWatches, type StoredWatch } from '../lib/ledger-watch-store';
 import { getPrefs, touchLastSeen } from '../lib/ledger-prefs-store';
@@ -161,6 +167,87 @@ const riskMix = riskDefs.map((r) => {
   const n = marketLive.filter((j) => j.risk === r.key).length;
   return { label: r.label, n, pct: Math.round((n / riskTotal) * 100), fill: r.fill, ink: r.ink };
 });
+
+// ---- The tape: last night's sweep totals, and the week's flow. ----
+const stats = loadStats();
+const observedCount = stats._meta?.postings_observed ?? null;
+const observedLabel = typeof observedCount === 'number' ? observedCount.toLocaleString('en-US') : 'the';
+const weekWindow = dropWindow(sweepDate());
+const enteredWk = enteredInWindow(verifiedJobs(), weekWindow, daysBetween).length;
+// This-sweep published kills, not the whole record windowed: the archive's
+// killed_on dates cluster in its first days, so windowing it would report the
+// record's build-up as a week of losses. This is the news, the way /drop reads it.
+const killedWk = loadKills().length;
+const closedWk = closedInWindow(closedJobs(), weekWindow, daysBetween).length;
+const netThisWeek = enteredWk - killedWk - closedWk;
+const sweepStats = [
+  { value: verifiedCount, label: 'verified live' },
+  { value: stats.killed, label: 'killed by rule' },
+  { value: stats.boards, label: 'boards read' },
+  { value: stats.pulled, label: 'pulled for a verdict' }
+];
+
+// ---- Is it real: this sweep by rule (all five, zeros included), standing count. ----
+const killedByRule = KILL_RULES.map((rule) => ({
+  rule: RULE_CHART_LABEL[rule] ?? rule,
+  count: stats.killed_by_rule[rule] ?? 0
+}))
+  .sort((a, b) => b.count - a.count)
+  .map((r) => ({ ...r, color: r.count > 0 ? 'var(--color-signal)' : 'var(--color-line-strong)' }));
+const archiveSince = killsRecordSince() ?? '';
+
+// ---- The receipts: the standing kill rows, company scrubbed from the prose. ----
+const scrubCo = (text: string, company: string): string => {
+  const name = company.trim();
+  if (!name) return text;
+  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Word boundaries and case-sensitive, so a company named after a common word
+  // (a firm called "Remote") does not scrub "remote flag" out of the prose.
+  return text.replace(new RegExp(`\\b${esc}\\b`, 'g'), 'the company');
+};
+const recordRows = killsOnRecord();
+const lifespanOf = (k: KillRecord): number | null =>
+  k.first_published && k.killed_on ? daysBetween(k.first_published, k.killed_on) : null;
+const recMaxLife = Math.max(1, ...recordRows.map((k) => lifespanOf(k) ?? 0));
+const receipts = [...recordRows]
+  .sort((a, b) => (b.times_fired ?? 1) - (a.times_fired ?? 1) || (lifespanOf(b) ?? 0) - (lifespanOf(a) ?? 0))
+  .slice(0, 6)
+  .map((k) => {
+    const life = lifespanOf(k);
+    return {
+      title: k.title,
+      observation: scrubCo(k.reason, k.company),
+      firstPublished: k.first_published ?? 'n/a',
+      lifespan: life,
+      barPct: life ? Math.round((life / recMaxLife) * 100) : 0,
+      rule: RULE_CHART_LABEL[k.kill_rule ?? ''] ?? k.kill_rule ?? '',
+      ats: k.ats ?? 'n/a',
+      pipeline: k.pipeline ?? 'sweep',
+      times: k.times_fired ?? 1,
+      repeat: (k.times_fired ?? 1) > 1
+    };
+  });
+
+// ---- This week: entered, killed, closed, each counted in the window. ----
+const weekColumns = [
+  { n: enteredWk, label: 'entered', accent: false, note: 'New to the board this window, first seen at a company source and verified live.' },
+  { n: killedWk, label: 'killed', accent: true, note: 'Tripped a published rule and came down, published on the record this sweep.' },
+  { n: closedWk, label: 'closed', accent: false, note: 'The employer printed a close date or pulled the posting itself.' }
+];
+
+// ---- About to open: the forward pipeline, highest fit first. ----
+const allProspects = prospectRows();
+const prospectTotal = allProspects.length;
+const prospects = [...allProspects]
+  .sort((a, b) => (b.fit?.total ?? 0) - (a.fit?.total ?? 0))
+  .slice(0, 6)
+  .map((p) => ({
+    name: p.company,
+    stage: p.prospect?.stage ?? '',
+    fit: p.fit?.total ?? 0,
+    team: p.prospect?.team_size ? `team of ${p.prospect.team_size}` : 'team size not stated',
+    signal: p.prospect?.signals?.[0]?.observation ?? ''
+  }));
 
 let watches: StoredWatch[] = [];
 let remoteOnly = false;
@@ -455,6 +542,46 @@ const signUpHref = routeFor('sign-up');
       </div>
     )}
 
+    <section class="ledger-section">
+      <p class="sec-eyebrow"><span>01</span><span>Is it real</span></p>
+      <h2 class="sec-h2">{stats.killed} postings tripped a rule last night. The rest passed.</h2>
+      <div class="isreal-grid">
+        <div>
+          <p style="margin:0 0 14px;font-family:var(--font-family-mono);font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-muted);">Killed this sweep, by rule</p>
+          <div style="border:1px solid var(--color-line-strong);background:var(--color-surface-raised, var(--color-surface));">
+            {killedByRule.map((k) => (
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--color-line);">
+                <span style={`font-family:var(--font-family-mono);font-size:0.82rem;color:${k.color};`}>{k.rule}</span>
+                <span style={`font-family:var(--font-family-mono);font-weight:600;font-size:0.95rem;color:${k.color};`}>{k.count}</span>
+              </div>
+            ))}
+          </div>
+          <p style="margin:12px 0 0;font-size:0.9rem;line-height:1.55;color:var(--color-muted);max-width:52ch;">A rule at zero prints zero. We never hide a rule that did not fire, and nothing is ever killed for being old. A 90 day senior search is normal, not a ghost.</p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div style="border:1px solid var(--color-line-strong);background:var(--color-surface-raised, var(--color-surface));padding:18px;">
+            <div style="font-family:var(--font-family-mono);font-weight:600;font-size:2.4rem;letter-spacing:-0.02em;">{archiveTotal}</div>
+            <div style="font-family:var(--font-family-mono);font-size:0.74rem;color:var(--color-muted);margin-top:4px;">standing kills on record since {archiveSince}</div>
+          </div>
+          <div style="border:1px solid var(--color-line-strong);background:var(--color-surface-raised, var(--color-surface));">
+            <div style="padding:10px 14px;border-bottom:1px solid var(--color-line);font-family:var(--font-family-mono);font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-muted);">Last night's sweep</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;">
+              {sweepStats.map((s) => (
+                <div style="padding:14px;border-bottom:1px solid var(--color-line);border-right:1px solid var(--color-line);">
+                  <div style="font-family:var(--font-family-mono);font-weight:600;font-size:1.6rem;letter-spacing:-0.02em;">{s.value}</div>
+                  <div style="font-family:var(--font-family-mono);font-size:0.72rem;color:var(--color-muted);margin-top:4px;">{s.label}</div>
+                </div>
+              ))}
+            </div>
+            <div style="padding:10px 14px;font-family:var(--font-family-mono);font-size:0.7rem;color:var(--color-muted);line-height:1.5;">read {observedLabel} postings, kept the {stats.pulled} that passed the title and location filter, gave each a verdict.</div>
+          </div>
+          <div style="border:1px solid var(--color-line);background:var(--color-surface);padding:16px;">
+            <p style="margin:0;font-size:0.9rem;line-height:1.55;">The company is redacted on every public kill row. The record is evidence of a pattern, not a way to name a firm. The role stays, because the role is the part you were about to apply to.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="ledger-market">
       <h2 class="market-h2">Read the market like an index.</h2>
       <p class="market-sub">
@@ -596,6 +723,85 @@ const signUpHref = routeFor('sign-up');
       </div>
 
       <p class="chart-note">Every bar is one hover from its date and sweep stamp in production. Each chart carries a text equivalent for screen readers, and rule and direction are named in words, never carried by color alone.</p>
+    </section>
+
+    <section class="ledger-section">
+      <p class="sec-eyebrow"><span>04</span><span>The receipts</span></p>
+      <h2 class="sec-h2">The receipts. Every delisting, with the observation that fired it.</h2>
+      <p class="sec-sub">This is the drill-down every chart above points at. The machine states a dated observation and nothing more. It never assigns a motive.</p>
+      <div style="margin-top:26px;border:1px solid var(--color-line-strong);background:var(--color-surface);">
+        <div class="rec-head" style="display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--color-line);font-family:var(--font-family-mono);font-size:0.66rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-muted);">
+          <span>role · observation</span>
+          <span>lifespan · rule · found by</span>
+        </div>
+        {receipts.map((k) => (
+          <div class="rec-row" style="display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px 16px;align-items:start;padding:16px;border-bottom:1px solid var(--color-line);">
+            <div style="min-width:0;">
+              <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;">
+                <span style="font-weight:600;font-size:1rem;">{k.title}</span>
+                <span style="font-family:var(--font-family-mono);font-size:0.72rem;color:var(--color-line-strong);border:1px solid var(--color-line);padding:1px 6px;white-space:nowrap;">company redacted</span>
+                {k.repeat && (
+                  <span style="font-family:var(--font-family-mono);font-size:0.68rem;color:var(--color-signal);border:1px solid var(--color-signal);padding:1px 6px;white-space:nowrap;">fired {k.times}x</span>
+                )}
+              </div>
+              <p style="margin:8px 0 0;font-family:var(--font-family-mono);font-size:0.78rem;line-height:1.6;color:var(--color-muted);max-width:64ch;">{k.observation}</p>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div>
+                <div style="display:flex;justify-content:space-between;gap:8px;font-family:var(--font-family-mono);font-size:0.7rem;color:var(--color-muted);margin-bottom:4px;"><span>{k.firstPublished}</span><span>{k.lifespan != null ? `${k.lifespan}d` : ''}</span></div>
+                <div style="height:8px;background:var(--color-hover);border:1px solid var(--color-line);"><div style={`height:100%;width:${k.barPct}%;background:var(--color-signal);`}></div></div>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;font-family:var(--font-family-mono);font-size:0.68rem;">
+                <span style="border:1px solid var(--color-line-strong);padding:1px 7px;white-space:nowrap;">{k.rule}</span>
+                <span style="border:1px solid var(--color-line);padding:1px 7px;color:var(--color-muted);white-space:nowrap;">{k.ats}</span>
+                <span style="border:1px solid var(--color-line);padding:1px 7px;color:var(--color-muted);white-space:nowrap;">found by {k.pipeline}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+        <div style="padding:14px 16px;font-family:var(--font-family-mono);font-size:0.72rem;color:var(--color-muted);">{archiveTotal} kills on record. The full archive opens in the account.</div>
+      </div>
+    </section>
+
+    <section class="ledger-section">
+      <p class="sec-eyebrow"><span>05</span><span>This week</span></p>
+      <h2 class="sec-h2">Seven nights, in three columns.</h2>
+      <p class="sec-sub">There is no week over week percentage here, and there cannot honestly be one yet. A trend needs two published sweeps to compare, and this property holds one. What follows is the window itself, counted the night it was read.</p>
+      <div class="drop-grid" style="margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--color-line);border:1px solid var(--color-line);">
+        {weekColumns.map((c) => (
+          <div style="background:var(--color-surface);padding:20px;">
+            <div style="display:flex;align-items:baseline;gap:10px;">
+              <span style={`font-family:var(--font-family-mono);font-weight:600;font-size:2.2rem;letter-spacing:-0.02em;color:${c.accent ? 'var(--color-signal)' : 'var(--color-foreground)'};`}>{c.n}</span>
+              <span style="font-family:var(--font-family-mono);font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-muted);">{c.label}</span>
+            </div>
+            <p style="margin:12px 0 0;font-size:0.9rem;line-height:1.55;color:var(--color-muted);">{c.note}</p>
+          </div>
+        ))}
+      </div>
+      <p class="sec-sub" style="margin-top:14px;">Net this week: {netThisWeek > 0 ? '+' : ''}{netThisWeek} roles. {netThisWeek > 0 ? 'The board grew a little this window.' : netThisWeek < 0 ? 'The board came off a little this window.' : 'The board held about even this window.'}</p>
+    </section>
+
+    <section class="ledger-section">
+      <p class="sec-eyebrow"><span>06</span><span>About to open</span></p>
+      <h2 class="sec-h2">Funded companies with no designer yet.</h2>
+      <p class="sec-sub">The forward pipeline: {prospectTotal} early-stage companies scored on the same rubric as the board, most of them before they post. You reach out while the role is still an idea.</p>
+      <div class="prospect-grid" style="margin-top:26px;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--color-line);border:1px solid var(--color-line);">
+        {prospects.map((p) => (
+          <div style="background:var(--color-surface);padding:18px;display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;">
+              <span style="font-weight:600;font-size:1rem;">{p.name}</span>
+              <span style="font-family:var(--font-family-mono);font-size:0.7rem;color:var(--color-muted);">{p.stage}</span>
+            </div>
+            <div style="display:flex;align-items:baseline;gap:10px;">
+              <span style="font-family:var(--font-family-mono);font-weight:600;font-size:1.8rem;letter-spacing:-0.02em;color:var(--color-signal);">{p.fit}<span style="font-size:0.8rem;color:var(--color-muted);font-weight:400;">/100</span></span>
+              <span style="font-family:var(--font-family-mono);font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-muted);">fit</span>
+            </div>
+            <p style="margin:0;font-family:var(--font-family-mono);font-size:0.74rem;line-height:1.55;color:var(--color-muted);">{p.signal}</p>
+            <p style="margin:auto 0 0;font-family:var(--font-family-mono);font-size:0.68rem;color:var(--color-line-strong);">design hires: 0 · {p.team}</p>
+          </div>
+        ))}
+      </div>
+      <p class="prospect-foot"><a class="ledger-link" href={boardHref}>See the full Pre-List in the account</a></p>
     </section>
   </main>
 </BaseLayout>
@@ -876,5 +1082,74 @@ const signUpHref = routeFor('sign-up');
     color: var(--color-muted);
     line-height: 1.55;
     max-width: 82ch;
+  }
+
+  .ledger-section {
+    margin-top: var(--space-700, 2.5rem);
+    padding-top: var(--space-600, 2rem);
+    border-top: var(--border-hairline, 1px) solid var(--color-line-strong, #888);
+  }
+
+  .sec-eyebrow {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin: 0;
+    font-family: var(--font-family-mono, monospace);
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .sec-eyebrow span:first-child {
+    color: var(--color-line-strong);
+  }
+
+  .sec-eyebrow span:last-child {
+    color: var(--color-muted);
+  }
+
+  .sec-h2 {
+    margin: 16px 0 0;
+    font-weight: 600;
+    font-size: clamp(1.6rem, 3.4vw, 2.4rem);
+    line-height: 1.08;
+    letter-spacing: -0.025em;
+    max-width: 28ch;
+    text-wrap: pretty;
+  }
+
+  .sec-sub {
+    margin: 12px 0 0;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: var(--color-muted);
+    max-width: 60ch;
+  }
+
+  .isreal-grid {
+    margin-top: 26px;
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: clamp(20px, 3vw, 40px);
+    align-items: start;
+  }
+
+  .prospect-foot {
+    margin: 20px 0 0;
+  }
+
+  @media (max-width: 44rem) {
+    .isreal-grid,
+    .drop-grid,
+    .prospect-grid {
+      grid-template-columns: 1fr !important;
+    }
+    .rec-head {
+      display: none !important;
+    }
+    .rec-row {
+      grid-template-columns: 1fr !important;
+    }
   }
 </style>
