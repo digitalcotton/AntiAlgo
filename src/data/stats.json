@@ -1,19 +1,19 @@
 {
   "_meta": {
-    "purpose": "Sweep totals for 2026-09-17T07:30:00Z, written by export-site-data.py on the machine.",
-    "contents": "45 boards read, 3782 postings observed on those boards, 83 postings reached a verdict, 80 verified live, 3 killed, 3 of those caught by a named rule. Every count reconciles against the files beside it.",
-    "pulled_means": "pulled is 83, which is verified plus killed, and it counts the postings that passed the title and location filters and therefore reached a verdict. It is not the 3782 postings read off the boards: the site's own contract requires verified plus killed to equal pulled, so this field has to be the set that got a verdict. The board total is postings_observed below.",
-    "postings_observed": 3782,
+    "purpose": "Sweep totals for 2026-09-18T07:30:00Z, written by export-site-data.py on the machine.",
+    "contents": "45 boards read, 3779 postings observed on those boards, 81 postings reached a verdict, 78 verified live, 3 killed, 3 of those caught by a named rule. Every count reconciles against the files beside it.",
+    "pulled_means": "pulled is 81, which is verified plus killed, and it counts the postings that passed the title and location filters and therefore reached a verdict. It is not the 3779 postings read off the boards: the site's own contract requires verified plus killed to equal pulled, so this field has to be the set that got a verdict. The board total is postings_observed below.",
+    "postings_observed": 3779,
     "boards_that_failed": [],
     "boards_that_failed_note": "A board that answered with an empty list is not in this list. It is a company that is not hiring, which is a fact rather than a failure.",
     "no_sweep_number": "There is no sweep_number and there will not be one. It was derived by counting run records in the archive, which meant a test run incremented it, a re-read of the archive changed it, and two machines disagreed about it. swept_at_utc is the identifier: it cannot be incremented by accident and it is already what the site's footer publishes. Dropped 2026-08-19.",
     "killed_by_rule": "One key per live rule, always all of them, always including the zeroes. A rule missing from this object reads as a rule that was never run, and several of these are expected to sit at zero for weeks. killed_unattributed is 0: kills carrying no rule the site still publishes, which today means records the retired evergreen rule produced.",
     "clock": "One clock. Every instant here and in jobs.json is this sweep's, in UTC, to the second."
   },
-  "swept_at_utc": "2026-09-17T07:30:00Z",
+  "swept_at_utc": "2026-09-18T07:30:00Z",
   "boards": 45,
-  "pulled": 83,
-  "verified_live": 80,
+  "pulled": 81,
+  "verified_live": 78,
   "killed": 3,
   "killed_by_rule": {
     "repost_churn": 3,
