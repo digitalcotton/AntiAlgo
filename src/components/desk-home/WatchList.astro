@@ -213,10 +213,12 @@ const shelves: { key: 'core' | 'stretch'; label: string; caption: string; list: 
   .wl-head::-webkit-details-marker { display: none; }
   .wl-index { font-size: var(--size-100); font-weight: var(--weight-medium); letter-spacing: var(--tracking-loose); text-transform: uppercase; color: var(--color-muted); }
   .wl-index .mono-label { margin-right: var(--space-200); }
-  .wl-toggle { color: var(--color-muted); }
+  /* The edit action reads as a button, not a footnote: bordered, foreground
+     ink, filled on hover. */
+  .wl-toggle { display: inline-block; padding: var(--space-200) var(--space-400); border: var(--border-hairline) solid var(--color-foreground); color: var(--color-foreground); }
   .wl-toggle::after { content: 'Edit watch list +'; }
   .wl-d[open] .wl-toggle::after { content: 'Done editing \2212'; }
-  .wl-head:hover .wl-toggle { color: var(--color-foreground); }
+  .wl-head:hover .wl-toggle { background: var(--color-foreground); color: var(--color-foreground-inverse); }
 
   /* Editor. */
   .wl-editor { display: flex; flex-direction: column; gap: var(--space-500); padding-top: var(--space-500); }
@@ -260,9 +262,13 @@ const shelves: { key: 'core' | 'stretch'; label: string; caption: string; list: 
 
   /* Read view. */
   .wl-shelves { margin: 0; display: flex; flex-direction: column; gap: var(--space-300); }
-  .wl-row { display: grid; grid-template-columns: 6rem 1fr; gap: var(--space-400); align-items: start; }
-  .wl-shelf { color: var(--color-muted); padding-top: 4px; }
-  .wl-chips { margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-300); }
+  /* Each row: the label right-aligned against the value column, the value
+     starting at one left edge whatever it is (a chip, "none", the filter
+     summary), both centred on the row. */
+  .wl-row { display: grid; grid-template-columns: 6rem 1fr; gap: var(--space-400); align-items: center; }
+  .wl-shelf { color: var(--color-muted); text-align: right; }
+  .wl-chips, .wl-filters { margin: 0; }
+  .wl-chips { display: flex; flex-wrap: wrap; gap: var(--space-300); }
   .wl-chip { display: inline-flex; align-items: baseline; gap: var(--space-200); border: var(--border-hairline) solid var(--color-line); padding: var(--space-200) var(--space-300); }
   .wl-chip-title { font-weight: var(--weight-medium); }
   .wl-chip-meta { font-family: var(--font-family-mono); font-size: var(--size-075); color: var(--color-muted); }
@@ -271,5 +277,5 @@ const shelves: { key: 'core' | 'stretch'; label: string; caption: string; list: 
   .wl-filters { font-family: var(--font-family-mono); font-size: var(--size-075); }
   .wl-firstrun, .wl-uncovered { margin: var(--space-300) 0 0; color: var(--color-muted); font-size: var(--size-100); max-width: 68ch; }
 
-  @media (max-width: 44rem) { .wl-row { grid-template-columns: 1fr; gap: var(--space-200); } .wl-control-label { width: auto; } }
+  @media (max-width: 44rem) { .wl-row { grid-template-columns: 1fr; gap: var(--space-200); } .wl-shelf { text-align: left; } .wl-control-label { width: auto; } }
 </style>
