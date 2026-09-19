@@ -25,6 +25,7 @@ const generativeProviderMock = vi.mocked(generativeProvider);
 const {
   renderResume,
   renderCover,
+  listEntries,
   personName,
   listLinks,
   resolveResumeEmail,
@@ -36,6 +37,11 @@ const {
 } = vi.hoisted(() => ({
   renderResume: vi.fn(),
   renderCover: vi.fn(),
+  // One placeholder entry by default: enough to pass renderOneDocument's
+  // empty-record guard so every suite below exercises the render path it was
+  // written for. The mocked renderResume/renderCover never read it. The
+  // empty-record suite overrides this to [] per call.
+  listEntries: vi.fn(async () => [{ prfId: 'prf-1', kind: 'role_held' } as unknown]),
   personName: vi.fn(),
   listLinks: vi.fn(),
   resolveResumeEmail: vi.fn(),
@@ -47,7 +53,7 @@ const {
 }));
 
 vi.mock('./record-store', () => ({
-  listEntries: vi.fn(async () => []),
+  listEntries,
   personName,
   listLinks,
   resolveResumeEmail,
@@ -55,6 +61,13 @@ vi.mock('./record-store', () => ({
   // the same default the app carries until a person uploads one.
   getCoverLetter: vi.fn(async () => null)
 }));
+
+/** Render payloads WITH a body, the shape pdf-resume.ts's resumeHasBody() /
+    coverHasBody() accept: renderOneDocument now fails a bodyless document
+    instead of shipping it 'ready', so the fixtures the existing suites hand it
+    must carry at least one section entry (resume) or a proof paragraph (cover). */
+const resumeWithBody = { kind: 'resume', sections: [{ heading: 'Experience', entries: [{ bullets: [] }] }] };
+const coverWithBody = { kind: 'cover', paragraphs: [{ role: 'proof', text: 'A proof paragraph.' }] };
 
 vi.mock('./tailor', () => ({
   renderResume,
@@ -226,8 +239,8 @@ describe('renderInBackground(): the contact header reaches both documents, both 
       { id: 'link-1', platform: 'github', url: 'https://github.com/ada', createdAt: new Date(0) }
     ]);
     resolveResumeEmail.mockResolvedValue('ada@example.com');
-    renderResume.mockResolvedValue({ kind: 'resume' });
-    renderCover.mockResolvedValue({ kind: 'cover' });
+    renderResume.mockResolvedValue(resumeWithBody);
+    renderCover.mockResolvedValue(coverWithBody);
     getWritingModel.mockResolvedValue(null);
   });
 
@@ -293,8 +306,8 @@ describe('the one-click button drafts each document, key or no key', () => {
     personName.mockResolvedValue({ firstName: 'Ada', lastName: 'Lovelace' });
     listLinks.mockResolvedValue([]);
     resolveResumeEmail.mockResolvedValue('ada@example.com');
-    renderResume.mockResolvedValue({ kind: 'resume' });
-    renderCover.mockResolvedValue({ kind: 'cover' });
+    renderResume.mockResolvedValue(resumeWithBody);
+    renderCover.mockResolvedValue(coverWithBody);
     completeDraft.mockResolvedValue(undefined);
     getWritingModel.mockResolvedValue(null);
   });
@@ -347,8 +360,8 @@ describe('renderOneDocument(): one document, one row, and the template never sta
     personName.mockResolvedValue({ firstName: 'Ada', lastName: 'Lovelace' });
     listLinks.mockResolvedValue([]);
     resolveResumeEmail.mockResolvedValue('ada@example.com');
-    renderResume.mockResolvedValue({ kind: 'resume' });
-    renderCover.mockResolvedValue({ kind: 'cover' });
+    renderResume.mockResolvedValue(resumeWithBody);
+    renderCover.mockResolvedValue(coverWithBody);
     completeDraft.mockResolvedValue(undefined);
     failDraft.mockResolvedValue(undefined);
     getWritingModel.mockResolvedValue(null);
@@ -470,8 +483,8 @@ describe('the drafting audit row records the model that actually ran', () => {
     personName.mockResolvedValue({ firstName: 'Ada', lastName: 'Lovelace' });
     listLinks.mockResolvedValue([]);
     resolveResumeEmail.mockResolvedValue('ada@example.com');
-    renderResume.mockResolvedValue({ kind: 'resume' });
-    renderCover.mockResolvedValue({ kind: 'cover' });
+    renderResume.mockResolvedValue(resumeWithBody);
+    renderCover.mockResolvedValue(coverWithBody);
     completeDraft.mockResolvedValue(undefined);
     getDecryptedKey.mockResolvedValue('a-decrypted-key');
   });
@@ -510,5 +523,88 @@ describe('the drafting audit row records the model that actually ran', () => {
     for (const call of completeDraft.mock.calls) {
       expect((call[1] as { model: string | null }).model).toBe('claude-chosen');
     }
+  });
+});
+
+describe('renderOneDocument(): an empty record fails honestly, before any provider call', () => {
+  const base = { userId: 'user_1', job: job(), provider: 'anthropic' as const, reason: null };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    personName.mockResolvedValue({ firstName: 'Ada', lastName: 'Lovelace' });
+    listLinks.mockResolvedValue([]);
+    resolveResumeEmail.mockResolvedValue('ada@example.com');
+    renderResume.mockResolvedValue(resumeWithBody);
+    renderCover.mockResolvedValue(coverWithBody);
+    completeDraft.mockResolvedValue(undefined);
+    failDraft.mockResolvedValue(undefined);
+    getWritingModel.mockResolvedValue(null);
+    getDecryptedKey.mockResolvedValue('a-decrypted-key');
+  });
+
+  it('no entries + a connected key: fails the resume naming the Profile Record, and spends no tokens', async () => {
+    listEntries.mockResolvedValueOnce([]);
+
+    await renderOneDocument({ ...base, kind: 'resume', renderId: 'r-1' });
+
+    expect(failDraft).toHaveBeenCalledTimes(1);
+    expect(failDraft.mock.calls[0][0]).toBe('r-1');
+    expect(failDraft.mock.calls[0][1]).toEqual(expect.stringContaining('Profile Record has no entries'));
+    // The guard sits before the key is read and before the provider is built:
+    // the whole point is that an empty record costs nothing.
+    expect(getDecryptedKey).not.toHaveBeenCalled();
+    expect(generativeProviderMock).not.toHaveBeenCalled();
+    expect(renderResume).not.toHaveBeenCalled();
+    expect(completeDraft).not.toHaveBeenCalled();
+  });
+
+  it('no entries, no key (deterministic writer): still fails, never renders', async () => {
+    listEntries.mockResolvedValueOnce([]);
+
+    await renderOneDocument({ ...base, provider: null, kind: 'resume', renderId: 'r-1' });
+
+    expect(failDraft).toHaveBeenCalledTimes(1);
+    expect(failDraft.mock.calls[0][1]).toEqual(expect.stringContaining('Profile Record has no entries'));
+    expect(renderResume).not.toHaveBeenCalled();
+    expect(completeDraft).not.toHaveBeenCalled();
+  });
+
+  it('no entries: the cover letter fails the same way, without a render', async () => {
+    listEntries.mockResolvedValueOnce([]);
+
+    await renderOneDocument({ ...base, kind: 'cover', renderId: 'c-1' });
+
+    expect(failDraft).toHaveBeenCalledTimes(1);
+    expect(failDraft.mock.calls[0][0]).toBe('c-1');
+    expect(renderCover).not.toHaveBeenCalled();
+    expect(completeDraft).not.toHaveBeenCalled();
+  });
+
+  it('entries present but the resume renders with no sections: fails as empty, never ships ready (deterministic path)', async () => {
+    renderResume.mockResolvedValue({ kind: 'resume', sections: [] });
+
+    await renderOneDocument({ ...base, provider: null, kind: 'resume', renderId: 'r-1' });
+
+    expect(failDraft).toHaveBeenCalledTimes(1);
+    expect(failDraft.mock.calls[0][1]).toEqual(expect.stringContaining('came out empty'));
+    expect(completeDraft).not.toHaveBeenCalled();
+  });
+
+  it('entries present but the resume renders with no sections: fails as empty on the provider path too', async () => {
+    renderResume.mockResolvedValue({ kind: 'resume', sections: [] });
+
+    await renderOneDocument({ ...base, kind: 'resume', renderId: 'r-1' });
+
+    expect(failDraft).toHaveBeenCalledTimes(1);
+    expect(failDraft.mock.calls[0][1]).toEqual(expect.stringContaining('came out empty'));
+    expect(completeDraft).not.toHaveBeenCalled();
+  });
+
+  it('entries present and a real body: ships ready exactly as before', async () => {
+    await renderOneDocument({ ...base, kind: 'resume', renderId: 'r-1' });
+
+    expect(failDraft).not.toHaveBeenCalled();
+    expect(completeDraft).toHaveBeenCalledTimes(1);
+    expect((completeDraft.mock.calls[0][1] as { status: string }).status).toBe('ready');
   });
 });

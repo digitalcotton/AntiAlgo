@@ -80,7 +80,8 @@ import { beginDraft, beginJobDraft, beginJobDraftDocument, claimJobRender, compl
 import { dispatchJobDraftRuns, selfOrigin, type DocumentDispatch } from './draft-run-dispatch';
 import { getCoverLetter, listEntries, listLinks, personName, resolveResumeEmail } from './record-store';
 import { linkPlatformLabel } from './profile-links';
-import { renderCover, renderResume, type RenderHeader, type Target } from './tailor';
+import { renderCover, renderResume, type CoverRender, type RenderHeader, type ResumeRender, type Target } from './tailor';
+import { coverHasBody, resumeHasBody } from './pdf-resume';
 import { acceptPastedVoiceSample, type VoiceSample } from './voice';
 import type { Job } from './data';
 import type { DraftSteer } from './draft-steer';
@@ -490,6 +491,26 @@ export async function renderOneDocument(input: DocumentRenderInput): Promise<voi
     const entries = await listEntries(userId);
     const header = await buildRenderHeader(userId);
 
+    // AN EMPTY RECORD FAILS HONESTLY, BEFORE ANY PROVIDER WORK. A resume's
+    // sections are one per entry with no filter, so no entries means a blank
+    // document; the letter's evidence is drawn from the same entries. Without
+    // this guard the resume shipped 'ready' with only a name on it (the model
+    // was billed a full system prompt to answer an empty slot list with
+    // `{"styledSlots":[]}`, which the verifier passes trivially), and the cover
+    // burned every retry against an empty corpus before failing. Failing here
+    // costs nothing, both documents settle at once, and the reason names where
+    // the fix lives. The sentence is our own, never a provider body.
+    if (entries.length === 0) {
+      console.error(
+        `generation-preference-store: ${label} has no record entries for user ${userId}, job ${job.slug}; failing before any provider call.`
+      );
+      await failDraft(
+        renderId,
+        'your Profile Record has no entries yet, so there was nothing to draft from. Add a role, project, education or skill in your Profile Record, then draft again'
+      );
+      return;
+    }
+
     if (provider) {
       const plaintext = await getDecryptedKey(userId, provider);
       if (!plaintext) {
@@ -526,6 +547,11 @@ export async function renderOneDocument(input: DocumentRenderInput): Promise<voi
         return;
       }
 
+      if (!hasBody(kind, payload)) {
+        await failDraft(renderId, emptyBodyReason(kind));
+        return;
+      }
+
       // The tokens this one document's provider call billed, and its wall time
       // (db/203). Read from the instance's own usage() accumulator, honest zeros
       // only if the wire genuinely returned no usage.
@@ -538,6 +564,10 @@ export async function renderOneDocument(input: DocumentRenderInput): Promise<voi
       kind === 'resume'
         ? await renderResume(entries, target, undefined, header)
         : await renderCover(entries, target, undefined, undefined, header, { reason });
+    if (!hasBody(kind, payload)) {
+      await failDraft(renderId, emptyBodyReason(kind));
+      return;
+    }
     await completeDraft(renderId, { status: 'fallback', payload, provider: null, model: null });
   } catch (error) {
     console.error(`generation-preference-store: ${label} failed for user ${userId}, job ${job.slug}.`, error);
@@ -550,6 +580,22 @@ export async function renderOneDocument(input: DocumentRenderInput): Promise<voi
       );
     }
   }
+}
+
+/** Whether a rendered document has a body worth calling 'ready': the same
+    predicates the download route ([doc].ts) and the room's download buttons
+    already use (pdf-resume.ts), applied here before the row is settled rather
+    than four screens later, where they could only refuse a download. */
+function hasBody(kind: RenderKind, payload: unknown): boolean {
+  return kind === 'resume' ? resumeHasBody(payload as ResumeRender) : coverHasBody(payload as CoverRender);
+}
+
+/** Our own sentence for a document that rendered with nothing in it, naming
+    where the fix lives. Never a provider body. */
+function emptyBodyReason(kind: RenderKind): string {
+  return kind === 'resume'
+    ? 'the resume came out empty: your Profile Record entries have no descriptions to draw from. Add a line or two under your roles, then draft again'
+    : 'the cover letter came out empty: your Profile Record needs a sentence or two under a role to draw from. Add a description, then draft again';
 }
 
 /** One document rendered here, in this invocation: claim the row first (so a
