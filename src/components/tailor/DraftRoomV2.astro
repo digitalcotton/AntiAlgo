@@ -186,227 +186,260 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
   <input type="radio" name="dr-tab" id="dr-tab-resume" class="dr-tab-input" checked />
   <input type="radio" name="dr-tab" id="dr-tab-cover" class="dr-tab-input" />
   <div class="dr-tabs" role="tablist">
-    <label class="dr-tab" for="dr-tab-resume">Resume</label>
-    <label class="dr-tab" for="dr-tab-cover">Cover letter</label>
+    <div class="dr-tab-group">
+      <label class="dr-tab" for="dr-tab-resume">Resume</label>
+      <label class="dr-tab" for="dr-tab-cover">Cover letter</label>
+    </div>
+    <span class="dr-page-meta dr-page-meta-resume mono">resume{resumeUpdatedAt ? `, drafted ${timeAgo(resumeUpdatedAt)}` : ''}</span>
+    <span class="dr-page-meta dr-page-meta-cover mono">cover letter{coverUpdatedAt ? `, drafted ${timeAgo(coverUpdatedAt)}` : ''}</span>
   </div>
 
-  <section class="dr-panel dr-panel-resume" aria-label="Resume">
-    {resume ? (
-      <>
-        <p class="dr-doc-meta mono-label">resume{resumeUpdatedAt ? `, drafted ${timeAgo(resumeUpdatedAt)}` : ''}</p>
-        <article class="dr-doc">
-          {hasHeader(resume.header) && (
-            <header class="dr-doc-contact">
-              {resume.header.name && <p class="dr-doc-name">{resume.header.name}</p>}
-              <p class="dr-doc-lines mono">
-                {resume.header.email}
-                {resume.header.links.map((l) => <><span class="dr-doc-sep"> · </span><a href={l.url} rel="noopener nofollow" target="_blank">{l.label}</a></>)}
-              </p>
-            </header>
-          )}
-          {/* The summary block (tailor.ts summarySlotFor): the record's own
-              facts a skim reads first, before the first experience entry.
-              Marked like a bullet when the model rephrased it on your key. */}
-          {resume.summary && (
-            <section class="dr-doc-section">
-              <h3 class="dr-doc-heading mono-label">Summary</h3>
-              <p class:list={['dr-doc-line', { 'is-tailored': resumeRewrote.has(SUMMARY_LINE_ID) }]}>{resume.summary.text}</p>
-            </section>
-          )}
-          {resume.sections.map((section) => (
-            <section class="dr-doc-section">
-              <h3 class="dr-doc-heading mono-label">{section.heading}</h3>
-              {groupResumeSection(section).map((row) => (
-                row.kind === 'entry' ? (
-                  <div class="dr-doc-entry">
-                    <p class="dr-doc-entry-head">
-                      <span class="dr-doc-entry-title">{row.entry.core.officialTitle}</span>
-                      {entryRange(row.entry) && <span class="dr-doc-entry-dates mono">{entryRange(row.entry)}</span>}
-                    </p>
-                    {row.entry.core.employerOrInstitution && <p class="dr-doc-entry-org mono">{row.entry.core.employerOrInstitution}</p>}
-                    {row.entry.bullets.length === 0
-                      ? DESCRIPTION_KINDS.has(row.entry.kind) && <p class="dr-doc-empty">No description on record.</p>
-                      : row.entry.bullets.map((b) => <p class:list={['dr-doc-line', { 'is-tailored': resumeRewrote.has(row.entry.prfId) }]}>{b.text}</p>)}
-                  </div>
-                ) : (
-                  <div class="dr-doc-entry">
-                    <p class="dr-doc-entry-head">
-                      <span class="dr-doc-entry-title">{row.group.issuer}</span>
-                      {groupRange(row.group) && <span class="dr-doc-entry-dates mono">{groupRange(row.group)}</span>}
-                    </p>
-                    <p class="dr-doc-line">{row.group.titles.join(', ')}</p>
-                  </div>
-                )
+  {/* Two columns (design: resumecoverletterdetails.html data-cols): the paper
+      and its actions on the left, the rail on the right. The tab inputs above
+      switch both columns at once: a panel is display: contents when its tab is
+      checked, so its children sit in the column's own flow. */}
+  <div class="dr-cols">
+    <section class="dr-main">
+      <div class="dr-panel dr-panel-resume">
+        {resume ? (
+          <>
+            <article class="dr-doc" aria-label="Resume">
+              {hasHeader(resume.header) && (
+                <header class="dr-doc-contact">
+                  {resume.header.name && <p class="dr-doc-name">{resume.header.name}</p>}
+                  <p class="dr-doc-lines mono">
+                    {resume.header.email}
+                    {resume.header.links.map((l) => <><span class="dr-doc-sep"> · </span><a href={l.url} rel="noopener nofollow" target="_blank">{l.label}</a></>)}
+                  </p>
+                </header>
+              )}
+              {/* The summary block (tailor.ts summarySlotFor): the record's own
+                  facts a skim reads first, before the first experience entry.
+                  Marked like a bullet when the model rephrased it on your key. */}
+              {resume.summary && (
+                <section class="dr-doc-section">
+                  <h3 class="dr-doc-heading mono-label">Summary</h3>
+                  <p class="dr-doc-line"><span class:list={[{ 'is-tailored': resumeRewrote.has(SUMMARY_LINE_ID) }]}>{resume.summary.text}</span></p>
+                </section>
+              )}
+              {resume.sections.map((section) => (
+                <section class="dr-doc-section">
+                  <h3 class="dr-doc-heading mono-label">{section.heading}</h3>
+                  {groupResumeSection(section).map((row) => (
+                    row.kind === 'entry' ? (
+                      <div class="dr-doc-entry">
+                        <p class="dr-doc-entry-head">
+                          <span class="dr-doc-entry-title">{row.entry.core.officialTitle}</span>
+                          {entryRange(row.entry) && <span class="dr-doc-entry-dates mono">{entryRange(row.entry)}</span>}
+                        </p>
+                        {row.entry.core.employerOrInstitution && <p class="dr-doc-entry-org">{row.entry.core.employerOrInstitution}</p>}
+                        {row.entry.bullets.length === 0
+                          ? DESCRIPTION_KINDS.has(row.entry.kind) && <p class="dr-doc-empty">No description on record.</p>
+                          : (
+                            <ul class="dr-doc-bullets">
+                              {row.entry.bullets.map((b) => <li><span class:list={[{ 'is-tailored': resumeRewrote.has(row.entry.prfId) }]}>{b.text}</span></li>)}
+                            </ul>
+                          )}
+                      </div>
+                    ) : (
+                      <div class="dr-doc-entry">
+                        <p class="dr-doc-entry-head">
+                          <span class="dr-doc-entry-title">{row.group.issuer}</span>
+                          {groupRange(row.group) && <span class="dr-doc-entry-dates mono">{groupRange(row.group)}</span>}
+                        </p>
+                        <p class="dr-doc-line">{row.group.titles.join(', ')}</p>
+                      </div>
+                    )
+                  ))}
+                </section>
               ))}
-            </section>
-          ))}
-        </article>
+            </article>
 
-        <div class="dr-doc-actions">
-          {resumeDownloadable && <a class="dr-btn" href={jobDraftPdfPath(slug, 'resume')} download>Download PDF</a>}
-          {resumeDownloadable && <a class="dr-btn" href={`${jobDraftPdfPath(slug, 'resume')}?format=docx`} download>Download DOCX</a>}
-          <button type="button" class="dr-btn dr-copy">Copy as text</button>
-        </div>
-        <p class="dr-highlight-note">Highlighted lines are ones your connected model rephrased for this posting. Everything else is your record's own words, unchanged, so you can tell at a glance what the model touched.</p>
-
-        <section class="dr-steer">
-          <h2 class="dr-steer-title">Not right yet? Steer it</h2>
-          <form method="POST" action={regenerateAction} class="dr-steer-form">
-            <input type="hidden" name="slug" value={slug} />
-            <input type="hidden" name="kind" value="resume" />
-            <div class="dr-chips">
-              {STEER_CHIPS.map((c) => (
-                <label class="dr-chip"><input type="checkbox" name="steer" value={c.id} /><span>{c.label}</span></label>
-              ))}
+            <div class="dr-doc-actions">
+              {resumeDownloadable && <a class="dr-btn" href={jobDraftPdfPath(slug, 'resume')} download>Download PDF</a>}
+              {resumeDownloadable && <a class="dr-btn" href={`${jobDraftPdfPath(slug, 'resume')}?format=docx`} download>Download DOCX</a>}
+              <button type="button" class="dr-btn dr-copy">Copy as text</button>
             </div>
-            <textarea class="dr-steer-note" name="steerNote" rows="2" maxlength="400" placeholder="Or say it in your own words. Example: cut the utility background to one line and open with the agent work."></textarea>
-            <button type="submit" class="dr-btn dr-btn-primary">Regenerate the resume</button>
-          </form>
-          <p class="dr-steer-soon mono-label">A steer shapes the draft your connected model writes; the built-in writer re-drafts unchanged.</p>
-          {costLine(resumeCost) && <p class="dr-cost mono-label">{costLine(resumeCost)}</p>}
-        </section>
+            <p class="dr-highlight-note">Highlighted lines are ones your connected model rephrased for this posting. Everything else is your record's own words, unchanged, so you can tell at a glance what the model touched.</p>
+          </>
+        ) : (
+          <p class="dr-doc-empty">The resume is still drafting.</p>
+        )}
+      </div>
 
-        {resumeVersions.length > 1 && (
-          <section class="dr-versions">
-            <h2 class="dr-versions-title mono-label">Earlier drafts are kept</h2>
-            <ul class="dr-version-list">
-              {resumeVersions.map((v) => (
-                <li class="dr-version">
-                  <span class="dr-version-label">Draft {v.version}{v.isCurrent ? ', current' : ''}</span>
-                  {v.isCurrent
-                    ? <span class="dr-version-state mono-label">Viewing</span>
-                    : (v.status === 'ready' || v.status === 'fallback')
-                      ? <form method="POST" action={restoreAction}><input type="hidden" name="kind" value="resume" /><input type="hidden" name="versionId" value={v.id} /><button type="submit" class="dr-restore">Restore</button></form>
-                      : <span class="dr-version-state mono-label">{v.status}</span>}
-                </li>
-              ))}
-            </ul>
+      <div class="dr-panel dr-panel-cover">
+        {cover ? (
+          <>
+            <article class="dr-doc" aria-label="Cover letter">
+              {hasHeader(cover.header) && (
+                <header class="dr-doc-contact">
+                  {cover.header.name && <p class="dr-doc-name">{cover.header.name}</p>}
+                  <p class="dr-doc-lines mono">
+                    {cover.header.email}
+                    {cover.header.links.map((l) => <><span class="dr-doc-sep"> · </span><a href={l.url} rel="noopener nofollow" target="_blank">{l.label}</a></>)}
+                  </p>
+                </header>
+              )}
+              <p class="dr-doc-salutation">{cover.salutation}</p>
+              {cover.paragraphs
+                ? cover.paragraphs.map((p) => <p class="dr-doc-para"><span class:list={[{ 'is-tailored': p.role === 'proof' || p.role === 'fit' }]}>{p.text}</span></p>)
+                : cover.sections.map((section) => section.entries.map((e) => e.bullets.map((b) => <p class="dr-doc-para">{b.text}</p>)))}
+              {cover.closing && <p class="dr-doc-closing">{cover.closing}</p>}
+            </article>
+
+            <div class="dr-doc-actions">
+              {coverDownloadable && <a class="dr-btn" href={jobDraftPdfPath(slug, 'cover')} download>Download PDF</a>}
+              {coverDownloadable && <a class="dr-btn" href={`${jobDraftPdfPath(slug, 'cover')}?format=docx`} download>Download DOCX</a>}
+              <button type="button" class="dr-btn dr-copy">Copy as text</button>
+            </div>
+            <p class="dr-highlight-note">Highlighted paragraphs answer the posting's own requirements. The rest is drawn straight from your record.</p>
+          </>
+        ) : (
+          <p class="dr-doc-empty">The cover letter is still drafting.</p>
+        )}
+      </div>
+    </section>
+
+    <aside class="dr-rail">
+      <div class="dr-panel dr-panel-resume">
+        {resume && (
+          <section class="dr-steer">
+            <h2 class="dr-box-title">Not right yet? Steer it</h2>
+            <div class="dr-box-body">
+              <form method="POST" action={regenerateAction} class="dr-steer-form">
+                <input type="hidden" name="slug" value={slug} />
+                <input type="hidden" name="kind" value="resume" />
+                <div class="dr-chips">
+                  {STEER_CHIPS.map((c) => (
+                    <label class="dr-chip"><input type="checkbox" name="steer" value={c.id} /><span>{c.label}</span></label>
+                  ))}
+                </div>
+                <textarea class="dr-steer-note" name="steerNote" rows="3" maxlength="400" placeholder="Or say it in your own words. Example: cut the utility background to one line and open with the agent work."></textarea>
+                <button type="submit" class="dr-btn dr-btn-regenerate">Regenerate the resume</button>
+              </form>
+              <p class="dr-steer-soon mono">A steer shapes the draft your connected model writes; the built-in writer re-drafts unchanged.</p>
+              {costLine(resumeCost) && <p class="dr-cost mono">{costLine(resumeCost)}</p>}
+            </div>
+            {resumeVersions.length > 1 && (
+              <div class="dr-versions">
+                <p class="dr-versions-title">Earlier drafts are kept</p>
+                <ul class="dr-version-list">
+                  {resumeVersions.map((v) => (
+                    <li class="dr-version">
+                      <span class="dr-version-label">Draft {v.version}{v.isCurrent ? ', current' : ''}</span>
+                      {v.isCurrent
+                        ? <span class="dr-version-state">Viewing</span>
+                        : (v.status === 'ready' || v.status === 'fallback')
+                          ? <form method="POST" action={restoreAction}><input type="hidden" name="kind" value="resume" /><input type="hidden" name="versionId" value={v.id} /><button type="submit" class="dr-restore">Restore</button></form>
+                          : <span class="dr-version-state">{v.status}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </section>
         )}
+      </div>
 
-        {resume.changeRecord && (
+      <div class="dr-panel dr-panel-cover">
+        {cover && (
+          <section class="dr-steer">
+            <h2 class="dr-box-title">Not right yet? Steer it</h2>
+            <div class="dr-box-body">
+              <form method="POST" action={regenerateAction} class="dr-steer-form">
+                <input type="hidden" name="slug" value={slug} />
+                <input type="hidden" name="kind" value="cover" />
+                <div class="dr-chips">
+                  {STEER_CHIPS.map((c) => (
+                    <label class="dr-chip"><input type="checkbox" name="steer" value={c.id} /><span>{c.label}</span></label>
+                  ))}
+                </div>
+                <textarea class="dr-steer-note" name="steerNote" rows="3" maxlength="400" placeholder="Or say it in your own words. Example: open on why this company, then lead with the platform work."></textarea>
+                <button type="submit" class="dr-btn dr-btn-regenerate">Regenerate the cover letter</button>
+              </form>
+              <p class="dr-steer-soon mono">A steer shapes the draft your connected model writes; the built-in writer re-drafts unchanged.</p>
+              {costLine(coverCost) && <p class="dr-cost mono">{costLine(coverCost)}</p>}
+            </div>
+            {coverVersions.length > 1 && (
+              <div class="dr-versions">
+                <p class="dr-versions-title">Earlier drafts are kept</p>
+                <ul class="dr-version-list">
+                  {coverVersions.map((v) => (
+                    <li class="dr-version">
+                      <span class="dr-version-label">Draft {v.version}{v.isCurrent ? ', current' : ''}</span>
+                      {v.isCurrent
+                        ? <span class="dr-version-state">Viewing</span>
+                        : (v.status === 'ready' || v.status === 'fallback')
+                          ? <form method="POST" action={restoreAction}><input type="hidden" name="kind" value="cover" /><input type="hidden" name="versionId" value={v.id} /><button type="submit" class="dr-restore">Restore</button></form>
+                          : <span class="dr-version-state">{v.status}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
+      </div>
+
+      <section class="dr-send">
+        <h2 class="dr-box-title">Send it</h2>
+        <div class="dr-box-body">
+          {applyUrl && (applyTrack ? (
+            <form method="POST" action={applyTrack.action} target="_blank">
+              <input type="hidden" name="intent" value="click" />
+              <input type="hidden" name="url" value={applyUrl} />
+              <input type="hidden" name="then" value="posting" />
+              <input type="hidden" name="titleOverride" value={applyTrack.title} />
+              <input type="hidden" name="companyOverride" value={applyTrack.company} />
+              <button type="submit" class="dr-btn dr-send-apply">{applyLabel} &#8599;</button>
+            </form>
+          ) : (
+            <a class="dr-btn dr-send-apply" href={applyUrl} target="_blank" rel="noopener nofollow">{applyLabel} &#8599;</a>
+          ))}
+          <p class="dr-send-note">Opens the posting in a new tab and moves this role to Applied on your desk. You still paste and submit there.</p>
+        </div>
+      </section>
+
+      <div class="dr-panel dr-panel-resume">
+        {resume?.changeRecord && (
           <section class="dr-changed">
             <h2 class="dr-changed-title">What it changed for this posting</h2>
             <dl class="dr-changed-list">
               {resume.changeRecord.counts.rewrote > 0 && (
-                <div class="dr-changed-row"><dt class="dr-changed-verb">REWROTE</dt><dd>{resume.changeRecord.counts.rewrote} {resume.changeRecord.counts.rewrote === 1 ? 'line' : 'lines'} rephrased on your key, inside their locked facts.</dd></div>
+                <div class="dr-changed-row"><dt class="dr-changed-verb">Rewrote</dt><dd>{resume.changeRecord.counts.rewrote} {resume.changeRecord.counts.rewrote === 1 ? 'line' : 'lines'} rephrased on your key, inside their locked facts.</dd></div>
               )}
               {resume.changeRecord.mirroredTerms.length > 0 && (
-                <div class="dr-changed-row"><dt class="dr-changed-verb">ADDED</dt><dd>The posting's own terms ({resume.changeRecord.mirroredTerms.join(', ')}) paired onto skills you already hold.</dd></div>
+                <div class="dr-changed-row"><dt class="dr-changed-verb">Added</dt><dd>The posting's own terms ({resume.changeRecord.mirroredTerms.join(', ')}) paired onto skills you already hold.</dd></div>
               )}
-              <div class="dr-changed-row"><dt class="dr-changed-verb">KEPT</dt><dd>Every date, title, and number exactly as your profile has them.{resume.changeRecord.counts.kept > 0 ? ` ${resume.changeRecord.counts.kept} ${resume.changeRecord.counts.kept === 1 ? 'line is' : 'lines are'} your own words, unchanged.` : ''}</dd></div>
+              <div class="dr-changed-row"><dt class="dr-changed-verb">Kept</dt><dd>Every date, title, and number exactly as your profile has them.{resume.changeRecord.counts.kept > 0 ? ` ${resume.changeRecord.counts.kept} ${resume.changeRecord.counts.kept === 1 ? 'line is' : 'lines are'} your own words, unchanged.` : ''}</dd></div>
               {/* The gap note (tailor.ts computeGaps, RESUME-RULES.md layer 1:
                   "if the record is thin, ask, do not pad"): what the record is
                   missing, named, with the way to add it. */}
               {resume.gaps && (
-                <div class="dr-changed-row"><dt class="dr-changed-verb">CHECK</dt><dd>{resume.gaps.missing.join(' ')} <a class="dr-changed-link" href={profilePath}>Add to your Profile Record</a></dd></div>
+                <div class="dr-changed-row"><dt class="dr-changed-verb dr-changed-verb-check">Check</dt><dd>{resume.gaps.missing.join(' ')} <a class="dr-changed-link" href={profilePath}>Add to your Profile Record</a></dd></div>
               )}
             </dl>
+            <p class="dr-footer-note mono">Drafted on your own key. Your profile and the posting text only. No other applicant's data was read.</p>
           </section>
         )}
-      </>
-    ) : (
-      <p class="dr-doc-empty">The resume is still drafting.</p>
-    )}
-  </section>
+      </div>
 
-  <section class="dr-panel dr-panel-cover" aria-label="Cover letter">
-    {cover ? (
-      <>
-        <p class="dr-doc-meta mono-label">cover letter{coverUpdatedAt ? `, drafted ${timeAgo(coverUpdatedAt)}` : ''}</p>
-        <article class="dr-doc">
-          {hasHeader(cover.header) && (
-            <header class="dr-doc-contact">
-              {cover.header.name && <p class="dr-doc-name">{cover.header.name}</p>}
-              <p class="dr-doc-lines mono">
-                {cover.header.email}
-                {cover.header.links.map((l) => <><span class="dr-doc-sep"> · </span><a href={l.url} rel="noopener nofollow" target="_blank">{l.label}</a></>)}
-              </p>
-            </header>
-          )}
-          <p class="dr-doc-salutation">{cover.salutation}</p>
-          {cover.paragraphs
-            ? cover.paragraphs.map((p) => <p class:list={['dr-doc-para', { 'is-tailored': p.role === 'proof' || p.role === 'fit' }]}>{p.text}</p>)
-            : cover.sections.map((section) => section.entries.map((e) => e.bullets.map((b) => <p class="dr-doc-para">{b.text}</p>)))}
-          {cover.closing && <p class="dr-doc-closing">{cover.closing}</p>}
-        </article>
-
-        <div class="dr-doc-actions">
-          {coverDownloadable && <a class="dr-btn" href={jobDraftPdfPath(slug, 'cover')} download>Download PDF</a>}
-          {coverDownloadable && <a class="dr-btn" href={`${jobDraftPdfPath(slug, 'cover')}?format=docx`} download>Download DOCX</a>}
-          <button type="button" class="dr-btn dr-copy">Copy as text</button>
-        </div>
-        <p class="dr-highlight-note">Highlighted paragraphs answer the posting's own requirements. The rest is drawn straight from your record.</p>
-
-        <section class="dr-steer">
-          <h2 class="dr-steer-title">Not right yet? Steer it</h2>
-          <form method="POST" action={regenerateAction} class="dr-steer-form">
-            <input type="hidden" name="slug" value={slug} />
-            <input type="hidden" name="kind" value="cover" />
-            <div class="dr-chips">
-              {STEER_CHIPS.map((c) => (
-                <label class="dr-chip"><input type="checkbox" name="steer" value={c.id} /><span>{c.label}</span></label>
-              ))}
-            </div>
-            <textarea class="dr-steer-note" name="steerNote" rows="2" maxlength="400" placeholder="Or say it in your own words. Example: open on why this company, then lead with the platform work."></textarea>
-            <button type="submit" class="dr-btn dr-btn-primary">Regenerate the cover letter</button>
-          </form>
-          <p class="dr-steer-soon mono-label">A steer shapes the draft your connected model writes; the built-in writer re-drafts unchanged.</p>
-          {costLine(coverCost) && <p class="dr-cost mono-label">{costLine(coverCost)}</p>}
-        </section>
-
-        {coverVersions.length > 1 && (
-          <section class="dr-versions">
-            <h2 class="dr-versions-title mono-label">Earlier drafts are kept</h2>
-            <ul class="dr-version-list">
-              {coverVersions.map((v) => (
-                <li class="dr-version">
-                  <span class="dr-version-label">Draft {v.version}{v.isCurrent ? ', current' : ''}</span>
-                  {v.isCurrent
-                    ? <span class="dr-version-state mono-label">Viewing</span>
-                    : (v.status === 'ready' || v.status === 'fallback')
-                      ? <form method="POST" action={restoreAction}><input type="hidden" name="kind" value="cover" /><input type="hidden" name="versionId" value={v.id} /><button type="submit" class="dr-restore">Restore</button></form>
-                      : <span class="dr-version-state mono-label">{v.status}</span>}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-        {cover.changeRecord && (cover.changeRecord.counts.rewrote > 0 || cover.changeRecord.counts.kept > 0) && (
+      <div class="dr-panel dr-panel-cover">
+        {cover?.changeRecord && (cover.changeRecord.counts.rewrote > 0 || cover.changeRecord.counts.kept > 0) && (
           <section class="dr-changed">
             <h2 class="dr-changed-title">What it changed for this posting</h2>
             <dl class="dr-changed-list">
               {cover.changeRecord.counts.rewrote > 0 && (
-                <div class="dr-changed-row"><dt class="dr-changed-verb">REWROTE</dt><dd>{cover.changeRecord.counts.rewrote} {cover.changeRecord.counts.rewrote === 1 ? 'paragraph' : 'paragraphs'} rephrased on your key, from your record's own evidence.</dd></div>
+                <div class="dr-changed-row"><dt class="dr-changed-verb">Rewrote</dt><dd>{cover.changeRecord.counts.rewrote} {cover.changeRecord.counts.rewrote === 1 ? 'paragraph' : 'paragraphs'} rephrased on your key, from your record's own evidence.</dd></div>
               )}
-              <div class="dr-changed-row"><dt class="dr-changed-verb">KEPT</dt><dd>Every claim traces to a role, date, or fact in your profile. Nothing was invented for this letter.</dd></div>
+              <div class="dr-changed-row"><dt class="dr-changed-verb">Kept</dt><dd>Every claim traces to a role, date, or fact in your profile. Nothing was invented for this letter.</dd></div>
             </dl>
+            <p class="dr-footer-note mono">Drafted on your own key. Your profile and the posting text only. No other applicant's data was read.</p>
           </section>
         )}
-      </>
-    ) : (
-      <p class="dr-doc-empty">The cover letter is still drafting.</p>
-    )}
-  </section>
-
-  <section class="dr-send">
-    <h2 class="dr-send-title mono-label">Send it</h2>
-    {applyUrl && (applyTrack ? (
-      <form method="POST" action={applyTrack.action} target="_blank">
-        <input type="hidden" name="intent" value="click" />
-        <input type="hidden" name="url" value={applyUrl} />
-        <input type="hidden" name="then" value="posting" />
-        <input type="hidden" name="titleOverride" value={applyTrack.title} />
-        <input type="hidden" name="companyOverride" value={applyTrack.company} />
-        <button type="submit" class="dr-btn dr-btn-primary dr-send-apply">{applyLabel} &#8599;</button>
-      </form>
-    ) : (
-      <a class="dr-btn dr-btn-primary dr-send-apply" href={applyUrl} target="_blank" rel="noopener nofollow">{applyLabel} &#8599;</a>
-    ))}
-    <p class="dr-send-note">Opens the posting in a new tab and moves this role to Applied on your desk. You still paste and submit there.</p>
-    <p class="dr-footer-note mono-label">Drafted on your own key. Your profile and the posting text only. No other applicant's data was read.</p>
-  </section>
-
+      </div>
+    </aside>
+  </div>
 </article>
 
 <script>
@@ -427,90 +460,118 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
 </script>
 
 <style>
-  .dr { max-width: 52rem; margin: 0 auto; }
+  /* The room fills the page shell, so its edges meet the nav's (design:
+     resumecoverletterdetails.html main). Sizes below are the design's own. */
+  .dr { margin: 0; }
 
   .dr-crumbs { font-family: var(--font-family-mono); font-size: var(--size-100); color: var(--color-muted); display: flex; flex-wrap: wrap; gap: var(--space-200); align-items: baseline; }
   .dr-crumbs a { color: var(--color-muted); text-decoration: none; }
   .dr-crumbs a:hover { color: var(--color-foreground); }
   .dr-crumb-role { color: var(--color-foreground); }
 
-  .dr-status { margin: var(--space-600) 0 var(--space-300); display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-200) var(--space-300); font-size: var(--size-100); }
-  .dr-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--color-mark-live); align-self: center; }
+  .dr-status { margin: var(--space-600) 0 var(--space-300); display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-200) var(--space-300); font-size: 0.88rem; }
+  .dr-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--color-mark-live); align-self: center; }
   .dr-status-sub { color: var(--color-muted); }
-  .dr-title { margin: 0 0 var(--space-300); font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1.05; letter-spacing: -0.02em; }
-  .dr-lede { margin: 0; max-width: 60ch; color: var(--color-muted); font-size: var(--size-200); }
+  .dr-title { margin: 0 0 var(--space-300); font-size: clamp(1.7rem, 3.4vw, 2.4rem); line-height: 1.05; letter-spacing: -0.025em; text-wrap: pretty; }
+  .dr-lede { margin: 0; max-width: 66ch; color: var(--color-muted); font-size: 0.95rem; line-height: 1.55; text-wrap: pretty; }
   .dr-provider { margin: var(--space-300) 0 0; color: var(--color-muted); }
   .dr-provider-fallback { color: var(--color-stat-loss); }
 
+  /* The tabs row: the two tabs on the left, the page meta on the right, one
+     rule under both. The radio inputs above drive the active tab and the meta
+     with sibling selectors, no script. */
   .dr-tab-input { position: absolute; opacity: 0; pointer-events: none; }
-  .dr-tabs { display: flex; gap: var(--space-200); margin: var(--space-600) 0 0; border-bottom: var(--border-hairline) solid var(--color-line); }
-  .dr-tab { padding: var(--space-300) var(--space-500); font-family: var(--font-family-mono); font-size: var(--size-100); cursor: pointer; color: var(--color-muted); }
+  .dr-tabs { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-400); margin: clamp(20px, 2.6vw, 30px) 0 0; border-bottom: var(--border-hairline) solid var(--color-line); }
+  .dr-tab-group { display: flex; gap: 2px; }
+  .dr-tab { display: inline-flex; align-items: center; padding: 11px 20px; min-height: 44px; font-weight: var(--weight-semibold, 600); font-size: 0.92rem; cursor: pointer; color: var(--color-foreground); background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-line); border-bottom: none; }
   #dr-tab-resume:checked ~ .dr-tabs label[for='dr-tab-resume'],
-  #dr-tab-cover:checked ~ .dr-tabs label[for='dr-tab-cover'] { background: var(--color-surface-inverse); color: var(--color-foreground-inverse); }
-  .dr-panel { display: none; padding-top: var(--space-500); }
-  #dr-tab-resume:checked ~ .dr-panel-resume,
-  #dr-tab-cover:checked ~ .dr-panel-cover { display: block; }
+  #dr-tab-cover:checked ~ .dr-tabs label[for='dr-tab-cover'] { background: var(--color-surface-inverse); color: var(--color-foreground-inverse); border-color: var(--color-surface-inverse); }
+  .dr-page-meta { display: none; font-size: 0.76rem; color: var(--color-muted); padding-bottom: 10px; margin-left: auto; text-align: right; }
+  #dr-tab-resume:checked ~ .dr-tabs .dr-page-meta-resume,
+  #dr-tab-cover:checked ~ .dr-tabs .dr-page-meta-cover { display: inline; }
 
-  .dr-doc-meta { margin: 0 0 var(--space-300); color: var(--color-muted); text-align: right; }
-  .dr-doc { border: var(--border-hairline) solid var(--color-line); background: var(--color-surface-raised); padding: var(--space-700); display: flex; flex-direction: column; gap: var(--space-400); }
-  .dr-doc-contact { display: flex; flex-direction: column; gap: var(--space-200); border-bottom: var(--border-hairline) solid var(--color-line); padding-bottom: var(--space-400); }
-  .dr-doc-name { margin: 0; font-size: var(--size-400); font-weight: var(--weight-bold); letter-spacing: -0.01em; }
-  .dr-doc-lines { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
+  /* The two columns and the tab switch. */
+  .dr-cols { display: grid; grid-template-columns: minmax(0, 1.62fr) minmax(300px, 0.85fr); gap: clamp(22px, 3vw, 40px); padding-top: clamp(16px, 2vw, 22px); align-items: start; }
+  .dr-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  /* Sticky under the site's own sticky header (the same 84px offset the job
+     detail's fit card uses), where the design's 18px assumed a static nav. */
+  .dr-rail { position: sticky; top: 84px; display: flex; flex-direction: column; gap: 14px; }
+  .dr-panel { display: none; }
+  #dr-tab-resume:checked ~ .dr-cols .dr-panel-resume,
+  #dr-tab-cover:checked ~ .dr-cols .dr-panel-cover { display: contents; }
+
+  /* The paper. */
+  .dr-doc { border: var(--border-hairline) solid var(--color-line-strong); background: var(--color-surface-raised); box-shadow: 0 2px 14px rgba(11, 11, 13, 0.07); padding: clamp(28px, 3.4vw, 46px); display: flex; flex-direction: column; gap: 20px; }
+  .dr-doc-contact { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-400); flex-wrap: wrap; border-bottom: var(--border-hairline) solid var(--color-line); padding-bottom: 14px; }
+  .dr-doc-name { margin: 0; font-size: 1.5rem; font-weight: var(--weight-bold); letter-spacing: -0.02em; }
+  .dr-doc-lines { margin: 0; color: var(--color-muted); font-size: 0.78rem; line-height: 1.6; text-align: right; }
   .dr-doc-lines a { color: var(--color-muted); text-decoration: none; }
-  .dr-doc-section { display: flex; flex-direction: column; gap: var(--space-300); }
-  .dr-doc-heading { margin: 0; color: var(--color-muted); letter-spacing: 0.06em; }
-  .dr-doc-entry { display: flex; flex-direction: column; gap: 2px; }
-  .dr-doc-entry-head { margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-300); }
-  .dr-doc-entry-title { font-weight: var(--weight-semibold, 600); }
-  .dr-doc-entry-dates { color: var(--color-muted); font-size: var(--size-100); white-space: nowrap; }
-  .dr-doc-entry-org { margin: 0 0 var(--space-100); color: var(--color-muted); font-size: var(--size-100); }
-  .dr-doc-line, .dr-doc-para { margin: 0; line-height: 1.6; }
-  .dr-doc-para { margin-bottom: var(--space-300); }
-  .dr-doc-salutation, .dr-doc-closing { margin: 0; }
+  .dr-doc-section { display: flex; flex-direction: column; gap: 12px; }
+  .dr-doc-heading { margin: 0; color: var(--color-muted); font-size: 0.72rem; letter-spacing: 0.12em; }
+  .dr-doc-entry { display: flex; flex-direction: column; gap: 6px; }
+  .dr-doc-entry-head { margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .dr-doc-entry-title { font-weight: var(--weight-semibold, 600); font-size: 1rem; }
+  .dr-doc-entry-dates { color: var(--color-muted); font-size: 0.78rem; white-space: nowrap; }
+  .dr-doc-entry-org { margin: 0; color: var(--color-muted); font-size: 0.88rem; }
+  .dr-doc-bullets { margin: 4px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 7px; }
+  .dr-doc-bullets li { font-size: 0.92rem; line-height: 1.55; }
+  .dr-doc-line { margin: 0; font-size: 0.94rem; line-height: 1.6; }
+  .dr-doc-para, .dr-doc-salutation, .dr-doc-closing { margin: 0; font-size: 0.96rem; line-height: 1.7; }
   .dr-doc-empty { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
-  .is-tailored { background: var(--color-tailor-highlight, rgb(239, 231, 200)); box-shadow: 0 0 0 3px var(--color-tailor-highlight, rgb(239, 231, 200)); color: #0b0b0d; }
+  /* A line the connected model rephrased: marked inline, wrapping with the
+     text (design: --color-mark with box-decoration-break: clone). */
+  .is-tailored { background: var(--color-tailor-highlight, rgb(239, 231, 200)); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 2px 0; color: #0b0b0d; }
 
-  .dr-doc-actions { margin-top: var(--space-400); display: flex; flex-wrap: wrap; gap: var(--space-300); }
-  .dr-btn { display: inline-block; padding: var(--space-300) var(--space-500); font-family: var(--font-family-mono); font-size: var(--size-100); text-decoration: none; cursor: pointer; color: var(--color-foreground); background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-foreground); }
-  /* The primary action, in the brand signal orange (tokens.css: signal is for
-     the primary action), dark ink in both themes like the site's other CTAs. */
-  .dr-btn-primary { background: var(--color-signal); color: var(--gray-950); border-color: var(--color-signal); font-weight: var(--weight-bold); width: 100%; text-align: center; }
-  .dr-btn-primary:hover { background: var(--color-signal); color: var(--gray-950); }
-  .dr-highlight-note { margin: var(--space-400) 0 0; color: var(--color-muted); font-size: var(--size-100); max-width: 66ch; }
+  .dr-doc-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .dr-btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px; min-height: 44px; font-family: inherit; font-size: 0.88rem; text-decoration: none; cursor: pointer; color: var(--color-foreground); background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-line-strong); }
+  .dr-btn:hover { border-color: var(--color-foreground); }
+  .dr-highlight-note { margin: 0; color: var(--color-muted); font-size: 0.84rem; line-height: 1.5; max-width: 70ch; }
 
-  .dr-steer, .dr-versions, .dr-changed, .dr-send { border: var(--border-hairline) solid var(--color-line); background: var(--color-surface); padding: var(--space-600); margin-top: var(--space-600); }
-  .dr-steer-title, .dr-changed-title { margin: 0 0 var(--space-400); font-size: var(--size-300); }
-  .dr-steer-form { margin: 0; display: flex; flex-direction: column; gap: var(--space-400); }
-  .dr-chips { display: flex; flex-wrap: wrap; gap: var(--space-300); }
-  .dr-chip { display: inline-flex; align-items: center; gap: var(--space-200); padding: var(--space-300) var(--space-400); font-family: var(--font-family-mono); font-size: var(--size-100); border: var(--border-hairline) solid var(--color-line); background: var(--color-surface-raised); color: var(--color-muted); cursor: pointer; }
+  /* The rail's three boxes. */
+  .dr-steer, .dr-send, .dr-changed { background: var(--color-surface-raised); }
+  .dr-steer { border: var(--border-hairline) solid var(--color-line-strong); }
+  .dr-send { border: var(--border-hairline) solid var(--color-foreground); }
+  .dr-changed { border: var(--border-hairline) solid var(--color-line); padding: 16px 18px; display: flex; flex-direction: column; gap: 11px; }
+  .dr-box-title { margin: 0; padding: 14px 18px; border-bottom: var(--border-hairline) solid var(--color-line); font-weight: var(--weight-semibold, 600); font-size: 0.95rem; }
+  .dr-box-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 11px; }
+  .dr-steer-form { margin: 0; display: flex; flex-direction: column; gap: 11px; }
+  .dr-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .dr-chip { display: inline-flex; align-items: center; gap: var(--space-200); padding: 7px 12px; min-height: 36px; font-size: 0.85rem; border: var(--border-hairline) solid var(--color-line-strong); background: transparent; color: var(--color-muted); cursor: pointer; }
+  .dr-chip:hover, .dr-chip:has(input:checked) { border-color: var(--color-foreground); color: var(--color-foreground); }
   .dr-chip input { margin: 0; }
-  .dr-chip:has(input:checked) { border-color: var(--color-foreground); color: var(--color-foreground); }
-  .dr-steer-note { width: 100%; padding: var(--space-300); font-family: var(--font-family-sans); font-size: var(--size-100); line-height: 1.5; border: var(--border-hairline) solid var(--color-line); background: var(--color-surface-raised); color: var(--color-foreground); resize: vertical; box-sizing: border-box; }
-  .dr-steer-soon { margin: var(--space-300) 0 0; color: var(--color-muted); }
-  .dr-cost { margin: var(--space-400) 0 0; color: var(--color-muted); }
-
-  .dr-versions-title, .dr-send-title { margin: 0 0 var(--space-300); color: var(--color-muted); }
-  .dr-version-list { margin: 0; padding: 0; list-style: none; }
-  .dr-version { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-300); padding: var(--space-300) 0; border-top: var(--border-hairline) solid var(--color-line); }
-  .dr-version:first-child { border-top: none; }
-  .dr-version-state { color: var(--color-muted); }
+  .dr-steer-note { width: 100%; padding: 10px 12px; font-family: inherit; font-size: 0.88rem; line-height: 1.5; border: var(--border-hairline) solid var(--color-line-strong); background: var(--color-surface); color: var(--color-foreground); resize: vertical; box-sizing: border-box; }
+  .dr-btn-regenerate { width: 100%; padding: 12px 18px; min-height: 46px; font-weight: var(--weight-semibold, 600); font-size: 0.92rem; background: transparent; border-color: var(--color-foreground); }
+  .dr-btn-regenerate:hover { background: var(--color-foreground); color: var(--color-foreground-inverse); }
+  .dr-steer-soon, .dr-cost { margin: 0; color: var(--color-muted); font-size: 0.74rem; line-height: 1.5; }
+  .dr-versions { border-top: var(--border-hairline) solid var(--color-line); padding: 12px 18px; display: flex; flex-direction: column; gap: 8px; }
+  .dr-versions-title { margin: 0; font-size: 0.85rem; color: var(--color-muted); }
+  .dr-version-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .dr-version { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .dr-version-label { font-family: var(--font-family-mono); font-size: 0.8rem; }
+  .dr-version-state { color: var(--color-muted); font-size: 0.84rem; }
   .dr-version form { margin: 0; }
-  .dr-restore { background: transparent; border: 0; padding: 0; cursor: pointer; font-family: var(--font-family-mono); font-size: var(--size-100); color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; }
+  .dr-restore { background: transparent; border: 0; border-bottom: var(--border-hairline) solid var(--color-line-strong); padding: 4px 0; cursor: pointer; font-family: inherit; font-size: 0.84rem; color: var(--color-foreground); }
 
-  .dr-changed-list { margin: 0; display: flex; flex-direction: column; gap: var(--space-300); }
-  .dr-changed-row { display: grid; grid-template-columns: 6rem 1fr; gap: var(--space-400); align-items: baseline; padding-top: var(--space-300); border-top: var(--border-hairline) solid var(--color-line); }
-  .dr-changed-row:first-child { border-top: none; padding-top: 0; }
-  .dr-changed-verb { margin: 0; font-family: var(--font-family-mono); font-size: var(--size-075); letter-spacing: 0.06em; color: var(--color-stat-loss); }
-  .dr-changed-row dd { margin: 0; color: var(--color-foreground); }
+  .dr-send form { margin: 0; }
+  .dr-send-apply { width: 100%; margin: 0; padding: 15px 20px; min-height: 52px; font-weight: var(--weight-semibold, 600); font-size: 1rem; background: var(--color-foreground); color: var(--color-foreground-inverse); border-color: var(--color-foreground); }
+  .dr-send-apply:hover { opacity: 0.86; color: var(--color-foreground-inverse); }
+  .dr-send-note { margin: 0; color: var(--color-muted); font-size: 0.82rem; line-height: 1.5; }
+
+  .dr-changed-title { margin: 0; font-weight: var(--weight-semibold, 600); font-size: 0.95rem; }
+  .dr-changed-list { margin: 0; display: flex; flex-direction: column; gap: 9px; }
+  .dr-changed-row { display: flex; gap: 10px; align-items: baseline; }
+  .dr-changed-verb { margin: 0; width: 68px; flex: none; font-family: var(--font-family-mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-muted); }
+  .dr-changed-verb-check { color: var(--color-stat-loss); }
+  .dr-changed-row dd { margin: 0; font-size: 0.88rem; line-height: 1.45; color: var(--color-foreground); }
   .dr-changed-link { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; }
+  .dr-footer-note { margin: 0; padding-top: 10px; border-top: var(--border-hairline) solid var(--color-line); color: var(--color-muted); font-size: 0.74rem; line-height: 1.5; }
 
-  .dr-send-apply { margin: 0; }
-  .dr-send-note { margin: var(--space-400) 0 0; color: var(--color-muted); font-size: var(--size-100); }
-  .dr-footer-note { margin: var(--space-400) 0 0; padding-top: var(--space-400); border-top: var(--border-hairline) solid var(--color-line); color: var(--color-muted); }
-
-
+  @media (max-width: 65rem) {
+    .dr-cols { grid-template-columns: minmax(0, 1fr); }
+    .dr-rail { position: static; }
+  }
   @media (max-width: 40rem) {
-    .dr-doc { padding: var(--space-500); }
-    .dr-changed-row { grid-template-columns: 1fr; gap: var(--space-100); }
+    .dr-doc { padding: 24px 20px; }
+    .dr-tabs { flex-wrap: wrap; }
   }
 </style>
