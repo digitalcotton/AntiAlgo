@@ -855,4 +855,29 @@ describe('changeRecord: derived by byte-comparison, never narrated', () => {
     expect(cr.perEntry.every((e) => e.verdict === 'REWROTE')).toBe(true);
     expect(cr.counts.kept).toBe(0);
   });
+
+  it('a deterministic cover letter is all KEPT', async () => {
+    const render = await renderCover(record, postingTarget());
+    expect(render.changeRecord).toBeDefined();
+    const cr = render.changeRecord!;
+    expect(cr.perEntry.length).toBeGreaterThan(0);
+    expect(cr.perEntry.every((e) => e.verdict === 'KEPT')).toBe(true);
+    expect(cr.counts.rewrote).toBe(0);
+  });
+
+  it('a provider that rephrases the cover marks paragraphs REWROTE', async () => {
+    const rephrasing: StyleProvider = {
+      name: 'rephrasing-cover-double',
+      async style(locked: LockedFactSet): Promise<StyleResult> {
+        return { styledSlots: locked.slots.map((s) => ({ slotId: s.slotId, text: `R ${s.fragments.join(' ')}` })) };
+      },
+      async styleLetter(): Promise<LetterStyleResult> {
+        return { opener: 'X opener', proof: 'X proof', fit: 'X fit', close: 'X close' };
+      }
+    };
+    const render = await renderCover(record, postingTarget(), rephrasing);
+    const cr = render.changeRecord!;
+    expect(cr.perEntry.length).toBeGreaterThan(0);
+    expect(cr.counts.rewrote).toBeGreaterThan(0);
+  });
 });

@@ -380,13 +380,19 @@ export type Render = ResumeRender | CoverRender;
    heading.
    ------------------------------------------------------------------------- */
 
+// The resume section headings a reader (and an ATS parser) sees. These are the
+// DISPLAY strings only: the grouping and every gate key off the entry KIND, not
+// this text (resume-grouping.ts guards on section.kind === 'recognition'), so
+// the names are chosen for ATS legibility. 'artifact' shows as Portfolio and
+// 'recognition' as Awards, the labels ATS parsers key sections off far more
+// reliably than the internal kind names.
 const HEADINGS: Record<EntryKind, string> = {
   role_held: 'Experience',
   education: 'Education',
   project: 'Projects',
   skill: 'Skills',
-  artifact: 'Artifacts',
-  recognition: 'Recognition'
+  artifact: 'Portfolio',
+  recognition: 'Awards'
 };
 
 /** The kinds that owe a description: a role, an education, or a project reads
@@ -1130,6 +1136,37 @@ export async function renderCover(
   const styled = await provider.styleLetter(locked, voice);
   const paragraphs = buildLetterParagraphs(styled, locked, knownPrfIds);
 
+  // The letter's change record, derived the same honest way as the resume's: a
+  // paragraph whose styled text equals what the DETERMINISTIC writer would have
+  // produced for the same lock is the record's own words (KEPT); one a connected
+  // model rephrased differs (REWROTE). When this run IS the deterministic writer
+  // the two are identical, so every paragraph is KEPT, which the room states
+  // plainly. The deterministic baseline is a pure, clock-free call, so it never
+  // makes a second network trip. Keyed by role (opener/proof/fit/close), the
+  // letter has no bullet prfId; coreOnly is zero because a letter prints prose,
+  // not trimmed cores, and mirroredTerms is a resume-only skill-alias case.
+  const baseline: LetterStyleResult =
+    provider === deterministicProvider ? styled : await deterministicProvider.styleLetter(locked, voice);
+  const baselineByRole: Record<string, string> = {
+    opener: baseline.opener,
+    proof: baseline.proof,
+    fit: baseline.fit,
+    close: baseline.close
+  };
+  const letterPerEntry = paragraphs.map((paragraph) => ({
+    prfId: paragraph.role,
+    verdict: (paragraph.text === baselineByRole[paragraph.role] ? 'KEPT' : 'REWROTE') as 'KEPT' | 'REWROTE'
+  }));
+  const changeRecord: ChangeRecord = {
+    perEntry: letterPerEntry,
+    counts: {
+      rewrote: letterPerEntry.filter((e) => e.verdict === 'REWROTE').length,
+      kept: letterPerEntry.filter((e) => e.verdict === 'KEPT').length,
+      coreOnly: 0
+    },
+    mirroredTerms: []
+  };
+
   return {
     kind: 'cover',
     target: summarizeTarget(target),
@@ -1143,6 +1180,7 @@ export async function renderCover(
     // the entries a slot is built from (see RenderHeader).
     header,
     paragraphs,
-    letterInputs: { reason, requirements: letterTarget.requirements, mode: voice ? 'adapt' : 'create', context: { field, situation } }
+    letterInputs: { reason, requirements: letterTarget.requirements, mode: voice ? 'adapt' : 'create', context: { field, situation } },
+    changeRecord
   };
 }

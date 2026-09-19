@@ -296,6 +296,17 @@ const STEER_CHIPS = ['Shorter', 'Lead with agent work', 'Plainer voice', 'More t
             </ul>
           </section>
         )}
+        {cover.changeRecord && (cover.changeRecord.counts.rewrote > 0 || cover.changeRecord.counts.kept > 0) && (
+          <section class="dr-changed">
+            <h2 class="dr-changed-title">What it changed for this posting</h2>
+            <dl class="dr-changed-list">
+              {cover.changeRecord.counts.rewrote > 0 && (
+                <div class="dr-changed-row"><dt class="dr-changed-verb">REWROTE</dt><dd>{cover.changeRecord.counts.rewrote} {cover.changeRecord.counts.rewrote === 1 ? 'paragraph' : 'paragraphs'} rephrased on your key, from your record's own evidence.</dd></div>
+              )}
+              <div class="dr-changed-row"><dt class="dr-changed-verb">KEPT</dt><dd>Every claim traces to a role, date, or fact in your profile. Nothing was invented for this letter.</dd></div>
+            </dl>
+          </section>
+        )}
       </>
     ) : (
       <p class="dr-doc-empty">The cover letter is still drafting.</p>
