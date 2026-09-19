@@ -46,25 +46,33 @@ function job(): Job {
 
 function docs(): DocumentDispatch[] {
   return [
-    { userId: 'user_1', job: job(), kind: 'resume', renderId: 'r-1', provider: 'anthropic', reason: null },
-    { userId: 'user_1', job: job(), kind: 'cover', renderId: 'c-1', provider: 'anthropic', reason: 'I like the craft.' }
+    { userId: 'user_1', job: job(), kind: 'resume', renderId: 'r-1', provider: 'anthropic', reason: null, steer: null },
+    { userId: 'user_1', job: job(), kind: 'cover', renderId: 'c-1', provider: 'anthropic', reason: 'I like the craft.', steer: null }
   ];
 }
 
 const priorSecret = process.env.DRAFT_RUN_SECRET;
 const priorVercelUrl = process.env.VERCEL_URL;
+const priorVercel = process.env.VERCEL;
+const priorBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 
 beforeEach(() => {
   process.env.DRAFT_RUN_SECRET = SECRET;
   delete process.env.VERCEL_URL;
+  delete process.env.VERCEL;
+  delete process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 afterEach(() => {
-  if (priorSecret === undefined) delete process.env.DRAFT_RUN_SECRET;
-  else process.env.DRAFT_RUN_SECRET = priorSecret;
-  if (priorVercelUrl === undefined) delete process.env.VERCEL_URL;
-  else process.env.VERCEL_URL = priorVercelUrl;
+  const restore = (name: string, prior: string | undefined) => {
+    if (prior === undefined) delete process.env[name];
+    else process.env[name] = prior;
+  };
+  restore('DRAFT_RUN_SECRET', priorSecret);
+  restore('VERCEL_URL', priorVercelUrl);
+  restore('VERCEL', priorVercel);
+  restore('VERCEL_AUTOMATION_BYPASS_SECRET', priorBypass);
   vi.restoreAllMocks();
 });
 
@@ -132,5 +140,70 @@ describe('dispatchJobDraftRuns(): one fresh invocation per document', () => {
     const leftover = await dispatchJobDraftRuns('https://example.test', docs(), fetchImpl);
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(leftover).toHaveLength(2);
+  });
+
+  it('asks fetch not to follow redirects, so a middleware 3xx is seen as itself', async () => {
+    const inits: RequestInit[] = [];
+    const fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
+      inits.push(init ?? {});
+      return new Response('', { status: 202 });
+    }) as typeof fetch;
+
+    await dispatchJobDraftRuns('https://example.test', docs(), fetchImpl);
+    for (const init of inits) expect(init.redirect).toBe('manual');
+  });
+});
+
+describe('dispatchJobDraftRuns(): who refused us, in one log line', () => {
+  const errorLines = () =>
+    vi.mocked(console.error).mock.calls.map((c) => c.map(String).join(' '));
+
+  it('classifies a middleware 302 to /sign-in as a redirect and hands the doc back', async () => {
+    const fetchImpl = (async () =>
+      new Response('', { status: 302, headers: { location: '/sign-in?next=%2Fdesk' } })) as typeof fetch;
+
+    const leftover = await dispatchJobDraftRuns('https://example.test', [docs()[0]], fetchImpl);
+    expect(leftover.map((d) => d.kind)).toEqual(['resume']);
+    expect(errorLines().some((l) => /302 \(redirect: \/sign-in/.test(l))).toBe(true);
+  });
+
+  it('classifies an edge HTML 401 as edge (Deployment Protection), not the app', async () => {
+    const fetchImpl = (async () =>
+      new Response('<html>Authentication Required</html>', {
+        status: 401,
+        headers: { 'content-type': 'text/html' }
+      })) as typeof fetch;
+
+    await dispatchJobDraftRuns('https://example.test', [docs()[0]], fetchImpl);
+    expect(errorLines().some((l) => /401 \(edge/.test(l))).toBe(true);
+  });
+
+  it("classifies the app's own JSON 401 as app", async () => {
+    const fetchImpl = (async () =>
+      new Response('{"accepted":false,"reason":"unauthorized"}', {
+        status: 401,
+        headers: { 'content-type': 'application/json' }
+      })) as typeof fetch;
+
+    await dispatchJobDraftRuns('https://example.test', [docs()[0]], fetchImpl);
+    expect(errorLines().some((l) => /401 \(app: unauthorized/.test(l))).toBe(true);
+  });
+
+  it('on Vercel with no bypass secret, warns that the edge will refuse the self-call', async () => {
+    process.env.VERCEL = '1';
+    const fetchImpl = (async () => new Response('', { status: 202 })) as typeof fetch;
+
+    await dispatchJobDraftRuns('https://dep.vercel.app', docs(), fetchImpl);
+    expect(errorLines().some((l) => /VERCEL_AUTOMATION_BYPASS_SECRET is not set/.test(l))).toBe(true);
+  });
+
+  it('on Vercel with a bypass secret but a non-app answer, names a protection misconfiguration', async () => {
+    process.env.VERCEL = '1';
+    process.env.VERCEL_AUTOMATION_BYPASS_SECRET = 'bypass-abc';
+    const fetchImpl = (async () =>
+      new Response('<html>nope</html>', { status: 401, headers: { 'content-type': 'text/html' } })) as typeof fetch;
+
+    await dispatchJobDraftRuns('https://dep.vercel.app', [docs()[0]], fetchImpl);
+    expect(errorLines().some((l) => /bypass secret IS set/.test(l))).toBe(true);
   });
 });

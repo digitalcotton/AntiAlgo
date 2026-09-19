@@ -47,7 +47,7 @@ import { draftableJobBySlug } from '../../../lib/draft-job';
 import AddedPostingNote from '../../../components/desk/AddedPostingNote.astro';
 import { addedApplicationId, hostnameOf, isAddedSlug } from '../../../lib/added-posting';
 import { getPostingFetchByApplication, type StoredPostingFetch } from '../../../lib/posting-fetch-store';
-import { documentState, getJobRenders, jobDraftState, listJobRenderVersions } from '../../../lib/generated-render-store';
+import { documentState, getJobRendersReconciled, jobDraftState, listJobRenderVersions } from '../../../lib/generated-render-store';
 import { coverHasBody, resumeHasBody } from '../../../lib/pdf-resume';
 import type { ResumeRender, CoverRender } from '../../../lib/tailor';
 import { FUNCTION_MAX_DURATION_S } from '../../../../site.config.mjs';
@@ -85,14 +85,15 @@ const waiting = fetchRow !== null && job === null;
 // paste, retry, rename and draft. This room only shows what was drafted.
 const postingHref = fetchRow ? boardDetailPath(slug) : null;
 
-const { resume, cover } = await getJobRenders(viewer.userId, slug);
-
 // Each document has its own state, so the room reveals the resume the moment it
 // is ready without waiting on the cover, and fails or retries each on its own.
 // The pair state (jobDraftState) is kept only for the "nothing yet" case; both
 // come from one shared function so the room and the rail can never disagree.
 const nowMs = Date.now();
 const ceilingMs = FUNCTION_MAX_DURATION_S * 1000;
+// Reconciled read: a pending row the clock has abandoned is written 'failed'
+// here, so the page and the database agree and the throttle stops counting it.
+const { resume, cover } = await getJobRendersReconciled(viewer.userId, slug, nowMs, ceilingMs);
 const resumeState = documentState(resume, nowMs, ceilingMs);
 const coverState = documentState(cover, nowMs, ceilingMs);
 const state = jobDraftState({ resume, cover }, nowMs, ceilingMs);

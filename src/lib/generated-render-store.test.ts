@@ -5,13 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // The connection is the one thing a worker here may not open, so it is replaced
 // with a captured query spy; the pure-function tests below never touch it.
 const { queryMock } = vi.hoisted(() => ({
-  queryMock: vi.fn((_sql?: string, _params?: unknown[]) => Promise.resolve({ rows: [], rowCount: 1 }))
+  queryMock: vi.fn((_sql?: string, _params?: unknown[]) => Promise.resolve({ rows: [] as unknown[], rowCount: 1 }))
 }));
 vi.mock('./db', () => ({ db: () => ({ query: queryMock }) }));
 
 import {
+  ABANDONED_REASON,
   completeDraft,
   documentState,
+  getJobRendersReconciled,
   jobDraftState,
   rowToRenderRow,
   STALE_CLAIMED_SLACK_MS,
@@ -275,5 +277,71 @@ describe('documentState(): one document on its own', () => {
     expect(documentState(ready, T0, CEILING_MS)).toBe('ready');
     expect(documentState(failed, T0, CEILING_MS)).toBe('failed');
     expect(jobDraftState({ resume: ready, cover: failed }, T0, CEILING_MS)).toBe('failed');
+  });
+});
+
+describe('getJobRendersReconciled(): the clock writes what it infers', () => {
+  const CEILING_MS = 300_000;
+  const NOW = T0 + 10_000_000;
+
+  beforeEach(() => {
+    queryMock.mockReset();
+    queryMock.mockResolvedValue({ rows: [], rowCount: 1 });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  /** The one SELECT getJobRenders issues returns these rows; every later query
+      (the failDraft UPDATE) falls through to the default rowCount:1. */
+  function withCurrentRows(rows: GeneratedRenderRow[]) {
+    queryMock.mockResolvedValueOnce({ rows, rowCount: rows.length });
+  }
+  const failUpdates = () =>
+    queryMock.mock.calls.filter((c) => typeof c[0] === 'string' && /status\s*=\s*'failed'/.test(c[0] as string));
+
+  it('settles a stale CLAIMED pending row to failed with the abandoned reason, and returns it failed', async () => {
+    withCurrentRows([
+      renderRow({ id: 'r-stale', kind: 'resume', status: 'pending', started_at: new Date(NOW - 400_000), updated_at: new Date(NOW - 400_000) })
+    ]);
+
+    const { resume } = await getJobRendersReconciled('user_1', 'job-1', NOW, CEILING_MS);
+
+    const updates = failUpdates();
+    expect(updates).toHaveLength(1);
+    expect(updates[0][1]).toEqual(['r-stale', ABANDONED_REASON]);
+    expect(resume?.status).toBe('failed');
+    expect(resume?.failureReason).toBe(ABANDONED_REASON);
+    expect(resume?.payload).toBeNull();
+  });
+
+  it('settles a stale UNCLAIMED pending row (never started) past the shorter window', async () => {
+    withCurrentRows([
+      renderRow({ id: 'c-stale', kind: 'cover', status: 'pending', started_at: null, updated_at: new Date(NOW - (STALE_UNCLAIMED_MS + 1_000)) })
+    ]);
+
+    const { cover } = await getJobRendersReconciled('user_1', 'job-1', NOW, CEILING_MS);
+    expect(failUpdates()).toHaveLength(1);
+    expect(cover?.status).toBe('failed');
+  });
+
+  it('leaves a fresh pending row alone, and never touches a settled row', async () => {
+    withCurrentRows([
+      renderRow({ id: 'r-fresh', kind: 'resume', status: 'pending', started_at: new Date(NOW - 5_000), updated_at: new Date(NOW - 5_000) }),
+      renderRow({ id: 'c-ready', kind: 'cover', status: 'ready', payload: { kind: 'cover' } })
+    ]);
+
+    const { resume, cover } = await getJobRendersReconciled('user_1', 'job-1', NOW, CEILING_MS);
+    expect(failUpdates()).toHaveLength(0);
+    expect(resume?.status).toBe('pending');
+    expect(cover?.status).toBe('ready');
+  });
+
+  it('is idempotent: a row already read as failed triggers no write', async () => {
+    withCurrentRows([
+      renderRow({ id: 'r-failed', kind: 'resume', status: 'failed', failure_reason: ABANDONED_REASON })
+    ]);
+
+    const { resume } = await getJobRendersReconciled('user_1', 'job-1', NOW, CEILING_MS);
+    expect(failUpdates()).toHaveLength(0);
+    expect(resume?.status).toBe('failed');
   });
 });

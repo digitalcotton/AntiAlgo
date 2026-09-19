@@ -491,6 +491,47 @@ export async function getJobRenders(
   return { resume: byKind.get('resume') ?? null, cover: byKind.get('cover') ?? null };
 }
 
+/** The reason written onto a draft the clock has given up on. Kept here, beside
+    the write, and equal to the sentence the room already defaults to for a
+    stale row, so the stored reason and the shown reason are the same words. */
+export const ABANDONED_REASON = 'it did not finish in time';
+
+/**
+ * getJobRenders, plus a write for any row the clock has already declared dead.
+ * documentState() infers 'failed' for a pending row past the invocation ceiling,
+ * but only in memory: the DB row stays 'pending' forever, so the throttle keeps
+ * counting it and a later reader re-derives the same stale state. Here, a
+ * pending row that reads as 'failed' is settled to 'failed' with ABANDONED_REASON
+ * (failDraft touches only status='pending', so this is idempotent and can never
+ * clobber a document that finished in the meantime), and the returned row already
+ * reflects that, so every reader that calls documentState() on it computes the
+ * same thing it did before. Used by the room, the status endpoint and the POST,
+ * so all three agree with what is actually in the database. Never throws.
+ */
+export async function getJobRendersReconciled(
+  userId: string,
+  jobId: string,
+  nowMs: number,
+  ceilingMs: number
+): Promise<{ resume: RenderRow | null; cover: RenderRow | null }> {
+  const { resume, cover } = await getJobRenders(userId, jobId);
+  const settle = async (row: RenderRow | null): Promise<RenderRow | null> => {
+    if (!row || row.status !== 'pending') return row;
+    if (documentState(row, nowMs, ceilingMs) !== 'failed') return row;
+    try {
+      await failDraft(row.id, ABANDONED_REASON);
+    } catch (error) {
+      console.error(`generated-render-store: could not settle abandoned ${row.kind} render ${row.id} for job ${jobId}.`, error);
+      return row;
+    }
+    console.error(
+      `generated-render-store: settled abandoned ${row.kind} render ${row.id} for job ${jobId} as failed (pending ${nowMs - row.updatedAt.getTime()}ms, claimed=${row.startedAt !== null}).`
+    );
+    return { ...row, status: 'failed', failureReason: ABANDONED_REASON, payload: null };
+  };
+  return { resume: await settle(resume), cover: await settle(cover) };
+}
+
 /**
  * How many job-draft render rows this person has started in the last `windowMs`.
  * A per-user rate signal for the draft endpoint: each draft writes one or two of

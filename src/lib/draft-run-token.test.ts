@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { signRunToken, verifyRunToken, type RunPayload } from './draft-run-token';
+import { isDraftRunPath, signRunToken, verifyRunToken, type RunPayload } from './draft-run-token';
+
+describe('isDraftRunPath(): the one path middleware exempts from the gate', () => {
+  it('matches only the /run leaf of a single job slug', () => {
+    expect(isDraftRunPath('/desk/job-draft/acme-staff-designer/run')).toBe(true);
+    expect(isDraftRunPath('/desk/job-draft/x/run')).toBe(true);
+  });
+
+  it('rejects the sibling endpoints, a trailing slash, and other server-to-server paths', () => {
+    expect(isDraftRunPath('/desk/job-draft/x/status')).toBe(false);
+    expect(isDraftRunPath('/desk/job-draft/x/resume')).toBe(false);
+    expect(isDraftRunPath('/desk/job-draft/x/restore')).toBe(false);
+    expect(isDraftRunPath('/desk/job-draft/x/run/')).toBe(false);
+    expect(isDraftRunPath('/desk/job-draft/a/b/run')).toBe(false);
+    expect(isDraftRunPath('/machine/posting-fetch/claim')).toBe(false);
+    expect(isDraftRunPath('/desk/job-draft')).toBe(false);
+  });
+});
 
 /**
  * The signed hand-off between the job-draft POST and the run endpoint. Pure,

@@ -61,6 +61,34 @@ export function selfOrigin(requestUrl: URL): string {
   return vercelHost && vercelHost.trim().length > 0 ? `https://${vercelHost.trim()}` : requestUrl.origin;
 }
 
+/** What answered a non-202: the app itself, or the platform in front of it.
+    run.ts always replies JSON with a string `reason`; a middleware bounce is a
+    3xx to /sign-in; Vercel Deployment Protection replies HTML (or its own
+    redirect) from the edge before the function runs. Telling these apart turns a
+    silent "it answered 401" into one log line that names WHO refused us. */
+type RunResponseClass = 'app' | 'edge' | 'redirect';
+
+async function classifyRunResponse(response: Response): Promise<{ cls: RunResponseClass; detail: string }> {
+  if (response.status >= 300 && response.status < 400) {
+    return { cls: 'redirect', detail: response.headers.get('location') ?? '' };
+  }
+  let body = '';
+  try {
+    body = await response.text();
+  } catch {
+    // A body we cannot read is still classifiable by its content type below.
+  }
+  if ((response.headers.get('content-type') ?? '').includes('application/json')) {
+    try {
+      const parsed = JSON.parse(body) as { reason?: unknown };
+      if (typeof parsed.reason === 'string') return { cls: 'app', detail: parsed.reason };
+    } catch {
+      // JSON content type but not the app's shape: fall through to edge.
+    }
+  }
+  return { cls: 'edge', detail: body.slice(0, 120).replace(/\s+/g, ' ').trim() };
+}
+
 /**
  * Dispatch every document to its own invocation. Returns the documents that
  * could NOT be dispatched (all of them when no secret is set), for the caller
@@ -77,7 +105,18 @@ export async function dispatchJobDraftRuns(
     return docs;
   }
 
+  const inVercel = process.env.VERCEL === '1';
   const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  // The self-call targets this deployment's own *.vercel.app host, which
+  // Deployment Protection guards. Without the bypass secret the edge 401s it
+  // before the function runs, and every draft silently falls back in-process
+  // (the path that times out in production). Say so once, loudly.
+  if (inVercel && !bypass) {
+    console.error(
+      `draft-run-dispatch: VERCEL_AUTOMATION_BYPASS_SECRET is not set; if Deployment Protection covers ${origin}, every run dispatch is refused at the edge and falls back in-process. Enable "Protection Bypass for Automation" in Project Settings.`
+    );
+  }
+
   const results = await Promise.all(
     docs.map(async (doc): Promise<DocumentDispatch | null> => {
       const token = signRunToken(
@@ -94,24 +133,36 @@ export async function dispatchJobDraftRuns(
         },
         secret
       );
+      const url = `${origin}${jobDraftRunPath(doc.job.slug)}`;
       try {
-        const response = await fetchImpl(`${origin}${jobDraftRunPath(doc.job.slug)}`, {
+        const response = await fetchImpl(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(bypass ? { 'x-vercel-protection-bypass': bypass } : {})
           },
           body: JSON.stringify({ token }),
+          // Report a middleware 3xx as itself, not as a followed 200 from
+          // /sign-in that would read as "the run endpoint answered 200".
+          redirect: 'manual',
           signal: AbortSignal.timeout(DISPATCH_TIMEOUT_MS)
         });
         if (response.status === 202) return null;
+        const { cls, detail } = await classifyRunResponse(response);
         console.error(
-          `draft-run-dispatch: the run endpoint answered ${response.status} for the ${doc.kind} of job ${doc.job.slug}; rendering it in-process.`
+          `draft-run-dispatch: ${url} answered ${response.status} (${cls}${detail ? `: ${detail}` : ''}) for the ${doc.kind} of job ${doc.job.slug}; rendering it in-process.`
         );
+        // The secret is configured and yet the app did not answer: the block is
+        // in front of the function, i.e. Deployment Protection / a stale bypass.
+        if (inVercel && bypass && cls !== 'app') {
+          console.error(
+            'draft-run-dispatch: a bypass secret IS set and the run endpoint still did not answer as the app. Check Project Settings, Deployment Protection (a disabled or stale bypass, or the wrong project).'
+          );
+        }
         return doc;
       } catch (error) {
         console.error(
-          `draft-run-dispatch: could not reach the run endpoint for the ${doc.kind} of job ${doc.job.slug}; rendering it in-process.`,
+          `draft-run-dispatch: could not reach ${url} for the ${doc.kind} of job ${doc.job.slug}; rendering it in-process.`,
           error
         );
         return doc;

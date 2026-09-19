@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   renderInBackground,
-  renderJobDraftInBackground,
   renderOneDocument,
   triggerBackgroundGeneration,
   triggerJobDraft,
@@ -285,7 +284,10 @@ describe('renderInBackground(): the contact header reaches both documents, both 
   });
 });
 
-describe('renderJobDraftInBackground(): the one-click button always drafts, key or no key', () => {
+describe('the one-click button drafts each document, key or no key', () => {
+  // These once went through renderJobDraftInBackground(), a pair helper now
+  // removed; the button drafts each document through its own renderOneDocument()
+  // (dispatched or in-process), so the two calls here are that pair.
   beforeEach(() => {
     vi.clearAllMocks();
     personName.mockResolvedValue({ firstName: 'Ada', lastName: 'Lovelace' });
@@ -300,7 +302,8 @@ describe('renderJobDraftInBackground(): the one-click button always drafts, key 
   it('no key: drafts deterministically and labels both documents fallback, provider null', async () => {
     // provider === null is the no-key case: the button drafts anyway, which is
     // the difference from the apply path (that one would have skipped).
-    await renderJobDraftInBackground('user_1', job(), null, 'r-1', 'c-1');
+    await renderOneDocument({ userId: 'user_1', job: job(), kind: 'resume', renderId: 'r-1', provider: null, reason: null });
+    await renderOneDocument({ userId: 'user_1', job: job(), kind: 'cover', renderId: 'c-1', provider: null, reason: null });
 
     // Deterministic: the provider argument is left as tailor.ts's own default.
     expect(renderResume).toHaveBeenCalledTimes(1);
@@ -322,7 +325,8 @@ describe('renderJobDraftInBackground(): the one-click button always drafts, key 
   it('with a working key: drafts through the provider and labels both ready', async () => {
     getDecryptedKey.mockResolvedValue('a-decrypted-key');
 
-    await renderJobDraftInBackground('user_1', job(), 'anthropic', 'r-1', 'c-1');
+    await renderOneDocument({ userId: 'user_1', job: job(), kind: 'resume', renderId: 'r-1', provider: 'anthropic', reason: null });
+    await renderOneDocument({ userId: 'user_1', job: job(), kind: 'cover', renderId: 'c-1', provider: 'anthropic', reason: null });
 
     // The generative provider is handed in (arg index 2), not the deterministic
     // default, and with no fallback reasons the rows settle 'ready'.
@@ -497,10 +501,11 @@ describe('the drafting audit row records the model that actually ran', () => {
   it('job draft path: the chosen model reaches the provider and the stored row', async () => {
     getWritingModel.mockResolvedValue('claude-chosen');
 
-    await renderJobDraftInBackground('user_1', job(), 'anthropic', 'r-1', 'c-1');
+    await renderOneDocument({ userId: 'user_1', job: job(), kind: 'resume', renderId: 'r-1', provider: 'anthropic', reason: null });
+    await renderOneDocument({ userId: 'user_1', job: job(), kind: 'cover', renderId: 'c-1', provider: 'anthropic', reason: null });
 
     for (const call of generativeProviderMock.mock.calls) {
-      expect(call[2]).toEqual({ model: 'claude-chosen' });
+      expect(call[2]).toEqual({ model: 'claude-chosen', steer: undefined });
     }
     for (const call of completeDraft.mock.calls) {
       expect((call[1] as { model: string | null }).model).toBe('claude-chosen');

@@ -33,7 +33,7 @@
  * shadow each other.
  */
 import type { APIContext } from 'astro';
-import { documentState, getJobRenders, jobDraftState } from '../../../../lib/generated-render-store';
+import { ABANDONED_REASON, documentState, getJobRendersReconciled, jobDraftState } from '../../../../lib/generated-render-store';
 import { jobDraftPath, jobDraftPdfPath } from '../../../../data/nav';
 import { FUNCTION_MAX_DURATION_S } from '../../../../../site.config.mjs';
 import { addedApplicationId, isAddedSlug } from '../../../../lib/added-posting';
@@ -55,8 +55,11 @@ export async function GET(context: APIContext): Promise<Response> {
   const slug = (context.params.slug ?? '').trim();
   if (!slug) return json({ status: 'none' });
 
-  const rows = await getJobRenders(viewer.userId, slug);
   const nowMs = Date.now();
+  const ceilingMs = FUNCTION_MAX_DURATION_S * 1000;
+  // Reconciled read: settles an abandoned pending row to 'failed' so the rail
+  // and the room, which both poll this state, never disagree with the database.
+  const rows = await getJobRendersReconciled(viewer.userId, slug, nowMs, ceilingMs);
   // An added posting carries its read state beside the draft state, so a
   // card can say "reading" before any render row exists.
   let fetch: { status: string; display: string; origin: string | null; sourceKind: string | null } | null = null;
@@ -65,7 +68,6 @@ export async function GET(context: APIContext): Promise<Response> {
     const row = applicationId === null ? null : await getPostingFetchByApplication(viewer.userId, applicationId);
     if (row) fetch = { status: row.status, display: fetchDisplayState(row, nowMs), origin: row.origin, sourceKind: row.sourceKind };
   }
-  const ceilingMs = FUNCTION_MAX_DURATION_S * 1000;
   const state = jobDraftState(rows, nowMs, ceilingMs);
   const resumeState = documentState(rows.resume, nowMs, ceilingMs);
   const coverState = documentState(rows.cover, nowMs, ceilingMs);
@@ -77,7 +79,7 @@ export async function GET(context: APIContext): Promise<Response> {
   // The pair reason is the first document that actually failed, so the message
   // names the document a reader is looking at, not a fixed cover-then-resume order.
   const failedReasonFor = (row: typeof rows.resume, docState: typeof resumeState) =>
-    docState === 'failed' ? (row?.failureReason ?? 'the draft did not finish in time') : null;
+    docState === 'failed' ? (row?.failureReason ?? ABANDONED_REASON) : null;
   const resumeReason = failedReasonFor(rows.resume, resumeState);
   const coverReason = failedReasonFor(rows.cover, coverState);
 

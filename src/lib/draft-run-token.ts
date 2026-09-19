@@ -36,6 +36,20 @@ import type { DraftSteer } from './draft-steer';
 
 export const RUN_TOKEN_TTL_MS = 60_000;
 
+/**
+ * The one path the run endpoint answers, as a predicate on a base-free pathname.
+ * It lives here, beside the token, because the token IS this path's whole auth:
+ * the run endpoint carries no session, so middleware must let a cookieless POST
+ * to exactly this shape reach the endpoint (src/middleware.ts), and the endpoint
+ * trusts only a signature made with DRAFT_RUN_SECRET. Kept a pure string test so
+ * it is unit-testable without mounting the middleware. Matches only the literal
+ * `/run` leaf of a single slug segment: `/desk/job-draft/<slug>/status`, `[doc]`
+ * and `restore` are NOT this, and stay gated.
+ */
+export function isDraftRunPath(pathname: string): boolean {
+  return /^\/desk\/job-draft\/[^/]+\/run$/.test(pathname);
+}
+
 export interface RunPayload {
   readonly v: 1;
   readonly renderId: string;

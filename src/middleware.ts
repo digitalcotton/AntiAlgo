@@ -35,6 +35,7 @@ import { routeIsLit } from './lib/flags';
 import { viewerFrom } from './lib/viewer';
 import { SITE_ORIGIN, stripBase } from '../site.config.mjs';
 import { isAddedDetailPath } from './lib/added-posting';
+import { isDraftRunPath } from './lib/draft-run-token';
 
 /**
  * Routes that need to know who you are, even though they are not (all)
@@ -118,7 +119,7 @@ const SITE_HOSTS: ReadonlySet<string> = (() => {
  * in this file.
  */
 function isServerToServer(pathname: string): boolean {
-  return /^\/desk\/job-draft\/[^/]+\/run$/.test(pathname) || pathname.startsWith('/machine/');
+  return isDraftRunPath(pathname) || pathname.startsWith('/machine/');
 }
 
 /**
@@ -203,6 +204,18 @@ export const onRequest = defineMiddleware(async (context, next) => {
     viewer = null;
   }
   context.locals.viewer = viewer;
+
+  // The draft run endpoint lives under the gated '/desk' prefix (it could not go
+  // under /api, claimed by the root api/ directory, or /internal, a signed-out
+  // 403), but it carries no session: it is a server-to-server call from the
+  // job-draft POST, authenticated only by the HMAC token run.ts verifies
+  // (src/lib/draft-run-token.ts, DRAFT_RUN_SECRET). Without this exemption a
+  // cookieless POST is 'signed-out' and 302s to /sign-in below, which the
+  // dispatcher's fetch follows to a 200 HTML page, never a 202, so every draft
+  // fell back to the in-process path that times out in production. Only this
+  // exact leaf is exempt; /status, [doc] and restore under the same slug stay
+  // gated. The CSRF origin gate above already skips it too (isServerToServer).
+  if (isDraftRunPath(pathname)) return next();
 
   if (!isGated(pathname)) return next();
 

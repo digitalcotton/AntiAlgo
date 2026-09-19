@@ -38,10 +38,16 @@ import type { APIContext } from 'astro';
 import { draftableJobBySlug } from '../../lib/draft-job';
 import { triggerJobDraft } from '../../lib/generation-preference-store';
 import { createApplicationFromClick, getActiveApplicationForJob } from '../../lib/desk-store';
-import { countRecentJobRenders } from '../../lib/generated-render-store';
+import {
+  countRecentJobRenders,
+  documentState,
+  getJobRendersReconciled,
+  type RenderKind
+} from '../../lib/generated-render-store';
 import { parseSteer } from '../../lib/draft-steer';
 import { jobDraftPath, routeFor } from '../../data/nav';
 import { isAddedSlug } from '../../lib/added-posting';
+import { FUNCTION_MAX_DURATION_S } from '../../../site.config.mjs';
 
 /** The per-user draft throttle: at most this many job-draft render rows in the
     window below. A full draft writes two rows, a per-document retry one, so this
@@ -67,6 +73,20 @@ const REASON_MAX_CHARS = 600;
 
 function redirectTo(path: string): Response {
   return new Response(null, { status: 303, headers: { Location: path } });
+}
+
+/** The answer both the "started a draft" and the "already drafting" paths give,
+    so a re-click while a draft is in flight lands exactly where a fresh draft
+    does. A fetch() caller (the job detail rail's button script) gets the URL as
+    JSON and navigates itself; a plain form submit gets the 303. */
+function respondStarted(request: Request, draftUrl: string): Response {
+  if ((request.headers.get('accept') ?? '').includes('application/json')) {
+    return new Response(JSON.stringify({ drafting: 'started', draftUrl }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+  return redirectTo(draftUrl);
 }
 
 export async function POST(context: APIContext): Promise<Response> {
@@ -96,6 +116,37 @@ export async function POST(context: APIContext): Promise<Response> {
     return redirectTo(routeFor('index'));
   }
 
+  const draftUrl = jobDraftPath(job.slug);
+
+  // An optional `kind` restarts just one document (the room's per-document
+  // "Draft the cover letter again" button); anything but 'resume' or 'cover'
+  // means both, so the plain begin form and the rail keep drafting the pair.
+  // Parsed here because the idempotency check below needs it.
+  const kindRaw = String(form.get('kind') ?? '');
+  const kind = kindRaw === 'resume' || kindRaw === 'cover' ? kindRaw : undefined;
+
+  // IDEMPOTENT RETRY. Every button that reaches this endpoint (the room's "Start
+  // the draft over", a double submit, the rail re-click) posts the same slug. If
+  // the requested document(s) are already drafting and not stale, begin nothing:
+  // a new version would spend the throttle and pile a dead row onto the version
+  // list on every click. getJobRendersReconciled first settles any row the clock
+  // has abandoned to 'failed', so a genuinely stuck draft is not mistaken for one
+  // in flight and can start fresh. Either way the person lands back on the room,
+  // which is already polling for the result. Read failure never blocks drafting.
+  const nowMs = Date.now();
+  const ceilingMs = FUNCTION_MAX_DURATION_S * 1000;
+  try {
+    const rows = await getJobRendersReconciled(viewer.userId, job.slug, nowMs, ceilingMs);
+    const requested: RenderKind[] = kind ? [kind] : ['resume', 'cover'];
+    const stillDrafting = requested.some((k) => documentState(rows[k], nowMs, ceilingMs) === 'pending');
+    if (stillDrafting) {
+      console.log(`desk/job-draft: ${requested.join('+')} for job ${job.slug} already drafting; not starting another version.`);
+      return respondStarted(context.request, draftUrl);
+    }
+  } catch (error) {
+    console.error(`desk/job-draft: could not check for an in-flight draft for user ${viewer.userId}; beginning a new draft.`, error);
+  }
+
   // Per-user throttle. Each draft spends up to two model calls on the person's
   // own key plus function time, and nothing else bounds how fast this endpoint
   // can be hit. A draft writes one or two render rows; DRAFT_RENDER_CEILING
@@ -122,12 +173,6 @@ export async function POST(context: APIContext): Promise<Response> {
   // police). Empty becomes null so the letter's gap report names its absence.
   const reasonRaw = String(form.get('reason') ?? '').trim();
   const reason = reasonRaw.length > 0 ? reasonRaw.slice(0, REASON_MAX_CHARS) : null;
-
-  // An optional `kind` restarts just one document (the room's per-document
-  // "Draft the cover letter again" button); anything but 'resume' or 'cover'
-  // means both, so the plain begin form and the rail keep drafting the pair.
-  const kindRaw = String(form.get('kind') ?? '');
-  const kind = kindRaw === 'resume' || kindRaw === 'cover' ? kindRaw : undefined;
 
   // The person's steer for this one regenerate: the allowlisted chips (repeated
   // checkbox values, so getAll) and the free-text note. parseSteer is the sole
@@ -173,17 +218,5 @@ export async function POST(context: APIContext): Promise<Response> {
   // used is VERCEL_URL when present, never the forwarded host.
   await triggerJobDraft(viewer.userId, job, { reason, origin: context.url, kind, steer });
 
-  const draftUrl = jobDraftPath(job.slug);
-
-  // Progressive enhancement: a fetch() caller (the role page's own button
-  // script) gets the URL as JSON and navigates itself; a plain form submit
-  // gets a redirect. Same destination either way.
-  if ((context.request.headers.get('accept') ?? '').includes('application/json')) {
-    return new Response(JSON.stringify({ drafting: 'started', draftUrl }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
-  return redirectTo(draftUrl);
+  return respondStarted(context.request, draftUrl);
 }

@@ -552,27 +552,6 @@ export async function renderOneDocument(input: DocumentRenderInput): Promise<voi
   }
 }
 
-/**
- * Renders one job draft's two documents in this process, in parallel. The
- * in-process path: what triggerJobDraft() falls back to when a document could
- * not be handed to an invocation of its own (no DRAFT_RUN_SECRET, local dev, a
- * dispatch that failed). Each document settles its own row; see
- * renderOneDocument() for the endings.
- */
-export async function renderJobDraftInBackground(
-  userId: string,
-  job: Job,
-  provider: Provider | null,
-  resumeId: string,
-  coverId: string,
-  reason: string | null = null
-): Promise<void> {
-  await Promise.all([
-    renderOneDocument({ userId, job, kind: 'resume', renderId: resumeId, provider, reason }),
-    renderOneDocument({ userId, job, kind: 'cover', renderId: coverId, provider, reason })
-  ]);
-}
-
 /** One document rendered here, in this invocation: claim the row first (so a
     run endpoint that turns out to have claimed it after all does not render
     it twice), then render. Never rejects. */
