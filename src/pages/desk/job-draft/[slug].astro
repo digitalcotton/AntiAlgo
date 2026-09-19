@@ -149,7 +149,11 @@ const jobDraftEndpoint = routeFor('desk-job-draft');
 // (nothing still pending) and at least one document is ready. While a draft is
 // still in flight, the DraftDocuments path below keeps its loading and per-
 // document failure states. Versions are read only when the room will show.
-const useRoomV2 = !anyPending && (!!resumePayload || !!coverPayload);
+// Show the room as soon as EITHER document is ready, rather than waiting for
+// both: a finished resume must not be hidden behind a slow or stuck cover. The
+// room prints "still drafting" for the one not yet in, and the meta refresh
+// below reloads until it lands.
+const useRoomV2 = !!resumePayload || !!coverPayload;
 const resumeVersions = useRoomV2 ? await listJobRenderVersions(viewer.userId, slug, 'resume') : [];
 const coverVersions = useRoomV2 ? await listJobRenderVersions(viewer.userId, slug, 'cover') : [];
 const roomPostingHref = postingHref ?? (job ? boardDetailPath(slug) : jobDraftEndpoint);
