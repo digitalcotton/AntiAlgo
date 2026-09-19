@@ -427,16 +427,6 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
     <p class="dr-send-note">Opens the posting in a new tab and moves this role to Applied on your desk. You still paste and submit there.</p>
     <p class="dr-footer-note mono-label">Drafted on your own key. Your profile and the posting text only. No other applicant's data was read.</p>
   </section>
-
-  <div class="dr-sticky">
-    <div class="dr-sticky-inner">
-      <p class="dr-sticky-title"><strong>{jobTitle ?? 'This posting'}</strong> <span class="mono-label">{readyCount} of 2 ready</span></p>
-      <div class="dr-sticky-actions">
-        {(resumeDownloadable || coverDownloadable) && <a class="dr-sticky-both" href={jobDraftPdfPath(slug, resumeDownloadable ? 'resume' : 'cover')} download>Download</a>}
-        {applyUrl && <a class="dr-sticky-apply" href={applyUrl} target="_blank" rel="noopener nofollow">{applyLabel}</a>}
-      </div>
-    </div>
-  </div>
 </article>
 
 <noscript><style>.dr-doc.dr-preprint { visibility: visible; }</style></noscript>
@@ -570,7 +560,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
       const live = document.querySelector('.dr-panel-' + kind);
       if (!fresh || !live) return;
       live.innerHTML = fresh.innerHTML;
-      const pairs: [string, string][] = [['.dr-status', '.dr-status'], ['.dr-sticky-inner', '.dr-sticky-inner']];
+      const pairs: [string, string][] = [['.dr-status', '.dr-status']];
       for (const [sel] of pairs) {
         const f = parsed.querySelector(sel);
         const l = document.querySelector(sel);
@@ -744,14 +734,6 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
   .dr-send-apply { margin: 0; }
   .dr-send-note { margin: var(--space-400) 0 0; color: var(--color-muted); font-size: var(--size-100); }
   .dr-footer-note { margin: var(--space-400) 0 0; padding-top: var(--space-400); border-top: var(--border-hairline) solid var(--color-line); color: var(--color-muted); }
-
-  .dr-sticky { position: sticky; bottom: 0; margin: var(--space-700) calc(-1 * var(--space-500)) 0; background: var(--color-surface-raised); border-top: var(--border-hairline) solid var(--color-line); }
-  .dr-sticky-inner { max-width: 52rem; margin: 0 auto; padding: var(--space-300) var(--space-500); display: flex; align-items: center; justify-content: space-between; gap: var(--space-400); }
-  .dr-sticky-title { margin: 0; font-size: var(--size-100); }
-  .dr-sticky-title span { color: var(--color-muted); margin-left: var(--space-200); }
-  .dr-sticky-actions { display: flex; gap: var(--space-400); align-items: center; }
-  .dr-sticky-both { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; font-size: var(--size-100); }
-  .dr-sticky-apply { background: var(--color-signal); color: var(--gray-950); padding: var(--space-200) var(--space-400); font-family: var(--font-family-mono); font-size: var(--size-075); font-weight: var(--weight-bold); text-decoration: none; }
 
   @media (max-width: 40rem) {
     .dr-doc { padding: var(--space-500); }

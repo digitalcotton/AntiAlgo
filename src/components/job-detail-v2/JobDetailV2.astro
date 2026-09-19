@@ -281,9 +281,15 @@ const saveNote = applyTrack
         <a class="jd-btn jd-btn-outline" href={applyUrl} target="_blank" rel="noopener nofollow">Apply on {ats} &#8599;</a>
       ))}
 
-      {!isClosed && (
-        <button type="button" class="jd-btn jd-btn-ghost" disabled aria-disabled="true" title={saveNote}>Save to the desk</button>
-      )}
+      {!isClosed && (signedIn ? (
+        <form class="jd-save-form" method="POST" action={routeFor('desk-save')}>
+          <input type="hidden" name="intent" value="save" />
+          <input type="hidden" name="url" value={applyUrl ?? ''} />
+          <button type="submit" class="jd-btn jd-btn-ghost">Save to the desk</button>
+        </form>
+      ) : (
+        <a class="jd-btn jd-btn-ghost" href={signInHref}>Save to the desk</a>
+      ))}
 
       <p class="jd-actions-note">Apply now if your documents are ready.{applyTrack ? ' Either way the role lands on your desk and stays tracked.' : ''}</p>
     </div>
@@ -429,9 +435,10 @@ const saveNote = applyTrack
   .jd-btn-outline { color: var(--color-foreground); background: transparent; }
   .jd-btn-outline:hover { background: var(--color-surface-raised); }
 
-  /* save: de-emphasised ghost. A crawled live posting has no separate save
-     action, so the control is disabled and the note beside it says why. */
-  .jd-btn-ghost { color: var(--color-muted); background: transparent; border-color: var(--color-line-strong); font-weight: var(--weight-regular); cursor: default; }
+  /* save: de-emphasised ghost that posts to /desk/save, with a real rollover. */
+  .jd-save-form { margin: 0; }
+  .jd-btn-ghost { color: var(--color-muted); background: transparent; border-color: var(--color-line-strong); font-weight: var(--weight-regular); }
+  .jd-btn-ghost:hover, .jd-btn-ghost:focus-visible { color: var(--color-foreground); border-color: var(--color-foreground); background: var(--color-surface-raised); }
 
   .jd-btn-inline { display: inline-block; width: auto; padding: var(--space-300) var(--space-500); }
 
@@ -440,7 +447,8 @@ const saveNote = applyTrack
   /* row 2: description beside the fit sidebar */
   .jd-body-row { display: grid; grid-template-columns: 1.78fr 1fr; gap: var(--space-600); align-items: start; }
   .jd-body-main { display: flex; flex-direction: column; gap: var(--space-500); min-width: 0; }
-  .jd-body-aside { min-width: 0; }
+  /* the fit card follows the reader down, clearing the sticky mini action bar */
+  .jd-body-aside { min-width: 0; position: sticky; top: 84px; align-self: start; }
 
   .jd-fresh { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
 
@@ -476,6 +484,7 @@ const saveNote = applyTrack
   @media (max-width: 60rem) {
     .jd-top-row { grid-template-columns: 1fr; }
     .jd-body-row { grid-template-columns: 1fr; gap: var(--space-600); }
+    .jd-body-aside { position: static; }
   }
 
   @media (max-width: 48rem) {

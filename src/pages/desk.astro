@@ -91,14 +91,6 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
           <header class="dh-daily">
             <p class="dh-eyebrow mono-label"><span class="dh-tick" aria-hidden="true"></span> Daily</p>
             <div class="dh-daily-right">
-              {home.hasTitles && (
-                <nav class="dh-anchors mono-label" aria-label="On this page">
-                  <a href="#watch-list">Watch list</a>
-                  <a href="#new-core">Core</a>
-                  <a href="#new-stretch">Stretch</a>
-                  <a href="#died">What died</a>
-                </nav>
-              )}
               <p class="dh-swept mono-label">{home.sweep.sweptAt ? `swept ${formatDate(home.sweep.sweptAt)}` : 'sweep pending'}</p>
             </div>
           </header>

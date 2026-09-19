@@ -203,7 +203,7 @@ const shelves: { key: 'core' | 'stretch'; label: string; caption: string; list: 
 </section>
 
 <style>
-  .wl { display: flex; flex-direction: column; gap: var(--space-400); }
+  .wl { display: flex; flex-direction: column; gap: var(--space-400); background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-line-strong); padding: var(--space-500) var(--space-600); }
   /* When the editor is open, the read chips give way to it (a swap, like the
      design), via :has(); browsers without :has() simply show both, never broken. */
   .wl:has(.wl-d[open]) .wl-read { display: none; }
