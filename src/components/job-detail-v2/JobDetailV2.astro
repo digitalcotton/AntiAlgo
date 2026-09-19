@@ -6,6 +6,12 @@
  * /board/[slug] (dynamic, member) render the same page, differing only in the
  * fit slot.
  *
+ * LAYOUT: two rows, each a two-column grid on wide screens, stacking to one
+ * column below --breakpoint-lap.
+ * - Row 1 is one bordered white frame: the posting card (left, ~64%) and the
+ *   action rail (right, ~36%) sitting on a shaded paper fill inside the frame.
+ * - Row 2 is the description (left) beside the fit card / sign-in prompt (right).
+ *
  * HONESTY, decided with the owner 2026-09-18:
  * - Fit is a signed-in reading. Signed-out visitors get a sign-in prompt where
  *   the "Fit for you" stat and the "Why this fits you" card would be, never a
@@ -19,9 +25,20 @@
  *   invented personalisation.
  * - The subtitle carries no "team" (the Job model holds none) and the stats row
  *   names the real apply destination rather than an unmeasured "~10 min" figure.
+ *
+ * THE ACTION RAIL (replaces the inline DraftRail form). The primary control is
+ * a single "Draft resume and cover letter" button, the site's signal-orange
+ * primary CTA. It carries no inline reason field: the reason is optional and
+ * defaults to null, and the draft opens in the draft room. Behaviour by viewer,
+ * mirroring DraftRail: a signed-in reader with a provider key POSTs the slug to
+ * desk-job-draft (which drafts and redirects to the draft room); a signed-in
+ * reader with no key is routed to key setup; a signed-out reader is sent to
+ * sign-in with next set to this posting. "Save to the desk" is a de-emphasised
+ * ghost control: a crawled live posting is already tracked on the desk by the
+ * apply action, so there is no separate save, and the control says so rather
+ * than linking somewhere it cannot go.
  */
 import DescriptionSlot from '../job-detail/DescriptionSlot.astro';
-import DraftRail from '../job-detail/DraftRail.astro';
 import { expiryOf } from '../job-detail/detail';
 import { compShort, formatDate, daysBetween, sweepDate, sweptAt, sourceLabel } from '../../lib/data';
 import { routeFor } from '../../data/nav';
@@ -123,6 +140,13 @@ const subtitleParts = [job.company, job.location, `via ${ats}`].filter(Boolean);
 const boardHref = routeFor('board');
 const methodHref = routeFor('evidence');
 const signInHref = `${withBase('/sign-in')}?next=${encodeURIComponent(selfPath)}`;
+// Signed in but no key: the draft cannot run in the reader's voice, so the
+// primary button routes to key setup, exactly as DraftRail's needsKey does.
+const settingsHref = routeFor('settings');
+const keySetupHref = `${settingsHref}#keys`;
+const saveNote = applyTrack
+  ? 'Tracking this role already lands it on your desk'
+  : 'Sign in to save roles to your desk';
 ---
 
 <article class="jd" data-slug={job.slug}>
@@ -142,145 +166,172 @@ const signInHref = `${withBase('/sign-in')}?next=${encodeURIComponent(selfPath)}
     </div>
   </div>
 
-  <div class="jd-card" data-jd-top>
-    <p class="jd-verified">
-      <span class={`jd-dot ${isClosed ? 'is-closed' : 'is-live'}`} aria-hidden="true"></span>
-      <strong>{isClosed ? 'Closed, last read at the source' : 'Verified today at the source'}</strong>
-      <span class="jd-verified-sub">Read direct from {job.company}'s {ats} board{verifiedTimeShort ? `, ${verifiedTimeShort} UTC` : ''}</span>
-    </p>
-
-    <h1 class="jd-title">{job.title}</h1>
-    <p class="jd-subtitle">{subtitleParts.join('  ·  ')}</p>
-
-    <dl class="jd-stats">
-      <div class="jd-stat">
-        <dt>Compensation, as posted</dt>
-        <dd>{compFullText ?? 'Not stated'}</dd>
-      </div>
-      <div class="jd-stat">
-        <dt>Age of posting</dt>
-        <dd>{ageDays !== null ? `${ageDays} ${ageDays === 1 ? 'day' : 'days'}` : 'Unknown'}</dd>
-      </div>
-      {signedIn ? (
-        <div class="jd-stat">
-          <dt>Fit for you</dt>
-          <dd class="jd-stat-fit">{fitTotal}<span>/100</span></dd>
-        </div>
-      ) : (
-        <div class="jd-stat">
-          <dt>Fit for you</dt>
-          <dd class="jd-stat-muted"><a href={signInHref}>Sign in</a></dd>
-        </div>
-      )}
-      <div class="jd-stat">
-        <dt>Apply on</dt>
-        <dd>{ats}, direct</dd>
-      </div>
-    </dl>
-
-    <div class="jd-dates">
-      <p class="jd-dates-line mono-label">
-        {publishedIso && <>Posted {formatDate(publishedIso)}</>}
-        {publishedIso && firstSeenIso && <span class="jd-sep">·</span>}
-        {firstSeenIso && <>First seen {formatDate(firstSeenIso)}</>}
-        <span class="jd-sep">·</span>
-        <span class={isClosed ? '' : 'jd-verified-word'}>{isClosed ? 'Closed' : 'Verified today'}</span>
+  <!-- row 1: posting card (left) and action rail (right), one bordered frame -->
+  <div class="jd-top-row">
+    <div class="jd-card" data-jd-top>
+      <p class="jd-verified">
+        <span class={`jd-dot ${isClosed ? 'is-closed' : 'is-live'}`} aria-hidden="true"></span>
+        <strong class={`jd-verified-strong ${isClosed ? 'is-closed' : ''}`}>{isClosed ? 'Closed, last read at the source' : 'Verified today at the source'}</strong>
+        <span class="jd-verified-sub">Read direct from {job.company}'s {ats} board{verifiedTimeShort ? `, ${verifiedTimeShort} UTC` : ''}</span>
       </p>
-      <p class="jd-dates-note">Posted is the date the company printed. First seen is the night our sweep first read it. When those two dates drift apart, the posting sat somewhere before it reached you.</p>
-      <details class="jd-history">
-        <summary><span class="jd-history-show">Show the full history</span><span class="jd-history-hide">Hide the full history</span></summary>
-        <div class="jd-history-body">
-          <div class="jd-history-cols">
-            <section class="jd-record" aria-label="The record we hold">
-              <h2 class="jd-h">The record we hold</h2>
-              <dl class="jd-record-list">
-                {recordRows.map((r) => (
-                  <div class="jd-record-row">
-                    <dt>{r.label}</dt>
-                    <dd class={r.accent ? 'jd-record-live' : ''}>{r.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-            <section class="jd-sweeps" aria-label="What the sweeps saw">
-              <h2 class="jd-h">What the sweeps saw</h2>
-              <ol class="jd-sweeps-list">
-                {sweeps.map((s) => (
-                  <li class={`jd-sweep ${s.current ? 'is-current' : ''}`}>
-                    <span class="jd-sweep-dot" aria-hidden="true"></span>
-                    <span class="jd-sweep-when mono-label">{s.when}</span>
-                    <span class="jd-sweep-note">{s.note}</span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          </div>
-          <div class="jd-howto">
-            <h2 class="jd-h">How to read this</h2>
-            <p>Every line is a machine observation, stamped at the sweep that made it. Nothing here is inferred.</p>
-            <p>Good until is ours, not the employer's: the date we stop standing behind this reading unless a later sweep refreshes it.</p>
-            <p><a href={methodHref}>Read the method</a></p>
-          </div>
+
+      <h1 class="jd-title">{job.title}</h1>
+      <p class="jd-subtitle">{subtitleParts.join('  ·  ')}</p>
+
+      <dl class="jd-stats">
+        <div class="jd-stat">
+          <dt>Compensation, as posted</dt>
+          <dd>{compFullText ?? 'Not stated'}</dd>
         </div>
-      </details>
+        <div class="jd-stat">
+          <dt>Age of posting</dt>
+          <dd>{ageDays !== null ? `${ageDays} ${ageDays === 1 ? 'day' : 'days'}` : 'Unknown'}</dd>
+        </div>
+        {signedIn ? (
+          <div class="jd-stat">
+            <dt>Fit for you</dt>
+            <dd class="jd-stat-fit">{fitTotal}<span>/100</span></dd>
+          </div>
+        ) : (
+          <div class="jd-stat">
+            <dt>Fit for you</dt>
+            <dd class="jd-stat-muted"><a href={signInHref}>Sign in</a></dd>
+          </div>
+        )}
+        <div class="jd-stat">
+          <dt>Apply on</dt>
+          <dd>{ats}, direct</dd>
+        </div>
+      </dl>
+
+      <div class="jd-dates">
+        <p class="jd-dates-line">
+          {publishedIso && <>Posted {formatDate(publishedIso)}</>}
+          {publishedIso && firstSeenIso && <span class="jd-sep">·</span>}
+          {firstSeenIso && <>First seen {formatDate(firstSeenIso)}</>}
+          <span class="jd-sep">·</span>
+          <span class={isClosed ? '' : 'jd-verified-word'}>{isClosed ? 'Closed' : 'Verified today'}</span>
+        </p>
+        <p class="jd-dates-note">Posted is the date the company printed. First seen is the night our sweep first read it. When those two dates drift apart, the posting sat somewhere before it reached you.</p>
+        <details class="jd-history">
+          <summary><span class="jd-history-show">Show the full history</span><span class="jd-history-hide">Hide the full history</span></summary>
+          <div class="jd-history-body">
+            <div class="jd-history-cols">
+              <section class="jd-record" aria-label="The record we hold">
+                <h2 class="jd-h">The record we hold</h2>
+                <dl class="jd-record-list">
+                  {recordRows.map((r) => (
+                    <div class="jd-record-row">
+                      <dt>{r.label}</dt>
+                      <dd class={r.accent ? 'jd-record-live' : ''}>{r.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+              <section class="jd-sweeps" aria-label="What the sweeps saw">
+                <h2 class="jd-h">What the sweeps saw</h2>
+                <ol class="jd-sweeps-list">
+                  {sweeps.map((s) => (
+                    <li class={`jd-sweep ${s.current ? 'is-current' : ''}`}>
+                      <span class="jd-sweep-dot" aria-hidden="true"></span>
+                      <span class="jd-sweep-when">{s.when}</span>
+                      <span class="jd-sweep-note">{s.note}</span>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            </div>
+            <div class="jd-howto">
+              <h2 class="jd-h">How to read this</h2>
+              <p>Every line is a machine observation, stamped at the sweep that made it. Nothing here is inferred.</p>
+              <p>Good until is ours, not the employer's: the date we stop standing behind this reading unless a later sweep refreshes it.</p>
+              <p><a href={methodHref}>Read the method</a></p>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- action rail -->
+    <div class="jd-actions" id="jd-actions">
+      {!isClosed && (
+        <>
+          {signedIn && hasKey ? (
+            <form class="jd-draft-form" method="POST" action={draftAction}>
+              <input type="hidden" name="slug" value={job.slug} />
+              <button type="submit" class="jd-btn jd-btn-primary">Draft resume and cover letter</button>
+            </form>
+          ) : (
+            <a class="jd-btn jd-btn-primary" href={signedIn ? keySetupHref : signInHref}>Draft resume and cover letter</a>
+          )}
+          <p class="jd-draft-note">Written in your voice on your own provider key. You read both drafts before anything leaves your hands.</p>
+        </>
+      )}
+
+      {applyUrl && (applyTrack ? (
+        <form class="jd-apply-form" method="POST" action={applyTrack.action} target="_blank" data-apply-url={applyUrl}>
+          <input type="hidden" name="intent" value="click" />
+          <input type="hidden" name="url" value={applyUrl} />
+          <input type="hidden" name="then" value="posting" />
+          {applyTrack.title && <input type="hidden" name="titleOverride" value={applyTrack.title} />}
+          <input type="hidden" name="companyOverride" value={applyTrack.company} />
+          <button type="submit" class="jd-btn jd-btn-outline">Apply on {ats} &#8599;</button>
+        </form>
+      ) : (
+        <a class="jd-btn jd-btn-outline" href={applyUrl} target="_blank" rel="noopener nofollow">Apply on {ats} &#8599;</a>
+      ))}
+
+      {!isClosed && (
+        <button type="button" class="jd-btn jd-btn-ghost" disabled aria-disabled="true" title={saveNote}>Save to the desk</button>
+      )}
+
+      <p class="jd-actions-note">Apply now if your documents are ready.{applyTrack ? ' Either way the role lands on your desk and stays tracked.' : ''}</p>
     </div>
   </div>
 
-  <!-- action rail -->
-  <div class="jd-actions" id="jd-actions">
-    {!isClosed && <DraftRail job={job} returnTo={selfPath} signedIn={signedIn} hasKey={hasKey} />}
-    {applyUrl && (applyTrack ? (
-      <form class="jd-apply-form" method="POST" action={applyTrack.action} target="_blank" data-apply-url={applyUrl}>
-        <input type="hidden" name="intent" value="click" />
-        <input type="hidden" name="url" value={applyUrl} />
-        <input type="hidden" name="then" value="posting" />
-        {applyTrack.title && <input type="hidden" name="titleOverride" value={applyTrack.title} />}
-        <input type="hidden" name="companyOverride" value={applyTrack.company} />
-        <button type="submit" class="jd-btn jd-btn-outline">Apply on {ats} &#8599;</button>
-      </form>
-    ) : (
-      <a class="jd-btn jd-btn-outline" href={applyUrl} target="_blank" rel="noopener nofollow">Apply on {ats} &#8599;</a>
-    ))}
-    <p class="jd-actions-note">Apply now if your documents are ready.{applyTrack ? ' Either way the role lands on your desk and stays tracked.' : ''}</p>
+  <!-- row 2: description (left) and fit card / sign-in prompt (right) -->
+  <div class="jd-body-row">
+    <div class="jd-body-main">
+      <!-- description, verbatim -->
+      <DescriptionSlot job={job} class="jd-desc" />
+
+      {!isClosed && (
+        <p class="jd-fresh">
+          {ageDays !== null ? `${ageDays} ${ageDays === 1 ? 'day' : 'days'} old and still live as of this morning's sweep.` : "Live as of this morning's sweep."} Most applications land in the first 96 hours.
+        </p>
+      )}
+    </div>
+
+    <aside class="jd-body-aside">
+      {signedIn ? (
+        <section class="jd-fit" aria-labelledby="jd-fit-h">
+          <div class="jd-fit-head">
+            <h2 id="jd-fit-h" class="jd-fit-title">Why this fits you</h2>
+            <p class="jd-fit-total">{fitTotal}<span>/100</span></p>
+          </div>
+          <ol class="jd-fit-rows">
+            {fitRows.map((r) => (
+              <li class="jd-fit-row">
+                <div class="jd-fit-row-head">
+                  <span class="jd-fit-label">{r.label}</span>
+                  <span class="jd-fit-score">{r.score}/{r.max}</span>
+                </div>
+                <div class="jd-fit-bar" aria-hidden="true"><span style={`width:${Math.round((r.score / r.max) * 100)}%`}></span></div>
+                <p class="jd-fit-note">{r.note}</p>
+              </li>
+            ))}
+          </ol>
+          <p class="jd-fit-foot"><a href={methodHref}>How fit is scored</a></p>
+        </section>
+      ) : (
+        <section class="jd-fit jd-fit-signin" aria-label="Fit">
+          <h2 class="jd-fit-title">Fit is a signed-in reading</h2>
+          <p class="jd-fit-note">We score every posting against the titles, pay and geographies you save, and show you the breakdown. Sign in to see how this one scores for you.</p>
+          <p class="jd-fit-foot"><a class="jd-btn jd-btn-outline jd-btn-inline" href={signInHref}>Sign in to see your fit</a></p>
+        </section>
+      )}
+    </aside>
   </div>
-
-  <!-- description, verbatim -->
-  <DescriptionSlot job={job} class="jd-desc" />
-
-  {!isClosed && (
-    <p class="jd-fresh mono-label">
-      {ageDays !== null ? `${ageDays} ${ageDays === 1 ? 'day' : 'days'} old and still live as of this morning's sweep.` : "Live as of this morning's sweep."} Most applications land in the first 96 hours.
-    </p>
-  )}
-
-  <!-- why this fits you (signed-in) / sign-in prompt (signed-out) -->
-  {signedIn ? (
-    <section class="jd-fit" aria-labelledby="jd-fit-h">
-      <div class="jd-fit-head">
-        <h2 id="jd-fit-h" class="jd-fit-title">Why this fits you</h2>
-        <p class="jd-fit-total">{fitTotal}<span>/100</span></p>
-      </div>
-      <ol class="jd-fit-rows">
-        {fitRows.map((r) => (
-          <li class="jd-fit-row">
-            <div class="jd-fit-row-head">
-              <span class="jd-fit-label">{r.label}</span>
-              <span class="jd-fit-score mono-label">{r.score}/{r.max}</span>
-            </div>
-            <div class="jd-fit-bar" aria-hidden="true"><span style={`width:${Math.round((r.score / r.max) * 100)}%`}></span></div>
-            <p class="jd-fit-note">{r.note}</p>
-          </li>
-        ))}
-      </ol>
-      <p class="jd-fit-foot"><a href={methodHref}>How fit is scored</a></p>
-    </section>
-  ) : (
-    <section class="jd-fit jd-fit-signin" aria-label="Fit">
-      <h2 class="jd-fit-title">Fit is a signed-in reading</h2>
-      <p class="jd-fit-note">We score every posting against the titles, pay and geographies you save, and show you the breakdown. Sign in to see how this one scores for you.</p>
-      <p class="jd-fit-foot"><a class="jd-btn jd-btn-outline jd-btn-inline" href={signInHref}>Sign in to see your fit</a></p>
-    </section>
-  )}
 </article>
 
 <script>
@@ -297,46 +348,56 @@ const signInHref = `${withBase('/sign-in')}?next=${encodeURIComponent(selfPath)}
 </script>
 
 <style>
-  .jd { max-width: 64rem; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-600); }
+  .jd { max-width: none; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-600); }
 
   .jd-crumbs { font-family: var(--font-family-mono); font-size: var(--size-100); }
   .jd-crumbs a { color: var(--color-muted); text-decoration: none; }
   .jd-crumbs a:hover { color: var(--color-foreground); }
 
-  /* card */
-  .jd-card { border: var(--border-hairline) solid var(--color-line); background: var(--color-surface-raised); padding: var(--space-700); display: flex; flex-direction: column; gap: var(--space-400); }
+  /* row 1: one bordered white frame split into the posting card and the rail. */
+  .jd-top-row {
+    display: grid;
+    grid-template-columns: 1.78fr 1fr;
+    border: var(--border-hairline) solid var(--color-line-strong);
+    background: var(--color-surface-raised);
+  }
+
+  /* card (left column): sits on the frame's white, so no border or fill of its own */
+  .jd-card { padding: var(--space-600); display: flex; flex-direction: column; gap: var(--space-400); min-width: 0; }
 
   .jd-verified { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-200) var(--space-300); font-size: var(--size-100); }
-  .jd-verified strong { font-weight: var(--weight-bold); }
+  .jd-verified-strong { font-weight: var(--weight-semibold, 600); color: var(--color-mark-live); }
+  .jd-verified-strong.is-closed { color: var(--color-stat-loss); }
   .jd-verified-sub { color: var(--color-muted); }
   .jd-dot { width: 9px; height: 9px; border-radius: 50%; align-self: center; }
   .jd-dot.is-live { background: var(--color-mark-live); }
   .jd-dot.is-closed { background: var(--color-stat-loss); }
 
-  .jd-title { margin: 0; font-size: clamp(2rem, 4vw, 2.8rem); line-height: 1.05; letter-spacing: -0.02em; }
-  .jd-subtitle { margin: 0; font-size: var(--size-200); font-weight: var(--weight-medium); }
+  .jd-title { margin: 0; font-size: clamp(2rem, 4vw, 2.6rem); line-height: 1.03; letter-spacing: -0.02em; }
+  .jd-subtitle { margin: 0; font-size: var(--size-150); font-weight: var(--weight-regular); }
 
-  .jd-stats { margin: var(--space-300) 0 0; display: grid; grid-template-columns: repeat(4, auto); gap: var(--space-300) var(--space-700); border-top: var(--border-hairline) solid var(--color-line); border-bottom: var(--border-hairline) solid var(--color-line); padding: var(--space-400) 0; }
-  .jd-stat dt { margin: 0 0 var(--space-100); font-size: var(--size-075); color: var(--color-muted); }
+  .jd-stats { margin: var(--space-300) 0 0; display: flex; flex-wrap: wrap; gap: var(--space-300) var(--space-500); border-top: var(--border-hairline) solid var(--color-line); border-bottom: var(--border-hairline) solid var(--color-line); padding: var(--space-400) 0; }
+  .jd-stat dt { margin: 0 0 var(--space-100); font-size: var(--size-050); color: var(--color-muted); }
   .jd-stat dd { margin: 0; font-family: var(--font-family-mono); font-size: var(--size-200); font-weight: var(--weight-semibold, 600); }
   .jd-stat-fit span { color: var(--color-muted); font-weight: 400; font-size: var(--size-100); }
-  .jd-stat-muted { font-family: var(--font-family-sans); font-size: var(--size-100); }
-  .jd-stat-muted a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; }
+  .jd-stat-muted { font-family: var(--font-family-sans); font-size: var(--size-100); font-weight: var(--weight-regular); }
+  .jd-stat-muted a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: var(--text-underline-offset); }
 
-  .jd-dates-line { margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-200); color: var(--color-foreground); }
+  .jd-dates-line { margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-200); color: var(--color-foreground); font-family: var(--font-family-mono); font-size: var(--size-100); font-weight: var(--weight-regular); }
   .jd-sep { color: var(--color-muted); }
   .jd-verified-word { color: var(--color-mark-live); }
   .jd-dates-note { margin: var(--space-200) 0 0; max-width: 60ch; color: var(--color-muted); font-size: var(--size-100); }
 
   .jd-history { margin-top: var(--space-300); }
-  .jd-history > summary { list-style: none; cursor: pointer; font-size: var(--size-100); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-line); width: fit-content; }
+  .jd-history > summary { list-style: none; cursor: pointer; font-size: var(--size-100); color: var(--color-muted); width: fit-content; }
   .jd-history > summary::-webkit-details-marker { display: none; }
+  .jd-history > summary:hover { color: var(--color-foreground); }
   .jd-history .jd-history-hide { display: none; }
   .jd-history[open] .jd-history-show { display: none; }
   .jd-history[open] .jd-history-hide { display: inline; }
   .jd-history-body { margin-top: var(--space-500); display: flex; flex-direction: column; gap: var(--space-500); }
   .jd-history-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-600); }
-  .jd-h { margin: 0 0 var(--space-300); font-size: var(--size-200); }
+  .jd-h { margin: 0 0 var(--space-300); font-size: var(--size-150); font-weight: var(--weight-semibold, 600); }
 
   .jd-record-list { margin: 0; display: flex; flex-direction: column; gap: var(--space-200); }
   .jd-record-row { display: grid; grid-template-columns: 8.5rem 1fr; gap: var(--space-300); align-items: baseline; }
@@ -348,57 +409,77 @@ const signInHref = `${withBase('/sign-in')}?next=${encodeURIComponent(selfPath)}
   .jd-sweep { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: var(--space-300); }
   .jd-sweep-dot { grid-row: 1 / 3; width: 8px; height: 8px; margin-top: 5px; background: var(--color-muted); }
   .jd-sweep.is-current .jd-sweep-dot { background: var(--color-mark-live); }
-  .jd-sweep-when { font-size: var(--size-100); }
+  .jd-sweep-when { font-family: var(--font-family-mono); font-size: var(--size-100); }
   .jd-sweep.is-current .jd-sweep-when { color: var(--color-mark-live); }
   .jd-sweep-note { grid-column: 2; color: var(--color-muted); font-size: var(--size-100); }
 
   .jd-howto p { margin: 0 0 var(--space-200); color: var(--color-muted); font-size: var(--size-100); max-width: 70ch; }
-  .jd-howto a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; }
+  .jd-howto a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: var(--text-underline-offset); }
 
-  /* actions */
-  .jd-actions { border: var(--border-hairline) solid var(--color-line); background: var(--color-surface); padding: var(--space-600); display: flex; flex-direction: column; gap: var(--space-400); }
-  .jd-apply-form { margin: 0; }
-  .jd-btn { display: block; width: 100%; text-align: center; padding: var(--space-400); font-family: var(--font-family-mono); font-size: var(--size-100); text-decoration: none; cursor: pointer; border: var(--border-hairline) solid var(--color-foreground); }
+  /* action rail (right column): the shaded paper fill inside the frame */
+  .jd-actions { background: var(--color-hover-surface); padding: var(--space-600); display: flex; flex-direction: column; gap: var(--space-300); }
+  .jd-draft-form, .jd-apply-form { margin: 0; }
+
+  .jd-btn { display: block; width: 100%; box-sizing: border-box; text-align: center; padding: var(--space-400) var(--space-500); font-family: var(--font-family-sans); font-weight: var(--weight-semibold, 600); font-size: var(--size-150); line-height: 1.2; text-decoration: none; cursor: pointer; border: var(--border-hairline) solid var(--color-foreground); border-radius: var(--radius); }
+
+  /* primary: the site's signal-orange CTA, dark ink in both themes on hover too */
+  .jd-btn-primary { background: var(--color-signal); color: var(--gray-950); border-color: var(--color-signal); font-weight: var(--weight-bold); }
+  .jd-btn-primary:hover, .jd-btn-primary:focus-visible { background: var(--color-signal); color: var(--gray-950); border-color: var(--color-signal); }
+
   .jd-btn-outline { color: var(--color-foreground); background: transparent; }
   .jd-btn-outline:hover { background: var(--color-surface-raised); }
-  .jd-btn-inline { display: inline-block; padding: var(--space-300) var(--space-500); }
-  .jd-actions-note { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
 
-  /* description */
-  .jd-desc { }
+  /* save: de-emphasised ghost. A crawled live posting has no separate save
+     action, so the control is disabled and the note beside it says why. */
+  .jd-btn-ghost { color: var(--color-muted); background: transparent; border-color: var(--color-line-strong); font-weight: var(--weight-regular); cursor: default; }
+
+  .jd-btn-inline { display: inline-block; width: auto; padding: var(--space-300) var(--space-500); }
+
+  .jd-draft-note, .jd-actions-note { margin: 0; color: var(--color-muted); font-size: var(--size-075); line-height: 1.5; }
+
+  /* row 2: description beside the fit sidebar */
+  .jd-body-row { display: grid; grid-template-columns: 1.78fr 1fr; gap: var(--space-600); align-items: start; }
+  .jd-body-main { display: flex; flex-direction: column; gap: var(--space-500); min-width: 0; }
+  .jd-body-aside { min-width: 0; }
 
   .jd-fresh { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
 
   /* fit */
-  .jd-fit { border: var(--border-hairline) solid var(--color-line); background: var(--color-surface-raised); padding: var(--space-600); }
-  .jd-fit-head { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: var(--space-400); border-bottom: var(--border-hairline) solid var(--color-line); }
-  .jd-fit-title { margin: 0; font-size: var(--size-300); }
-  .jd-fit-total { margin: 0; font-family: var(--font-family-mono); font-size: var(--size-400); font-weight: var(--weight-semibold, 600); }
+  .jd-fit { border: var(--border-hairline) solid var(--color-line-strong); background: var(--color-surface-raised); padding: var(--space-500); }
+  .jd-fit-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-300); padding-bottom: var(--space-400); border-bottom: var(--border-hairline) solid var(--color-line); }
+  .jd-fit-title { margin: 0; font-size: var(--size-150); font-weight: var(--weight-semibold, 600); }
+  .jd-fit-total { margin: 0; font-family: var(--font-family-mono); font-size: var(--size-200); font-weight: var(--weight-semibold, 600); }
   .jd-fit-total span { color: var(--color-muted); font-size: var(--size-100); font-weight: 400; }
   .jd-fit-rows { margin: 0; padding: 0; list-style: none; }
   .jd-fit-row { padding: var(--space-400) 0; border-bottom: var(--border-hairline) solid var(--color-line); }
-  .jd-fit-row-head { display: flex; align-items: baseline; justify-content: space-between; }
-  .jd-fit-label { font-weight: var(--weight-medium); }
-  .jd-fit-score { color: var(--color-muted); font-size: var(--size-100); }
+  .jd-fit-row:last-child { border-bottom: none; }
+  .jd-fit-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-300); }
+  .jd-fit-label { font-size: var(--size-100); font-weight: var(--weight-regular); }
+  .jd-fit-score { font-family: var(--font-family-mono); color: var(--color-muted); font-size: var(--size-075); }
   .jd-fit-bar { height: 3px; margin: var(--space-200) 0; background: var(--color-line); }
   .jd-fit-bar > span { display: block; height: 100%; background: var(--color-foreground); }
-  .jd-fit-note { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
+  .jd-fit-note { margin: 0; color: var(--color-muted); font-size: var(--size-075); line-height: 1.5; }
   .jd-fit-foot { margin: var(--space-400) 0 0; }
-  .jd-fit-foot a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; font-size: var(--size-100); }
+  .jd-fit-foot a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: var(--text-underline-offset); font-size: var(--size-100); }
   .jd-fit-signin .jd-fit-title { margin-bottom: var(--space-300); }
 
   /* sticky bar */
-  .jd-sticky { position: sticky; top: 0; z-index: 20; background: var(--color-surface-raised); border-bottom: var(--border-hairline) solid var(--color-line); margin: 0 calc(-1 * var(--space-600)); }
-  .jd-sticky-inner { max-width: 64rem; margin: 0 auto; padding: var(--space-300) var(--space-600); display: flex; align-items: center; justify-content: space-between; gap: var(--space-400); }
+  .jd-sticky { position: sticky; top: 0; z-index: 20; background: var(--color-surface-raised); border-bottom: var(--border-hairline) solid var(--color-line); margin: 0; }
+  .jd-sticky-inner { max-width: 64rem; margin: 0 auto; padding: var(--space-300) 0; display: flex; align-items: center; justify-content: space-between; gap: var(--space-400); }
   .jd-sticky-title { margin: 0; font-size: var(--size-100); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .jd-sticky-title span { color: var(--color-muted); font-family: var(--font-family-mono); }
   .jd-sticky-actions { display: flex; gap: var(--space-300); flex: none; }
-  .jd-sticky-apply { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; font-size: var(--size-100); }
+  .jd-sticky-apply { color: var(--color-foreground); text-decoration: underline; text-underline-offset: var(--text-underline-offset); font-size: var(--size-100); }
   .jd-sticky-draft { background: var(--color-surface-inverse); color: var(--color-foreground-inverse); padding: var(--space-200) var(--space-400); font-family: var(--font-family-mono); font-size: var(--size-075); text-decoration: none; }
+
+  /* stack to one column below the lap breakpoint: main first, sidebar second */
+  @media (max-width: 60rem) {
+    .jd-top-row { grid-template-columns: 1fr; }
+    .jd-body-row { grid-template-columns: 1fr; gap: var(--space-600); }
+  }
 
   @media (max-width: 48rem) {
     .jd-card, .jd-actions, .jd-fit { padding: var(--space-500); }
-    .jd-stats { grid-template-columns: repeat(2, 1fr); gap: var(--space-400); }
     .jd-history-cols { grid-template-columns: 1fr; gap: var(--space-500); }
   }
 </style>
