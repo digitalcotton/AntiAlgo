@@ -148,6 +148,15 @@ export interface DeskHomeData {
 /** How many fit-ranked lane roles the Desk shows before it links out to the full
     board. A digest, not the whole market: the rest is one click away. */
 const DESK_SHOW = 6;
+/** The lanes show only roles first seen within this many days of the sweep
+    (owner rule, 2026-09-19): the head-start bar ends at 14D, and a role past it
+    is not a head start. Older live matches stay on the board. */
+export const DESK_WINDOW_DAYS = 14;
+/** Pure: whether a role's age puts it inside the lanes' window. An unknown
+    age is outside it, because nothing can place it on the curve. */
+export function inDeskWindow(ageDays: number | null): boolean {
+  return ageDays !== null && ageDays >= 0 && ageDays <= DESK_WINDOW_DAYS;
+}
 /** How many matched kills the died lane renders at most. */
 const DIED_CAP = 20;
 /** On a first visit (no last_seen), "new" falls back to this many days. */
@@ -318,6 +327,8 @@ export async function buildDeskHome(userId: string): Promise<DeskHomeData> {
   const coreLane: { role: BoardRow; matched: string[] }[] = [];
   const stretchLane: { role: BoardRow; matched: string[] }[] = [];
   for (const item of laneRanked) {
+    // Only a role first seen inside the window makes a lane (DESK_WINDOW_DAYS).
+    if (!inDeskWindow(daysBetween(isoDay(item.role.first_seen), sweepIso))) continue;
     (item.matched.some((title) => coreSet.has(title)) ? coreLane : stretchLane).push(item);
   }
   const flagNew = (role: BoardRow): boolean => isNew(role.first_seen, lastSeenDay, sweepIso);

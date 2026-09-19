@@ -138,7 +138,7 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
             <>
               <section class="dh-lane" id="core" aria-labelledby="nc-h">
                 <p class="dh-lane-index mono-label"><span>02</span> In core</p>
-                <h2 id="nc-h" class="dh-lane-title">{home.coreLiveCount} {home.coreLiveCount === 1 ? 'role' : 'roles'} live under your core titles.</h2>
+                <h2 id="nc-h" class="dh-lane-title">{home.coreLiveCount} {home.coreLiveCount === 1 ? 'role' : 'roles'} live under your core titles, seen in the last 14 days.</h2>
                 <p class="dh-lane-note">Ranked by fit, each verified live at the company's own careers page. {home.newCoreCount > 0 ? `${home.newCoreCount} new since your last visit, tagged below.` : 'None new since your last visit.'} The clock is where the role sits on the arrival curve, not a countdown.</p>
                 {home.core.length > 0 ? (
                   <>
@@ -148,14 +148,16 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
                     )}
                   </>
                 ) : (
-                  <p class="dh-empty">{home.coreTitles.length === 0 ? 'Name a core title above and its live roles land here.' : 'Nothing live under your core titles right now. The board will fill this the night one appears.'}</p>
+                  <div class="dh-slot" role="status">
+                    <p class="dh-slot-line mono-label">{home.coreTitles.length === 0 ? 'Name a core title above and its live roles land here.' : 'No role under your core titles in the last 14 days.'}</p>
+                  </div>
                 )}
                 <p class="dh-cite mono-label">Arrival curve: NBER WP 32320, about 45% of applications in the first 48 hours.</p>
               </section>
 
               <section class="dh-lane" id="stretch" aria-labelledby="ns-h">
                 <p class="dh-lane-index mono-label"><span>03</span> In stretch</p>
-                <h2 id="ns-h" class="dh-lane-title">{home.stretchLiveCount} {home.stretchLiveCount === 1 ? 'role' : 'roles'} you are working toward.</h2>
+                <h2 id="ns-h" class="dh-lane-title">{home.stretchLiveCount} {home.stretchLiveCount === 1 ? 'role' : 'roles'} you are working toward, seen in the last 14 days.</h2>
                 <p class="dh-lane-note">A reach is a reach because the fit is lower, not because we scored your resume against the posting line by line: we do not measure that yet, so we do not claim it.</p>
                 {home.stretch.length > 0 ? (
                   <>
@@ -165,7 +167,9 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
                     )}
                   </>
                 ) : (
-                  <p class="dh-empty">{home.stretchTitles.length === 0 ? 'No stretch titles yet. Add one above to track roles you are working toward.' : 'Nothing live under your stretch titles right now.'}</p>
+                  <div class="dh-slot" role="status">
+                    <p class="dh-slot-line mono-label">{home.stretchTitles.length === 0 ? 'No stretch titles yet. Add one above to track roles you are working toward.' : 'No role under your stretch titles in the last 14 days.'}</p>
+                  </div>
                 )}
               </section>
 
@@ -245,7 +249,24 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
      hairlines (set on .rc), not each their own box. */
   .dh-cards { list-style: none; margin: 0; padding: 0; background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-line-strong); }
   .dh-cite { margin: var(--space-300) 0 0; color: var(--color-muted); }
-  .dh-empty { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
+  /* An empty lane is the site's hatched slot (the same drawing as the job
+     detail's withheld description and draft slot): an absence, never a fake row. */
+  .dh-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--space-1000);
+    padding: var(--space-400);
+    border: var(--border-hairline) solid var(--color-line);
+    background: repeating-linear-gradient(
+      45deg,
+      var(--color-hatch-a),
+      var(--color-hatch-a) var(--space-200),
+      var(--color-hatch-b) var(--space-200),
+      var(--color-hatch-b) var(--space-400)
+    );
+  }
+  .dh-slot-line { margin: 0; max-width: var(--layout-measure); text-align: center; text-transform: none; letter-spacing: var(--tracking-wide); line-height: var(--leading-snug); color: var(--color-muted); }
 
 
   .dh-board-link { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
