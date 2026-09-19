@@ -272,21 +272,32 @@ export async function renderInBackground(
     // with its own timeout, not a copy of the resume.
     const resumeProvider = generativeProvider(provider, plaintext, { model });
     const coverProvider = generativeProvider(provider, plaintext, { model });
+    // Measured wall time for the pair. They render in parallel, so both rows
+    // carry the same honest render_ms: the wall time of the slower of the two.
+    const startedMs = Date.now();
     const [resume, cover] = await Promise.all([
       renderResume(entries, target, resumeProvider, header),
       renderCover(entries, target, coverProvider, coverVoice, header)
     ]);
+    const renderMs = Date.now() - startedMs;
+    // usage() is read per document from its own provider instance (db/203). A
+    // document that fell back internally still reports whatever its wire call
+    // billed before the fallback, and zeros only if no wire call returned.
     await completeDraft(resumeId, {
       status: resumeProvider.fallbackReasons().length > 0 ? 'fallback' : 'ready',
       payload: resume,
       provider,
-      model
+      model,
+      usage: resumeProvider.usage(),
+      renderMs
     });
     await completeDraft(coverId, {
       status: coverProvider.fallbackReasons().length > 0 ? 'fallback' : 'ready',
       payload: cover,
       provider,
-      model
+      model,
+      usage: coverProvider.usage(),
+      renderMs
     });
     logLetterWarnings(coverProvider, userId);
   } catch (error) {
@@ -480,10 +491,12 @@ export async function renderOneDocument(input: DocumentRenderInput): Promise<voi
       }
 
       const instance = generativeProvider(provider, plaintext, model ? { model } : {});
+      const startedMs = Date.now();
       const payload =
         kind === 'resume'
           ? await renderResume(entries, target, instance, header)
           : await renderCover(entries, target, instance, await buildCoverVoice(userId), header, { reason });
+      const renderMs = Date.now() - startedMs;
 
       // The specific reason a provider slot fell back (a non-2xx, a truncated
       // reply, a bad model id, a timeout) is logged, per document, so the actual
@@ -500,7 +513,10 @@ export async function renderOneDocument(input: DocumentRenderInput): Promise<voi
         return;
       }
 
-      await completeDraft(renderId, { status: 'ready', payload, provider, model });
+      // The tokens this one document's provider call billed, and its wall time
+      // (db/203). Read from the instance's own usage() accumulator, honest zeros
+      // only if the wire genuinely returned no usage.
+      await completeDraft(renderId, { status: 'ready', payload, provider, model, usage: instance.usage(), renderMs });
       if (kind === 'cover') logLetterWarnings(instance, userId);
       return;
     }

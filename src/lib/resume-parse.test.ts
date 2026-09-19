@@ -208,7 +208,7 @@ describe('parseResumeWithProvider: fail-closed around the network', () => {
   const KEY = 'sk-ant-secret-key-value-that-must-never-leak';
 
   it('returns verified proposals when the injected call answers honestly', async () => {
-    const call: ProviderCall = async () => honestModelReply();
+    const call: ProviderCall = async () => ({ text: honestModelReply(), usage: { inputTokens: 0, outputTokens: 0 } });
     const result = await parseResumeWithProvider(RESUME, 'anthropic', KEY, { call });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -225,7 +225,7 @@ describe('parseResumeWithProvider: fail-closed around the network', () => {
 
   it('times out a hanging call and resolves to ok:false', async () => {
     const call: ProviderCall = (_p, _k, _m, _s, _d, signal) =>
-      new Promise<string>((_resolve, reject) => {
+      new Promise<never>((_resolve, reject) => {
         signal.addEventListener('abort', () => reject(new Error('aborted')));
       });
     const result = await parseResumeWithProvider(RESUME, 'kimi', KEY, { call, timeoutMs: 30 });
@@ -256,7 +256,7 @@ describe('parseResumeWithProvider: reading a resume uses the copy tier, never th
       let asked = '';
       const call: ProviderCall = async (_p, _k, model) => {
         asked = model;
-        return honestModelReply();
+        return { text: honestModelReply(), usage: { inputTokens: 0, outputTokens: 0 } };
       };
       const result = await parseResumeWithProvider(RESUME, provider, KEY, { call });
       expect(result.ok).toBe(true);
@@ -273,7 +273,7 @@ describe('parseResumeWithProvider: reading a resume uses the copy tier, never th
       let asked = '';
       const call: ProviderCall = async (_p, _k, model) => {
         asked = model;
-        return honestModelReply();
+        return { text: honestModelReply(), usage: { inputTokens: 0, outputTokens: 0 } };
       };
       await parseResumeWithProvider(RESUME, provider, KEY, { call });
       expect(asked).not.toBe(PROVIDER_REGISTRY[provider].defaultWritingModel);
@@ -291,7 +291,7 @@ describe('parseResumeWithProvider: the failure reason names the failure', () => 
 
   it('a timeout names the timeout', async () => {
     const call: ProviderCall = (_p, _k, _m, _s, _d, signal) =>
-      new Promise<string>((_resolve, reject) => {
+      new Promise<never>((_resolve, reject) => {
         signal.addEventListener('abort', () => reject(new Error('aborted')));
       });
     const result = await parseResumeWithProvider(RESUME, 'anthropic', KEY, { call, timeoutMs: 30 });

@@ -1,5 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// db/203 usage persistence is tested by driving completeDraft() against a mocked
+// db(), capturing the UPDATE it issues and asserting the token columns it binds.
+// The connection is the one thing a worker here may not open, so it is replaced
+// with a captured query spy; the pure-function tests below never touch it.
+const { queryMock } = vi.hoisted(() => ({
+  queryMock: vi.fn((_sql?: string, _params?: unknown[]) => Promise.resolve({ rows: [], rowCount: 1 }))
+}));
+vi.mock('./db', () => ({ db: () => ({ query: queryMock }) }));
+
 import {
+  completeDraft,
   documentState,
   jobDraftState,
   rowToRenderRow,
@@ -32,12 +43,15 @@ function renderRow(overrides: Partial<GeneratedRenderRow> = {}): GeneratedRender
     failure_reason: null,
     started_at: null,
     updated_at: new Date(T0),
+    input_tokens: null,
+    output_tokens: null,
+    render_ms: null,
     ...overrides
   };
 }
 
 describe('rowToRenderRow(): the row-to-shape mapping, not the query', () => {
-  it('carries a pending row through with a null payload, provider, model and reason', () => {
+  it('carries a pending row through with a null payload, provider, model and reason, and null usage', () => {
     const stored = rowToRenderRow(renderRow());
     expect(stored).toEqual({
       id: 'render_1',
@@ -48,7 +62,10 @@ describe('rowToRenderRow(): the row-to-shape mapping, not the query', () => {
       model: null,
       failureReason: null,
       startedAt: null,
-      updatedAt: new Date(T0)
+      updatedAt: new Date(T0),
+      inputTokens: null,
+      outputTokens: null,
+      renderMs: null
     });
   });
 
@@ -95,6 +112,79 @@ describe('rowToRenderRow(): the row-to-shape mapping, not the query', () => {
   it('carries kind (resume vs cover) through unchanged', () => {
     expect(rowToRenderRow(renderRow({ kind: 'resume' })).kind).toBe('resume');
     expect(rowToRenderRow(renderRow({ kind: 'cover' })).kind).toBe('cover');
+  });
+
+  it('carries db/203 usage through: a measured row keeps its counts, an unmeasured row reads null', () => {
+    const measured = rowToRenderRow(
+      renderRow({ status: 'ready', payload: {}, input_tokens: 1200, output_tokens: 340, render_ms: 8100 })
+    );
+    expect(measured.inputTokens).toBe(1200);
+    expect(measured.outputTokens).toBe(340);
+    expect(measured.renderMs).toBe(8100);
+    // A row with no measurement (a pending row, a deterministic fallback, a
+    // pre-db/203 row) reads null, never a zero that would look measured.
+    const unmeasured = rowToRenderRow(renderRow());
+    expect(unmeasured.inputTokens).toBeNull();
+    expect(unmeasured.outputTokens).toBeNull();
+    expect(unmeasured.renderMs).toBeNull();
+  });
+});
+
+describe('completeDraft(): persists db/203 usage, honestly null when not measured', () => {
+  beforeEach(() => {
+    queryMock.mockClear();
+  });
+
+  // The UPDATE binds, in order: id, status, payload, provider, model,
+  // input_tokens, output_tokens, render_ms. These pull the last three off the
+  // captured params so the assertions read what actually goes to the column.
+  function lastParams(): unknown[] {
+    return (queryMock.mock.calls.at(-1)?.[1] ?? []) as unknown[];
+  }
+
+  it('writes the measured token counts and render_ms a generative render supplies', async () => {
+    await completeDraft('render_1', {
+      status: 'ready',
+      payload: { kind: 'resume' },
+      provider: 'anthropic',
+      model: 'claude-opus-5',
+      usage: { inputTokens: 1200, outputTokens: 340 },
+      renderMs: 8100
+    });
+    const params = lastParams();
+    expect(params[5]).toBe(1200); // input_tokens
+    expect(params[6]).toBe(340); // output_tokens
+    expect(params[7]).toBe(8100); // render_ms
+  });
+
+  it('writes a genuine measured zero when a generative call returned no usage field', async () => {
+    // 0 is honest here: a wire call happened and billed none. It is the one case
+    // a zero belongs in the column, and it must not be turned into null.
+    await completeDraft('render_1', {
+      status: 'ready',
+      payload: {},
+      provider: 'anthropic',
+      model: 'claude-opus-5',
+      usage: { inputTokens: 0, outputTokens: 0 },
+      renderMs: 5
+    });
+    const params = lastParams();
+    expect(params[5]).toBe(0);
+    expect(params[6]).toBe(0);
+    expect(params[7]).toBe(5);
+  });
+
+  it('leaves the columns NULL when usage is omitted (a deterministic, no-key fallback)', async () => {
+    await completeDraft('render_1', {
+      status: 'fallback',
+      payload: {},
+      provider: null,
+      model: null
+    });
+    const params = lastParams();
+    expect(params[5]).toBeNull(); // input_tokens: not measured, not zero
+    expect(params[6]).toBeNull(); // output_tokens
+    expect(params[7]).toBeNull(); // render_ms
   });
 });
 

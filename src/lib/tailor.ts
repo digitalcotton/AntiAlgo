@@ -129,7 +129,7 @@ import {
   type LetterParagraph,
   type LetterSelection
 } from './cover-letter';
-import type { LetterTarget } from './provider';
+import type { LetterTarget, LetterStyleResult } from './provider';
 
 /* -------------------------------------------------------------------------
    Target: what a render is aimed at.

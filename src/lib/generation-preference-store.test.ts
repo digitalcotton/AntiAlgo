@@ -98,7 +98,8 @@ vi.mock('./generation-providers', () => ({
     style: vi.fn(),
     styleLetter: vi.fn(),
     fallbackReasons: () => [],
-    letterWarnings: () => []
+    letterWarnings: () => [],
+    usage: () => ({ inputTokens: 0, outputTokens: 0 })
   })),
   GENERATION_PROVIDER_ORDER: ['anthropic'],
   PROVIDER_REGISTRY: {

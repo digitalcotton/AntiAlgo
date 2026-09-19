@@ -447,6 +447,87 @@ describe('generativeProvider(): fail closed end to end, through style() itself',
     expect(provider.name).toBe('deepseek/deepseek-v4-flash');
   });
 
+  it('accumulates the usage the wire billed, exposed via usage(), and sums across calls', async () => {
+    // db/203: the provider reads the response's own usage block and totals it on
+    // the instance. A generative call that returned is real spend, so usage()
+    // reports it; a second call adds to the running total.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              content: [{ type: 'text', text: JSON.stringify({ 'PRF-0001#0': 'A real rephrase.' }) }],
+              usage: { input_tokens: 120, output_tokens: 45 }
+            }),
+            { status: 200 }
+          )
+      )
+    );
+    const provider = generativeProvider('anthropic', FAKE_KEY);
+    expect(provider.usage()).toEqual({ inputTokens: 0, outputTokens: 0 });
+    await provider.style(lockedSet());
+    expect(provider.usage()).toEqual({ inputTokens: 120, outputTokens: 45 });
+    await provider.style(lockedSet());
+    expect(provider.usage()).toEqual({ inputTokens: 240, outputTokens: 90 });
+    // Usage never turns a real reply into a fallback: this was a clean pass.
+    expect(provider.fallbackReasons()).toEqual([]);
+  });
+
+  it('maps the openai-chat wire prompt_tokens/completion_tokens onto usage()', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              choices: [{ message: { content: JSON.stringify({ 'PRF-0001#0': 'A real rephrase.' }) } }],
+              usage: { prompt_tokens: 200, completion_tokens: 60 }
+            }),
+            { status: 200 }
+          )
+      )
+    );
+    const provider = generativeProvider('openai', FAKE_KEY);
+    await provider.style(lockedSet());
+    expect(provider.usage()).toEqual({ inputTokens: 200, outputTokens: 60 });
+  });
+
+  it('records no usage when the wire never returns (a non-2xx that falls back stays at zero)', async () => {
+    // The invariant: a call whose wire never came back adds nothing, so a purely
+    // failed render honestly reports zero rather than inheriting a prior count.
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 500 })));
+    const provider = generativeProvider('anthropic', FAKE_KEY);
+    await provider.style(lockedSet());
+    expect(provider.usage()).toEqual({ inputTokens: 0, outputTokens: 0 });
+    expect(provider.fallbackReasons().length).toBe(1);
+  });
+
+  it('counts the spend of a call the verifier then rejected: the wire still billed for it', async () => {
+    // An extra slot fails verification and forces a fallback, but the wire call
+    // that produced it consumed tokens, so usage() reflects that real spend even
+    // though the document shipped is the deterministic one.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              content: [
+                { type: 'text', text: JSON.stringify({ 'PRF-0001#0': 'Honest.', 'injected-slot': 'Fabricated.' }) }
+              ],
+              usage: { input_tokens: 80, output_tokens: 30 }
+            }),
+            { status: 200 }
+          )
+      )
+    );
+    const provider = generativeProvider('anthropic', FAKE_KEY);
+    await provider.style(lockedSet());
+    expect(provider.fallbackReasons().length).toBe(1);
+    expect(provider.usage()).toEqual({ inputTokens: 80, outputTokens: 30 });
+  });
+
   it('a well-formed response is used as-is, with no fallback recorded', async () => {
     vi.stubGlobal(
       'fetch',

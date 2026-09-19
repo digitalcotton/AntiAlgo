@@ -68,6 +68,14 @@ export interface GeneratedRenderRow {
       test may hand in the ISO string; toDate() below takes either. */
   started_at: Date | string | null;
   updated_at: Date | string;
+  /** db/203: the tokens the live provider billed for this render, and how long
+      the render took. All null unless a generative render was measured and
+      settled: a pending row, a deterministic (no-key) 'fallback', and any row
+      from before db/203 all read null, which is the honest "not measured", never
+      a real zero. See completeDraft() below for where these are written. */
+  input_tokens: number | null;
+  output_tokens: number | null;
+  render_ms: number | null;
 }
 
 /** What the rest of the app reads: one row, mapped one-to-one from
@@ -84,6 +92,12 @@ export interface RenderRow {
   readonly failureReason: string | null;
   readonly startedAt: Date | null;
   readonly updatedAt: Date;
+  /** db/203: measured token usage and wall time, null where not measured (a
+      pending row, a deterministic fallback, a pre-db/203 row). A later feature
+      reads these to show a person what a draft cost on their own key. */
+  readonly inputTokens: number | null;
+  readonly outputTokens: number | null;
+  readonly renderMs: number | null;
 }
 
 function toDate(value: Date | string): Date {
@@ -105,7 +119,10 @@ export function rowToRenderRow(row: GeneratedRenderRow): RenderRow {
     model: row.model,
     failureReason: row.failure_reason ?? null,
     startedAt: row.started_at == null ? null : toDate(row.started_at),
-    updatedAt: toDate(row.updated_at)
+    updatedAt: toDate(row.updated_at),
+    inputTokens: row.input_tokens ?? null,
+    outputTokens: row.output_tokens ?? null,
+    renderMs: row.render_ms ?? null
   };
 }
 
@@ -247,6 +264,17 @@ export interface CompleteDraftFields {
   readonly payload: unknown;
   readonly provider: string | null;
   readonly model: string | null;
+  /** db/203: the tokens a live provider billed for this render, read from the
+      generative provider's own usage() accumulator (generation-providers.ts).
+      OPTIONAL and honest: omitted for a deterministic (no-key) 'fallback', which
+      made the document with no provider call, so its input_tokens/output_tokens
+      stay NULL (not measured) rather than 0 (measured none). Present with a
+      generative render, where 0 would only appear if the wire genuinely returned
+      no usage field. */
+  readonly usage?: { readonly inputTokens: number; readonly outputTokens: number };
+  /** db/203: wall-clock milliseconds this render took, computed at the call site
+      only when a start time is known. Omitted otherwise, leaving render_ms NULL. */
+  readonly renderMs?: number;
 }
 
 /**
@@ -264,9 +292,24 @@ export async function completeDraft(id: string, fields: CompleteDraftFields): Pr
        status = $2,
        payload = $3::jsonb,
        provider = $4,
-       model = $5
+       model = $5,
+       input_tokens = $6,
+       output_tokens = $7,
+       render_ms = $8
      WHERE id = $1`,
-    [id, fields.status, JSON.stringify(fields.payload), fields.provider, fields.model]
+    [
+      id,
+      fields.status,
+      JSON.stringify(fields.payload),
+      fields.provider,
+      fields.model,
+      // Undefined usage writes NULL (not measured), not 0. A generative render
+      // passes usage even when it is {0, 0}, which db/203 reads as "measured
+      // none"; only a deterministic render omits it and leaves the column NULL.
+      fields.usage?.inputTokens ?? null,
+      fields.usage?.outputTokens ?? null,
+      fields.renderMs ?? null
+    ]
   );
 }
 
@@ -312,7 +355,8 @@ export async function claimJobRender(id: string, userId: string, jobId: string, 
    Reads.
    ------------------------------------------------------------------------- */
 
-const RENDER_COLUMNS = 'id, kind, status, payload, provider, model, failure_reason, started_at, updated_at';
+const RENDER_COLUMNS =
+  'id, kind, status, payload, provider, model, failure_reason, started_at, updated_at, input_tokens, output_tokens, render_ms';
 
 /**
  * Both drafts for one application, scoped to userId so an id copied from
@@ -483,6 +527,11 @@ export interface RenderVersionRow {
   readonly model: string | null;
   readonly isCurrent: boolean;
   readonly createdAt: Date;
+  /** db/203: usage carried on the version list too, so the room can show what an
+      earlier draft cost without pulling its full payload. Null where not measured. */
+  readonly inputTokens: number | null;
+  readonly outputTokens: number | null;
+  readonly renderMs: number | null;
 }
 
 interface RenderVersionDbRow {
@@ -494,6 +543,9 @@ interface RenderVersionDbRow {
   model: string | null;
   is_current: boolean;
   created_at: Date | string;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  render_ms: number | null;
 }
 
 /**
@@ -507,7 +559,7 @@ export async function listJobRenderVersions(
   kind: RenderKind
 ): Promise<RenderVersionRow[]> {
   const { rows } = await db().query<RenderVersionDbRow>(
-    `SELECT id, kind, version, status, provider, model, is_current, created_at
+    `SELECT id, kind, version, status, provider, model, is_current, created_at, input_tokens, output_tokens, render_ms
        FROM generated_render
       WHERE user_id = $1 AND job_id = $2 AND kind = $3
       ORDER BY version DESC`,
@@ -521,7 +573,10 @@ export async function listJobRenderVersions(
     provider: row.provider,
     model: row.model,
     isCurrent: row.is_current,
-    createdAt: toDate(row.created_at)
+    createdAt: toDate(row.created_at),
+    inputTokens: row.input_tokens ?? null,
+    outputTokens: row.output_tokens ?? null,
+    renderMs: row.render_ms ?? null
   }));
 }
 
@@ -568,4 +623,52 @@ export async function restoreJobRenderVersion(
     [id, userId, jobId, kind]
   );
   return true;
+}
+
+/* -------------------------------------------------------------------------
+   The person's own drafting spend (db/203): every render that billed tokens,
+   summed per provider and model so the settings page can price each group by
+   its own rate. Scoped to userId; only rows that actually measured usage count.
+   ------------------------------------------------------------------------- */
+
+/** One (provider, model) group's summed token spend across a person's drafts. */
+export interface UserUsageGroup {
+  readonly provider: string | null;
+  readonly model: string | null;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly drafts: number;
+}
+
+/**
+ * A person's drafting token spend, grouped by (provider, model). Only renders
+ * that measured usage (input_tokens not null) are counted: a deterministic
+ * no-key draft billed nothing and is not in the sum. Grouping keeps each
+ * provider and model together so the caller prices each by its own rate, since
+ * cost lives in generation-cost.ts, never in SQL. Scoped to userId.
+ */
+export async function sumUserRenderUsage(userId: string): Promise<UserUsageGroup[]> {
+  const { rows } = await db().query<{
+    provider: string | null;
+    model: string | null;
+    input_tokens: string;
+    output_tokens: string;
+    drafts: string;
+  }>(
+    `SELECT provider, model,
+            COALESCE(SUM(input_tokens), 0)::text AS input_tokens,
+            COALESCE(SUM(output_tokens), 0)::text AS output_tokens,
+            COUNT(*)::text AS drafts
+       FROM generated_render
+      WHERE user_id = $1 AND input_tokens IS NOT NULL
+      GROUP BY provider, model`,
+    [userId]
+  );
+  return rows.map((row) => ({
+    provider: row.provider,
+    model: row.model,
+    inputTokens: Number(row.input_tokens),
+    outputTokens: Number(row.output_tokens),
+    drafts: Number(row.drafts)
+  }));
 }

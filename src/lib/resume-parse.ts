@@ -185,7 +185,10 @@ export async function parseResumeWithProvider(
   });
   let rawText: string;
   try {
-    rawText = await Promise.race([
+    // callProvider now returns { text, usage }; the copy tier does not record
+    // usage (nobody is billed a writing-tier price to retype their own resume),
+    // so only the text is read here. The usage rides along and is dropped.
+    const settled = await Promise.race([
       call(provider, apiKey, model, SYSTEM_PROMPT, dataMessage, controller.signal, {
         jsonMode: true,
         maxTokens: PARSE_MAX_TOKENS
@@ -194,6 +197,7 @@ export async function parseResumeWithProvider(
         controller.signal.addEventListener('abort', () => reject(new Error('timed out')));
       })
     ]);
+    rawText = settled.text;
   } catch (error) {
     // THE REASON NAMES THE FAILURE, AND ONLY FROM FACTS WE MINTED. The first
     // real failure of this feature stored one sentence for every possible

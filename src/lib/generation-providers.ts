@@ -586,14 +586,42 @@ function buildAuthHeaders(def: ProviderDefinition, apiKey: string): Record<strin
 }
 
 /* -------------------------------------------------------------------------
+   Measured usage. A wire response carries how many tokens the provider
+   billed for the call, and this is where that measurement enters the
+   codebase. Both wires report the same two numbers under different names
+   (anthropic: input_tokens/output_tokens; the openai-chat wire:
+   prompt_tokens/completion_tokens), so each adapter normalises to this one
+   shape and everything above the wire speaks only CallUsage. A number the
+   response left out defaults to 0 HERE, at the wire, because a missing field
+   from a live call that DID happen is honestly "the provider told us zero of
+   this"; the NULL-means-not-measured distinction lives one layer up, at the
+   database column (db/203), never in this type, which only ever describes a
+   call that actually returned.
+   ------------------------------------------------------------------------- */
+
+export interface CallUsage {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+}
+
+/** What one wire call resolves to: the raw text the model wrote (still
+    unparsed JSON at this point) AND the usage the provider billed for it.
+    callProvider() returns this straight through; a caller that does not care
+    about usage (src/lib/resume-parse.ts, the copy tier) just reads `.text`. */
+export interface ProviderCallResult {
+  readonly text: string;
+  readonly usage: CallUsage;
+}
+
+/* -------------------------------------------------------------------------
    The two wire adapters. Each returns the raw text the model wrote (still
-   unparsed JSON at this point); parseStyleResultJson() below turns that
-   text into a StyleResult, and verifyStyleResult() checks it against the
-   LockedFactSet it was asked to style. Neither adapter ever reads
-   `locked` or `voice` directly: buildDataMessage() already reduced both to
-   one opaque string by the time either adapter runs, which is what keeps
-   the "structurally separate" claim in the file header true rather than
-   aspirational.
+   unparsed JSON at this point) plus the CallUsage it measured from the
+   response; parseStyleResultJson() below turns that text into a StyleResult,
+   and verifyStyleResult() checks it against the LockedFactSet it was asked to
+   style. Neither adapter ever reads `locked` or `voice` directly:
+   buildDataMessage() already reduced both to one opaque string by the time
+   either adapter runs, which is what keeps the "structurally separate" claim
+   in the file header true rather than aspirational.
    ------------------------------------------------------------------------- */
 
 async function callAnthropicMessages(
@@ -604,7 +632,7 @@ async function callAnthropicMessages(
   dataMessage: string,
   signal: AbortSignal,
   maxTokens: number
-): Promise<string> {
+): Promise<ProviderCallResult> {
   // systemMessage is a parameter now, not the module-level SYSTEM_MESSAGE
   // constant, so a second caller with its own instruction (the resume parser,
   // src/lib/resume-parse.ts) can reuse this exact wire without a second copy
@@ -644,6 +672,7 @@ async function callAnthropicMessages(
   const body = json as {
     stop_reason?: string;
     content?: readonly { type?: string; text?: string }[];
+    usage?: { input_tokens?: number; output_tokens?: number };
   };
   // A reply the model did not finish is not a reply: for the JSON callers this
   // wire serves, a cut-off body is guaranteed-invalid JSON, and "not valid
@@ -658,7 +687,15 @@ async function callAnthropicMessages(
   if (typeof text !== 'string') {
     throw new GenerationCallError(`${def.label}: response carried no text content to parse`);
   }
-  return text;
+  // Anthropic reports usage as input_tokens/output_tokens. A missing field
+  // defaults to 0 here (see the CallUsage comment): this is a call that DID
+  // return, so 0 is a real "the provider billed none", not a stand-in for
+  // "unmeasured", which is the database column's NULL one layer up.
+  const usage: CallUsage = {
+    inputTokens: body?.usage?.input_tokens ?? 0,
+    outputTokens: body?.usage?.output_tokens ?? 0
+  };
+  return { text, usage };
 }
 
 async function callOpenAiChatCompletion(
@@ -669,7 +706,7 @@ async function callOpenAiChatCompletion(
   dataMessage: string,
   signal: AbortSignal,
   jsonMode: boolean
-): Promise<string> {
+): Promise<ProviderCallResult> {
   // systemMessage is a parameter for the same reason it is on the Anthropic
   // adapter above. jsonMode adds `response_format: { type: 'json_object' }`,
   // which OpenAI, Kimi and DeepSeek all honour: it makes the reply valid JSON
@@ -701,9 +738,11 @@ async function callOpenAiChatCompletion(
     });
   }
   const json: unknown = await response.json();
-  const choice = (
-    json as { choices?: readonly { finish_reason?: string; message?: { content?: string } }[] }
-  )?.choices?.[0];
+  const body = json as {
+    choices?: readonly { finish_reason?: string; message?: { content?: string } }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
+  };
+  const choice = body?.choices?.[0];
   // Same truth-telling as the Anthropic wire: a length-stopped reply is a
   // reply the model never finished, and for a JSON caller that is the failure
   // to report, not the unparseable text it left behind.
@@ -716,7 +755,14 @@ async function callOpenAiChatCompletion(
   if (typeof text !== 'string') {
     throw new GenerationCallError(`${def.label}: response carried no message content to parse`);
   }
-  return text;
+  // The openai-chat wire (OpenAI, Kimi, DeepSeek) reports usage on the top-level
+  // response as prompt_tokens/completion_tokens, not on the choice. Normalised to
+  // the same CallUsage the Anthropic wire returns, with the same default-0 rule.
+  const usage: CallUsage = {
+    inputTokens: body?.usage?.prompt_tokens ?? 0,
+    outputTokens: body?.usage?.completion_tokens ?? 0
+  };
+  return { text, usage };
 }
 
 /** Parses a model's raw text reply into a StyleResult, with no knowledge of
@@ -810,14 +856,17 @@ const DEFAULT_MAX_TOKENS = 4096;
 
 /**
  * Makes one call to one provider and returns the raw text the model wrote,
- * still unparsed. Looks the endpoint, wire, and auth shape up from
- * PROVIDER_REGISTRY by `provider`; interpolates `apiKey` only through
- * buildAuthHeaders (the two-moments rule); passes `signal` through to fetch so
- * a caller's own timeout race actually aborts the request. Throws
- * GenerationCallError on any transport or shape failure, the same class the
- * adapters already threw; a caller that must never see an exception (both of
- * them) wraps this in its own fail-closed boundary (runGenerationAttempt here,
- * a matching guard in resume-parse.ts).
+ * still unparsed, PLUS the usage the provider billed for it (ProviderCallResult).
+ * Looks the endpoint, wire, and auth shape up from PROVIDER_REGISTRY by
+ * `provider`; interpolates `apiKey` only through buildAuthHeaders (the
+ * two-moments rule); passes `signal` through to fetch so a caller's own timeout
+ * race actually aborts the request. Throws GenerationCallError on any transport
+ * or shape failure, the same class the adapters already threw; a caller that
+ * must never see an exception (both of them) wraps this in its own fail-closed
+ * boundary (runGenerationAttempt here, a matching guard in resume-parse.ts). The
+ * usage is metadata only: it never affects what text is produced or whether a
+ * caller treats the reply as good, it just rides alongside for a caller that
+ * wants to record what the call cost.
  */
 export async function callProvider(
   provider: Provider,
@@ -827,7 +876,7 @@ export async function callProvider(
   dataMessage: string,
   signal: AbortSignal,
   opts: ProviderCallOptions = {}
-): Promise<string> {
+): Promise<ProviderCallResult> {
   const def = PROVIDER_REGISTRY[provider];
   const jsonMode = opts.jsonMode ?? false;
   const maxTokens = opts.maxTokens ?? DEFAULT_MAX_TOKENS;
@@ -1158,6 +1207,17 @@ export interface GenerativeStyleProvider extends StyleProvider {
       logged beside a draft, never stored on the payload and never a fallback.
       Empty when no letter was styled or none warned. */
   letterWarnings(): readonly string[];
+  /** The total tokens the live provider billed across every style()/styleLetter()
+      call on this instance whose wire call actually returned, summed. Read after
+      a render (renderResume()/renderCover()) to record what a draft cost. The
+      same additive, closed-over accumulator pattern as fallbackReasons() above:
+      it is metadata read after the fact, never threaded through StyleResult, and
+      it cannot change what text is produced or whether a draft is ready. A call
+      that fell back with no wire response (a network error, every retry thrown)
+      adds nothing, so a purely-failed render reports zeros; a deterministic
+      provider is not a GenerativeStyleProvider and has no usage() at all, which
+      is what lets the store tell "measured 0" apart from "never measured". */
+  usage(): { inputTokens: number; outputTokens: number };
 }
 
 /**
@@ -1183,6 +1243,17 @@ export function generativeProvider(
   const timeoutMs = opts.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const reasons: string[] = [];
   const warnings: string[] = [];
+  // The measured-usage accumulator, the same closed-over, mutable pattern as
+  // `reasons` above. `usage` is the running total this instance exposes via
+  // usage(); `lastWireUsage` is the usage of the single wire call the most
+  // recent style()/styleLetter() actually got back, captured inside the raw
+  // closures below and folded into `usage` by the method that ran them. It is
+  // reset to null at the start of each method call so a call whose wire never
+  // returned (all retries thrown, a timeout) adds nothing, keeping a
+  // purely-failed render honestly at zero rather than inheriting a prior call's
+  // count.
+  const usage = { inputTokens: 0, outputTokens: 0 };
+  let lastWireUsage: CallUsage | null = null;
 
   const raw: RawGenerationCall = async (locked, voice, signal) => {
     const dataMessage = buildDataMessage(locked, voice);
@@ -1191,9 +1262,14 @@ export function generativeProvider(
     // WHOLE resume in one call (tailor.ts batches every slot into one set), so it
     // carries a generous token ceiling: the one reply holds all the bullets, and
     // must never be cut off into invalid JSON.
-    const text = await callProvider(provider, apiKey, model, RESUME_SYSTEM_MESSAGE, dataMessage, signal, {
+    const { text, usage: wireUsage } = await callProvider(provider, apiKey, model, RESUME_SYSTEM_MESSAGE, dataMessage, signal, {
       maxTokens: RESUME_MAX_TOKENS
     });
+    // The call returned, so its usage is real spend: remember it for the style()
+    // method to fold into the accumulator. A throw before this line (transport,
+    // token-ceiling, no content) never reaches here, so a failed call is never
+    // counted.
+    lastWireUsage = wireUsage;
     return parseStyleResultJson(text);
   };
 
@@ -1202,21 +1278,42 @@ export function generativeProvider(
     // Same callProvider() seam, with COVER_SYSTEM_MESSAGE and the letter token
     // ceiling. The reply is parsed into four strings and then verified by
     // letter-verify.ts inside runLetterAttempt; nothing here trusts it yet.
-    const text = await callProvider(provider, apiKey, model, COVER_SYSTEM_MESSAGE, dataMessage, signal, { maxTokens: LETTER_MAX_TOKENS });
+    const { text, usage: wireUsage } = await callProvider(provider, apiKey, model, COVER_SYSTEM_MESSAGE, dataMessage, signal, { maxTokens: LETTER_MAX_TOKENS });
+    // runLetterAttempt may call this more than once (a corrective retry): each
+    // wire call that returns overwrites lastWireUsage, so the styleLetter() method
+    // folds in the usage of the final call that actually came back. One increment
+    // per styleLetter() call, matching the one style() makes.
+    lastWireUsage = wireUsage;
     return parseLetterResultJson(text);
+  };
+
+  // Folds the one wire call the just-finished method got back (if any) into the
+  // running total, then clears the marker. Called by style()/styleLetter() after
+  // their attempt settles, whatever its verdict: a wire call that returned spent
+  // tokens even if the verifier then rejected its output, and that spend is real.
+  const foldWireUsage = (): void => {
+    if (lastWireUsage) {
+      usage.inputTokens += lastWireUsage.inputTokens;
+      usage.outputTokens += lastWireUsage.outputTokens;
+    }
+    lastWireUsage = null;
   };
 
   return {
     name: `${def.id}/${model}`,
     async style(locked: LockedFactSet, voice: VoiceSample | null = null): Promise<StyleResult> {
+      lastWireUsage = null;
       const attempt = await runGenerationAttempt(locked, voice, raw, timeoutMs);
+      foldWireUsage();
       if (attempt.ok) return attempt.result;
       if (!reasons.includes(attempt.reason)) reasons.push(attempt.reason);
       return deterministicProvider.style(locked, voice);
     },
     async styleLetter(locked: LockedLetter, voice: VoiceSample | null = null): Promise<LetterStyleResult> {
+      lastWireUsage = null;
       const mode: 'create' | 'adapt' = voice ? 'adapt' : 'create';
       const attempt = await runLetterAttempt(locked, voice, mode, rawLetter, opts.timeoutMs ?? COVER_TIMEOUT_MS);
+      foldWireUsage();
       if (attempt.ok) {
         for (const warning of attempt.warnings) if (!warnings.includes(warning)) warnings.push(warning);
         return attempt.paragraphs;
@@ -1231,6 +1328,9 @@ export function generativeProvider(
     },
     letterWarnings(): readonly string[] {
       return [...warnings];
+    },
+    usage(): { inputTokens: number; outputTokens: number } {
+      return { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens };
     }
   };
 }

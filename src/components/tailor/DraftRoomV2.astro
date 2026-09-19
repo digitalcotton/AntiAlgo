@@ -46,6 +46,21 @@ interface Props {
   applyUrl: string | null;
   applyLabel: string;
   applyTrack: { action: string; title: string; company: string } | null;
+  resumeCost?: DraftCost | null;
+  coverCost?: DraftCost | null;
+}
+
+/** What one document's draft cost to run, all real: the render duration and the
+    tokens the provider billed, plus the dollar estimate from the dated price
+    table (null when the model is unpriced), or a plain "no model cost" for the
+    deterministic built-in writer. */
+interface DraftCost {
+  costText: string | null;
+  asOf: string | null;
+  renderMs: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  deterministic: boolean;
 }
 const {
   slug,
@@ -66,8 +81,27 @@ const {
   regenerateAction,
   applyUrl,
   applyLabel,
-  applyTrack
+  applyTrack,
+  resumeCost = null,
+  coverCost = null
 } = Astro.props;
+
+function fmtTok(n: number): string {
+  return n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(n);
+}
+/** The cost/usage line under Regenerate: real duration and tokens, then the
+    dated dollar estimate when the model is priced, or "no model cost" for the
+    built-in writer. Null when there is nothing measured to say. */
+function costLine(c: DraftCost | null): string | null {
+  if (!c) return null;
+  if (c.deterministic) return 'Built-in writer. No model cost.';
+  const parts: string[] = [];
+  if (c.renderMs && c.renderMs > 0) parts.push(`${Math.max(1, Math.round(c.renderMs / 1000))}s`);
+  if (c.inputTokens != null && c.outputTokens != null) parts.push(`${fmtTok(c.inputTokens)} in / ${fmtTok(c.outputTokens)} out`);
+  if (parts.length === 0 && !c.costText) return null;
+  const base = parts.length > 0 ? `Drafted on your key: ${parts.join(', ')}.` : 'Drafted on your key.';
+  return c.costText ? `${base} ${c.costText}${c.asOf ? ` (est., prices as of ${c.asOf})` : ''}` : base;
+}
 
 const targetLine = jobTitle ? `${jobTitle} at ${company}` : company;
 const bothReady = Boolean(resume) && Boolean(cover);
@@ -200,6 +234,7 @@ const STEER_CHIPS = ['Shorter', 'Lead with agent work', 'Plainer voice', 'More t
             <input type="hidden" name="kind" value="resume" />
             <button type="submit" class="dr-btn dr-btn-primary">Regenerate the resume</button>
           </form>
+          {costLine(resumeCost) && <p class="dr-cost mono-label">{costLine(resumeCost)}</p>}
         </section>
 
         {resumeVersions.length > 1 && (
@@ -277,6 +312,7 @@ const STEER_CHIPS = ['Shorter', 'Lead with agent work', 'Plainer voice', 'More t
             <input type="hidden" name="kind" value="cover" />
             <button type="submit" class="dr-btn dr-btn-primary">Regenerate the cover letter</button>
           </form>
+          {costLine(coverCost) && <p class="dr-cost mono-label">{costLine(coverCost)}</p>}
         </section>
 
         {coverVersions.length > 1 && (
@@ -415,6 +451,7 @@ const STEER_CHIPS = ['Shorter', 'Lead with agent work', 'Plainer voice', 'More t
   .dr-chip:disabled { opacity: 0.55; cursor: not-allowed; }
   .dr-steer-soon { margin: var(--space-300) 0 var(--space-400); color: var(--color-muted); }
   .dr-steer form { margin: 0; }
+  .dr-cost { margin: var(--space-400) 0 0; color: var(--color-muted); }
 
   .dr-versions-title, .dr-send-title { margin: 0 0 var(--space-300); color: var(--color-muted); }
   .dr-version-list { margin: 0; padding: 0; list-style: none; }

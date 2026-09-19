@@ -41,6 +41,7 @@ import LoadingState from '../../../components/LoadingState.astro';
 import DraftDocuments from '../../../components/tailor/DraftDocuments.astro';
 import DraftRoomV2 from '../../../components/tailor/DraftRoomV2.astro';
 import { applyLabel } from '../../../lib/data';
+import { estimateDraftCost, formatCost } from '../../../lib/generation-cost';
 import { routeFor, boardDetailPath, jobDraftPdfPath } from '../../../data/nav';
 import { draftableJobBySlug } from '../../../lib/draft-job';
 import AddedPostingNote from '../../../components/desk/AddedPostingNote.astro';
@@ -161,6 +162,22 @@ const roomModel = resume?.model ?? cover?.model ?? null;
 const roomFallback = providerTried && fellBack;
 const resumeUpdatedIso = resume?.updatedAt ? resume.updatedAt.toISOString() : null;
 const coverUpdatedIso = cover?.updatedAt ? cover.updatedAt.toISOString() : null;
+
+// The per-document cost line: real render time and the tokens the provider
+// billed (db/203), priced by the dated table (generation-cost.ts), or a plain
+// "no model cost" for the built-in writer. Null usage stays null, never a
+// fabricated zero.
+function costVmFor(row: typeof resume) {
+  if (!row || row.status === 'pending') return null;
+  const measured = row.inputTokens != null || row.outputTokens != null;
+  if (!measured) {
+    return { costText: null, asOf: null, renderMs: row.renderMs, inputTokens: null, outputTokens: null, deterministic: !row.provider || row.status === 'fallback' };
+  }
+  const est = estimateDraftCost({ provider: row.provider, model: row.model, inputTokens: row.inputTokens, outputTokens: row.outputTokens });
+  return { costText: est ? formatCost(est.usd) : null, asOf: est?.asOf ?? null, renderMs: row.renderMs, inputTokens: row.inputTokens, outputTokens: row.outputTokens, deterministic: false };
+}
+const resumeCost = costVmFor(resume);
+const coverCost = costVmFor(cover);
 ---
 
 <BaseLayout
@@ -195,6 +212,8 @@ const coverUpdatedIso = cover?.updatedAt ? cover.updatedAt.toISOString() : null;
           applyUrl={roomApplyUrl}
           applyLabel={roomApplyLabel}
           applyTrack={roomApplyTrack}
+          resumeCost={resumeCost}
+          coverCost={coverCost}
         />
       )}
 

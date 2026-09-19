@@ -134,6 +134,8 @@ import { getAuth } from '../lib/auth';
 import { isOn } from '../lib/flags';
 import { PROVIDERS, keyStorageIsConfigured, type Provider } from '../lib/keychain';
 import { getWritingModel, keyMeta, type StoredKeyMeta } from '../lib/keychain-store';
+import { sumUserRenderUsage } from '../lib/generated-render-store';
+import { estimateDraftCost, formatCost, PRICES_AS_OF } from '../lib/generation-cost';
 import { PROVIDER_REGISTRY } from '../lib/generation-providers';
 
 export const prerender = false;
@@ -151,6 +153,23 @@ const session = allowed ? await getAuth().api.getSession({ headers: Astro.reques
 const email = session?.user?.email ?? null;
 const handle = allowed && viewer ? await getHandle(viewer.userId) : null;
 const generateOnApply = allowed && viewer ? await getGenerationPreference(viewer.userId) : false;
+
+// Drafting spend so far (db/203): the person's own token usage summed per
+// provider/model, priced by the dated table (generation-cost.ts). Only renders
+// that measured usage count; a deterministic no-key draft billed nothing.
+const usageGroups = allowed && viewer ? await sumUserRenderUsage(viewer.userId) : [];
+let draftUsd = 0;
+let draftCount = 0;
+let draftTokens = 0;
+for (const g of usageGroups) {
+  draftCount += g.drafts;
+  draftTokens += g.inputTokens + g.outputTokens;
+  const est = estimateDraftCost({ provider: g.provider, model: g.model, inputTokens: g.inputTokens, outputTokens: g.outputTokens });
+  if (est) draftUsd += est.usd;
+}
+const hasDraftSpend = draftCount > 0;
+const draftSpendText = formatCost(draftUsd);
+const draftTokensText = draftTokens >= 1000 ? `${Math.round(draftTokens / 100) / 10}k` : String(draftTokens);
 const resumeEmail = allowed && viewer ? await getResumeEmailSettings(viewer.userId) : { useLogin: true, custom: null };
 
 // The two key-panel refusal states that still matter once a reader has
@@ -497,6 +516,12 @@ const handleRowOpen = handleUpdated || handleCleared || Boolean(handleError);
                   />
                 )
               }
+
+              {hasDraftSpend && (
+                <p class="keys-note keys-spend">
+                  Drafting spend so far: {draftSpendText} across {draftCount} {draftCount === 1 ? 'draft' : 'drafts'} on your key, {draftTokensText} tokens. Estimated, prices as of {PRICES_AS_OF}.
+                </p>
+              )}
 
               <div class="drafting-toggle">
                 {generationUpdated && <p class="settings-success" role="status">Saved.</p>}
