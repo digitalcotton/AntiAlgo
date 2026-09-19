@@ -119,6 +119,7 @@ import {
 import { pairedFormFor } from './skill-aliases';
 import type { VoiceSample } from './voice';
 import { extractWords, plainTextFromHtml } from './vocabulary';
+import { dateRange } from './entry-dates';
 import { extractLetterTarget } from './posting-requirements';
 import { detectSituation, packFor, type CoverField, type CoverSituation } from './cover-context';
 import {
@@ -281,6 +282,16 @@ export interface GapReport {
   readonly missing: readonly string[];
 }
 
+/** The summary block (RESUME-RULES.md layer 2, "section order"): at most two
+    sentences and 40 words, built only from the record. Its words are the
+    record's own bytes joined with connective punctuation, and it cites the
+    entries it was built from the way a Bullet does. Null when the record has
+    nothing a summary may say. See buildSummary(). */
+export interface ResumeSummary {
+  readonly text: string;
+  readonly sourcePrfIds: readonly string[];
+}
+
 /** A free-text target renders with `verified: false`; MASTER-SPEC 3.3's
     "freeform target allowed, labeled" state made structural: nothing reads
     a free-text render as verified, because the literal type of `verified`
@@ -327,6 +338,10 @@ interface BaseRender {
 
 export interface ResumeRender extends BaseRender {
   readonly kind: 'resume';
+  /** Optional and last, the same forward-compatible shape as `changeRecord`:
+      a payload stored before summaries existed reads back as undefined, and
+      every reader treats that as "no summary". */
+  readonly summary?: ResumeSummary | null;
 }
 
 export interface CoverRender extends BaseRender {
@@ -843,6 +858,64 @@ function computeGaps(entries: ProfileRecord, sections: readonly RenderSection[])
   return missing.length > 0 ? { missing } : null;
 }
 
+/** RESUME-RULES.md layer 2, the summary: "at most two sentences and 40 words,
+    built from the record, zero adjectives about work ethic", carrying the
+    skim's facts before the first experience entry: the current title, the
+    employer, the dates, and "the two or three facts that answer the posting's
+    headline requirements". Sentence one is the ongoing role (the same rule
+    pdf-resume.ts's current-title line uses: no end date, the most recently
+    started if there are two), its employer and its date range, each field
+    read straight off coreOf(). Sentence two names up to three skills the
+    record holds whose own words the posting uses, strongest overlap first.
+    Nothing is invented: a record with no ongoing role and no matching skill
+    gets no summary. */
+export const SUMMARY_WORD_CAP = 40;
+const SUMMARY_SKILL_CAP = 3;
+
+function buildSummary(entries: ProfileRecord, target: Target): ResumeSummary | null {
+  const vocabulary = vocabularyFor(target);
+  const ongoing = entries.filter((entry) => entry.kind === 'role_held' && entry.end === null).sort(byRecency);
+  const current = ongoing.length > 0 ? ongoing[0] : null;
+
+  const opening: string[] = [];
+  if (current) {
+    const core = coreOf(current);
+    const parts: string[] = [core.officialTitle];
+    if (core.employerOrInstitution) parts.push(core.employerOrInstitution);
+    const range = dateRange(core);
+    if (range !== null) parts.push(range);
+    opening.push(`${parts.join(', ')}.`);
+  }
+
+  // Skills whose own words the posting uses, by overlap, then newest first so
+  // the pick is deterministic. relevanceScore reads the record's text and
+  // returns a number; no string it touches reaches the summary.
+  const matching = entries
+    .filter((entry) => entry.kind === 'skill')
+    .map((entry) => ({ entry, score: relevanceScore(entry, vocabulary) }))
+    .filter((scored) => scored.score > 0)
+    .sort((a, b) => b.score - a.score || byRecency(a.entry, b.entry))
+    .map((scored) => scored.entry);
+
+  const compose = (skills: readonly ProfileEntry[]): string =>
+    [...opening, ...(skills.length > 0 ? [`${listOf(skills.map((skill) => skill.officialTitle))}.`] : [])].join(' ');
+
+  // The 40-word cap drops skills, last first. The opening is never cut: its
+  // title and employer are core and render whole or not at all.
+  let named = matching.slice(0, SUMMARY_SKILL_CAP);
+  while (named.length > 0 && wordCount(compose(named)) > SUMMARY_WORD_CAP) named = named.slice(0, -1);
+
+  if (!current && named.length === 0) return null;
+  const sourcePrfIds = [...(current ? [current.prfId] : []), ...named.map((skill) => skill.prfId)];
+  return { text: compose(named), sourcePrfIds };
+}
+
+/** "A", "A and B", "A, B and C": connective words only, each name untouched. */
+function listOf(names: readonly string[]): string {
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 /**
  * The salutation ladder (cover-letter skill's salutation rule, minus the
  * named-person rung, which needs a source a posting does not reliably carry):
@@ -1079,7 +1152,9 @@ export async function renderResume(
     // salutation/closing are on a cover: a link is never rephrased by a
     // provider because it is not a slot (see RenderHeader).
     header,
-    changeRecord
+    changeRecord,
+    // Built from the record alone, never through a provider (see buildSummary).
+    summary: buildSummary(entries, target)
   };
 }
 

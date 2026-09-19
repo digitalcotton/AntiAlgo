@@ -157,3 +157,42 @@ describe('resumeLines(): an undated entry prints no date line (db/204)', () => {
     expect(indexOfLine(lines, (t) => t.includes('March 2020 to Present'))).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe('resumeLines(): the summary block rides in the top third', () => {
+  it('draws a Summary heading and the summary text above Experience, in place of the bare title line', async () => {
+    const record: ProfileRecord = [
+      entry({ prfId: 'PRF-0001', officialTitle: 'Principal Designer', employerOrInstitution: 'Northwind', end: null }),
+      entry({ prfId: 'PRF-0002', kind: 'skill', officialTitle: 'Checkout', employerOrInstitution: null, description: '', start: { year: 2019, month: null } })
+    ];
+    const resume = await renderResume(record, { kind: 'verified_posting', job: target() }, undefined, {
+      name: 'Jordan Rivera',
+      email: null,
+      links: []
+    });
+    const lines = resumeLines(resume);
+    const summaryHeadingIdx = indexOfLine(lines, (t) => t === 'Summary');
+    const summaryIdx = indexOfLine(lines, (t) => t === resume.summary?.text);
+    const headingIdx = indexOfLine(lines, (t) => t === 'Experience');
+
+    expect(resume.summary?.text).toBe('Principal Designer, Northwind, March 2020 to Present. Checkout.');
+    expect(summaryHeadingIdx).toBeGreaterThan(0);
+    expect(summaryIdx).toBe(summaryHeadingIdx + 1);
+    expect(summaryIdx).toBeLessThan(headingIdx);
+    // The title is not drawn twice at the top: the summary carries it.
+    expect(lines.filter((l) => l.text.startsWith('Principal Designer, Northwind')).length).toBe(1);
+  });
+
+  it('a render stored before summaries existed still draws the bare current-title line', async () => {
+    const record: ProfileRecord = [
+      entry({ prfId: 'PRF-0001', officialTitle: 'Principal Designer', employerOrInstitution: 'Northwind', end: null })
+    ];
+    const fresh = await renderResume(record, { kind: 'verified_posting', job: target() }, undefined, {
+      name: 'Jordan Rivera',
+      email: null,
+      links: []
+    });
+    const lines = resumeLines({ ...fresh, summary: undefined });
+    expect(indexOfLine(lines, (t) => t === 'Summary')).toBe(-1);
+    expect(indexOfLine(lines, (t) => t === 'Principal Designer, Northwind')).toBeGreaterThan(0);
+  });
+});

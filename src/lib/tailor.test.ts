@@ -899,3 +899,60 @@ describe('renderResume(): an undated entry (db/204) sorts after every dated one 
     expect(skills?.entries.find((e) => e.prfId === 'PRF-0003')?.core.start).toBeNull();
   });
 });
+
+describe('the summary block (RESUME-RULES.md layer 2)', () => {
+  const skill = (prfId: string, officialTitle: string, year: number): ProfileEntry =>
+    entry({ prfId, kind: 'skill', officialTitle, employerOrInstitution: null, description: '', start: { year, month: null } });
+
+  it('names the ongoing role with its employer and dates, then the skills the posting uses, strongest overlap first', async () => {
+    const record: ProfileRecord = [
+      entry({ prfId: 'PRF-0001', officialTitle: 'Staff Designer', employerOrInstitution: 'Acme Corp', start: { year: 2020, month: 3 }, end: null }),
+      skill('PRF-0002', 'Figma', 2019),
+      skill('PRF-0003', 'Design systems', 2018),
+      skill('PRF-0004', 'Cobol', 2010)
+    ];
+    const render = await renderResume(record, postingTarget({ description_html: '<p>Figma and design systems for checkout.</p>' }));
+    expect(render.summary?.text).toBe('Staff Designer, Acme Corp, March 2020 to Present. Design systems and Figma.');
+    // Every cited id is a real record entry, and Cobol, which the posting never names, is not among them.
+    expect(render.summary?.sourcePrfIds).toEqual(['PRF-0001', 'PRF-0003', 'PRF-0002']);
+  });
+
+  it('names at most three skills and stays within 40 words', async () => {
+    const record: ProfileRecord = [
+      entry({ prfId: 'PRF-0001', end: null }),
+      skill('PRF-0002', 'Figma', 2019),
+      skill('PRF-0003', 'Sketch', 2018),
+      skill('PRF-0004', 'Prototyping', 2017),
+      skill('PRF-0005', 'Research', 2016)
+    ];
+    const render = await renderResume(record, freeText('Figma Sketch Prototyping Research'));
+    expect(render.summary?.text).toBe('Staff Designer, Acme Corp, March 2020 to Present. Figma, Sketch and Prototyping.');
+    expect(render.summary?.text.trim().split(/\s+/).length).toBeLessThanOrEqual(40);
+  });
+
+  it('drops skills before it would pass 40 words, and never cuts the opening', async () => {
+    const longTitle = Array.from({ length: 36 }, (_, i) => `Word${i}`).join(' ');
+    const record: ProfileRecord = [
+      entry({ prfId: 'PRF-0001', officialTitle: longTitle, end: null }),
+      skill('PRF-0002', 'Figma', 2019)
+    ];
+    const render = await renderResume(record, freeText('Figma'));
+    expect(render.summary?.text).toBe(`${longTitle}, Acme Corp, March 2020 to Present.`);
+    expect(render.summary?.sourcePrfIds).toEqual(['PRF-0001']);
+  });
+
+  it('is null when the record has no ongoing role and no skill the posting names', async () => {
+    const record: ProfileRecord = [
+      entry({ prfId: 'PRF-0001', end: { year: 2022, month: 6 } }),
+      skill('PRF-0002', 'Cobol', 2010)
+    ];
+    const render = await renderResume(record, freeText('checkout redesign'));
+    expect(render.summary).toBeNull();
+  });
+
+  it('a skill label in the summary is the record\'s own officialTitle, byte for byte', async () => {
+    const record: ProfileRecord = [skill('PRF-0002', 'PostgreSQL', 2019)];
+    const render = await renderResume(record, freeText('postgresql experience'));
+    expect(render.summary?.text).toBe('PostgreSQL.');
+  });
+});

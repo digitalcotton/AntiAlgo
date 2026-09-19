@@ -109,11 +109,20 @@ function currentTitleLine(resume: ResumeRender): StyledLine | null {
     between, when it wants to check the layout alone. */
 export function resumeLines(resume: ResumeRender): StyledLine[] {
   const lines = contactLines(resume.header);
-  // The current title rides in the top third, right under the contact block,
-  // so a skim reads it before the first experience entry (which is ordered by
-  // relevance to the posting, not recency).
-  const current = currentTitleLine(resume);
-  if (current) lines.push(current);
+  // The top third, right under the contact block, so a skim reads it before
+  // the first experience entry (which is ordered by relevance to the posting,
+  // not recency). A render that carries a summary (RESUME-RULES.md layer 2,
+  // tailor.ts buildSummary) draws it under a standard heading; its first
+  // sentence is the current title and employer, so no separate title line is
+  // drawn beside it. A render stored before summaries existed still draws the
+  // bare current-title line it always did.
+  if (resume.summary) {
+    lines.push({ text: 'Summary', size: 12, bold: true, spaceBefore: 18 });
+    lines.push({ text: resume.summary.text, size: 10, spaceBefore: 2 });
+  } else {
+    const current = currentTitleLine(resume);
+    if (current) lines.push(current);
+  }
   for (const section of resume.sections) {
     lines.push({ text: section.heading, size: 12, bold: true, spaceBefore: 18 });
     for (const row of groupResumeSection(section)) {
