@@ -35,12 +35,32 @@ function part(value: string | null | undefined): string {
   return (value ?? '').replace(UNSAFE, '').replace(/\s+/g, ' ').trim().slice(0, MAX_PART).trim();
 }
 
-export function draftPdfFilename(input: DraftFilenameInput): string {
+/** The download formats a draft can be saved in, and the file extension each
+    one gets. The resume and cover render the same content either way (see
+    pdf-resume.ts and docx-resume.ts); only the container, and so the
+    extension, differs. */
+export type DraftExt = 'pdf' | 'docx';
+
+/**
+ * The filename for a draft in a given format: the same "<Person> <doc> for
+ * <Company>" stem the site has always used, with the format's extension. The
+ * stem is built once here so a .pdf and a .docx of the same document land in a
+ * downloads folder under the same name but for the extension, and so adding
+ * the .docx format did not fork the naming rule into a second copy.
+ */
+export function draftDocFilename(input: DraftFilenameInput, ext: DraftExt): string {
   const docWord = input.doc === 'resume' ? 'resume' : 'cover letter';
   const person = [part(input.firstName), part(input.lastName)].filter(Boolean).join(' ') || part(input.fallbackName);
   const company = part(input.company);
   const head = person ? `${person} ${docWord}` : docWord.charAt(0).toUpperCase() + docWord.slice(1);
-  return `${company ? `${head} for ${company}` : head}.pdf`;
+  return `${company ? `${head} for ${company}` : head}.${ext}`;
+}
+
+/** The PDF filename, unchanged: the original name every existing caller reads.
+    Kept as a thin wrapper over draftDocFilename() so its behaviour is defined
+    in exactly one place and cannot drift from the .docx name. */
+export function draftPdfFilename(input: DraftFilenameInput): string {
+  return draftDocFilename(input, 'pdf');
 }
 
 /** The Content-Disposition value for that filename: a plain ASCII form every

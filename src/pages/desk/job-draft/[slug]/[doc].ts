@@ -1,13 +1,16 @@
 /**
  * GET /desk/job-draft/[slug]/[doc]: download the drafted resume or cover letter
- * for one posting as a PDF (RUN-DRAFT.md phase 4). doc is 'resume' or 'cover'.
+ * for one posting (RUN-DRAFT.md phase 4). doc is 'resume' or 'cover'; the
+ * optional ?format= is 'pdf' (the default) or 'docx'.
  *
- * The PDF is generated from the render already stored for this (person, posting)
- * by src/lib/pdf-resume.ts's vanilla writer: single column, standard headings,
- * the contact block in the body, and metadata that names the person as author
- * and this site's renderer as producer and nothing else. It is always black on
- * white, so it is the same correct, print-ready file whichever theme the reader
- * was viewing in.
+ * The file is generated from the render already stored for this (person,
+ * posting) by src/lib's vanilla writers: src/lib/pdf-resume.ts for the PDF,
+ * src/lib/docx-resume.ts for the .docx. Both draw from the SAME styled line
+ * list (docx-resume.ts delegates its lines to pdf-resume.ts), so a person's
+ * .pdf and .docx of one document say the same thing: single column, standard
+ * headings, the contact block in the body, black text. Each names the person as
+ * author and nothing it is not entitled to claim. Neither depends on the theme
+ * the reader was viewing in.
  *
  * OWNER SCOPED, THE SAME RULE THE RESULT PAGE STATES. A signed-out request, an
  * unknown slug, a doc that is neither resume nor cover, and a draft that has not
@@ -25,9 +28,14 @@ import {
   resumeHasBody,
   RESUME_PDF_PRODUCER
 } from '../../../../lib/pdf-resume';
+import { buildResumeDocx, buildCoverDocx } from '../../../../lib/docx-resume';
 import type { ResumeRender, CoverRender } from '../../../../lib/tailor';
 import { personName } from '../../../../lib/record-store';
-import { attachmentDisposition, draftPdfFilename } from '../../../../lib/draft-filename';
+import { attachmentDisposition, draftDocFilename } from '../../../../lib/draft-filename';
+
+/** The Word MIME type, the OpenXML wordprocessing document media type. Named
+    once here so the response header is not a magic string. */
+const DOCX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 export const prerender = false;
 
@@ -67,35 +75,52 @@ export async function GET(context: APIContext): Promise<Response> {
     doc === 'resume' ? resumeHasBody(render as ResumeRender) : coverHasBody(render as CoverRender);
   if (!hasBody) return notFound();
 
-  const author = render.header?.name ?? null;
-  const created = new Date();
+  // The format: 'docx' when explicitly asked, PDF otherwise. Any other value
+  // (a typo, a missing param) falls through to the PDF, the long-standing
+  // default, so an old link with no ?format= downloads exactly as before.
+  const format = context.url.searchParams.get('format') === 'docx' ? 'docx' : 'pdf';
 
-  const meta = { author, producer: RESUME_PDF_PRODUCER, created };
-  const bytes =
-    doc === 'resume' ? buildResumePdf(render as ResumeRender, meta) : buildCoverPdf(render as CoverRender, meta);
+  const author = render.header?.name ?? null;
+
+  let bytes: Uint8Array;
+  if (format === 'docx') {
+    // The .docx writer derives its author from the render header itself (the
+    // same source as below), so it takes no meta argument; it reads no clock,
+    // producing the same bytes for the same render (see docx.ts).
+    bytes =
+      doc === 'resume' ? buildResumeDocx(render as ResumeRender) : buildCoverDocx(render as CoverRender);
+  } else {
+    const meta = { author, producer: RESUME_PDF_PRODUCER, created: new Date() };
+    bytes =
+      doc === 'resume' ? buildResumePdf(render as ResumeRender, meta) : buildCoverPdf(render as CoverRender, meta);
+  }
 
   // The file is named for the person and the company, not for this site's
-  // slug (src/lib/draft-filename.ts). The profile's names first; a profile
-  // that cannot be read is a plainer filename, never a failed download.
+  // slug (src/lib/draft-filename.ts), with the format's extension. The
+  // profile's names first; a profile that cannot be read is a plainer
+  // filename, never a failed download.
   let names: { firstName: string; lastName: string } | null = null;
   try {
     names = await personName(viewer.userId);
   } catch (error) {
     console.error(`desk/job-draft/${slug}/${doc}: could not read the person's name for the filename.`, error);
   }
-  const filename = draftPdfFilename({
-    firstName: names?.firstName,
-    lastName: names?.lastName,
-    fallbackName: author,
-    doc,
-    company: job.company
-  });
+  const filename = draftDocFilename(
+    {
+      firstName: names?.firstName,
+      lastName: names?.lastName,
+      fallbackName: author,
+      doc,
+      company: job.company
+    },
+    format
+  );
   // A Uint8Array is a valid response body at runtime; the cast is only for the
   // BodyInit type, which does not name Uint8Array in this lib version.
   return new Response(bytes as unknown as BodyInit, {
     status: 200,
     headers: {
-      'Content-Type': 'application/pdf',
+      'Content-Type': format === 'docx' ? DOCX_CONTENT_TYPE : 'application/pdf',
       'Content-Disposition': attachmentDisposition(filename),
       // A drafted document is per-person and per-request; never cache it at a
       // shared edge.
