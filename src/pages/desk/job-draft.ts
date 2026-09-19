@@ -39,6 +39,7 @@ import { draftableJobBySlug } from '../../lib/draft-job';
 import { triggerJobDraft } from '../../lib/generation-preference-store';
 import { createApplicationFromClick, getActiveApplicationForJob } from '../../lib/desk-store';
 import { countRecentJobRenders } from '../../lib/generated-render-store';
+import { parseSteer } from '../../lib/draft-steer';
 import { jobDraftPath, routeFor } from '../../data/nav';
 import { isAddedSlug } from '../../lib/added-posting';
 
@@ -128,6 +129,18 @@ export async function POST(context: APIContext): Promise<Response> {
   const kindRaw = String(form.get('kind') ?? '');
   const kind = kindRaw === 'resume' || kindRaw === 'cover' ? kindRaw : undefined;
 
+  // The person's steer for this one regenerate: the allowlisted chips (repeated
+  // checkbox values, so getAll) and the free-text note. parseSteer is the sole
+  // gate on this untrusted form input; it drops anything not in STEER_CHIPS,
+  // caps the note, and returns null when there is nothing to steer, so a plain
+  // Regenerate stays plain. A steer only makes sense with a `kind` (that is how
+  // the room posts it, one document at a time), but this does not hard-fail on
+  // a missing kind: a stray steer with no kind is passed through harmlessly and
+  // the both-documents path simply has nothing new to shape.
+  const steerChips = form.getAll('steer').map((value) => String(value));
+  const steerNote = form.get('steerNote');
+  const steer = parseSteer(steerChips, steerNote === null ? null : String(steerNote));
+
   // Track the drafted job on the Desk board, once. Drafting is real investment
   // in this posting, so it belongs on the board rather than vanishing. A
   // 'clicked' card only: the confirm loop still gates 'applied', so this does
@@ -158,7 +171,7 @@ export async function POST(context: APIContext): Promise<Response> {
   // The request URL rides along so the render can be handed to this
   // deployment's own run endpoint (see triggerJobDraft); the origin actually
   // used is VERCEL_URL when present, never the forwarded host.
-  await triggerJobDraft(viewer.userId, job, { reason, origin: context.url, kind });
+  await triggerJobDraft(viewer.userId, job, { reason, origin: context.url, kind, steer });
 
   const draftUrl = jobDraftPath(job.slug);
 

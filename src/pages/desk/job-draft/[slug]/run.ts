@@ -78,7 +78,11 @@ export async function POST(context: APIContext): Promise<Response> {
       kind: payload.kind,
       renderId: payload.renderId,
       provider: payload.provider,
-      reason: payload.reason
+      reason: payload.reason,
+      // Verified and shape-checked by verifyRunToken (a malformed steer was
+      // already dropped to null there); it shapes this one render and nothing
+      // is stored.
+      steer: payload.steer
     }).catch((error) => {
       console.error(`job-draft run: renderOneDocument rejected for the ${payload.kind} of job ${slug}.`, error);
     })

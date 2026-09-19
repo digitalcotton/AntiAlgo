@@ -34,6 +34,7 @@
 import type { Job } from './data';
 import type { RenderKind } from './generated-render-store';
 import type { Provider } from './keychain';
+import type { DraftSteer } from './draft-steer';
 import { jobDraftRunPath } from '../data/nav';
 import { draftRunSecret, signRunToken, RUN_TOKEN_TTL_MS } from './draft-run-token';
 
@@ -44,6 +45,10 @@ export interface DocumentDispatch {
   readonly renderId: string;
   readonly provider: Provider | null;
   readonly reason: string | null;
+  /** The person's steer for this one regenerate, carried into the signed token
+      so a fresh invocation renders with it (draft-steer.ts). Null for a first
+      draft or a plain re-draft. */
+  readonly steer: DraftSteer | null;
 }
 
 /** How long the POST will wait for a run endpoint's 202. The endpoint answers
@@ -84,6 +89,7 @@ export async function dispatchJobDraftRuns(
           kind: doc.kind,
           provider: doc.provider,
           reason: doc.reason,
+          steer: doc.steer,
           exp: Date.now() + RUN_TOKEN_TTL_MS
         },
         secret

@@ -146,7 +146,15 @@ function rewroteSet(render: ResumeRender | CoverRender | null): Set<string> {
 }
 const resumeRewrote = rewroteSet(resume);
 
-const STEER_CHIPS = ['Shorter', 'Lead with agent work', 'Plainer voice', 'More technical'];
+// The steer chips: ids match draft-steer.ts's allowlist (the endpoint drops
+// anything else), labels are the UI's own. A checked chip posts its id as a
+// `steer` value; the note posts as `steerNote`.
+const STEER_CHIPS: readonly { id: string; label: string }[] = [
+  { id: 'shorter', label: 'Shorter' },
+  { id: 'lead-agent', label: 'Lead with agent work' },
+  { id: 'plainer', label: 'Plainer voice' },
+  { id: 'technical', label: 'More technical' }
+];
 ---
 
 <article class="dr" data-slug={slug}>
@@ -227,13 +235,18 @@ const STEER_CHIPS = ['Shorter', 'Lead with agent work', 'Plainer voice', 'More t
 
         <section class="dr-steer">
           <h2 class="dr-steer-title">Not right yet? Steer it</h2>
-          <div class="dr-chips">{STEER_CHIPS.map((c) => <button type="button" class="dr-chip" disabled>{c}</button>)}</div>
-          <p class="dr-steer-soon mono-label">Steering lands soon. Regenerate re-drafts on your key now.</p>
-          <form method="POST" action={regenerateAction}>
+          <form method="POST" action={regenerateAction} class="dr-steer-form">
             <input type="hidden" name="slug" value={slug} />
             <input type="hidden" name="kind" value="resume" />
+            <div class="dr-chips">
+              {STEER_CHIPS.map((c) => (
+                <label class="dr-chip"><input type="checkbox" name="steer" value={c.id} /><span>{c.label}</span></label>
+              ))}
+            </div>
+            <textarea class="dr-steer-note" name="steerNote" rows="2" maxlength="400" placeholder="Or say it in your own words. Example: cut the utility background to one line and open with the agent work."></textarea>
             <button type="submit" class="dr-btn dr-btn-primary">Regenerate the resume</button>
           </form>
+          <p class="dr-steer-soon mono-label">A steer shapes the draft your connected model writes; the built-in writer re-drafts unchanged.</p>
           {costLine(resumeCost) && <p class="dr-cost mono-label">{costLine(resumeCost)}</p>}
         </section>
 
@@ -305,13 +318,18 @@ const STEER_CHIPS = ['Shorter', 'Lead with agent work', 'Plainer voice', 'More t
 
         <section class="dr-steer">
           <h2 class="dr-steer-title">Not right yet? Steer it</h2>
-          <div class="dr-chips">{STEER_CHIPS.map((c) => <button type="button" class="dr-chip" disabled>{c}</button>)}</div>
-          <p class="dr-steer-soon mono-label">Steering lands soon. Regenerate re-drafts on your key now.</p>
-          <form method="POST" action={regenerateAction}>
+          <form method="POST" action={regenerateAction} class="dr-steer-form">
             <input type="hidden" name="slug" value={slug} />
             <input type="hidden" name="kind" value="cover" />
+            <div class="dr-chips">
+              {STEER_CHIPS.map((c) => (
+                <label class="dr-chip"><input type="checkbox" name="steer" value={c.id} /><span>{c.label}</span></label>
+              ))}
+            </div>
+            <textarea class="dr-steer-note" name="steerNote" rows="2" maxlength="400" placeholder="Or say it in your own words. Example: open on why this company, then lead with the platform work."></textarea>
             <button type="submit" class="dr-btn dr-btn-primary">Regenerate the cover letter</button>
           </form>
+          <p class="dr-steer-soon mono-label">A steer shapes the draft your connected model writes; the built-in writer re-drafts unchanged.</p>
           {costLine(coverCost) && <p class="dr-cost mono-label">{costLine(coverCost)}</p>}
         </section>
 
@@ -441,16 +459,21 @@ const STEER_CHIPS = ['Shorter', 'Lead with agent work', 'Plainer voice', 'More t
 
   .dr-doc-actions { margin-top: var(--space-400); display: flex; flex-wrap: wrap; gap: var(--space-300); }
   .dr-btn { display: inline-block; padding: var(--space-300) var(--space-500); font-family: var(--font-family-mono); font-size: var(--size-100); text-decoration: none; cursor: pointer; color: var(--color-foreground); background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-foreground); }
-  .dr-btn-primary { background: var(--color-surface-inverse); color: var(--color-foreground-inverse); width: 100%; text-align: center; }
+  /* The primary action, in the brand signal orange (tokens.css: signal is for
+     the primary action), dark ink in both themes like the site's other CTAs. */
+  .dr-btn-primary { background: var(--color-signal); color: var(--gray-950); border-color: var(--color-signal); font-weight: var(--weight-bold); width: 100%; text-align: center; }
+  .dr-btn-primary:hover { background: var(--color-signal); color: var(--gray-950); }
   .dr-highlight-note { margin: var(--space-400) 0 0; color: var(--color-muted); font-size: var(--size-100); max-width: 66ch; }
 
   .dr-steer, .dr-versions, .dr-changed, .dr-send { border: var(--border-hairline) solid var(--color-line); background: var(--color-surface); padding: var(--space-600); margin-top: var(--space-600); }
   .dr-steer-title, .dr-changed-title { margin: 0 0 var(--space-400); font-size: var(--size-300); }
+  .dr-steer-form { margin: 0; display: flex; flex-direction: column; gap: var(--space-400); }
   .dr-chips { display: flex; flex-wrap: wrap; gap: var(--space-300); }
-  .dr-chip { padding: var(--space-300) var(--space-400); font-family: var(--font-family-mono); font-size: var(--size-100); border: var(--border-hairline) solid var(--color-line); background: var(--color-surface-raised); color: var(--color-muted); }
-  .dr-chip:disabled { opacity: 0.55; cursor: not-allowed; }
-  .dr-steer-soon { margin: var(--space-300) 0 var(--space-400); color: var(--color-muted); }
-  .dr-steer form { margin: 0; }
+  .dr-chip { display: inline-flex; align-items: center; gap: var(--space-200); padding: var(--space-300) var(--space-400); font-family: var(--font-family-mono); font-size: var(--size-100); border: var(--border-hairline) solid var(--color-line); background: var(--color-surface-raised); color: var(--color-muted); cursor: pointer; }
+  .dr-chip input { margin: 0; }
+  .dr-chip:has(input:checked) { border-color: var(--color-foreground); color: var(--color-foreground); }
+  .dr-steer-note { width: 100%; padding: var(--space-300); font-family: var(--font-family-sans); font-size: var(--size-100); line-height: 1.5; border: var(--border-hairline) solid var(--color-line); background: var(--color-surface-raised); color: var(--color-foreground); resize: vertical; box-sizing: border-box; }
+  .dr-steer-soon { margin: var(--space-300) 0 0; color: var(--color-muted); }
   .dr-cost { margin: var(--space-400) 0 0; color: var(--color-muted); }
 
   .dr-versions-title, .dr-send-title { margin: 0 0 var(--space-300); color: var(--color-muted); }
@@ -477,7 +500,7 @@ const STEER_CHIPS = ['Shorter', 'Lead with agent work', 'Plainer voice', 'More t
   .dr-sticky-title span { color: var(--color-muted); margin-left: var(--space-200); }
   .dr-sticky-actions { display: flex; gap: var(--space-400); align-items: center; }
   .dr-sticky-both { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; font-size: var(--size-100); }
-  .dr-sticky-apply { background: var(--color-surface-inverse); color: var(--color-foreground-inverse); padding: var(--space-200) var(--space-400); font-family: var(--font-family-mono); font-size: var(--size-075); text-decoration: none; }
+  .dr-sticky-apply { background: var(--color-signal); color: var(--gray-950); padding: var(--space-200) var(--space-400); font-family: var(--font-family-mono); font-size: var(--size-075); font-weight: var(--weight-bold); text-decoration: none; }
 
   @media (max-width: 40rem) {
     .dr-doc { padding: var(--space-500); }

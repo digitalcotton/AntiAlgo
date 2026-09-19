@@ -19,6 +19,7 @@ const payload: RunPayload = {
   kind: 'cover',
   provider: 'anthropic',
   reason: 'I like the craft',
+  steer: null,
   exp: 2_000_000
 };
 
@@ -64,5 +65,35 @@ describe('draft-run-token: sign and verify', () => {
   it('accepts a null provider and a null reason (the no-key, no-note draft)', () => {
     const bare: RunPayload = { ...payload, provider: null, reason: null };
     expect(verifyRunToken(signRunToken(bare, SECRET), SECRET, NOW)).toEqual(bare);
+  });
+
+  it('carries a steer through sign -> verify unchanged (the whole point of the field)', () => {
+    const steered: RunPayload = {
+      ...payload,
+      steer: { chips: ['shorter', 'technical'], note: 'lead with the agent work' }
+    };
+    const back = verifyRunToken(signRunToken(steered, SECRET), SECRET, NOW);
+    expect(back).toEqual(steered);
+    expect(back?.steer).toEqual({ chips: ['shorter', 'technical'], note: 'lead with the agent work' });
+  });
+
+  it('drops a malformed steer to null rather than rejecting the token', () => {
+    // A steer that is not object-shaped, or whose chips are not an array of
+    // strings, is dropped: the token still verifies, the render is just not
+    // steered. Consistent with the file treating a steer as data, not a gate.
+    const notObject = { ...payload, steer: 'shorter please' } as unknown as RunPayload;
+    const okNoSteer = verifyRunToken(signRunToken(notObject, SECRET), SECRET, NOW);
+    expect(okNoSteer).not.toBeNull();
+    expect(okNoSteer?.steer).toBeNull();
+
+    const badChips = { ...payload, steer: { chips: 'shorter', note: null } } as unknown as RunPayload;
+    const okBadChips = verifyRunToken(signRunToken(badChips, SECRET), SECRET, NOW);
+    expect(okBadChips).not.toBeNull();
+    expect(okBadChips?.steer).toBeNull();
+
+    const badNote = { ...payload, steer: { chips: [], note: 42 } } as unknown as RunPayload;
+    const okBadNote = verifyRunToken(signRunToken(badNote, SECRET), SECRET, NOW);
+    expect(okBadNote).not.toBeNull();
+    expect(okBadNote?.steer).toBeNull();
   });
 });

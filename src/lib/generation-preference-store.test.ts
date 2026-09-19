@@ -484,7 +484,10 @@ describe('the drafting audit row records the model that actually ran', () => {
     await renderInBackground('user_1', 1, job(), 'anthropic', 'resume-1', 'cover-1');
 
     for (const call of generativeProviderMock.mock.calls) {
-      expect(call[2]).toEqual({ model: 'claude-chosen' });
+      // The apply path has no steer panel, so it passes steer: null alongside
+      // the model (the field exists so this render site carries a steer the
+      // same way the job-draft render site does).
+      expect(call[2]).toEqual({ model: 'claude-chosen', steer: null });
     }
     for (const call of completeDraft.mock.calls) {
       expect((call[1] as { model: string | null }).model).toBe('claude-chosen');

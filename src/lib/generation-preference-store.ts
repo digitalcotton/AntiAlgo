@@ -83,6 +83,7 @@ import { linkPlatformLabel } from './profile-links';
 import { renderCover, renderResume, type RenderHeader, type Target } from './tailor';
 import { acceptPastedVoiceSample, type VoiceSample } from './voice';
 import type { Job } from './data';
+import type { DraftSteer } from './draft-steer';
 import { decideGenerationTrigger, type GenerationTriggerDecision } from './generation-preference';
 
 /** The reader's own opt-in, true when this person has no app_user_profile
@@ -235,7 +236,12 @@ export async function renderInBackground(
   job: Job,
   provider: Provider,
   resumeId: string,
-  coverId: string
+  coverId: string,
+  // The apply path has no "Steer it" panel, so no caller passes one today; the
+  // parameter exists so this render site carries a steer the same way the
+  // job-draft render site does, should the apply path ever grow one. Null keeps
+  // every apply-triggered draft unsteered.
+  steer: DraftSteer | null = null
 ): Promise<void> {
   // ONE RESOLVED VALUE, USED AND RECORDED. Before the model became a choice
   // this line read the registry default and was passed only to completeDraft's
@@ -270,8 +276,8 @@ export async function renderInBackground(
     // the letter's single call overlap, so the wall time is the slower of the
     // two, not their sum. This matters now that the letter is a real prose call
     // with its own timeout, not a copy of the resume.
-    const resumeProvider = generativeProvider(provider, plaintext, { model });
-    const coverProvider = generativeProvider(provider, plaintext, { model });
+    const resumeProvider = generativeProvider(provider, plaintext, { model, steer });
+    const coverProvider = generativeProvider(provider, plaintext, { model, steer });
     // Measured wall time for the pair. They render in parallel, so both rows
     // carry the same honest render_ms: the wall time of the slower of the two.
     const startedMs = Date.now();
@@ -440,6 +446,10 @@ export interface DocumentRenderInput {
   readonly renderId: string;
   readonly provider: Provider | null;
   readonly reason: string | null;
+  /** The person's steer for this one regenerate (draft-steer.ts), or null for a
+      first draft or a plain re-draft. Shapes only the connected-provider render
+      below; the deterministic branch has no prose to restyle and ignores it. */
+  readonly steer?: DraftSteer | null;
 }
 
 /**
@@ -469,7 +479,7 @@ export interface DocumentRenderInput {
  * voice on the cover only (buildCoverVoice).
  */
 export async function renderOneDocument(input: DocumentRenderInput): Promise<void> {
-  const { userId, job, kind, renderId, provider, reason } = input;
+  const { userId, job, kind, renderId, provider, reason, steer } = input;
   const target: Target = { kind: 'verified_posting', job };
   const label = `${kind} draft`;
 
@@ -490,7 +500,10 @@ export async function renderOneDocument(input: DocumentRenderInput): Promise<voi
         return;
       }
 
-      const instance = generativeProvider(provider, plaintext, model ? { model } : {});
+      // steer rides into the provider's own options (generation-providers.ts),
+      // where it becomes guidance in the DATA message, never the system message
+      // (draft-steer.ts's boundary). Null/absent for an unsteered draft.
+      const instance = generativeProvider(provider, plaintext, { ...(model ? { model } : {}), steer });
       const startedMs = Date.now();
       const payload =
         kind === 'resume'
@@ -598,9 +611,16 @@ async function renderInProcess(doc: DocumentDispatch): Promise<void> {
 export async function triggerJobDraft(
   userId: string,
   job: Job,
-  options: { reason?: string | null; origin?: URL; kind?: RenderKind } = {}
+  options: { reason?: string | null; origin?: URL; kind?: RenderKind; steer?: DraftSteer | null } = {}
 ): Promise<{ resumeId: string | null; coverId: string | null }> {
   const reason = options.reason ?? null;
+  // The steer only shapes THIS render: it is carried on each document (into the
+  // signed run token on the dispatched path, straight into renderOneDocument on
+  // the in-process path) and stored nowhere. A steer usually arrives with a
+  // `kind` (a per-document regenerate is how the room posts it), but this does
+  // not require one: a both-documents draft simply carries the same steer onto
+  // each row, and an absent steer leaves every render unsteered.
+  const steer = options.steer ?? null;
   const keyStorageConfigured = keyStorageIsConfigured();
   const byokFlagOn = isOn('byok');
 
@@ -631,14 +651,14 @@ export async function triggerJobDraft(
     const { id, reason: carried } = await beginJobDraftDocument(userId, job.slug, options.kind, reason);
     if (options.kind === 'resume') resumeId = id;
     else coverId = id;
-    docs = [{ userId, job, kind: options.kind, renderId: id, provider, reason: reason ?? carried }];
+    docs = [{ userId, job, kind: options.kind, renderId: id, provider, reason: reason ?? carried, steer }];
   } else {
     const ids = await beginJobDraft(userId, job.slug, reason);
     resumeId = ids.resumeId;
     coverId = ids.coverId;
     docs = [
-      { userId, job, kind: 'resume', renderId: ids.resumeId, provider, reason },
-      { userId, job, kind: 'cover', renderId: ids.coverId, provider, reason }
+      { userId, job, kind: 'resume', renderId: ids.resumeId, provider, reason, steer },
+      { userId, job, kind: 'cover', renderId: ids.coverId, provider, reason, steer }
     ];
   }
 
