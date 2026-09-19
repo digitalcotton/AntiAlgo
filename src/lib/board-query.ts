@@ -45,7 +45,16 @@ export interface BoardQuery {
    */
   ageMin: number | null;
   ageMax: number | null;
+  /**
+   * The titles the reader picked from their own Desk list (`title=`, repeatable;
+   * Filters.astro's title menu). Empty means no title narrowing. The page
+   * keeps only the ones the member actually holds; the address is never
+   * trusted to name a title on its own.
+   */
+  titles: readonly string[];
 }
+
+export const TITLES_MAX = 20;
 
 export const DEFAULT_QUERY: Readonly<BoardQuery> = Object.freeze({
   page: 1,
@@ -56,8 +65,23 @@ export const DEFAULT_QUERY: Readonly<BoardQuery> = Object.freeze({
   freshness: 'all',
   sort: 'fit',
   ageMin: null,
-  ageMax: null
+  ageMax: null,
+  titles: []
 });
+
+/** The `title=` values from the address: trimmed, capped, de-duplicated, in order. */
+export function parseTitles(values: readonly string[]): readonly string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const title = raw.trim().slice(0, QUERY_MAX_CHARS);
+    if (title.length === 0 || seen.has(title)) continue;
+    seen.add(title);
+    out.push(title);
+    if (out.length >= TITLES_MAX) break;
+  }
+  return out;
+}
 
 function oneOf<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
   return value !== null && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
@@ -93,7 +117,8 @@ export function parseBoardQuery(params: URLSearchParams): BoardQuery {
     freshness: oneOf(params.get('freshness'), FRESHNESS_FACETS, 'all'),
     sort: oneOf(params.get('sort'), SORT_KEYS, 'fit'),
     ageMin,
-    ageMax
+    ageMax,
+    titles: parseTitles(params.getAll('title'))
   };
 }
 
@@ -102,7 +127,7 @@ export function isExplicit(params: URLSearchParams): boolean {
   return params.toString() !== '';
 }
 
-const FILTER_KEYS: readonly (keyof BoardQuery)[] = ['q', 'location', 'comp', 'freshness', 'ageMin', 'ageMax', 'sort', 'per'];
+const FILTER_KEYS: readonly (keyof BoardQuery)[] = ['q', 'location', 'comp', 'freshness', 'ageMin', 'ageMax', 'sort', 'per', 'titles'];
 
 /**
  * The address for a query, with only the values that differ from the defaults
@@ -124,6 +149,8 @@ export function boardHref(base: string, query: BoardQuery, overrides: Partial<Bo
   if (next.ageMax != null) params.set('age_max', String(next.ageMax));
   if (next.sort !== 'fit') params.set('sort', next.sort);
   if (next.per !== DEFAULT_PER_PAGE) params.set('per', String(next.per));
+  // Same guard as the age range: an older caller's query may carry no titles.
+  for (const title of next.titles ?? []) params.append('title', title);
   if (next.page > 1) params.set('page', String(next.page));
   const search = params.toString();
   return search ? `${base}?${search}` : base;
@@ -144,6 +171,7 @@ export function hiddenFields(query: BoardQuery, omit: readonly (keyof BoardQuery
   if (!skip.has('ageMax') && query.ageMax != null) out.push(['age_max', String(query.ageMax)]);
   if (!skip.has('sort') && query.sort !== 'fit') out.push(['sort', query.sort]);
   if (!skip.has('per') && query.per !== DEFAULT_PER_PAGE) out.push(['per', String(query.per)]);
+  if (!skip.has('titles')) for (const title of query.titles ?? []) out.push(['title', title]);
   return out;
 }
 

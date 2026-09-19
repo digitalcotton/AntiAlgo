@@ -19,7 +19,7 @@ describe('parseBoardQuery', () => {
   });
   it('accepts only allowlisted values and falls back per field', () => {
     const q = parseBoardQuery(params('page=3&per=100&q=%20designer%20&location=remote&comp=200-250&freshness=fresh&sort=age'));
-    expect(q).toEqual({ page: 3, per: 100, q: 'designer', location: 'remote', comp: '200-250', freshness: 'fresh', sort: 'age', ageMin: null, ageMax: null });
+    expect(q).toEqual({ page: 3, per: 100, q: 'designer', location: 'remote', comp: '200-250', freshness: 'fresh', sort: 'age', ageMin: null, ageMax: null, titles: [] });
     const bad = parseBoardQuery(params('page=-2&per=7&location=mars&comp=nope&freshness=soon&sort=price&age_min=-1&age_max=soon'));
     expect(bad).toEqual(DEFAULT_QUERY);
   });
@@ -59,10 +59,28 @@ describe('boardHref', () => {
 
 describe('hiddenFields', () => {
   it('carries every non-default setting except the ones the form owns, and never the page', () => {
-    const q = { page: 4, per: 25, q: 'lead', location: 'remote' as const, comp: 'all', freshness: 'older' as const, sort: 'age' as const, ageMin: null, ageMax: null };
+    const q = { page: 4, per: 25, q: 'lead', location: 'remote' as const, comp: 'all', freshness: 'older' as const, sort: 'age' as const, ageMin: null, ageMax: null, titles: [] };
     expect(hiddenFields(q, ['location', 'comp', 'freshness', 'q'])).toEqual([['sort', 'age'], ['per', '25']]);
     expect(hiddenFields(q, ['per'])).toEqual([['q', 'lead'], ['location', 'remote'], ['freshness', 'older'], ['sort', 'age']]);
     expect(hiddenFields(q, []).some(([k]) => k === 'page')).toBe(false);
+  });
+});
+
+describe('titles: the Desk-title picks in the address', () => {
+  it('reads title= repeated, trimmed, de-duplicated, capped, and writes it back the same way', () => {
+    expect(parseBoardQuery(params('title=Product+Designer&title=%20Design+Lead%20&title=Product+Designer&title=')).titles).toEqual([
+      'Product Designer',
+      'Design Lead'
+    ]);
+    const many = Array.from({ length: 25 }, (_, i) => `title=T${i}`).join('&');
+    expect(parseBoardQuery(params(many)).titles).toHaveLength(20);
+    const q = { ...DEFAULT_QUERY, titles: ['Product Designer', 'Design Lead'] };
+    expect(boardHref('/jobs/board', q)).toBe('/jobs/board?title=Product+Designer&title=Design+Lead');
+    // A title pick changes the set, so it starts at page one.
+    expect(boardHref('/jobs/board', { ...q, page: 3 }, { titles: ['Design Lead'] })).toBe('/jobs/board?title=Design+Lead');
+    expect(boardHref('/jobs/board', { ...q, page: 3 }, { page: 4 })).toBe('/jobs/board?title=Product+Designer&title=Design+Lead&page=4');
+    expect(hiddenFields(q, [])).toEqual([['title', 'Product Designer'], ['title', 'Design Lead']]);
+    expect(hiddenFields(q, ['titles'])).toEqual([]);
   });
 });
 

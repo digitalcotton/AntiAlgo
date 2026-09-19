@@ -6,6 +6,7 @@ import { EMPTY_AGE_HISTOGRAM, facetGroupsFromCounts, loadStats, prospectRows, sw
 import { isConfigured } from '../lib/db';
 import { getBoardStats, listBoardAgeHistogram, listBoardFiltered, type BoardFilteredResult, type FacetCounts } from '../lib/job-store';
 import { boardRowToJob } from '../lib/board-jobs';
+import { listWatches } from '../lib/ledger-watch-store';
 import { boardHref, clampPage, parseBoardQuery } from '../lib/board-query';
 import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
 import { isOn } from '../lib/flags';
@@ -66,6 +67,26 @@ const servedSort = !showFit && query.sort === 'fit' ? ('age' as const) : query.s
 
 // THE BOARD IS NEVER PRE-FILTERED (owner decision, 2026-09-19). A member's
 // Desk titles no longer narrow it by default; every reader gets the full sweep.
+// Instead the search cell offers those titles as a checkbox list (Filters.astro
+// title menu), and only a title the member actually holds is honoured from the
+// address: `title=` values that are not on their Desk are dropped.
+let titleChoices: { core: string[]; stretch: string[] } | undefined;
+let pickedTitles: string[] = [];
+if (signedIn && isConfigured()) {
+  try {
+    const watches = await listWatches(viewer!.userId);
+    if (watches.length > 0) {
+      titleChoices = {
+        core: watches.filter((w) => w.shelf === 'core').map((w) => w.title),
+        stretch: watches.filter((w) => w.shelf === 'stretch').map((w) => w.title)
+      };
+      const held = new Set(watches.map((w) => w.title));
+      pickedTitles = query.titles.filter((title) => held.has(title));
+    }
+  } catch (error) {
+    console.error('board: could not read the Desk titles; showing the board without the title menu.', error);
+  }
+}
 
 const EMPTY_COUNTS: FacetCounts = { total: 0, location: {}, comp: {}, freshness: {} };
 const EMPTY_PAGE: BoardFilteredResult = { rows: [], total: 0, counts: EMPTY_COUNTS };
@@ -85,7 +106,8 @@ if (isConfigured()) {
       sort: servedSort,
       page: query.page,
       perPage: query.per,
-      sweepDate: sweepDate()
+      sweepDate: sweepDate(),
+      titles: pickedTitles.length > 0 ? pickedTitles : undefined
     });
   } catch (error) {
     console.error('board: the job store did not answer; rendering an empty board.', error);
@@ -153,6 +175,7 @@ const prospectCount = prospectRows().length;
       groups={groups}
       ageHistogram={ageHistogram}
       boardPath={boardPath}
+      titleChoices={titleChoices}
       active="board"
       prospectCount={prospectCount}
       boards={boardStats?.boards_swept}

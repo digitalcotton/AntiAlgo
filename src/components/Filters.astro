@@ -70,10 +70,38 @@ interface Props {
   hidden?: readonly [string, string][];
   /** Server mode: the search box's current text. */
   query?: string;
+  /** Server mode, signed in: the member's Desk titles by shelf. When either
+      shelf has one, the search cell grows a chevron that opens a checkbox
+      list of them (`title=` fields, several allowed). Undefined or both
+      empty: no chevron, no list. */
+  titleChoices?: { core: readonly string[]; stretch: readonly string[] };
+  /** Server mode: the titles the address already has checked. */
+  selectedTitles?: readonly string[];
   class?: string;
 }
 
-const { groups, selected = {}, mode = 'client', action = '', hidden = [], query = '', class: className } = Astro.props;
+const {
+  groups,
+  selected = {},
+  mode = 'client',
+  action = '',
+  hidden = [],
+  query = '',
+  titleChoices,
+  selectedTitles = [],
+  class: className
+} = Astro.props;
+const titleShelves: { key: 'core' | 'stretch'; label: string; titles: readonly string[] }[] = titleChoices
+  ? [
+      { key: 'core', label: 'Core', titles: titleChoices.core },
+      { key: 'stretch', label: 'Stretch', titles: titleChoices.stretch }
+    ].filter((shelf) => shelf.titles.length > 0)
+  : [];
+const hasTitleMenu = serverModeOf(mode) && titleShelves.length > 0;
+const selectedTitleSet = new Set(selectedTitles);
+function serverModeOf(m: 'client' | 'server'): boolean {
+  return m === 'server';
+}
 const accountFiltersUrl = withBase('/settings/filters');
 const serverMode = mode === 'server';
 // In server mode the control row IS the form: one element, so a select's
@@ -141,6 +169,37 @@ const widest = (group: FilterGroup): string =>
         enterkeyhint="search"
       />
     </label>
+    {/*
+      THE TITLE MENU (owner decision, 2026-09-19). The board is never
+      pre-filtered; instead a member who named titles on The Desk gets a
+      chevron at the end of the search cell that opens their own list, core
+      then stretch, as checkboxes. Each checked box is a `title=` field of the
+      same form, so with script a tick submits at once and without it the
+      Apply button does. Rendered only when there is at least one title.
+    */}
+    {hasTitleMenu && (
+      <details class="filter-titles" data-title-menu>
+        <summary class="filter filter-titles-summary">
+          <span class="filter-label mono-label">Titles</span>
+          {selectedTitles.length > 0 && <span class="filter-titles-count mono">{selectedTitles.length}</span>}
+          <span class="filter-titles-chevron" aria-hidden="true">&#9662;</span>
+          <span class="visually-hidden">Choose which of your titles to show</span>
+        </summary>
+        <div class="title-menu">
+          {titleShelves.map((shelf) => (
+            <div class="title-menu-group">
+              <span class="title-menu-shelf mono-label">{shelf.label}</span>
+              {shelf.titles.map((title) => (
+                <label class="title-option">
+                  <input type="checkbox" name="title" value={title} data-title-option checked={selectedTitleSet.has(title)} />
+                  <span>{title}</span>
+                </label>
+              ))}
+            </div>
+          ))}
+        </div>
+      </details>
+    )}
     {
       groups.map((group) => (
         <label class="filter">
@@ -379,6 +438,10 @@ const widest = (group: FilterGroup): string =>
   if (serverMode) {
     for (const select of document.querySelectorAll<HTMLSelectElement>('[data-filters] select[data-autosubmit]')) {
       select.addEventListener('change', () => select.form?.requestSubmit());
+    }
+    // A ticked title submits the same way a chosen facet does.
+    for (const box of document.querySelectorAll<HTMLInputElement>('[data-filters] input[data-title-option]')) {
+      box.addEventListener('change', () => box.form?.requestSubmit());
     }
   }
 
@@ -853,6 +916,75 @@ const widest = (group: FilterGroup): string =>
 
   .search-input:focus-visible {
     outline: none;
+  }
+
+  /* The title menu: a cell at the end of the search box, no hairline of its
+     own so it reads as the search cell's chevron. The list hangs under it. */
+  .filter-titles {
+    position: relative;
+    display: block;
+    flex: none;
+  }
+  .filter-titles-summary {
+    border-left: none;
+    padding-left: 0;
+    height: 100%;
+    cursor: pointer;
+    list-style: none;
+  }
+  .filter-titles-summary::-webkit-details-marker {
+    display: none;
+  }
+  .filter-titles-count {
+    color: var(--color-foreground);
+    font-size: var(--size-100);
+  }
+  .filter-titles-chevron {
+    color: var(--color-muted);
+    font-size: var(--size-100);
+  }
+  .filter-titles[open] .filter-titles-chevron {
+    color: var(--color-foreground);
+  }
+  .title-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 20;
+    min-width: 16rem;
+    max-width: 24rem;
+    padding: var(--space-300) var(--space-400);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+    background: var(--color-surface-raised);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    white-space: normal;
+  }
+  .title-menu-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+  .title-menu-shelf {
+    color: var(--color-muted);
+  }
+  .title-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-300);
+    font-size: var(--size-100);
+    cursor: pointer;
+  }
+  .title-option input {
+    margin: 0;
+  }
+  /* At lap width the row scrolls sideways, which would clip a list that hangs
+     below it; while the title menu is open the row lets it through. */
+  @media (min-width: 60rem) { /* --breakpoint-lap */
+    .filters-row:has(.filter-titles[open]) {
+      overflow-x: visible;
+    }
   }
 
   /* The sizer and the select share one grid cell, so the cell takes the width

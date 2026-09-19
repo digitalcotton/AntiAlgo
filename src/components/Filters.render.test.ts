@@ -194,3 +194,35 @@ describe('Filters.astro: server mode is one GET form, the address is the state',
     expect(html).toContain('data-filters-mode="client"');
   });
 });
+
+describe('Filters.astro: the title menu (server mode, a member with Desk titles)', () => {
+  async function renderServer(props: Record<string, unknown>): Promise<string> {
+    const container = await AstroContainer.create();
+    return container.renderToString(Filters, { props: { groups: GROUPS, mode: 'server', action: '/board', ...props } });
+  }
+
+  it('renders no chevron and no title field when there are no titles, or in client mode', async () => {
+    expect(await renderServer({})).not.toContain('data-title-menu');
+    expect(await renderServer({ titleChoices: { core: [], stretch: [] } })).not.toContain('data-title-menu');
+    const container = await AstroContainer.create();
+    const client = await container.renderToString(Filters, {
+      props: { groups: GROUPS, titleChoices: { core: ['Product Designer'], stretch: [] } }
+    });
+    expect(client).not.toContain('data-title-menu');
+  });
+
+  it('lists core then stretch as title= checkboxes inside the form, with the address\'s picks checked', async () => {
+    const html = await renderServer({
+      titleChoices: { core: ['Product Designer'], stretch: ['Design Lead', 'Head of Design'] },
+      selectedTitles: ['Design Lead']
+    });
+    expect(html).toContain('data-title-menu');
+    const formMatch = html.match(/<form class="filters-row"[^>]*>([\s\S]*?)<\/form>/);
+    expect(formMatch).not.toBeNull();
+    const form = formMatch![1];
+    const boxes = form.match(/<input type="checkbox" name="title" value="[^"]+"[^>]*>/g) ?? [];
+    expect(boxes.map((b) => b.match(/value="([^"]+)"/)![1])).toEqual(['Product Designer', 'Design Lead', 'Head of Design']);
+    expect(boxes.filter((b) => / checked/.test(b)).map((b) => b.match(/value="([^"]+)"/)![1])).toEqual(['Design Lead']);
+    expect(form.indexOf('>Core<')).toBeLessThan(form.indexOf('>Stretch<'));
+  });
+});

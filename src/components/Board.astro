@@ -47,6 +47,10 @@ interface Props {
   ageHistogram?: AgeHistogram;
   /** Server mode: the board's own path, the forms' and links' target. */
   boardPath?: string;
+  /** Server mode, signed in: the member's own Desk titles, by shelf, for the
+      search cell's title menu (Filters.astro). Undefined or both empty: no
+      menu, the strip is exactly the public one. */
+  titleChoices?: { core: readonly string[]; stretch: readonly string[] };
   /** Which tab is live, for the view switch. */
   active: 'board' | 'prelist';
   /** The Newly-funded count on the tab. */
@@ -84,6 +88,7 @@ const {
   groups: servedGroups,
   ageHistogram,
   boardPath = '',
+  titleChoices,
   active,
   prospectCount,
   boards,
@@ -165,7 +170,9 @@ const ageHref = serverMode
           selected={{ location: q.location, comp: q.comp, freshness: q.freshness }}
           query={q.q}
           action={boardPath}
-          hidden={hiddenFields(q, ['location', 'comp', 'freshness', 'q'])}
+          hidden={hiddenFields(q, ['location', 'comp', 'freshness', 'q', 'titles'])}
+          titleChoices={titleChoices}
+          selectedTitles={q.titles}
         >
           <SortControl slot="sort" current={sortCurrent(q)} hrefFor={sortHref} keys={sortKeys} />
         </Filters>
