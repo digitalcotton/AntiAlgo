@@ -73,10 +73,9 @@ const sub = [role.company, role.pay, role.remote ? 'Remote' : role.location].fil
     gap: var(--space-500) var(--space-600);
     align-items: start;
     padding: var(--space-500);
-    border: var(--border-hairline) solid var(--color-line);
-    border-top: none;
+    border-top: var(--border-hairline) solid var(--color-line);
   }
-  .rc:first-child { border-top: var(--border-hairline) solid var(--color-line); }
+  .rc:first-child { border-top: none; }
   .rc-main { display: flex; flex-direction: column; gap: var(--space-300); min-width: 0; }
   .rc-head { margin: 0; display: flex; align-items: baseline; gap: var(--space-300); }
   .rc-rank { color: var(--color-muted); }

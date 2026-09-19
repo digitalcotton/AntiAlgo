@@ -72,8 +72,8 @@ function barPct(stoodDays: number | null): number {
   .dl-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    border-top: var(--border-hairline) solid var(--color-line);
-    border-left: var(--border-hairline) solid var(--color-line);
+    border-top: var(--border-hairline) solid var(--color-line-strong);
+    border-left: var(--border-hairline) solid var(--color-line-strong);
     background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
   }
   .dl-card {
@@ -81,9 +81,9 @@ function barPct(stoodDays: number | null): number {
     flex-direction: column;
     gap: var(--space-300);
     padding: var(--space-500);
-    border-right: var(--border-hairline) solid var(--color-line);
-    border-bottom: var(--border-hairline) solid var(--color-line);
-    background: var(--color-surface);
+    border-right: var(--border-hairline) solid var(--color-line-strong);
+    border-bottom: var(--border-hairline) solid var(--color-line-strong);
+    background: var(--color-surface-raised);
   }
 
   .dl-head { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-300); }

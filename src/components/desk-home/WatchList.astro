@@ -222,7 +222,7 @@ const shelves: { key: 'core' | 'stretch'; label: string; caption: string; list: 
   .wl-editor { display: flex; flex-direction: column; gap: var(--space-500); padding-top: var(--space-500); }
   .wl-editor-title { margin: 0; font-size: clamp(1.4rem, 2.6vw, 2rem); letter-spacing: -0.02em; }
   .wl-editor-copy { margin: 0; color: var(--color-muted); max-width: 70ch; line-height: 1.55; }
-  .wl-add { display: flex; align-items: center; gap: var(--space-300); border: var(--border-hairline) solid var(--color-line); padding: var(--space-400); }
+  .wl-add { display: flex; align-items: center; gap: var(--space-300); border: var(--border-hairline) solid var(--color-line-strong); background: var(--color-surface-raised); padding: var(--space-400); }
   .wl-input { flex: 1 1 auto; min-width: 12ch; padding: var(--space-200) 0; border: none; background: transparent; color: var(--color-foreground); font-size: var(--size-200); font-family: var(--font-family-mono); }
   .wl-input:focus { outline: none; }
   .wl-add-hint { color: var(--color-muted); white-space: nowrap; }
@@ -230,7 +230,7 @@ const shelves: { key: 'core' | 'stretch'; label: string; caption: string; list: 
 
   .wl-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-500); }
   @media (max-width: 44rem) { .wl-cols { grid-template-columns: 1fr; } }
-  .wl-col { border: var(--border-hairline) solid var(--color-line); display: flex; flex-direction: column; }
+  .wl-col { border: var(--border-hairline) solid var(--color-line-strong); background: var(--color-surface-raised); display: flex; flex-direction: column; }
   .wl-col-head { display: flex; justify-content: space-between; align-items: baseline; padding: var(--space-300) var(--space-400); border-bottom: var(--border-hairline) solid var(--color-line); }
   .wl-col-label { color: var(--color-foreground); }
   .wl-col-caption, .wl-controls-note { color: var(--color-muted); }
@@ -249,7 +249,7 @@ const shelves: { key: 'core' | 'stretch'; label: string; caption: string; list: 
   .wl-card-matched { grid-column: 1 / -1; align-self: start; color: var(--color-muted); border: var(--border-hairline) solid var(--color-line); padding: 2px var(--space-200); justify-self: start; }
 
   /* True of any job controls. */
-  .wl-controls { border: var(--border-hairline) solid var(--color-line); display: flex; flex-direction: column; }
+  .wl-controls { border: var(--border-hairline) solid var(--color-line-strong); background: var(--color-surface-raised); display: flex; flex-direction: column; }
   .wl-controls-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-400); padding: var(--space-300) var(--space-400); border-bottom: var(--border-hairline) solid var(--color-line); flex-wrap: wrap; }
   .wl-control-row { display: flex; align-items: center; gap: var(--space-400); padding: var(--space-300) var(--space-400); flex-wrap: wrap; }
   .wl-control-label { color: var(--color-muted); width: 6rem; flex: none; }
