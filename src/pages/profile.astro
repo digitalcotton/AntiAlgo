@@ -92,7 +92,6 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { withBase } from '../../site.config.mjs';
 import Panel from '../components/Panel.astro';
 import ImportBand from '../components/profile/ImportBand.astro';
-import ProposalForm from '../components/profile/ProposalForm.astro';
 import RecordView from '../components/profile/RecordView.astro';
 import OnboardingChecklist from '../components/profile/OnboardingChecklist.astro';
 import { buildOnboarding } from '../lib/onboarding';
@@ -112,6 +111,7 @@ import { listApplications } from '../lib/desk-store';
 import { linkPlatformLabel } from '../lib/profile-links';
 import PlatformIcon from '../components/profile/PlatformIcon.astro';
 import { getParse } from '../lib/resume-parse-store';
+import { landReadyParse } from '../lib/resume-parse-apply';
 import { keyStorageIsConfigured } from '../lib/keychain';
 import { keyMeta } from '../lib/keychain-store';
 import { GENERATION_PROVIDER_ORDER, PROVIDER_REGISTRY } from '../lib/generation-providers';
@@ -124,6 +124,12 @@ const verdict = Astro.locals.verdict;
 const allowed = verdict?.allow === true;
 const reason = verdict?.reason ?? 'signed-out';
 const viewer = Astro.locals.viewer;
+
+// A finished read that has not landed in the record yet lands here, before the
+// name, entries and links below are read, so the rows it creates are the rows
+// this page shows. Normally the background runner has already done this and
+// nothing is waiting (resume-parse-apply.ts).
+const landed = allowed && viewer ? await landReadyParse(viewer.userId) : null;
 
 const name = allowed && viewer ? await personName(viewer.userId) : null;
 // The account email has no reader inside src/lib/entitlement.ts's Viewer
@@ -232,31 +238,27 @@ const LINK_RELAY_COOKIE_PATH = withBase('/profile');
 const linkRelay = parseLinkRelay(Astro.cookies.get('profile_link_relay')?.value);
 Astro.cookies.delete('profile_link_relay', { path: LINK_RELAY_COOKIE_PATH });
 
-// A parse waiting to be reviewed, if any: a pending read still running, or a
-// ready one the person has not confirmed yet (import.ts clears the row on
-// confirm).
+// A read still running, if any. A finished read never waits here: it landed
+// above, so the only parse state this page can show is 'reading'.
 const parse = allowed && viewer ? await getParse(viewer.userId) : null;
-
-// The finished read, rendered IN PLACE on this page: the person uploads here,
-// waits here, and confirms here. The assembly below is review.astro's own
-// (that page remains the no-JS destination), so the two surfaces render one
-// truth through the same ProposalForm. The name proposal is offered only when
-// the person has set no name yet, so an upload fills an empty identity but
-// never quietly overwrites one they chose; `name` is already read above.
-const parseOutcome = parse?.status === 'ready' ? parse.outcome : null;
-const hasStoredName = name !== null && (name.firstName.trim().length > 0 || name.lastName.trim().length > 0);
-const parseNameProposal = parseOutcome?.proposals.name && !hasStoredName ? parseOutcome.proposals.name : null;
-const parseProposals = parseOutcome?.proposals ?? null;
-const parseHasSomething =
-  parseProposals !== null &&
-  (parseProposals.entries.length > 0 || parseProposals.links.length > 0 || parseNameProposal !== null);
-const importAction = routeFor('profile-import');
 const importStatusAction = routeFor('profile-import-status');
 
-/** Which of the four import states is on screen. Exactly one, always. */
-type BandState = 'idle' | 'reading' | 'review' | 'done';
-const bandState: BandState =
-  parse?.status === 'pending' ? 'reading' : parseOutcome !== null ? 'review' : importRelay ? 'done' : 'idle';
+// The receipt for the band and the record's new-row marks: what landed on
+// this request, else what the confirm relay cookie carried.
+const receipt: ImportRelay | null = landed
+  ? {
+      scope: 'import',
+      created: landed.created,
+      failed: landed.failed,
+      links: landed.links,
+      name: landed.name,
+      createdIds: [...landed.createdIds]
+    }
+  : importRelay;
+
+/** Which of the three import states is on screen. Exactly one, always. */
+type BandState = 'idle' | 'reading' | 'done';
+const bandState: BandState = parse?.status === 'pending' ? 'reading' : receipt ? 'done' : 'idle';
 
 // Whether this person can have their resume read at all: a bring-your-own-key
 // application reads a resume only with the person's OWN provider key. No key,
@@ -402,7 +404,7 @@ const showOnboarding = onboarding && !onboardingComplete;
                 --------------------------------------------------------------- */}
             <ImportBand
               state={bandState}
-              receipt={importRelay}
+              receipt={receipt}
               hasProviderKey={hasProviderKey}
               providerLabel={readProviderLabel}
               parseAction={parseAction}
@@ -413,54 +415,12 @@ const showOnboarding = onboarding && !onboardingComplete;
               coverLetterOnFile={coverLetterOnFile}
             />
 
-            {/* The review, in place. The person uploaded above, waited above,
-                and confirms here, never leaving the page. The slot div is the
-                script's swap target: on a finished read it fetches this page's
-                own HTML and replaces the slot's content with the freshly
-                rendered version of this same block, so ProposalForm.astro
-                stays the one renderer of a proposal. /profile/review renders
-                the identical assembly for the no-JS path. */}
-            <div data-import-review-slot data-status-url={importStatusAction}>
-              {parseOutcome && (
-                <section class="import-review" id="import-review" aria-label="What we read">
-                  {parseOutcome.method === 'llm' && parseOutcome.providerLabel && (
-                    <p class="import-review-line">Read with your connected {parseOutcome.providerLabel} key.</p>
-                  )}
-                  {parseOutcome.fallbackReason && (
-                    <p class="import-review-line import-fallback" role="status">
-                      Your connected provider could not read this one: {parseOutcome.fallbackReason}. The basic
-                      reader was used instead. Check your key in{' '}
-                      <a class="profile-link" href={settingsPath}>Settings</a>, or try the upload again.
-                    </p>
-                  )}
-
-                  {parseOutcome.notes.map((note) => (
-                    <p class="import-review-line import-review-note">{note}</p>
-                  ))}
-
-                  {parseHasSomething ? (
-                    <Panel title="What we read" class="profile-panel">
-                      <p class="import-review-line">
-                        Everything below is checked and ready to add. Uncheck what you do not want, open a row
-                        to fix anything read wrong, then add the rest. Nothing is saved until you do.
-                      </p>
-                      <ProposalForm
-                        entries={parseProposals?.entries ?? []}
-                        links={parseProposals?.links ?? []}
-                        nameProposal={parseNameProposal}
-                        existingLinkUrls={links.map((link) => link.url)}
-                        action={importAction}
-                      />
-                    </Panel>
-                  ) : (
-                    <p class="import-review-line import-review-note">
-                      Nothing could be read from that file. Try a cleaner file, paste the text instead, or add
-                      entries by hand below.
-                    </p>
-                  )}
-                </section>
-              )}
-            </div>
+            {/* The script's status carrier. A finished read lands in the record
+                on its own (resume-parse-apply.ts), so there is no review to
+                render here: when the poll sees the read is ready, the script
+                reloads the page and the new rows appear in the record below
+                with a receipt in the band above. */}
+            <div data-import-review-slot data-status-url={importStatusAction}></div>
 
             <div class="profile-two-up">
               <Panel title="Identity" class="profile-panel">
@@ -735,7 +695,7 @@ const showOnboarding = onboarding && !onboardingComplete;
                 entries={visibleEntries}
                 editable={true}
                 editParam={editParam}
-                newIds={importRelay?.createdIds ?? []}
+                newIds={receipt?.createdIds ?? []}
                 editFormState={(entry) => editFormState(relay, entry)}
                 artifactFormState={(entry) => artifactFormState(relay, entry)}
                 returnKey="profile"
@@ -811,12 +771,10 @@ const showOnboarding = onboarding && !onboardingComplete;
    * read's own notes verbatim. It never claims a stage it has not been told
    * about.
    *
-   * THE SWAP IS THE SERVER'S OWN RENDERING. On a finished read this fetches
-   * /profile itself, parses the HTML, and replaces the slot's content with
-   * the freshly rendered slot from that document. No client-side templating
-   * of proposals exists: ProposalForm.astro stays the one renderer, and if
-   * the swap cannot find the slot it falls back to a plain reload, which
-   * lands in exactly the same place.
+   * A FINISHED READ IS A RELOAD. The read lands in the record server-side
+   * (resume-parse-apply.ts), and the rows it creates, the receipt and the
+   * links all sit outside the slot, so the page is reloaded whole rather
+   * than patched.
    *
    * Every failure falls back to something honest: a rejected start shows the
    * note line, a poll that never turns ready stops and says so, and any
@@ -932,22 +890,9 @@ const showOnboarding = onboarding && !onboardingComplete;
     }
   }
 
-  /** Pull this page again and swap in the freshly rendered review slot. */
-  async function swapInReview(): Promise<void> {
-    try {
-      const response = await fetch(window.location.href, { credentials: 'same-origin' });
-      const html = await response.text();
-      const fresh = new DOMParser()
-        .parseFromString(html, 'text/html')
-        .querySelector('[data-import-review-slot]');
-      if (fresh && slot) {
-        slot.replaceChildren(...Array.from(fresh.childNodes));
-        slot.querySelector('#import-review')?.scrollIntoView({ block: 'start' });
-        return;
-      }
-    } catch {
-      /* fall through to the reload below */
-    }
+  /** The read has landed by the time this page is served again: reload it
+      whole so the receipt and the record's new rows show. */
+  function showLandedRead(): void {
     window.location.reload();
   }
 
@@ -966,7 +911,7 @@ const showOnboarding = onboarding && !onboardingComplete;
           for (const line of state.notes) if (typeof line === 'string') logLine(line);
         }
         setBusy(false);
-        await swapInReview();
+        showLandedRead();
         return;
       }
     }
@@ -1015,7 +960,7 @@ const showOnboarding = onboarding && !onboardingComplete;
         if (body && body.status === 'ready') {
           setBusy(false);
           if (typeof body.note === 'string') say(body.note);
-          else await swapInReview();
+          else showLandedRead();
           return;
         }
 

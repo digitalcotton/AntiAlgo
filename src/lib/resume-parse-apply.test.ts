@@ -14,7 +14,13 @@ const { createEntry, addLink, personName, setPersonName } = vi.hoisted(() => ({
 }));
 vi.mock('./record-store', () => ({ createEntry, addLink, personName, setPersonName }));
 
-import { applyParsedProposals } from './resume-parse-apply';
+const { getParse, clearParse } = vi.hoisted(() => ({
+  getParse: vi.fn(),
+  clearParse: vi.fn()
+}));
+vi.mock('./resume-parse-store', () => ({ getParse, clearParse }));
+
+import { applyParsedProposals, landReadyParse } from './resume-parse-apply';
 
 function validCandidate(title: string) {
   return {
@@ -40,7 +46,57 @@ beforeEach(() => {
   addLink.mockResolvedValue({});
   personName.mockResolvedValue(null);
   setPersonName.mockResolvedValue(true);
+  getParse.mockResolvedValue(null);
+  clearParse.mockResolvedValue(undefined);
   vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+});
+
+describe('landReadyParse(): a read still waiting in the buffer lands on the next visit', () => {
+  function readyParse(entries: ReturnType<typeof validCandidate>[]) {
+    return {
+      status: 'ready',
+      sourceName: 'resume.pdf',
+      updatedAt: new Date(),
+      outcome: {
+        method: 'deterministic',
+        providerLabel: null,
+        fallbackReason: null,
+        notes: [],
+        proposals: proposals({
+          entries: entries.map((candidate) => ({ candidate, sourceQuotes: {} })),
+          links: [{ platform: 'portfolio', url: 'https://uxmonopoly.com/' }]
+        })
+      }
+    };
+  }
+
+  it('applies a ready read, clears the buffer, and returns what landed', async () => {
+    getParse.mockResolvedValue(readyParse([validCandidate('Designer'), validCandidate('Lead')]));
+    const result = await landReadyParse('user_1');
+    expect(result).not.toBeNull();
+    expect(result?.created).toBe(2);
+    expect(result?.links).toBe(1);
+    expect(createEntry).toHaveBeenCalledTimes(2);
+    expect(clearParse).toHaveBeenCalledWith('user_1');
+    // Land, then clear: never the other way round.
+    expect(createEntry.mock.invocationCallOrder[1]).toBeLessThan(clearParse.mock.invocationCallOrder[0]);
+  });
+
+  it('nothing waiting, or a read still running, touches nothing and returns null', async () => {
+    getParse.mockResolvedValue(null);
+    expect(await landReadyParse('user_1')).toBeNull();
+    getParse.mockResolvedValue({ status: 'pending', sourceName: null, updatedAt: new Date(), outcome: null });
+    expect(await landReadyParse('user_1')).toBeNull();
+    expect(createEntry).not.toHaveBeenCalled();
+    expect(clearParse).not.toHaveBeenCalled();
+  });
+
+  it('a buffer that cannot be read is logged and left, never thrown', async () => {
+    getParse.mockRejectedValue(new Error('db down'));
+    await expect(landReadyParse('user_1')).resolves.toBeNull();
+    expect(clearParse).not.toHaveBeenCalled();
+  });
 });
 
 describe('applyParsedProposals(): a finished read lands in the record', () => {

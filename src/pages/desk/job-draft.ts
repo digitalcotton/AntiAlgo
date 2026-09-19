@@ -47,6 +47,7 @@ import {
 import { parseSteer } from '../../lib/draft-steer';
 import { jobDraftPath, routeFor } from '../../data/nav';
 import { isAddedSlug } from '../../lib/added-posting';
+import { landReadyParse } from '../../lib/resume-parse-apply';
 import { FUNCTION_MAX_DURATION_S } from '../../../site.config.mjs';
 
 /** The per-user draft throttle: at most this many job-draft render rows in the
@@ -124,6 +125,11 @@ export async function POST(context: APIContext): Promise<Response> {
   // Parsed here because the idempotency check below needs it.
   const kindRaw = String(form.get('kind') ?? '');
   const kind = kindRaw === 'resume' || kindRaw === 'cover' ? kindRaw : undefined;
+
+  // A resume read that finished but has not landed in the record yet lands
+  // now (resume-parse-apply.ts), so the draft reads the roles it carried
+  // rather than an empty record. Normally nothing is waiting.
+  await landReadyParse(viewer.userId);
 
   // IDEMPOTENT RETRY. Every button that reaches this endpoint (the room's "Start
   // the draft over", a double submit, the rail re-click) posts the same slug. If

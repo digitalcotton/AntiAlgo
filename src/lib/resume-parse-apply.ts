@@ -26,7 +26,33 @@
 import { validateEntry } from './record';
 import { addLink, createEntry, personName, setPersonName } from './record-store';
 import { isLinkPlatform, normaliseLinkUrl } from './profile-links';
+import { clearParse, getParse } from './resume-parse-store';
 import type { ResumeProposals } from './resume-parse';
+
+/**
+ * Lands a finished read that is still sitting in the buffer: one that
+ * completed before the runner learned to land reads itself, or one whose
+ * background apply failed. Called by the profile page before it reads the
+ * record and by the draft endpoint before it drafts, so a read never waits
+ * behind a click. Returns what landed, or null when nothing was waiting.
+ * Never throws: a buffer that cannot be read or cleared is logged and left,
+ * and the next call tries again.
+ */
+export async function landReadyParse(userId: string): Promise<AppliedProposals | null> {
+  try {
+    const parse = await getParse(userId);
+    if (!parse || parse.status !== 'ready' || !parse.outcome) return null;
+    const applied = await applyParsedProposals(userId, parse.outcome.proposals);
+    console.log(
+      `resume-parse-apply: landed a waiting read for user ${userId}: ${applied.created} entries created, ${applied.failed} failed, ${applied.links} links, name ${applied.name ? 'set' : 'kept'}.`
+    );
+    await clearParse(userId);
+    return applied;
+  } catch (error) {
+    console.error(`resume-parse-apply: could not land the waiting read for user ${userId}.`, error);
+    return null;
+  }
+}
 
 export interface AppliedProposals {
   /** Entries created. */
