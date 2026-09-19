@@ -98,3 +98,20 @@ describe('StyleResult: the shape itself carries no fact-bearing field', () => {
     }
   });
 });
+
+describe('templateText(): the summary slot prints its first two fragments only', () => {
+  it('joins the opening and the second sentence and leaves the model-only lines unprinted', () => {
+    expect(
+      templateText('summary', [
+        'Staff Designer, Acme Corp, March 2020 to Present.',
+        'Figma and Design systems.',
+        'Led the checkout redesign.',
+        'Cut page weight in half.'
+      ])
+    ).toBe('Staff Designer, Acme Corp, March 2020 to Present. Figma and Design systems.');
+  });
+
+  it('a one-fragment summary is that one sentence', () => {
+    expect(templateText('summary', ['PostgreSQL'])).toBe('PostgreSQL.');
+  });
+});

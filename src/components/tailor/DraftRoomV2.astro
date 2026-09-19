@@ -22,7 +22,7 @@
  */
 import { groupResumeSection, type ResumeGroup } from '../../lib/resume-grouping';
 import type { EntryDate } from '../../lib/record';
-import { DESCRIPTION_KINDS } from '../../lib/tailor';
+import { DESCRIPTION_KINDS, SUMMARY_LINE_ID } from '../../lib/tailor';
 import type { ResumeRender, CoverRender, RenderEntry, RenderHeader } from '../../lib/tailor';
 import type { RenderVersionRow } from '../../lib/generated-render-store';
 import { jobDraftPath, jobDraftPdfPath, routeFor } from '../../data/nav';
@@ -194,16 +194,6 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
     {resume ? (
       <>
         <p class="dr-doc-meta mono-label">resume{resumeUpdatedAt ? `, drafted ${timeAgo(resumeUpdatedAt)}` : ''}</p>
-        {/* The gap note (tailor.ts computeGaps, RESUME-RULES.md layer 1: "if
-            the record is thin, ask, do not pad"): what the record is missing,
-            named, with the way to add it. Absent when the render is whole. */}
-        {resume.gaps && (
-          <div class="dr-gap" role="note">
-            <p class="dr-gap-title">Your record is thin for a full draft</p>
-            {resume.gaps.missing.map((line) => <p class="dr-gap-line">{line}</p>)}
-            <a class="dr-gap-link" href={profilePath}>Add to your Profile Record</a>
-          </div>
-        )}
         <article class="dr-doc">
           {hasHeader(resume.header) && (
             <header class="dr-doc-contact">
@@ -214,12 +204,13 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
               </p>
             </header>
           )}
-          {/* The summary block (tailor.ts buildSummary): the record's own
-              facts a skim reads first, before the first experience entry. */}
+          {/* The summary block (tailor.ts summarySlotFor): the record's own
+              facts a skim reads first, before the first experience entry.
+              Marked like a bullet when the model rephrased it on your key. */}
           {resume.summary && (
             <section class="dr-doc-section">
               <h3 class="dr-doc-heading mono-label">Summary</h3>
-              <p class="dr-doc-line">{resume.summary.text}</p>
+              <p class:list={['dr-doc-line', { 'is-tailored': resumeRewrote.has(SUMMARY_LINE_ID) }]}>{resume.summary.text}</p>
             </section>
           )}
           {resume.sections.map((section) => (
@@ -304,6 +295,12 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
                 <div class="dr-changed-row"><dt class="dr-changed-verb">ADDED</dt><dd>The posting's own terms ({resume.changeRecord.mirroredTerms.join(', ')}) paired onto skills you already hold.</dd></div>
               )}
               <div class="dr-changed-row"><dt class="dr-changed-verb">KEPT</dt><dd>Every date, title, and number exactly as your profile has them.{resume.changeRecord.counts.kept > 0 ? ` ${resume.changeRecord.counts.kept} ${resume.changeRecord.counts.kept === 1 ? 'line is' : 'lines are'} your own words, unchanged.` : ''}</dd></div>
+              {/* The gap note (tailor.ts computeGaps, RESUME-RULES.md layer 1:
+                  "if the record is thin, ask, do not pad"): what the record is
+                  missing, named, with the way to add it. */}
+              {resume.gaps && (
+                <div class="dr-changed-row"><dt class="dr-changed-verb">CHECK</dt><dd>{resume.gaps.missing.join(' ')} <a class="dr-changed-link" href={profilePath}>Add to your Profile Record</a></dd></div>
+              )}
             </dl>
           </section>
         )}
@@ -471,10 +468,6 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
   .dr-doc-para { margin-bottom: var(--space-300); }
   .dr-doc-salutation, .dr-doc-closing { margin: 0; }
   .dr-doc-empty { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
-  .dr-gap { border: var(--border-hairline) solid var(--color-line); background: var(--color-surface); padding: var(--space-400) var(--space-500); margin: 0 0 var(--space-400); display: flex; flex-direction: column; gap: var(--space-200); }
-  .dr-gap-title { margin: 0; font-weight: var(--weight-semibold, 600); }
-  .dr-gap-line { margin: 0; color: var(--color-muted); font-size: var(--size-100); line-height: 1.5; max-width: 66ch; }
-  .dr-gap-link { align-self: flex-start; font-family: var(--font-family-mono); font-size: var(--size-100); color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; }
   .is-tailored { background: var(--color-tailor-highlight, rgb(239, 231, 200)); box-shadow: 0 0 0 3px var(--color-tailor-highlight, rgb(239, 231, 200)); color: #0b0b0d; }
 
   .dr-doc-actions { margin-top: var(--space-400); display: flex; flex-wrap: wrap; gap: var(--space-300); }
@@ -509,6 +502,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
   .dr-changed-row:first-child { border-top: none; padding-top: 0; }
   .dr-changed-verb { margin: 0; font-family: var(--font-family-mono); font-size: var(--size-075); letter-spacing: 0.06em; color: var(--color-stat-loss); }
   .dr-changed-row dd { margin: 0; color: var(--color-foreground); }
+  .dr-changed-link { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; }
 
   .dr-send-apply { margin: 0; }
   .dr-send-note { margin: var(--space-400) 0 0; color: var(--color-muted); font-size: var(--size-100); }

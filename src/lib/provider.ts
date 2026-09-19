@@ -107,9 +107,14 @@ export interface LockedFactSlot {
   /** The PRF ids this slot's eventual bullet must cite. Non-empty by type:
       see Bullet in tailor.ts for why that matters. */
   readonly sourcePrfIds: readonly [string, ...string[]];
-  readonly kind: EntryKind;
+  readonly kind: SlotKind;
   readonly fragments: readonly string[];
 }
+
+/** What a slot is: one record entry of some kind, or the resume's opening
+    summary (tailor.ts summarySlotFor), which is built from several entries and
+    styled in the same one call as everything else. */
+export type SlotKind = EntryKind | 'summary';
 
 /** A closed set of locked slots, handed to a provider as one unit. */
 export interface LockedFactSet {
@@ -283,11 +288,18 @@ export interface StyleProvider {
  * caller passes fragments this module did not build, and an empty bullet
  * text is never turned into a Bullet (see applyStyle() in tailor.ts).
  */
-export function templateText(kind: EntryKind, fragments: readonly string[]): string {
+export function templateText(kind: SlotKind, fragments: readonly string[]): string {
   if (fragments.length === 0) return '';
   if (kind === 'skill') {
     const [label, ...rest] = fragments;
     return rest.length > 0 ? `${label}: ${rest.join(' ')}` : label;
+  }
+  if (kind === 'summary') {
+    // The summary's first two fragments are its two sentences (RESUME-RULES.md
+    // layer 2: at most two sentences and 40 words; tailor.ts builds them within
+    // that cap). Any further fragments are the record's own lines a model may
+    // draw on inside the same cap; the template does not print them.
+    return fragments.slice(0, 2).map(endWithSentenceMark).filter((s) => s.length > 0).join(' ');
   }
   return fragments.map(endWithSentenceMark).filter((s) => s.length > 0).join(' ');
 }

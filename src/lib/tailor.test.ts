@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { coreMatches, coreOf, type ProfileEntry } from './record';
 import type { Job } from './data';
 import type { LockedFactSet, LetterStyleResult, StyleProvider, StyleResult } from './provider';
+import { templateText } from './provider';
 import {
   renderCover,
   renderResume,
+  SUMMARY_LINE_ID,
   type ProfileRecord,
   type RenderHeader,
   type Target
@@ -904,7 +906,29 @@ describe('the summary block (RESUME-RULES.md layer 2)', () => {
   const skill = (prfId: string, officialTitle: string, year: number): ProfileEntry =>
     entry({ prfId, kind: 'skill', officialTitle, employerOrInstitution: null, description: '', start: { year, month: null } });
 
-  it('names the ongoing role with its employer and dates, then the skills the posting uses, strongest overlap first', async () => {
+  /** Styles the summary slot to `text` and every other slot to its template,
+      recording every locked set it was handed. */
+  function summaryStyler(text: string): StyleProvider & { seen: LockedFactSet[] } {
+    const seen: LockedFactSet[] = [];
+    return {
+      name: 'summary-styler-test-double',
+      seen,
+      async style(locked: LockedFactSet): Promise<StyleResult> {
+        seen.push(locked);
+        return {
+          styledSlots: locked.slots.map((s) => ({
+            slotId: s.slotId,
+            text: s.kind === 'summary' ? text : templateText(s.kind, s.fragments)
+          }))
+        };
+      },
+      async styleLetter(): Promise<LetterStyleResult> {
+        return { opener: 'o', proof: 'p', fit: 'f', close: 'c' };
+      }
+    };
+  }
+
+  it('deterministic: the ongoing role with employer and dates, then the skills the posting uses, strongest overlap first', async () => {
     const record: ProfileRecord = [
       entry({ prfId: 'PRF-0001', officialTitle: 'Staff Designer', employerOrInstitution: 'Acme Corp', start: { year: 2020, month: 3 }, end: null }),
       skill('PRF-0002', 'Figma', 2019),
@@ -913,8 +937,9 @@ describe('the summary block (RESUME-RULES.md layer 2)', () => {
     ];
     const render = await renderResume(record, postingTarget({ description_html: '<p>Figma and design systems for checkout.</p>' }));
     expect(render.summary?.text).toBe('Staff Designer, Acme Corp, March 2020 to Present. Design systems and Figma.');
-    // Every cited id is a real record entry, and Cobol, which the posting never names, is not among them.
+    // The role, the two named skills, in that order; Cobol, which the posting never names, is not cited.
     expect(render.summary?.sourcePrfIds).toEqual(['PRF-0001', 'PRF-0003', 'PRF-0002']);
+    expect(render.changeRecord?.perEntry).toContainEqual({ prfId: SUMMARY_LINE_ID, verdict: 'KEPT' });
   });
 
   it('names at most three skills and stays within 40 words', async () => {
@@ -932,20 +957,14 @@ describe('the summary block (RESUME-RULES.md layer 2)', () => {
 
   it('drops skills before it would pass 40 words, and never cuts the opening', async () => {
     const longTitle = Array.from({ length: 36 }, (_, i) => `Word${i}`).join(' ');
-    const record: ProfileRecord = [
-      entry({ prfId: 'PRF-0001', officialTitle: longTitle, end: null }),
-      skill('PRF-0002', 'Figma', 2019)
-    ];
+    const record: ProfileRecord = [entry({ prfId: 'PRF-0001', officialTitle: longTitle, end: null }), skill('PRF-0002', 'Figma', 2019)];
     const render = await renderResume(record, freeText('Figma'));
     expect(render.summary?.text).toBe(`${longTitle}, Acme Corp, March 2020 to Present.`);
     expect(render.summary?.sourcePrfIds).toEqual(['PRF-0001']);
   });
 
   it('is null when the record has no ongoing role and no skill the posting names', async () => {
-    const record: ProfileRecord = [
-      entry({ prfId: 'PRF-0001', end: { year: 2022, month: 6 } }),
-      skill('PRF-0002', 'Cobol', 2010)
-    ];
+    const record: ProfileRecord = [entry({ prfId: 'PRF-0001', end: { year: 2022, month: 6 } }), skill('PRF-0002', 'Cobol', 2010)];
     const render = await renderResume(record, freeText('checkout redesign'));
     expect(render.summary).toBeNull();
   });
@@ -954,5 +973,29 @@ describe('the summary block (RESUME-RULES.md layer 2)', () => {
     const record: ProfileRecord = [skill('PRF-0002', 'PostgreSQL', 2019)];
     const render = await renderResume(record, freeText('postgresql experience'));
     expect(render.summary?.text).toBe('PostgreSQL.');
+  });
+
+  it('a provider styles the summary inside its slot: the opening first, the record\'s own lines as material, the styled text kept and marked REWROTE', async () => {
+    const record: ProfileRecord = [
+      entry({ prfId: 'PRF-0001', officialTitle: 'Staff Designer', employerOrInstitution: 'Acme Corp', end: null, description: 'Led the checkout redesign.\nCut page weight in half.' }),
+      skill('PRF-0002', 'Figma', 2019)
+    ];
+    const styler = summaryStyler('Staff Designer at Acme Corp since March 2020. Led the checkout redesign in Figma.');
+    const render = await renderResume(record, postingTarget({ description_html: '<p>Figma for the checkout redesign.</p>' }), styler);
+
+    const slot = styler.seen[0].slots.find((s) => s.kind === 'summary');
+    expect(slot?.slotId).toBe('summary#0');
+    expect(slot?.fragments).toEqual(['Staff Designer, Acme Corp, March 2020 to Present.', 'Figma.', 'Led the checkout redesign.']);
+    expect(slot?.sourcePrfIds).toEqual(['PRF-0001', 'PRF-0002']);
+    expect(render.summary?.text).toBe('Staff Designer at Acme Corp since March 2020. Led the checkout redesign in Figma.');
+    expect(render.changeRecord?.perEntry).toContainEqual({ prfId: SUMMARY_LINE_ID, verdict: 'REWROTE' });
+  });
+
+  it('a runaway styled summary is not shipped: the template stands in and the line is KEPT', async () => {
+    const record: ProfileRecord = [entry({ prfId: 'PRF-0001', end: null }), skill('PRF-0002', 'Figma', 2019)];
+    const runaway = Array.from({ length: 61 }, () => 'word').join(' ');
+    const render = await renderResume(record, freeText('Figma'), summaryStyler(runaway));
+    expect(render.summary?.text).toBe('Staff Designer, Acme Corp, March 2020 to Present. Figma.');
+    expect(render.changeRecord?.perEntry).toContainEqual({ prfId: SUMMARY_LINE_ID, verdict: 'KEPT' });
   });
 });

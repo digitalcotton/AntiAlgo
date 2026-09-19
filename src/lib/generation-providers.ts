@@ -483,6 +483,10 @@ const RESUME_SYSTEM_MESSAGE = [
   'A DATA message follows this instruction, holding a JSON object with a `slots` array and an optional `voiceSample`.',
   "Each entry in `slots` has a slotId, a kind, and an array of fragments already chosen from the person's own record.",
   "The fragments are the only words you may draw on. Add no fact, skill, employer, title, date, number, metric, or credential that is not already in that slot's own fragments, and quote no text from anywhere else.",
+  // The summary slot (tailor.ts summarySlotFor): RESUME-RULES.md layer 2's
+  // "at most two sentences and 40 words, built from the record, zero
+  // adjectives about work ethic", stated as the shape of one slot.
+  'A slot whose kind is "summary" is the opening summary of the resume. Write it as at most two sentences and 40 words from its own fragments: the first fragment names the current role, employer and dates, and the rest are the person\'s own skills and lines. Say plainly what the person does and has done, with the real numbers the fragments carry. No adjectives about work ethic, and no claim the fragments do not make.',
   // The voice.
   'Write for a busy reader who did not wake up wanting to read this. Lead each line with its strongest true point, never a wind-up.',
   'Write in telegraphic resume voice, not letter prose: drop the leading "I", start each line with the outcome or an active verb, and put the number early. Keep each entry to a few tight lines a reader can skim, not a paragraph. "Cut onboarding time 25%" or "Own direction and staffing for an 8-person team", never "I cut" or "I own".',

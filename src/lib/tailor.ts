@@ -270,6 +270,8 @@ export interface ProvenanceSummary {
  * says plainly rather than pretending a model touched anything.
  */
 export interface ChangeRecord {
+  /** One row per styled line: a bullet by its entry's PRF id, the summary by
+      SUMMARY_LINE_ID. */
   readonly perEntry: readonly { readonly prfId: string; readonly verdict: 'KEPT' | 'REWROTE' }[];
   readonly counts: { readonly rewrote: number; readonly kept: number; readonly coreOnly: number };
   readonly mirroredTerms: readonly string[];
@@ -667,7 +669,11 @@ async function buildSections(
   entries: ProfileRecord,
   target: Target,
   provider: StyleProvider
-): Promise<{ readonly sections: readonly RenderSection[]; readonly changeRecord: ChangeRecord }> {
+): Promise<{
+  readonly sections: readonly RenderSection[];
+  readonly changeRecord: ChangeRecord;
+  readonly summary: ResumeSummary | null;
+}> {
   const vocabulary = vocabularyFor(target);
   const postingText = rawTextFor(target);
   const knownPrfIds = new Set(entries.map((e) => e.prfId));
@@ -710,7 +716,10 @@ async function buildSections(
     });
   }
 
-  const locked: LockedFactSet = { slots: [...slotsByPrfId.values()] };
+  // The summary slot (summarySlotFor) rides in the same one call, first in the
+  // set because it is first on the page.
+  const summarySlot = summarySlotFor(entries, vocabulary, fragmentsByPrfId);
+  const locked: LockedFactSet = { slots: [...(summarySlot ? [summarySlot] : []), ...slotsByPrfId.values()] };
   const styled = await provider.style(locked);
   const styledTextBySlotId = new Map(styled.styledSlots.map((s) => [s.slotId, s.text] as const));
 
@@ -720,6 +729,18 @@ async function buildSections(
   // with no bullet was trimmed to its verbatim core (coreOnly).
   const perEntry: { prfId: string; verdict: 'KEPT' | 'REWROTE' }[] = [];
   let coreOnly = 0;
+
+  // The summary, resolved the same way a bullet is: the styled text when the
+  // provider returned one worth trusting, else the deterministic template.
+  let summary: ResumeSummary | null = null;
+  if (summarySlot) {
+    const deterministic = templateText('summary', summarySlot.fragments);
+    const styledText = styledTextBySlotId.get(summarySlot.slotId);
+    const usable = styledText !== undefined && styledText.trim().length > 0 && wordCount(styledText) <= SUMMARY_RUNAWAY_WORDS;
+    const text = usable ? styledText : deterministic;
+    perEntry.push({ prfId: SUMMARY_LINE_ID, verdict: text === deterministic ? 'KEPT' : 'REWROTE' });
+    summary = { text, sourcePrfIds: summarySlot.sourcePrfIds };
+  }
 
   const sections: RenderSection[] = [];
   for (const kind of ENTRY_KINDS) {
@@ -783,7 +804,7 @@ async function buildSections(
     mirroredTerms: [...new Set(mirroredTerms)]
   };
 
-  return { sections, changeRecord };
+  return { sections, changeRecord, summary };
 }
 
 /**
@@ -870,21 +891,48 @@ function computeGaps(entries: ProfileRecord, sections: readonly RenderSection[])
     Nothing is invented: a record with no ongoing role and no matching skill
     gets no summary. */
 export const SUMMARY_WORD_CAP = 40;
+/** A styled summary longer than this is a runaway, not a rephrase, and the
+    deterministic template stands in for it. Deliberately above the 40-word
+    rule: the rule is what the prompt asks for; this is the point past which a
+    reply is not trusted at all. */
+const SUMMARY_RUNAWAY_WORDS = 60;
 const SUMMARY_SKILL_CAP = 3;
+const SUMMARY_EVIDENCE_CAP = 2;
+/** The change record names the summary line by this id, the way a bullet is
+    named by its entry's PRF id, so the room can mark it rewritten. Not a PRF
+    id: no record entry carries it. */
+export const SUMMARY_LINE_ID = 'summary';
+const SUMMARY_SLOT_ID = 'summary#0';
 
-function buildSummary(entries: ProfileRecord, target: Target): ResumeSummary | null {
-  const vocabulary = vocabularyFor(target);
+/** Locks the summary's facts as one slot for the style call. Fragments, in
+    order: the opening (the ongoing role, its employer and its date range, each
+    field read straight off coreOf()); the skills sentence (up to three skills
+    the record holds whose own words the posting uses, strongest overlap
+    first); then up to two description lines from the entries most relevant
+    to the posting. templateText('summary') prints the first two as the two
+    sentences; the rest are material a model may draw on within the same cap.
+    The first two are built to fit the 40-word cap: skills are dropped last
+    first, and a line that would break the cap as the second sentence is left
+    out entirely. Null when there is no ongoing role and no matching skill:
+    nothing to open with, so no summary rather than an invented one. */
+function summarySlotFor(
+  entries: ProfileRecord,
+  vocabulary: ReadonlySet<string>,
+  fragmentsByPrfId: ReadonlyMap<string, readonly string[]>
+): LockedFactSlot | null {
   const ongoing = entries.filter((entry) => entry.kind === 'role_held' && entry.end === null).sort(byRecency);
   const current = ongoing.length > 0 ? ongoing[0] : null;
 
-  const opening: string[] = [];
+  const fragments: string[] = [];
+  const sourcePrfIds: string[] = [];
   if (current) {
     const core = coreOf(current);
     const parts: string[] = [core.officialTitle];
     if (core.employerOrInstitution) parts.push(core.employerOrInstitution);
     const range = dateRange(core);
     if (range !== null) parts.push(range);
-    opening.push(`${parts.join(', ')}.`);
+    fragments.push(`${parts.join(', ')}.`);
+    sourcePrfIds.push(current.prfId);
   }
 
   // Skills whose own words the posting uses, by overlap, then newest first so
@@ -896,18 +944,37 @@ function buildSummary(entries: ProfileRecord, target: Target): ResumeSummary | n
     .filter((scored) => scored.score > 0)
     .sort((a, b) => b.score - a.score || byRecency(a.entry, b.entry))
     .map((scored) => scored.entry);
-
-  const compose = (skills: readonly ProfileEntry[]): string =>
-    [...opening, ...(skills.length > 0 ? [`${listOf(skills.map((skill) => skill.officialTitle))}.`] : [])].join(' ');
-
-  // The 40-word cap drops skills, last first. The opening is never cut: its
-  // title and employer are core and render whole or not at all.
+  const skillsSentence = (skills: readonly ProfileEntry[]): string => `${listOf(skills.map((skill) => skill.officialTitle))}.`;
   let named = matching.slice(0, SUMMARY_SKILL_CAP);
-  while (named.length > 0 && wordCount(compose(named)) > SUMMARY_WORD_CAP) named = named.slice(0, -1);
+  while (named.length > 0 && wordCount([...fragments, skillsSentence(named)].join(' ')) > SUMMARY_WORD_CAP) {
+    named = named.slice(0, -1);
+  }
+  if (named.length > 0) {
+    fragments.push(skillsSentence(named));
+    for (const skill of named) sourcePrfIds.push(skill.prfId);
+  }
 
   if (!current && named.length === 0) return null;
-  const sourcePrfIds = [...(current ? [current.prfId] : []), ...named.map((skill) => skill.prfId)];
-  return { text: compose(named), sourcePrfIds };
+
+  // The record's own lines from the entries the posting matches best: the
+  // first line each of the two most relevant entries that have one. A line
+  // that would be printed as the second sentence must fit the cap or it is
+  // left out; a line past the second is model material only.
+  const evidence = entries
+    .filter((entry) => entry.kind !== 'skill' && (fragmentsByPrfId.get(entry.prfId) ?? []).length > 0)
+    .map((entry) => ({ entry, score: relevanceScore(entry, vocabulary) }))
+    .sort((a, b) => b.score - a.score || (a.entry.prfId < b.entry.prfId ? -1 : a.entry.prfId > b.entry.prfId ? 1 : 0))
+    .slice(0, SUMMARY_EVIDENCE_CAP);
+  for (const { entry } of evidence) {
+    const line = (fragmentsByPrfId.get(entry.prfId) ?? [])[0];
+    if (line === undefined) continue;
+    if (fragments.length < 2 && wordCount([...fragments, line].join(' ')) > SUMMARY_WORD_CAP) continue;
+    fragments.push(line);
+    if (!sourcePrfIds.includes(entry.prfId)) sourcePrfIds.push(entry.prfId);
+  }
+
+  const [first, ...rest] = sourcePrfIds;
+  return { slotId: SUMMARY_SLOT_ID, sourcePrfIds: [first, ...rest], kind: 'summary', fragments };
 }
 
 /** "A", "A and B", "A, B and C": connective words only, each name untouched. */
@@ -1141,7 +1208,7 @@ export async function renderResume(
   // `voice` appears anywhere in this function. See buildSections()'s own
   // comment and voice.ts's file header: this is the entire mechanism that
   // keeps a writing-voice sample out of a resume render.
-  const { sections, changeRecord } = await buildSections(entries, target, provider);
+  const { sections, changeRecord, summary } = await buildSections(entries, target, provider);
   return {
     kind: 'resume',
     target: summarizeTarget(target),
@@ -1153,8 +1220,9 @@ export async function renderResume(
     // provider because it is not a slot (see RenderHeader).
     header,
     changeRecord,
-    // Built from the record alone, never through a provider (see buildSummary).
-    summary: buildSummary(entries, target)
+    // Locked from the record and styled inside its slot like every bullet
+    // (see summarySlotFor).
+    summary
   };
 }
 
