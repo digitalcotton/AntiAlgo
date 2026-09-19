@@ -9,9 +9,9 @@ import type { DeskRoleVM } from '../../lib/desk-home';
  * (links to the posting), company - pay - location, three chips (which of your
  * titles matched, the applicant system it is on, when it was first seen), the
  * HEAD START arrival-curve bar with a plain reading of where it sits, the fit
- * score, and two REAL actions. "Draft this on your key" posts the posting slug
+ * score, and two REAL actions. "Draft Resumé and Cover" posts the posting slug
  * to /desk/job-draft (drafts a resume + cover, works without a provider key via
- * the fallback writer). "Track on the Desk" posts the click intent + the posting
+ * the fallback writer). "Track Opportunities" posts the click intent + the posting
  * URL to /desk/application (records a clicked application). No draft/track is
  * faked: both resolve an arbitrary crawl row.
  */
@@ -56,12 +56,12 @@ const sub = [role.company, role.pay, role.remote ? 'Remote' : role.location].fil
     <p class="rc-fit-label mono-label">Your fit</p>
     <form method="POST" action={draftAction} class="rc-form">
       <input type="hidden" name="slug" value={role.slug ?? ''} />
-      <button type="submit" class="rc-btn rc-btn-primary" disabled={!role.slug}>Draft this on your key</button>
+      <button type="submit" class="rc-btn rc-btn-primary" disabled={!role.slug}>Draft Resumé and Cover</button>
     </form>
     <form method="POST" action={trackAction} class="rc-form">
       <input type="hidden" name="intent" value="click" />
       <input type="hidden" name="url" value={role.url ?? ''} />
-      <button type="submit" class="rc-btn rc-btn-ghost" disabled={!role.url}>Track on the Desk</button>
+      <button type="submit" class="rc-btn rc-btn-ghost" disabled={!role.url}>Track Opportunities</button>
     </form>
   </div>
 </li>
@@ -76,6 +76,7 @@ const sub = [role.company, role.pay, role.remote ? 'Remote' : role.location].fil
     border-top: var(--border-hairline) solid var(--color-line);
   }
   .rc:first-child { border-top: none; }
+  .rc:hover { background: var(--color-hover-surface); }
   .rc-main { display: flex; flex-direction: column; gap: var(--space-300); min-width: 0; }
   .rc-head { margin: 0; display: flex; align-items: baseline; gap: var(--space-300); }
   .rc-rank { color: var(--color-muted); }

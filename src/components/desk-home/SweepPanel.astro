@@ -17,6 +17,15 @@ interface Props {
 }
 const { boardsSwept, verifiedLive, liveUnderTitles, newCoreCount, diedCount, sweptAt } = Astro.props;
 const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'not counted');
+/** The one real clock, as the design's footer prints it: "07:30:44, 2026-09-16"
+    in UTC. Falls back to the plain date if the stamp does not parse. */
+function finishedStamp(iso: string): string {
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return formatDate(iso);
+  const d = new Date(ms);
+  const two = (v: number) => String(v).padStart(2, '0');
+  return `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}:${two(d.getUTCSeconds())}, ${d.getUTCFullYear()}-${two(d.getUTCMonth() + 1)}-${two(d.getUTCDate())}`;
+}
 
 const steps = [
   { text: `read ${n(boardsSwept)} company sources`, accent: false },
@@ -38,7 +47,7 @@ const steps = [
       <li class={`sp-step${s.accent ? ' sp-step-accent' : ''}`}>{s.text}</li>
     ))}
   </ol>
-  <p class="sp-foot mono-label">{sweptAt ? `swept ${formatDate(sweptAt)}` : 'sweep pending'}</p>
+  <p class="sp-foot">{sweptAt ? `finished ${finishedStamp(sweptAt)}` : 'sweep pending'}</p>
 </aside>
 
 <style>
@@ -51,11 +60,12 @@ const steps = [
     gap: var(--space-300);
     font-family: var(--font-family-mono);
   }
-  .sp-head { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: var(--space-300); border-bottom: var(--border-hairline) solid var(--color-line); }
+  /* Dashed rules above and below the log, as the design draws them. */
+  .sp-head { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: var(--space-300); border-bottom: var(--border-hairline) dashed var(--color-line-strong); }
   .sp-title { color: var(--color-foreground); }
   .sp-utc { color: var(--color-muted); }
   .sp-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-200); }
   .sp-step { font-size: var(--size-075); color: var(--color-foreground); }
   .sp-step-accent { color: var(--color-stat-loss); }
-  .sp-foot { margin: var(--space-200) 0 0; padding-top: var(--space-300); border-top: var(--border-hairline) solid var(--color-line); color: var(--color-muted); }
+  .sp-foot { margin: var(--space-200) 0 0; padding-top: var(--space-300); border-top: var(--border-hairline) dashed var(--color-line-strong); color: var(--color-muted); font-size: 0.68rem; }
 </style>

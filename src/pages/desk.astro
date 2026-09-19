@@ -32,8 +32,8 @@ import { formatDate } from '../lib/data';
  * chip is the real ATS ("via Greenhouse"), the sweep panel carries real counts
  * with no fabricated per-second clock, and there is no Stretch requirement list
  * because measured fit components do not exist. The two role actions are real:
- * "Draft this on your key" (POST /desk/job-draft, resolves the crawl slug) and
- * "Track on the Desk" (POST /desk/application click intent). The watch list this
+ * "Draft Resumé and Cover" (POST /desk/job-draft, resolves the crawl slug) and
+ * "Track Opportunities" (POST /desk/application click intent). The watch list this
  * page edits is the same one that narrows /board.
  *
  * THE 'NEW SINCE' CLOCK. buildDeskHome reads last_seen_at to decide what is new;
@@ -152,7 +152,20 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
                     <p class="dh-slot-line mono-label">{home.coreTitles.length === 0 ? 'Name a core title above and its live roles land here.' : 'No role under your core titles in the last 14 days.'}</p>
                   </div>
                 )}
-                <p class="dh-cite mono-label">Arrival curve: NBER WP 32320, about 45% of applications in the first 48 hours.</p>
+                {/* The two readings the clock rests on (design: the two-column
+                    block under the core rows), copy verbatim from the design. */}
+                <div class="dh-evidence">
+                  <div>
+                    <p class="dh-evidence-fact mono">45% of applications arrive within 48 hours of a posting going up, and 60% within 96 hours</p>
+                    <p class="dh-evidence-source mono">NBER WP 32320, 125M applications</p>
+                    <p class="dh-evidence-note">That curve is what the clock draws. The marker is the role's own published date against it.</p>
+                  </div>
+                  <div>
+                    <p class="dh-evidence-fact mono">Median time to first fill runs 71 days for senior roles and 75 for technical</p>
+                    <p class="dh-evidence-source mono">Ashby Talent Trends 2026, 54M apps</p>
+                    <p class="dh-evidence-note">So a role past the curve is not a dead role. The clock reads your head start, never the posting's health.</p>
+                  </div>
+                </div>
               </section>
 
               <section class="dh-lane" id="stretch" aria-labelledby="ns-h">
@@ -236,7 +249,7 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
   .dh-lede { margin: 0; font-family: var(--font-family-sans); font-size: clamp(1.4rem, 2.6vw, 2rem); line-height: 1.28; letter-spacing: -0.015em; }
   .num { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-line-strong); font-weight: var(--weight-bold); }
   .num-accent { color: var(--color-stat-loss); text-decoration-color: var(--color-stat-loss); }
-  .dh-note { margin: 0; color: var(--color-muted); font-size: var(--size-100); max-width: 52ch; }
+  .dh-note { margin: 0; color: var(--color-muted); font-size: 0.95rem; line-height: 1.55; max-width: 60ch; }
 
   .dh-lane { display: flex; flex-direction: column; gap: var(--space-300); border-top: var(--border-hairline) solid var(--color-line); padding-top: var(--space-600); }
   .dh-lane-index { margin: 0; color: var(--color-muted); }
@@ -247,7 +260,11 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
      surface with the heavy panel border. The cards inside are separated by
      hairlines (set on .rc), not each their own box. */
   .dh-cards { list-style: none; margin: 0; padding: 0; background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-line-strong); }
-  .dh-cite { margin: var(--space-300) 0 0; color: var(--color-muted); }
+  .dh-evidence { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px 40px; }
+  .dh-evidence-fact { margin: 0; font-size: 0.8rem; line-height: 1.55; }
+  .dh-evidence-source { margin: 6px 0 0; font-size: 0.68rem; color: var(--color-line-strong); }
+  .dh-evidence-note { margin: 6px 0 0; font-size: 0.88rem; line-height: 1.55; color: var(--color-muted); }
+  @media (max-width: 44rem) { .dh-evidence { grid-template-columns: 1fr; } }
   /* An empty lane is the site's hatched slot (the same drawing as the job
      detail's withheld description and draft slot): an absence, never a fake row. */
   .dh-slot {
