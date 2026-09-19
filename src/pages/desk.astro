@@ -177,7 +177,6 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
             </>
           )}
 
-          <p class="dh-board-link"><a href={boardHref}>See these on the board</a>, narrowed to your titles.</p>
         </>
       ) : (
         <EmptyState
@@ -269,8 +268,6 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
   .dh-slot-line { margin: 0; max-width: var(--layout-measure); text-align: center; text-transform: none; letter-spacing: var(--tracking-wide); line-height: var(--leading-snug); color: var(--color-muted); }
 
 
-  .dh-board-link { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
-  .dh-board-link a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-stat-loss); }
   .dh-lane-more { margin: var(--space-300) 0 0; color: var(--color-muted); font-size: var(--size-100); }
   .dh-lane-more a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-stat-loss); }
 
