@@ -1,0 +1,438 @@
+---
+/**
+ * DraftRoomV2.astro: the pixel-perfect "Your documents" draft room (design:
+ * resumecoverletterdetails.html), the ready-state screen a person sees after the
+ * one-click draft finishes. It renders the resume and cover letter that were
+ * drafted for one posting, read back from storage, with a tab per document, the
+ * download and apply actions, the earlier versions kept (db/202), and the honest
+ * change record (tailor.ts ChangeRecord: KEPT vs REWROTE, derived by
+ * byte-comparison, never narrated).
+ *
+ * WHAT IS REAL HERE, AND WHAT IS DEFERRED. Everything shown is the render's own
+ * data: the document text, the per-line highlight (a line a connected model
+ * rephrased inside its locked slot, from changeRecord), the versions, and the
+ * PDF and DOCX downloads (src/pages/desk/job-draft/[slug]/[doc].ts). The "Steer
+ * it" chips are shown but not yet wired to steered regeneration; the plain
+ * Regenerate re-drafts on the key now, and the panel says so rather than
+ * pretending the chips work. A cost line is left out until token capture lands,
+ * because a number we cannot measure is one we do not print.
+ *
+ * The drafting, failed and empty states are NOT here: the page keeps those, and
+ * this component renders only once at least one document is ready.
+ */
+import { groupResumeSection, type ResumeGroup } from '../../lib/resume-grouping';
+import { DESCRIPTION_KINDS } from '../../lib/tailor';
+import type { ResumeRender, CoverRender, RenderEntry, RenderHeader } from '../../lib/tailor';
+import type { RenderVersionRow } from '../../lib/generated-render-store';
+import { jobDraftPath, jobDraftPdfPath } from '../../data/nav';
+
+interface Props {
+  slug: string;
+  jobTitle: string | null;
+  company: string;
+  postingHref: string;
+  resume: ResumeRender | null;
+  cover: CoverRender | null;
+  resumeVersions: RenderVersionRow[];
+  coverVersions: RenderVersionRow[];
+  resumeUpdatedAt: string | null;
+  coverUpdatedAt: string | null;
+  resumeDownloadable: boolean;
+  coverDownloadable: boolean;
+  provider: string | null;
+  model: string | null;
+  fallback: boolean;
+  regenerateAction: string;
+  applyUrl: string | null;
+  applyLabel: string;
+  applyTrack: { action: string; title: string; company: string } | null;
+}
+const {
+  slug,
+  jobTitle,
+  company,
+  postingHref,
+  resume,
+  cover,
+  resumeVersions,
+  coverVersions,
+  resumeUpdatedAt,
+  coverUpdatedAt,
+  resumeDownloadable,
+  coverDownloadable,
+  provider,
+  model,
+  fallback,
+  regenerateAction,
+  applyUrl,
+  applyLabel,
+  applyTrack
+} = Astro.props;
+
+const targetLine = jobTitle ? `${jobTitle} at ${company}` : company;
+const bothReady = Boolean(resume) && Boolean(cover);
+const readyCount = (resume ? 1 : 0) + (cover ? 1 : 0);
+const restoreAction = `${jobDraftPath(slug)}/restore`;
+const PROVIDER_LABELS: Record<string, string> = { anthropic: 'Anthropic', openai: 'OpenAI', kimi: 'Kimi', deepseek: 'DeepSeek' };
+const providerLabel = provider ? PROVIDER_LABELS[provider] ?? provider : null;
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function md(year: number, month: number | null): string {
+  return month === null ? String(year) : `${MONTHS[month - 1]} ${year}`;
+}
+function entryRange(entry: RenderEntry): string {
+  return `${md(entry.core.start.year, entry.core.start.month)} to ${entry.core.end === null ? 'Present' : md(entry.core.end.year, entry.core.end.month)}`;
+}
+function groupRange(group: ResumeGroup): string {
+  return `${md(group.start.year, group.start.month)} to ${group.end === null ? 'Present' : md(group.end.year, group.end.month)}`;
+}
+/** A stored instant as a short, honest "N units ago", never a fake clock. */
+function timeAgo(iso: string | null): string | null {
+  if (!iso) return null;
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return null;
+  const secs = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (secs < 60) return 'just now';
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins} ${mins === 1 ? 'minute' : 'minutes'} ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} ${hrs === 1 ? 'hour' : 'hours'} ago`;
+  const days = Math.round(hrs / 24);
+  return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+}
+function hasHeader(header: RenderHeader | null | undefined): header is RenderHeader {
+  return !!header && (header.name !== null || header.links.length > 0 || !!header.email);
+}
+/** The prfIds a connected model rephrased, from the change record: the honest
+    set of "tailored" lines to highlight. Empty for a deterministic draft. */
+function rewroteSet(render: ResumeRender | CoverRender | null): Set<string> {
+  const out = new Set<string>();
+  for (const e of render?.changeRecord?.perEntry ?? []) if (e.verdict === 'REWROTE') out.add(e.prfId);
+  return out;
+}
+const resumeRewrote = rewroteSet(resume);
+
+const STEER_CHIPS = ['Shorter', 'Lead with agent work', 'Plainer voice', 'More technical'];
+---
+
+<article class="dr" data-slug={slug}>
+  <nav class="dr-crumbs" aria-label="Breadcrumb">
+    <a href={postingHref}>&larr; Back to the posting</a>
+    <span class="dr-crumb-sep" aria-hidden="true">/</span>
+    <span class="dr-crumb-role">{targetLine}</span>
+    <span class="dr-crumb-sep" aria-hidden="true">/</span>
+    <span class="dr-crumb-here">Your documents</span>
+  </nav>
+
+  <p class="dr-status">
+    <span class="dr-dot" aria-hidden="true"></span>
+    <strong>{bothReady ? 'Both documents drafted' : (resume ? 'Resume drafted' : 'Cover letter drafted')}</strong>
+    {resumeUpdatedAt && <span class="dr-status-sub mono-label">drafted {timeAgo(resumeUpdatedAt)}</span>}
+  </p>
+  <h1 class="dr-title">Read them before you send them</h1>
+  <p class="dr-lede">Written for {targetLine}, from your profile and the posting as published. Nothing is submitted for you. When they read right, download and apply.</p>
+  {provider && !fallback && <p class="dr-provider mono-label">Drafted on your connected {providerLabel}{model ? ` (${model})` : ''} key.</p>}
+  {fallback && <p class="dr-provider dr-provider-fallback mono-label">Your connected {providerLabel ?? 'AI provider'} key could not be used, so the built-in writer wrote it.</p>}
+
+  <input type="radio" name="dr-tab" id="dr-tab-resume" class="dr-tab-input" checked />
+  <input type="radio" name="dr-tab" id="dr-tab-cover" class="dr-tab-input" />
+  <div class="dr-tabs" role="tablist">
+    <label class="dr-tab" for="dr-tab-resume">Resume</label>
+    <label class="dr-tab" for="dr-tab-cover">Cover letter</label>
+  </div>
+
+  <section class="dr-panel dr-panel-resume" aria-label="Resume">
+    {resume ? (
+      <>
+        <p class="dr-doc-meta mono-label">resume{resumeUpdatedAt ? `, drafted ${timeAgo(resumeUpdatedAt)}` : ''}</p>
+        <article class="dr-doc">
+          {hasHeader(resume.header) && (
+            <header class="dr-doc-contact">
+              {resume.header.name && <p class="dr-doc-name">{resume.header.name}</p>}
+              <p class="dr-doc-lines mono">
+                {resume.header.email}
+                {resume.header.links.map((l) => <><span class="dr-doc-sep"> · </span><a href={l.url} rel="noopener nofollow" target="_blank">{l.label}</a></>)}
+              </p>
+            </header>
+          )}
+          {resume.sections.map((section) => (
+            <section class="dr-doc-section">
+              <h3 class="dr-doc-heading mono-label">{section.heading}</h3>
+              {groupResumeSection(section).map((row) => (
+                row.kind === 'entry' ? (
+                  <div class="dr-doc-entry">
+                    <p class="dr-doc-entry-head">
+                      <span class="dr-doc-entry-title">{row.entry.core.officialTitle}</span>
+                      <span class="dr-doc-entry-dates mono">{entryRange(row.entry)}</span>
+                    </p>
+                    {row.entry.core.employerOrInstitution && <p class="dr-doc-entry-org mono">{row.entry.core.employerOrInstitution}</p>}
+                    {row.entry.bullets.length === 0
+                      ? DESCRIPTION_KINDS.has(row.entry.kind) && <p class="dr-doc-empty">No description on record.</p>
+                      : row.entry.bullets.map((b) => <p class:list={['dr-doc-line', { 'is-tailored': resumeRewrote.has(row.entry.prfId) }]}>{b.text}</p>)}
+                  </div>
+                ) : (
+                  <div class="dr-doc-entry">
+                    <p class="dr-doc-entry-head">
+                      <span class="dr-doc-entry-title">{row.group.issuer}</span>
+                      <span class="dr-doc-entry-dates mono">{groupRange(row.group)}</span>
+                    </p>
+                    <p class="dr-doc-line">{row.group.titles.join(', ')}</p>
+                  </div>
+                )
+              ))}
+            </section>
+          ))}
+        </article>
+
+        <div class="dr-doc-actions">
+          {resumeDownloadable && <a class="dr-btn" href={jobDraftPdfPath(slug, 'resume')} download>Download PDF</a>}
+          {resumeDownloadable && <a class="dr-btn" href={`${jobDraftPdfPath(slug, 'resume')}?format=docx`} download>Download DOCX</a>}
+          <button type="button" class="dr-btn dr-copy">Copy as text</button>
+        </div>
+        <p class="dr-highlight-note">Highlighted lines are ones your connected model rephrased for this posting. Everything else is your record's own words, unchanged, so you can tell at a glance what the model touched.</p>
+
+        <section class="dr-steer">
+          <h2 class="dr-steer-title">Not right yet? Steer it</h2>
+          <div class="dr-chips">{STEER_CHIPS.map((c) => <button type="button" class="dr-chip" disabled>{c}</button>)}</div>
+          <p class="dr-steer-soon mono-label">Steering lands soon. Regenerate re-drafts on your key now.</p>
+          <form method="POST" action={regenerateAction}>
+            <input type="hidden" name="slug" value={slug} />
+            <input type="hidden" name="kind" value="resume" />
+            <button type="submit" class="dr-btn dr-btn-primary">Regenerate the resume</button>
+          </form>
+        </section>
+
+        {resumeVersions.length > 1 && (
+          <section class="dr-versions">
+            <h2 class="dr-versions-title mono-label">Earlier drafts are kept</h2>
+            <ul class="dr-version-list">
+              {resumeVersions.map((v) => (
+                <li class="dr-version">
+                  <span class="dr-version-label">Draft {v.version}{v.isCurrent ? ', current' : ''}</span>
+                  {v.isCurrent
+                    ? <span class="dr-version-state mono-label">Viewing</span>
+                    : (v.status === 'ready' || v.status === 'fallback')
+                      ? <form method="POST" action={restoreAction}><input type="hidden" name="kind" value="resume" /><input type="hidden" name="versionId" value={v.id} /><button type="submit" class="dr-restore">Restore</button></form>
+                      : <span class="dr-version-state mono-label">{v.status}</span>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {resume.changeRecord && (
+          <section class="dr-changed">
+            <h2 class="dr-changed-title">What it changed for this posting</h2>
+            <dl class="dr-changed-list">
+              {resume.changeRecord.counts.rewrote > 0 && (
+                <div class="dr-changed-row"><dt class="dr-changed-verb">REWROTE</dt><dd>{resume.changeRecord.counts.rewrote} {resume.changeRecord.counts.rewrote === 1 ? 'line' : 'lines'} rephrased on your key, inside their locked facts.</dd></div>
+              )}
+              {resume.changeRecord.mirroredTerms.length > 0 && (
+                <div class="dr-changed-row"><dt class="dr-changed-verb">ADDED</dt><dd>The posting's own terms ({resume.changeRecord.mirroredTerms.join(', ')}) paired onto skills you already hold.</dd></div>
+              )}
+              <div class="dr-changed-row"><dt class="dr-changed-verb">KEPT</dt><dd>Every date, title, and number exactly as your profile has them.{resume.changeRecord.counts.kept > 0 ? ` ${resume.changeRecord.counts.kept} ${resume.changeRecord.counts.kept === 1 ? 'line is' : 'lines are'} your own words, unchanged.` : ''}</dd></div>
+            </dl>
+          </section>
+        )}
+      </>
+    ) : (
+      <p class="dr-doc-empty">The resume is still drafting.</p>
+    )}
+  </section>
+
+  <section class="dr-panel dr-panel-cover" aria-label="Cover letter">
+    {cover ? (
+      <>
+        <p class="dr-doc-meta mono-label">cover letter{coverUpdatedAt ? `, drafted ${timeAgo(coverUpdatedAt)}` : ''}</p>
+        <article class="dr-doc">
+          {hasHeader(cover.header) && (
+            <header class="dr-doc-contact">
+              {cover.header.name && <p class="dr-doc-name">{cover.header.name}</p>}
+              <p class="dr-doc-lines mono">
+                {cover.header.email}
+                {cover.header.links.map((l) => <><span class="dr-doc-sep"> · </span><a href={l.url} rel="noopener nofollow" target="_blank">{l.label}</a></>)}
+              </p>
+            </header>
+          )}
+          <p class="dr-doc-salutation">{cover.salutation}</p>
+          {cover.paragraphs
+            ? cover.paragraphs.map((p) => <p class:list={['dr-doc-para', { 'is-tailored': p.role === 'proof' || p.role === 'fit' }]}>{p.text}</p>)
+            : cover.sections.map((section) => section.entries.map((e) => e.bullets.map((b) => <p class="dr-doc-para">{b.text}</p>)))}
+          {cover.closing && <p class="dr-doc-closing">{cover.closing}</p>}
+        </article>
+
+        <div class="dr-doc-actions">
+          {coverDownloadable && <a class="dr-btn" href={jobDraftPdfPath(slug, 'cover')} download>Download PDF</a>}
+          {coverDownloadable && <a class="dr-btn" href={`${jobDraftPdfPath(slug, 'cover')}?format=docx`} download>Download DOCX</a>}
+          <button type="button" class="dr-btn dr-copy">Copy as text</button>
+        </div>
+        <p class="dr-highlight-note">Highlighted paragraphs answer the posting's own requirements. The rest is drawn straight from your record.</p>
+
+        <section class="dr-steer">
+          <h2 class="dr-steer-title">Not right yet? Steer it</h2>
+          <div class="dr-chips">{STEER_CHIPS.map((c) => <button type="button" class="dr-chip" disabled>{c}</button>)}</div>
+          <p class="dr-steer-soon mono-label">Steering lands soon. Regenerate re-drafts on your key now.</p>
+          <form method="POST" action={regenerateAction}>
+            <input type="hidden" name="slug" value={slug} />
+            <input type="hidden" name="kind" value="cover" />
+            <button type="submit" class="dr-btn dr-btn-primary">Regenerate the cover letter</button>
+          </form>
+        </section>
+
+        {coverVersions.length > 1 && (
+          <section class="dr-versions">
+            <h2 class="dr-versions-title mono-label">Earlier drafts are kept</h2>
+            <ul class="dr-version-list">
+              {coverVersions.map((v) => (
+                <li class="dr-version">
+                  <span class="dr-version-label">Draft {v.version}{v.isCurrent ? ', current' : ''}</span>
+                  {v.isCurrent
+                    ? <span class="dr-version-state mono-label">Viewing</span>
+                    : (v.status === 'ready' || v.status === 'fallback')
+                      ? <form method="POST" action={restoreAction}><input type="hidden" name="kind" value="cover" /><input type="hidden" name="versionId" value={v.id} /><button type="submit" class="dr-restore">Restore</button></form>
+                      : <span class="dr-version-state mono-label">{v.status}</span>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </>
+    ) : (
+      <p class="dr-doc-empty">The cover letter is still drafting.</p>
+    )}
+  </section>
+
+  <section class="dr-send">
+    <h2 class="dr-send-title mono-label">Send it</h2>
+    {applyUrl && (applyTrack ? (
+      <form method="POST" action={applyTrack.action} target="_blank">
+        <input type="hidden" name="intent" value="click" />
+        <input type="hidden" name="url" value={applyUrl} />
+        <input type="hidden" name="then" value="posting" />
+        <input type="hidden" name="titleOverride" value={applyTrack.title} />
+        <input type="hidden" name="companyOverride" value={applyTrack.company} />
+        <button type="submit" class="dr-btn dr-btn-primary dr-send-apply">{applyLabel} &#8599;</button>
+      </form>
+    ) : (
+      <a class="dr-btn dr-btn-primary dr-send-apply" href={applyUrl} target="_blank" rel="noopener nofollow">{applyLabel} &#8599;</a>
+    ))}
+    <p class="dr-send-note">Opens the posting in a new tab and moves this role to Applied on your desk. You still paste and submit there.</p>
+    <p class="dr-footer-note mono-label">Drafted on your own key. Your profile and the posting text only. No other applicant's data was read.</p>
+  </section>
+
+  <div class="dr-sticky">
+    <div class="dr-sticky-inner">
+      <p class="dr-sticky-title"><strong>{jobTitle ?? 'This posting'}</strong> <span class="mono-label">{readyCount} of 2 ready</span></p>
+      <div class="dr-sticky-actions">
+        {(resumeDownloadable || coverDownloadable) && <a class="dr-sticky-both" href={jobDraftPdfPath(slug, resumeDownloadable ? 'resume' : 'cover')} download>Download</a>}
+        {applyUrl && <a class="dr-sticky-apply" href={applyUrl} target="_blank" rel="noopener nofollow">{applyLabel}</a>}
+      </div>
+    </div>
+  </div>
+</article>
+
+<script>
+  for (const btn of document.querySelectorAll('.dr-copy')) {
+    btn.addEventListener('click', async () => {
+      const doc = (btn as HTMLElement).closest('.dr-panel')?.querySelector('.dr-doc');
+      const text = (doc as HTMLElement | null)?.innerText ?? '';
+      try {
+        await navigator.clipboard.writeText(text);
+        const was = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(() => { btn.textContent = was; }, 1500);
+      } catch {
+        // Clipboard blocked: leave the label as-is rather than claim success.
+      }
+    });
+  }
+</script>
+
+<style>
+  .dr { max-width: 52rem; margin: 0 auto; }
+
+  .dr-crumbs { font-family: var(--font-family-mono); font-size: var(--size-100); color: var(--color-muted); display: flex; flex-wrap: wrap; gap: var(--space-200); align-items: baseline; }
+  .dr-crumbs a { color: var(--color-muted); text-decoration: none; }
+  .dr-crumbs a:hover { color: var(--color-foreground); }
+  .dr-crumb-role { color: var(--color-foreground); }
+
+  .dr-status { margin: var(--space-600) 0 var(--space-300); display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-200) var(--space-300); font-size: var(--size-100); }
+  .dr-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--color-mark-live); align-self: center; }
+  .dr-status-sub { color: var(--color-muted); }
+  .dr-title { margin: 0 0 var(--space-300); font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1.05; letter-spacing: -0.02em; }
+  .dr-lede { margin: 0; max-width: 60ch; color: var(--color-muted); font-size: var(--size-200); }
+  .dr-provider { margin: var(--space-300) 0 0; color: var(--color-muted); }
+  .dr-provider-fallback { color: var(--color-stat-loss); }
+
+  .dr-tab-input { position: absolute; opacity: 0; pointer-events: none; }
+  .dr-tabs { display: flex; gap: var(--space-200); margin: var(--space-600) 0 0; border-bottom: var(--border-hairline) solid var(--color-line); }
+  .dr-tab { padding: var(--space-300) var(--space-500); font-family: var(--font-family-mono); font-size: var(--size-100); cursor: pointer; color: var(--color-muted); }
+  #dr-tab-resume:checked ~ .dr-tabs label[for='dr-tab-resume'],
+  #dr-tab-cover:checked ~ .dr-tabs label[for='dr-tab-cover'] { background: var(--color-surface-inverse); color: var(--color-foreground-inverse); }
+  .dr-panel { display: none; padding-top: var(--space-500); }
+  #dr-tab-resume:checked ~ .dr-panel-resume,
+  #dr-tab-cover:checked ~ .dr-panel-cover { display: block; }
+
+  .dr-doc-meta { margin: 0 0 var(--space-300); color: var(--color-muted); text-align: right; }
+  .dr-doc { border: var(--border-hairline) solid var(--color-line); background: var(--color-surface-raised); padding: var(--space-700); display: flex; flex-direction: column; gap: var(--space-400); }
+  .dr-doc-contact { display: flex; flex-direction: column; gap: var(--space-200); border-bottom: var(--border-hairline) solid var(--color-line); padding-bottom: var(--space-400); }
+  .dr-doc-name { margin: 0; font-size: var(--size-400); font-weight: var(--weight-bold); letter-spacing: -0.01em; }
+  .dr-doc-lines { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
+  .dr-doc-lines a { color: var(--color-muted); text-decoration: none; }
+  .dr-doc-section { display: flex; flex-direction: column; gap: var(--space-300); }
+  .dr-doc-heading { margin: 0; color: var(--color-muted); letter-spacing: 0.06em; }
+  .dr-doc-entry { display: flex; flex-direction: column; gap: 2px; }
+  .dr-doc-entry-head { margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-300); }
+  .dr-doc-entry-title { font-weight: var(--weight-semibold, 600); }
+  .dr-doc-entry-dates { color: var(--color-muted); font-size: var(--size-100); white-space: nowrap; }
+  .dr-doc-entry-org { margin: 0 0 var(--space-100); color: var(--color-muted); font-size: var(--size-100); }
+  .dr-doc-line, .dr-doc-para { margin: 0; line-height: 1.6; }
+  .dr-doc-para { margin-bottom: var(--space-300); }
+  .dr-doc-salutation, .dr-doc-closing { margin: 0; }
+  .dr-doc-empty { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
+  .is-tailored { background: var(--color-tailor-highlight, rgb(239, 231, 200)); box-shadow: 0 0 0 3px var(--color-tailor-highlight, rgb(239, 231, 200)); color: #0b0b0d; }
+
+  .dr-doc-actions { margin-top: var(--space-400); display: flex; flex-wrap: wrap; gap: var(--space-300); }
+  .dr-btn { display: inline-block; padding: var(--space-300) var(--space-500); font-family: var(--font-family-mono); font-size: var(--size-100); text-decoration: none; cursor: pointer; color: var(--color-foreground); background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-foreground); }
+  .dr-btn-primary { background: var(--color-surface-inverse); color: var(--color-foreground-inverse); width: 100%; text-align: center; }
+  .dr-highlight-note { margin: var(--space-400) 0 0; color: var(--color-muted); font-size: var(--size-100); max-width: 66ch; }
+
+  .dr-steer, .dr-versions, .dr-changed, .dr-send { border: var(--border-hairline) solid var(--color-line); background: var(--color-surface); padding: var(--space-600); margin-top: var(--space-600); }
+  .dr-steer-title, .dr-changed-title { margin: 0 0 var(--space-400); font-size: var(--size-300); }
+  .dr-chips { display: flex; flex-wrap: wrap; gap: var(--space-300); }
+  .dr-chip { padding: var(--space-300) var(--space-400); font-family: var(--font-family-mono); font-size: var(--size-100); border: var(--border-hairline) solid var(--color-line); background: var(--color-surface-raised); color: var(--color-muted); }
+  .dr-chip:disabled { opacity: 0.55; cursor: not-allowed; }
+  .dr-steer-soon { margin: var(--space-300) 0 var(--space-400); color: var(--color-muted); }
+  .dr-steer form { margin: 0; }
+
+  .dr-versions-title, .dr-send-title { margin: 0 0 var(--space-300); color: var(--color-muted); }
+  .dr-version-list { margin: 0; padding: 0; list-style: none; }
+  .dr-version { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-300); padding: var(--space-300) 0; border-top: var(--border-hairline) solid var(--color-line); }
+  .dr-version:first-child { border-top: none; }
+  .dr-version-state { color: var(--color-muted); }
+  .dr-version form { margin: 0; }
+  .dr-restore { background: transparent; border: 0; padding: 0; cursor: pointer; font-family: var(--font-family-mono); font-size: var(--size-100); color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; }
+
+  .dr-changed-list { margin: 0; display: flex; flex-direction: column; gap: var(--space-300); }
+  .dr-changed-row { display: grid; grid-template-columns: 6rem 1fr; gap: var(--space-400); align-items: baseline; padding-top: var(--space-300); border-top: var(--border-hairline) solid var(--color-line); }
+  .dr-changed-row:first-child { border-top: none; padding-top: 0; }
+  .dr-changed-verb { margin: 0; font-family: var(--font-family-mono); font-size: var(--size-075); letter-spacing: 0.06em; color: var(--color-stat-loss); }
+  .dr-changed-row dd { margin: 0; color: var(--color-foreground); }
+
+  .dr-send-apply { margin: 0; }
+  .dr-send-note { margin: var(--space-400) 0 0; color: var(--color-muted); font-size: var(--size-100); }
+  .dr-footer-note { margin: var(--space-400) 0 0; padding-top: var(--space-400); border-top: var(--border-hairline) solid var(--color-line); color: var(--color-muted); }
+
+  .dr-sticky { position: sticky; bottom: 0; margin: var(--space-700) calc(-1 * var(--space-500)) 0; background: var(--color-surface-raised); border-top: var(--border-hairline) solid var(--color-line); }
+  .dr-sticky-inner { max-width: 52rem; margin: 0 auto; padding: var(--space-300) var(--space-500); display: flex; align-items: center; justify-content: space-between; gap: var(--space-400); }
+  .dr-sticky-title { margin: 0; font-size: var(--size-100); }
+  .dr-sticky-title span { color: var(--color-muted); margin-left: var(--space-200); }
+  .dr-sticky-actions { display: flex; gap: var(--space-400); align-items: center; }
+  .dr-sticky-both { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; font-size: var(--size-100); }
+  .dr-sticky-apply { background: var(--color-surface-inverse); color: var(--color-foreground-inverse); padding: var(--space-200) var(--space-400); font-family: var(--font-family-mono); font-size: var(--size-075); text-decoration: none; }
+
+  @media (max-width: 40rem) {
+    .dr-doc { padding: var(--space-500); }
+    .dr-changed-row { grid-template-columns: 1fr; gap: var(--space-100); }
+  }
+</style>

@@ -39,12 +39,14 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
 import EmptyState from '../../../components/EmptyState.astro';
 import LoadingState from '../../../components/LoadingState.astro';
 import DraftDocuments from '../../../components/tailor/DraftDocuments.astro';
+import DraftRoomV2 from '../../../components/tailor/DraftRoomV2.astro';
+import { applyLabel } from '../../../lib/data';
 import { routeFor, boardDetailPath, jobDraftPdfPath } from '../../../data/nav';
 import { draftableJobBySlug } from '../../../lib/draft-job';
 import AddedPostingNote from '../../../components/desk/AddedPostingNote.astro';
 import { addedApplicationId, hostnameOf, isAddedSlug } from '../../../lib/added-posting';
 import { getPostingFetchByApplication, type StoredPostingFetch } from '../../../lib/posting-fetch-store';
-import { documentState, getJobRenders, jobDraftState } from '../../../lib/generated-render-store';
+import { documentState, getJobRenders, jobDraftState, listJobRenderVersions } from '../../../lib/generated-render-store';
 import { coverHasBody, resumeHasBody } from '../../../lib/pdf-resume';
 import type { ResumeRender, CoverRender } from '../../../lib/tailor';
 import { FUNCTION_MAX_DURATION_S } from '../../../../site.config.mjs';
@@ -141,6 +143,24 @@ const postingLabel = job ? (job.title ? `${job.title}, ${job.company}` : job.com
 const settingsPath = routeFor('settings');
 const profilePath = routeFor('profile');
 const jobDraftEndpoint = routeFor('desk-job-draft');
+
+// The pixel-perfect draft room (DraftRoomV2) renders once drafting has settled
+// (nothing still pending) and at least one document is ready. While a draft is
+// still in flight, the DraftDocuments path below keeps its loading and per-
+// document failure states. Versions are read only when the room will show.
+const useRoomV2 = !anyPending && (!!resumePayload || !!coverPayload);
+const resumeVersions = useRoomV2 ? await listJobRenderVersions(viewer.userId, slug, 'resume') : [];
+const coverVersions = useRoomV2 ? await listJobRenderVersions(viewer.userId, slug, 'cover') : [];
+const roomPostingHref = postingHref ?? (job ? boardDetailPath(slug) : jobDraftEndpoint);
+const roomApplyUrl = job?.apply_url || null;
+const roomApplyLabel = job ? applyLabel(job) : 'Apply';
+const roomApplyTrack =
+  roomApplyUrl && job ? { action: routeFor('desk-application'), title: job.title ?? '', company: job.company } : null;
+const roomProvider = resume?.provider ?? cover?.provider ?? null;
+const roomModel = resume?.model ?? cover?.model ?? null;
+const roomFallback = providerTried && fellBack;
+const resumeUpdatedIso = resume?.updatedAt ? resume.updatedAt.toISOString() : null;
+const coverUpdatedIso = cover?.updatedAt ? cover.updatedAt.toISOString() : null;
 ---
 
 <BaseLayout
@@ -150,9 +170,33 @@ const jobDraftEndpoint = routeFor('desk-job-draft');
 >
   <section class="draft-page">
     <div class="shell draft-shell">
-      <span class="kicker">Drafted for this role</span>
-      <h1>Your resume and cover letter</h1>
-      <p class="muted">Targeted at: {postingLabel}</p>
+      {!useRoomV2 && <span class="kicker">Drafted for this role</span>}
+      {!useRoomV2 && <h1>Your resume and cover letter</h1>}
+      {!useRoomV2 && <p class="muted">Targeted at: {postingLabel}</p>}
+
+      {useRoomV2 && (
+        <DraftRoomV2
+          slug={slug}
+          jobTitle={job?.title ?? null}
+          company={job?.company ?? ''}
+          postingHref={roomPostingHref}
+          resume={resumePayload}
+          cover={coverPayload}
+          resumeVersions={resumeVersions}
+          coverVersions={coverVersions}
+          resumeUpdatedAt={resumeUpdatedIso}
+          coverUpdatedAt={coverUpdatedIso}
+          resumeDownloadable={resumeDownloadable}
+          coverDownloadable={coverDownloadable}
+          provider={roomProvider}
+          model={roomModel}
+          fallback={roomFallback}
+          regenerateAction={jobDraftEndpoint}
+          applyUrl={roomApplyUrl}
+          applyLabel={roomApplyLabel}
+          applyTrack={roomApplyTrack}
+        />
+      )}
 
       {fetchRow && !waiting && <AddedPostingNote row={fetchRow} />}
 
@@ -225,7 +269,7 @@ const jobDraftEndpoint = routeFor('desk-job-draft');
       }
 
       {
-        gaps && (
+        !useRoomV2 && gaps && (
           <div class="draft-gap no-print" role="note">
             <p class="draft-gap-title">Your record is thin for a full draft</p>
             <ul class="draft-gap-list">
@@ -239,7 +283,7 @@ const jobDraftEndpoint = routeFor('desk-job-draft');
       }
 
       {
-        deterministicByNoKey && (
+        !useRoomV2 && deterministicByNoKey && (
           <p class="draft-key-note no-print">
             This draft used the built-in writer. Connect a provider key in{' '}
             <a class="draft-link" href={settingsPath}>Settings</a> and a draft is written in stronger prose.
@@ -248,7 +292,7 @@ const jobDraftEndpoint = routeFor('desk-job-draft');
       }
 
       {
-        (resumeDownloadable || coverDownloadable) && (
+        !useRoomV2 && (resumeDownloadable || coverDownloadable) && (
           <div class="draft-downloads no-print">
             <span class="draft-downloads-label mono-label">Download as PDF</span>
             {resumeDownloadable && (
@@ -262,7 +306,7 @@ const jobDraftEndpoint = routeFor('desk-job-draft');
       }
 
       {
-        coverState === 'ready' && resumeDownloadable && !coverDownloadable && (
+        !useRoomV2 && coverState === 'ready' && resumeDownloadable && !coverDownloadable && (
           <p class="draft-key-note no-print">
             Your cover letter needs a sentence or two under your roles to draw from. Add a description to a
             role in your <a class="draft-link" href={profilePath}>Profile Record</a>, then draft again.
@@ -271,7 +315,7 @@ const jobDraftEndpoint = routeFor('desk-job-draft');
       }
 
       {
-        showDocuments && (
+        !useRoomV2 && showDocuments && (
           <DraftDocuments
             resume={resumePayload}
             cover={coverPayload}
