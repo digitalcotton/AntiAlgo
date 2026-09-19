@@ -255,6 +255,25 @@ export interface ProvenanceSummary {
   readonly bulletCount: number;
 }
 
+/**
+ * What a re-styling changed, DERIVED by byte-comparison and never narrated (the
+ * confident-diff refusal this file's sharedVocabulary comment states). A KEPT
+ * line is byte-identical to this file's own deterministic join of the record's
+ * fragments, the person's own words; a REWROTE line is one a connected model
+ * rephrased inside its locked slot (a resume line is only ever rephrased, never
+ * re-facted, because the facts are locked before the style pass). mirroredTerms
+ * are the posting's own terms paired onto a skill the record already holds
+ * (skill-aliases.ts), the one honest "added for this posting" case. coreOnly
+ * counts entries the two-page cap trimmed to their verbatim core with no bullet.
+ * A deterministic (no-key) render is all KEPT by construction, which the room
+ * says plainly rather than pretending a model touched anything.
+ */
+export interface ChangeRecord {
+  readonly perEntry: readonly { readonly prfId: string; readonly verdict: 'KEPT' | 'REWROTE' }[];
+  readonly counts: { readonly rewrote: number; readonly kept: number; readonly coreOnly: number };
+  readonly mirroredTerms: readonly string[];
+}
+
 /** MASTER-SPEC's "gap report pattern applied to a person": when the record
     has too little to render, this names what is missing instead of the
     render padding itself out. Null when there is nothing to report. */
@@ -299,6 +318,11 @@ interface BaseRender {
       read. Boilerplate, not Bullets: see RenderHeader above and the
       salutation/closing precedent on CoverRender below. */
   readonly header: RenderHeader | null;
+  /** Nullable/optional and last, the same forward-compatible shape as `header`:
+      a payload stored before this field existed reads back as undefined, which
+      every reader treats as "no change record". Derived by byte-comparison in
+      buildSections (resume) / the letter path (cover), never asserted. */
+  readonly changeRecord?: ChangeRecord;
 }
 
 export interface ResumeRender extends BaseRender {
@@ -622,7 +646,7 @@ async function buildSections(
   entries: ProfileRecord,
   target: Target,
   provider: StyleProvider
-): Promise<{ readonly sections: readonly RenderSection[] }> {
+): Promise<{ readonly sections: readonly RenderSection[]; readonly changeRecord: ChangeRecord }> {
   const vocabulary = vocabularyFor(target);
   const postingText = rawTextFor(target);
   const knownPrfIds = new Set(entries.map((e) => e.prfId));
@@ -669,6 +693,13 @@ async function buildSections(
   const styled = await provider.style(locked);
   const styledTextBySlotId = new Map(styled.styledSlots.map((s) => [s.slotId, s.text] as const));
 
+  // Derived, never narrated (see ChangeRecord): a bullet whose final text equals
+  // this file's own deterministic join is the person's own words (KEPT); one a
+  // connected model rephrased inside its locked slot differs (REWROTE). An entry
+  // with no bullet was trimmed to its verbatim core (coreOnly).
+  const perEntry: { prfId: string; verdict: 'KEPT' | 'REWROTE' }[] = [];
+  let coreOnly = 0;
+
   const sections: RenderSection[] = [];
   for (const kind of ENTRY_KINDS) {
     const ofKind = entries.filter((e) => e.kind === kind);
@@ -689,9 +720,13 @@ async function buildSections(
         // never constructed: it would trace to a real record entry but say
         // nothing, which is a worse failure than a plain deterministic
         // sentence.
+        const deterministic = templateText(slot.kind, slot.fragments);
         const styledText = styledTextBySlotId.get(slot.slotId);
-        const text = styledText && styledText.trim().length > 0 ? styledText : templateText(slot.kind, slot.fragments);
+        const text = styledText && styledText.trim().length > 0 ? styledText : deterministic;
         bullets.push(createBullet(text, slot.sourcePrfIds, knownPrfIds));
+        perEntry.push({ prfId: entry.prfId, verdict: text === deterministic ? 'KEPT' : 'REWROTE' });
+      } else {
+        coreOnly++;
       }
       return {
         prfId: entry.prfId,
@@ -705,7 +740,29 @@ async function buildSections(
     sections.push({ kind, heading: HEADINGS[kind], entries: renderEntries });
   }
 
-  return { sections };
+  // The one honest "added for this posting": a skill the record already holds
+  // whose curated paired form the posting uses (mirroredFragmentsFor above,
+  // skill-aliases.ts). Collected from the kept skill slots, deduped; the
+  // record's own bytes stay untouched, so this adds a term, never a skill.
+  const mirroredTerms: string[] = [];
+  for (const entry of entries) {
+    if (entry.kind === 'skill' && slotsByPrfId.has(entry.prfId)) {
+      const paired = pairedFormFor(entry.officialTitle, postingText);
+      if (paired) mirroredTerms.push(paired);
+    }
+  }
+
+  const changeRecord: ChangeRecord = {
+    perEntry,
+    counts: {
+      rewrote: perEntry.filter((e) => e.verdict === 'REWROTE').length,
+      kept: perEntry.filter((e) => e.verdict === 'KEPT').length,
+      coreOnly
+    },
+    mirroredTerms: [...new Set(mirroredTerms)]
+  };
+
+  return { sections, changeRecord };
 }
 
 /**
@@ -1002,7 +1059,7 @@ export async function renderResume(
   // `voice` appears anywhere in this function. See buildSections()'s own
   // comment and voice.ts's file header: this is the entire mechanism that
   // keeps a writing-voice sample out of a resume render.
-  const { sections } = await buildSections(entries, target, provider);
+  const { sections, changeRecord } = await buildSections(entries, target, provider);
   return {
     kind: 'resume',
     target: summarizeTarget(target),
@@ -1012,7 +1069,8 @@ export async function renderResume(
     // Carried through unchanged, attached after buildSections() the same way
     // salutation/closing are on a cover: a link is never rephrased by a
     // provider because it is not a slot (see RenderHeader).
-    header
+    header,
+    changeRecord
   };
 }
 

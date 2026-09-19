@@ -813,3 +813,46 @@ describe('the resume is styled in a single model call across all kinds', () => {
     for (const id of render.provenance.citedPrfIds) expect(known.has(id)).toBe(true);
   });
 });
+
+describe('changeRecord: derived by byte-comparison, never narrated', () => {
+  const record: ProfileRecord = [
+    entry(),
+    entry({
+      prfId: 'PRF-0002',
+      kind: 'skill',
+      employerOrInstitution: null,
+      officialTitle: 'Figma',
+      start: { year: 2018, month: 1 },
+      description: 'Daily driver for six years.'
+    })
+  ];
+
+  it('a deterministic (no-key) render is all KEPT: no model touched a line', async () => {
+    const render = await renderResume(record, postingTarget());
+    expect(render.changeRecord).toBeDefined();
+    const cr = render.changeRecord!;
+    expect(cr.perEntry.length).toBeGreaterThan(0);
+    expect(cr.perEntry.every((e) => e.verdict === 'KEPT')).toBe(true);
+    expect(cr.counts.rewrote).toBe(0);
+    expect(cr.counts.kept).toBe(cr.perEntry.length);
+  });
+
+  it('a provider that rephrases every slot marks each rendered line REWROTE', async () => {
+    const rephrasing: StyleProvider = {
+      name: 'rephrasing-test-double',
+      async style(locked: LockedFactSet): Promise<StyleResult> {
+        return {
+          styledSlots: locked.slots.map((s) => ({ slotId: s.slotId, text: `Rephrased ${s.fragments.join(' ')}` }))
+        };
+      },
+      async styleLetter(): Promise<LetterStyleResult> {
+        return { opener: 'o', proof: 'p', fit: 'f', close: 'c' };
+      }
+    };
+    const render = await renderResume(record, postingTarget(), rephrasing);
+    const cr = render.changeRecord!;
+    expect(cr.perEntry.length).toBeGreaterThan(0);
+    expect(cr.perEntry.every((e) => e.verdict === 'REWROTE')).toBe(true);
+    expect(cr.counts.kept).toBe(0);
+  });
+});
