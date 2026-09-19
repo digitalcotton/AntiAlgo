@@ -13,6 +13,9 @@ const STORY = [
   { label: 'Evidence', href: routeFor('evidence') },
   { label: 'Your key', href: routeFor('your-key') }
 ];
+// A signed-in reader already has a spot: no sign-up link for them (the
+// header applies the same rule).
+const signedIn = Boolean(Astro.locals.viewer);
 const PRODUCT = [
   { label: 'The Index', href: INDEX.board },
   { label: 'Kill list', href: INDEX.kills },
@@ -28,7 +31,7 @@ const PRODUCT = [
       <nav class="ftr-nav" aria-label="The story">
         {STORY.map((l) => <a href={l.href}>{l.label}</a>)}
       </nav>
-      <a class="ftr-action" href={`${routeFor('sign-up')}?from=footer`}>Save my spot</a>
+      {!signedIn && <a class="ftr-action" href={`${routeFor('sign-up')}?from=footer`}>Save my spot</a>}
     </div>
     <div class="ftr-row">
       <nav class="ftr-nav" aria-label="The product">
