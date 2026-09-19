@@ -194,7 +194,7 @@ const prospectCount = prospectRows().length;
       </p>
     </Board>
 
-    <AccountCta source="index" />
+    {!signedIn && <AccountCta source="index" />}
   </div>
 </BaseLayout>
 
