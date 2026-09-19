@@ -6,7 +6,6 @@ import { EMPTY_AGE_HISTOGRAM, facetGroupsFromCounts, loadStats, prospectRows, sw
 import { isConfigured } from '../lib/db';
 import { getBoardStats, listBoardAgeHistogram, listBoardFiltered, type BoardFilteredResult, type FacetCounts } from '../lib/job-store';
 import { boardRowToJob } from '../lib/board-jobs';
-import { listWatches } from '../lib/ledger-watch-store';
 import { boardHref, clampPage, parseBoardQuery } from '../lib/board-query';
 import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
 import { isOn } from '../lib/flags';
@@ -65,32 +64,8 @@ const query = parsed;
 // underlines the same substitution on the sort control.
 const servedSort = !showFit && query.sort === 'fit' ? ('age' as const) : query.sort;
 
-// THE MEMBER'S OWN TITLES NARROW THE BOARD. A signed-in member who named titles
-// on The Desk sees only those by default, so the board is their own handful and
-// not the whole sweep; ?scope=all opts back into the full board for a look. A
-// signed-out reader, or a member with no titles yet, always gets the full board.
-// The titles come from the resolved viewer, never the query string.
-const scopeParam = Astro.url.searchParams.get('scope');
-let watchedTitles: string[] = [];
-if (signedIn && isConfigured()) {
-  try {
-    watchedTitles = (await listWatches(viewer!.userId)).map((w) => w.title);
-  } catch (error) {
-    console.error('board: could not read watched titles; showing the full board.', error);
-  }
-}
-const hasTitles = watchedTitles.length > 0;
-const scopeMine = hasTitles && scopeParam !== 'all';
-
-/** A board URL for a scope, other filters kept and the page reset. */
-function scopeHref(scope: 'mine' | 'all'): string {
-  const p = new URLSearchParams(Astro.url.searchParams);
-  p.delete('page');
-  if (scope === 'all') p.set('scope', 'all');
-  else p.delete('scope');
-  const qs = p.toString();
-  return qs ? `${boardPath}?${qs}` : boardPath;
-}
+// THE BOARD IS NEVER PRE-FILTERED (owner decision, 2026-09-19). A member's
+// Desk titles no longer narrow it by default; every reader gets the full sweep.
 
 const EMPTY_COUNTS: FacetCounts = { total: 0, location: {}, comp: {}, freshness: {} };
 const EMPTY_PAGE: BoardFilteredResult = { rows: [], total: 0, counts: EMPTY_COUNTS };
@@ -110,8 +85,7 @@ if (isConfigured()) {
       sort: servedSort,
       page: query.page,
       perPage: query.per,
-      sweepDate: sweepDate(),
-      titles: scopeMine ? watchedTitles : undefined
+      sweepDate: sweepDate()
     });
   } catch (error) {
     console.error('board: the job store did not answer; rendering an empty board.', error);
@@ -171,20 +145,6 @@ const prospectCount = prospectRows().length;
       </p>
     </header>
 
-    {hasTitles && (
-      <div class="board-scope" role="group" aria-label="Which roles to show">
-        <span class="board-scope-label mono-label">
-          {scopeMine
-            ? `Showing the roles under your titles. ${served.total} of them.`
-            : 'Showing every role in the sweep.'}
-        </span>
-        <span class="board-scope-links">
-          <a class="board-scope-link" href={scopeHref('mine')} aria-current={scopeMine ? 'true' : undefined}>My titles</a>
-          <a class="board-scope-link" href={scopeHref('all')} aria-current={!scopeMine ? 'true' : undefined}>All roles</a>
-        </span>
-      </div>
-    )}
-
     <Board
       jobs={jobs}
       mode="server"
@@ -228,31 +188,6 @@ const prospectCount = prospectRows().length;
        table collapses to cards (JobTable's container query), never scrolling. */
     max-width: 86rem;
     padding-inline: clamp(16px, 2.5vw, 36px);
-  }
-
-  /* The scope toggle: a member's board defaults to their own titles, and this
-     line says so and offers the way back to the whole sweep. Only rendered when
-     the reader has named titles, so the public board is unchanged. */
-  .board-scope {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-300) var(--space-500);
-    margin-top: calc(-1 * var(--space-500));
-  }
-  .board-scope-label { color: var(--color-muted); }
-  .board-scope-links { display: inline-flex; gap: var(--space-400); white-space: nowrap; }
-  .board-scope-link {
-    color: var(--color-muted);
-    border-bottom: var(--border-hairline) solid transparent;
-    padding-bottom: 2px;
-    text-decoration: none;
-  }
-  .board-scope-link:hover,
-  .board-scope-link[aria-current='true'] {
-    color: var(--color-foreground);
-    border-bottom-color: var(--color-signal);
   }
 
   .index-head {
