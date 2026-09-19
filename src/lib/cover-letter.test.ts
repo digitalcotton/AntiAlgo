@@ -59,6 +59,22 @@ describe('coreSentence(): the immutable core as one line', () => {
     const skill = entry({ kind: 'skill', employerOrInstitution: null, officialTitle: 'Python', end: { year: 2024, month: 6 } });
     expect(coreSentence(skill)).toBe('Python, March 2021 to June 2024');
   });
+
+  it('drops the date clause entirely for an undated skill (db/204): "Python", never "Python, to Present"', () => {
+    const undatedSkill = entry({ kind: 'skill', employerOrInstitution: null, officialTitle: 'Python', start: null, end: null });
+    expect(coreSentence(undatedSkill)).toBe('Python');
+  });
+
+  it('keeps the "at <employer>" clause on an undated recognition and still drops the dates', () => {
+    const undatedRecognition = entry({
+      kind: 'recognition',
+      employerOrInstitution: 'Scrum Alliance',
+      officialTitle: 'Certified Scrum Master',
+      start: null,
+      end: null
+    });
+    expect(coreSentence(undatedRecognition)).toBe('Certified Scrum Master at Scrum Alliance');
+  });
 });
 
 describe('lockLetter(): exactly four slots, in role order, ids only where a fact is cited', () => {

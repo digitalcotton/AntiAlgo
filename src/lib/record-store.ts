@@ -90,7 +90,8 @@ export interface RecordEntryRow {
   kind: EntryKind;
   employer_or_institution: string | null;
   official_title: string;
-  start_year: number;
+  /** null only on a skill, an artifact or a recognition with no date (db/204). */
+  start_year: number | null;
   start_month: number | null;
   end_year: number | null;
   end_month: number | null;
@@ -119,7 +120,7 @@ export interface RecordArtifactRow {
 /** One record_entry row, plus the record_artifact rows already joined in
     for it, into the shape the rest of the app reads. */
 export function rowToStoredEntry(row: RecordEntryRow, artifacts: readonly StoredArtifact[]): StoredEntry {
-  const start: EntryDate = { year: row.start_year, month: row.start_month };
+  const start: EntryDate | null = row.start_year === null ? null : { year: row.start_year, month: row.start_month };
   const end: EntryDate | null = row.end_year === null ? null : { year: row.end_year, month: row.end_month };
 
   return {
@@ -456,8 +457,9 @@ export function decideHandleView(ownerId: string | null, viewerId: string | null
    ------------------------------------------------------------------------- */
 
 /**
- * Every entry a person holds, most recent start date first, with each
- * entry's artifacts already attached. Two queries rather than a join: a
+ * Every entry a person holds, most recent start date first and the undated
+ * ones (db/204) after every dated one, with each entry's artifacts already
+ * attached. Two queries rather than a join: a
  * join would repeat every entry column once per artifact, which this file
  * would then have to de-duplicate back apart; two queries and an in-memory
  * group-by is the plainer read for what is, per person, a small table.
@@ -467,7 +469,7 @@ export async function listEntries(userId: string): Promise<StoredEntry[]> {
     db().query<RecordEntryRow>(
       `SELECT * FROM record_entry
        WHERE user_id = $1
-       ORDER BY start_year DESC, start_month DESC NULLS LAST, prf_id DESC`,
+       ORDER BY start_year DESC NULLS LAST, start_month DESC NULLS LAST, prf_id DESC`,
       [userId]
     ),
     db().query<RecordArtifactRow>(
@@ -587,8 +589,8 @@ export async function createEntry(userId: string, input: NewEntryInput): Promise
         input.kind,
         input.employerOrInstitution,
         input.officialTitle,
-        input.start.year,
-        input.start.month,
+        input.start?.year ?? null,
+        input.start?.month ?? null,
         input.end?.year ?? null,
         input.end?.month ?? null,
         input.location,
@@ -651,8 +653,8 @@ export async function updateEntry(userId: string, prfId: string, input: EntryCor
       input.kind,
       input.employerOrInstitution,
       input.officialTitle,
-      input.start.year,
-      input.start.month,
+      input.start?.year ?? null,
+      input.start?.month ?? null,
       input.end?.year ?? null,
       input.end?.month ?? null,
       input.location,

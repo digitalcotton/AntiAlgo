@@ -628,7 +628,6 @@ const showOnboarding = onboarding && !onboardingComplete;
                           id="add-start-year"
                           type="number"
                           name="startYear"
-                          required
                           min="1900"
                           max="2100"
                           value={addState.values.startYear}
@@ -646,6 +645,7 @@ const showOnboarding = onboarding && !onboardingComplete;
                         </select>
                       </div>
                     </div>
+                    <p class="field-hint">Required for a role held, education, or a project. A skill, an artifact, or a piece of recognition can leave it blank.</p>
                     {(issueMessage(addState.issues, 'start') || issueMessage(addState.issues, 'start.year') || issueMessage(addState.issues, 'start.month')) && (
                       <p class="field-issue">
                         {issueMessage(addState.issues, 'start') ?? issueMessage(addState.issues, 'start.year') ?? issueMessage(addState.issues, 'start.month')}

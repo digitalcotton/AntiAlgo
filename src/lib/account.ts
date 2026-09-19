@@ -943,7 +943,7 @@ export interface AccountExportBundle {
       kind: string;
       employerOrInstitution: string | null;
       officialTitle: string;
-      start: { year: number; month: number | null };
+      start: { year: number; month: number | null } | null;
       end: { year: number; month: number | null } | null;
       location: string | null;
       description: string;
@@ -1175,7 +1175,7 @@ export function exportShape(input: ExportInput): AccountExportBundle {
         kind: entry.kind,
         employerOrInstitution: entry.employerOrInstitution,
         officialTitle: entry.officialTitle,
-        start: { year: entry.start.year, month: entry.start.month },
+        start: entry.start ? { year: entry.start.year, month: entry.start.month } : null,
         end: entry.end ? { year: entry.end.year, month: entry.end.month } : null,
         location: entry.location,
         description: entry.description,

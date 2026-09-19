@@ -28,6 +28,23 @@
 export const ENTRY_KINDS = ['role_held', 'education', 'project', 'skill', 'artifact', 'recognition'] as const;
 export type EntryKind = (typeof ENTRY_KINDS)[number];
 
+/**
+ * The kinds an entry may carry no start date for. A role, a degree and a
+ * project each happened in a year the person can name; a skill, an artifact
+ * or a piece of recognition often has none written anywhere (a skills line,
+ * a certification with no year), and insisting on one only invites an
+ * invented one. Mirrors db/204_dateless_entries.sql's CHECK, which is the
+ * backstop; this array is what validateEntry() reads.
+ */
+export const START_OPTIONAL_KINDS = ['skill', 'artifact', 'recognition'] as const;
+
+/** True when validateEntry() insists on a start date for this kind. An
+    unrecognised kind reads as required, the stricter reading, though it is
+    already an issue of its own by then. */
+export function startRequiredFor(kind: unknown): boolean {
+  return !(START_OPTIONAL_KINDS as readonly unknown[]).includes(kind);
+}
+
 export const CLASSIFICATIONS = ['public', 'unlisted', 'private'] as const;
 export type Classification = (typeof CLASSIFICATIONS)[number];
 
@@ -87,7 +104,12 @@ export interface ProfileEntry {
       for 'role_held' and 'education', matching the database CHECK. */
   employerOrInstitution: string | null;
   officialTitle: string;
-  start: EntryDate;
+  /** null for a skill, an artifact or a recognition the person gave no date
+      for (a skills line on a resume, a certification with no year). A real
+      state, not a missing value, the same way a null `end` is. Required by
+      validateEntry() for 'role_held', 'education' and 'project', matching
+      the CHECK db/204_dateless_entries.sql keys on kind. */
+  start: EntryDate | null;
   /** null means "still there": a role still held, a degree still in
       progress. A real state, not a missing value; see the column comment
       on end_year in db/004_profile_record.sql. */
@@ -404,7 +426,25 @@ export function validateEntry(input: unknown): ValidationResult {
 
   const officialTitle = validateBoundedString(input.officialTitle, 'officialTitle', CEILINGS.officialTitle, true, issues);
 
-  const start = validateDate(input.start, 'start', issues);
+  // A blank start is the shape both forms post for an empty year field
+  // ({ year: undefined, month: ... }, see profile/entry.ts's
+  // buildValidationInput) as well as the parser's plain null. For a role, a
+  // degree or a project it is a missing required field; for a skill, an
+  // artifact or a recognition it is a real state, "no date", stored as a NULL
+  // start_year (db/204). A month with no year identifies nothing either way.
+  const startBlank =
+    input.start === null ||
+    input.start === undefined ||
+    (isPlainObject(input.start) && (input.start.year === null || input.start.year === undefined));
+  const startMonthGiven = isPlainObject(input.start) && input.start.month !== null && input.start.month !== undefined;
+  let start: EntryDate | null = null;
+  if (startBlank && startRequiredFor(kind)) {
+    issues.push({ field: 'start.year', message: 'is required for a role held, education, or a project' });
+  } else if (startBlank && startMonthGiven) {
+    issues.push({ field: 'start.year', message: 'is needed when a start month is given' });
+  } else if (!startBlank) {
+    start = validateDate(input.start, 'start', issues);
+  }
 
   // Absent end means "still there" and is valid; it never reaches
   // validateDate() at all, matching the way db/004_profile_record.sql
@@ -415,6 +455,11 @@ export function validateEntry(input: unknown): ValidationResult {
   }
   if (start && end && end.year < start.year) {
     issues.push({ field: 'end', message: 'end year must not be before the start year' });
+  }
+  // An end with no start is not a range this record can print, and db/204's
+  // CHECK refuses the row; said here first, on the field the person can fix.
+  if (startBlank && !startRequiredFor(kind) && end !== null) {
+    issues.push({ field: 'end', message: 'needs a start date' });
   }
 
   /*
@@ -488,7 +533,7 @@ export function validateEntry(input: unknown): ValidationResult {
       kind: kind as EntryKind,
       employerOrInstitution,
       officialTitle: officialTitle as string,
-      start: start as EntryDate,
+      start,
       end,
       location,
       description: (description ?? '') as string,

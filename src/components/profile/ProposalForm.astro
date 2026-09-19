@@ -64,8 +64,10 @@ function quote(entry: EntryProposal, field: ProposalField): string | null {
   return entry.sourceQuotes[field] ?? null;
 }
 
-/** One proposal's date range, in the same words the record uses. */
-function proposalRange(entry: EntryProposal): string {
+/** One proposal's date range, in the same words the record uses; null for an
+    undated skill, artifact or recognition (db/204), which shows no dates. */
+function proposalRange(entry: EntryProposal): string | null {
+  if (entry.candidate.start === null) return null;
   const start = formatDate(entry.candidate.start.year, entry.candidate.start.month);
   const end =
     entry.candidate.end === null ? 'Present' : formatDate(entry.candidate.end.year, entry.candidate.end.month);
@@ -190,26 +192,26 @@ const initialCount =
                     id={`import-start-year-${i}`}
                     type="number"
                     name={`entry-${i}-startYear`}
-                    required
                     min="1900"
                     max="2100"
-                    value={entry.candidate.start.year}
+                    value={entry.candidate.start?.year ?? ''}
                   />
                 </div>
                 <div class="field">
                   <label class="field-label" for={`import-start-month-${i}`}>Start month</label>
                   <select class="field-input field-input-narrow" id={`import-start-month-${i}`} name={`entry-${i}-startMonth`}>
-                    <option value="" selected={entry.candidate.start.month === null}>
+                    <option value="" selected={(entry.candidate.start?.month ?? null) === null}>
                       Unknown
                     </option>
                     {MONTH_NAMES.map((monthName, index) => (
-                      <option value={index + 1} selected={entry.candidate.start.month === index + 1}>
+                      <option value={index + 1} selected={entry.candidate.start?.month === index + 1}>
                         {monthName}
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
+              <p class="field-hint">Required for a role held, education, or a project. A skill, an artifact, or a piece of recognition can leave it blank.</p>
 
               <div class="field field-checkbox">
                 <input

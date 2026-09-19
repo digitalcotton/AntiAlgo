@@ -135,3 +135,25 @@ describe('resumeHasBody / coverHasBody: the blank-document guard', () => {
     expect(coverHasBody(cover)).toBe(false);
   });
 });
+
+describe('resumeLines(): an undated entry prints no date line (db/204)', () => {
+  it('draws the title, then goes straight on: no empty meta line and no "to Present" for it', async () => {
+    const record: ProfileRecord = [
+      entry(),
+      entry({ prfId: 'PRF-0002', kind: 'skill', employerOrInstitution: null, officialTitle: 'Figma', start: null, description: '' })
+    ];
+    const header = { name: 'Jordan Rivera', email: 'jordan@example.com', links: [] };
+    const resume = await renderResume(record, { kind: 'verified_posting', job: target() }, undefined, header);
+    const lines = resumeLines(resume);
+
+    const figma = indexOfLine(lines, (t) => t === 'Figma');
+    expect(figma).toBeGreaterThanOrEqual(0);
+    // Nothing blank anywhere: an undated, employerless entry has no meta line at all.
+    expect(lines.some((l) => l.text.trim() === '')).toBe(false);
+    // The line after the title, if any, is not a date range for it.
+    const next = lines[figma + 1];
+    if (next) expect(next.text).not.toContain(' to ');
+    // The dated role still prints its range exactly as before.
+    expect(indexOfLine(lines, (t) => t.includes('March 2020 to Present'))).toBeGreaterThanOrEqual(0);
+  });
+});

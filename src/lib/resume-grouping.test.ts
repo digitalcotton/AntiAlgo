@@ -21,7 +21,8 @@ function entry(overrides: {
   /** The single bullet's text, where a certification's issuer lives when the
       employer field is null. */
   bulletText?: string;
-  start?: { year: number; month?: number };
+  /** null for an undated credential (db/204); absent for the default 2017 start. */
+  start?: { year: number; month?: number } | null;
   end?: { year: number; month?: number } | null;
 }): RenderEntry {
   const bullets = overrides.bulletText ? [{ text: overrides.bulletText, sourcePrfIds: [overrides.prfId] }] : [];
@@ -31,7 +32,7 @@ function entry(overrides: {
     core: {
       employerOrInstitution: overrides.employer ?? null,
       officialTitle: overrides.title,
-      start: overrides.start ?? { year: 2017, month: 1 },
+      start: overrides.start === undefined ? { year: 2017, month: 1 } : overrides.start,
       end: overrides.end === undefined ? null : overrides.end
     },
     descriptiveTitle: null,
@@ -156,5 +157,36 @@ describe('groupResumeSection(): folds a wall, leaves substance', () => {
     );
     const joined = (rows[0] as { group: ResumeGroup }).group.titles.join(', ');
     for (const title of ['Scrum Master', 'Scrum Coach', 'Scrum Trainer']) expect(joined).toContain(title);
+  });
+});
+
+describe('groupResumeSection(): undated credentials in a fold (db/204)', () => {
+  it('takes the earliest start among the dated members when one member has no start', () => {
+    const rows = groupResumeSection(
+      section('recognition', [
+        entry({ prfId: 'PRF-1', title: 'Scrum Master', employer: 'Body', start: null }),
+        entry({ prfId: 'PRF-2', title: 'Scrum Coach', employer: 'Body', start: { year: 2017, month: 1 } }),
+        entry({ prfId: 'PRF-3', title: 'Scrum Trainer', employer: 'Body', start: { year: 2015, month: 1 } })
+      ])
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].kind).toBe('group');
+    const group = (rows[0] as { group: ResumeGroup }).group;
+    expect(group.start).toEqual({ year: 2015, month: 1 });
+    expect(group.prfIds).toEqual(['PRF-1', 'PRF-2', 'PRF-3']);
+  });
+
+  it('folds a wall of wholly undated credentials with a null start', () => {
+    const rows = groupResumeSection(
+      section('recognition', [
+        entry({ prfId: 'PRF-1', title: 'A', employer: 'Body', start: null }),
+        entry({ prfId: 'PRF-2', title: 'B', employer: 'Body', start: null }),
+        entry({ prfId: 'PRF-3', title: 'C', employer: 'Body', start: null })
+      ])
+    );
+    expect(rows).toHaveLength(1);
+    const group = (rows[0] as { group: ResumeGroup }).group;
+    expect(group.start).toBeNull();
+    expect(group.titles).toEqual(['A', 'B', 'C']);
   });
 });

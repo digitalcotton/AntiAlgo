@@ -31,8 +31,14 @@ export function formatMonthYear(year: number, month: number | null): string {
 }
 
 /** The dates as a document shows them: "March 2021 to Present". A plain "to",
-    never a dash, matching the no-dash rule the rest of the site keeps. */
-export function dateRange(core: ImmutableCore): string {
+    never a dash, matching the no-dash rule the rest of the site keeps.
+
+    null when the core has no start: an undated skill, artifact or recognition
+    (db/204) has no range to print, and every caller prints nothing for it
+    rather than a "Present" that would claim a date nobody gave. The schema
+    rules out an end with no start, so a null start is the whole test. */
+export function dateRange(core: ImmutableCore): string | null {
+  if (core.start === null) return null;
   const start = formatMonthYear(core.start.year, core.start.month);
   const end = core.end === null ? 'Present' : formatMonthYear(core.end.year, core.end.month);
   return `${start} to ${end}`;

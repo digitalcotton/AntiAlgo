@@ -53,8 +53,11 @@ function entryLines(entry: RenderEntry): StyledLine[] {
   const lines: StyledLine[] = [{ text: entry.core.officialTitle, size: 11, bold: true, spaceBefore: 8 }];
   const meta: string[] = [];
   if (entry.core.employerOrInstitution) meta.push(entry.core.employerOrInstitution);
-  meta.push(dateRange(entry.core));
-  lines.push({ text: meta.join('   '), size: 10 });
+  const range = dateRange(entry.core);
+  if (range !== null) meta.push(range);
+  // An undated entry with no employer (a skill off a skills line, db/204) has
+  // no meta line at all: an empty line would be a blank nobody could read.
+  if (meta.length > 0) lines.push({ text: meta.join('   '), size: 10 });
   for (const bullet of entry.bullets) lines.push({ text: bullet.text, size: 10, spaceBefore: 2 });
   return lines;
 }
@@ -65,11 +68,12 @@ function entryLines(entry: RenderEntry): StyledLine[] {
     finds every one. */
 function groupLines(group: ResumeGroup): StyledLine[] {
   const core = { employerOrInstitution: group.issuer, officialTitle: group.issuer, start: group.start, end: group.end };
-  return [
-    { text: group.issuer, size: 11, bold: true, spaceBefore: 8 },
-    { text: dateRange(core), size: 10 },
-    { text: group.titles.join(', '), size: 10, spaceBefore: 2 }
-  ];
+  const range = dateRange(core);
+  const lines: StyledLine[] = [{ text: group.issuer, size: 11, bold: true, spaceBefore: 8 }];
+  // A fold of wholly undated credentials (db/204) draws no date line.
+  if (range !== null) lines.push({ text: range, size: 10 });
+  lines.push({ text: group.titles.join(', '), size: 10, spaceBefore: 2 });
+  return lines;
 }
 
 /** The person's current title, for the top of the page. RESUME-RULES.md and
@@ -82,7 +86,10 @@ function groupLines(group: ResumeGroup): StyledLine[] {
 function currentTitleLine(resume: ResumeRender): StyledLine | null {
   // Order two ongoing roles by their actual start, month included, not year
   // alone; a null month sorts as the start of the year.
-  const startedAt = (entry: RenderEntry): number => entry.core.start.year * 12 + (entry.core.start.month ?? 1);
+  // A role always has a start (db/204 keeps it required for role_held); the
+  // null branch satisfies the type and would sort such a row below any dated one.
+  const startedAt = (entry: RenderEntry): number =>
+    entry.core.start === null ? -1 : entry.core.start.year * 12 + (entry.core.start.month ?? 1);
   let current: RenderEntry | null = null;
   for (const section of resume.sections) {
     if (section.kind !== 'role_held') continue;

@@ -886,8 +886,11 @@ function hasDescriptionLine(entry: ProfileEntry): boolean {
 
 /** A core date as a comparable month index. Reads the core's own numbers only,
     no transform chained onto a core field (gate 8). A null month sorts as the
-    start of its year. */
-function monthIndexOf(date: { year: number; month: number | null }): number {
+    start of its year. A null DATE (an undated skill or credential, db/204)
+    sorts below every dated one, so within a section the dated entries keep
+    their newest-first order and the undated ones follow, by prfId. */
+function monthIndexOf(date: { year: number; month: number | null } | null): number {
+  if (date === null) return -1;
   return date.year * 12 + ((date.month ?? 1) - 1);
 }
 

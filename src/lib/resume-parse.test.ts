@@ -126,7 +126,7 @@ describe('buildProposalsFromModelJson: a fabricating model never lands invented 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.proposals.entries).toHaveLength(1);
-    expect(result.proposals.entries[0].candidate.start.year).toBe(2018);
+    expect(result.proposals.entries[0].candidate.start?.year).toBe(2018);
   });
 
   it('keeps only description lines that are on the page, dropping a summarised one', () => {
@@ -376,5 +376,78 @@ describe('buildProposalsFromModelJson: a skill survives an issuer the resume nev
     expect(skill?.candidate.employerOrInstitution).toBeNull();
     // A role with an invented employer is still fatal (the existing rule).
     expect(result.notes.join(' ')).not.toContain('left out');
+  });
+});
+
+describe('buildProposalsFromModelJson: a skill, an artifact or a recognition with no date on the page is kept (db/204)', () => {
+  function undated(kind: string, overrides: Record<string, unknown> = {}) {
+    return {
+      kind,
+      employerOrInstitution: null,
+      officialTitle: 'Design Lead',
+      startYear: null,
+      startMonth: null,
+      endYear: null,
+      endMonth: null,
+      location: null,
+      description: '',
+      ...overrides
+    };
+  }
+
+  it('keeps an undated recognition, with start null and no "left out" note', () => {
+    const reply = JSON.parse(honestModelReply());
+    reply.entries.push(undated('recognition'));
+    const result = buildProposalsFromModelJson(RESUME, JSON.stringify(reply));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const recognition = result.proposals.entries.find((e) => e.candidate.kind === 'recognition');
+    expect(recognition).toBeDefined();
+    expect(recognition?.candidate.start).toBeNull();
+    expect(recognition?.candidate.end).toBeNull();
+    expect(result.notes.join(' ')).not.toContain('left out');
+  });
+
+  it('keeps an undated skill and an undated artifact the same way', () => {
+    const reply = JSON.parse(honestModelReply());
+    reply.entries.push(undated('skill'), undated('artifact'));
+    const result = buildProposalsFromModelJson(RESUME, JSON.stringify(reply));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.proposals.entries.filter((e) => e.candidate.start === null).map((e) => e.candidate.kind)).toEqual([
+      'skill',
+      'artifact'
+    ]);
+  });
+
+  it('still drops a role with no start year: a role happened in a year the resume writes', () => {
+    const reply = JSON.parse(honestModelReply());
+    reply.entries.push(undated('role_held', { employerOrInstitution: 'Acme Corp', officialTitle: 'Senior Product Designer' }));
+    const result = buildProposalsFromModelJson(RESUME, JSON.stringify(reply));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.proposals.entries).toHaveLength(2);
+    expect(result.notes.join(' ')).toContain('left out');
+  });
+
+  it('still drops an undated skill whose end year is not on the page: an invented year is invention either way', () => {
+    const reply = JSON.parse(honestModelReply());
+    reply.entries.push(undated('skill', { endYear: 1999 }));
+    const result = buildProposalsFromModelJson(RESUME, JSON.stringify(reply));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.proposals.entries.some((e) => e.candidate.kind === 'skill')).toBe(false);
+  });
+
+  it('keeps an undated skill whose end year is on the page, but does not keep the end: no start, no range', () => {
+    const reply = JSON.parse(honestModelReply());
+    reply.entries.push(undated('skill', { endYear: 2021 }));
+    const result = buildProposalsFromModelJson(RESUME, JSON.stringify(reply));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const skill = result.proposals.entries.find((e) => e.candidate.kind === 'skill');
+    expect(skill).toBeDefined();
+    expect(skill?.candidate.start).toBeNull();
+    expect(skill?.candidate.end).toBeNull();
   });
 });

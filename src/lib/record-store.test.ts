@@ -268,3 +268,10 @@ describe('decideHandleView(): owner or not-found, and the three not-found cases 
   });
 });
 
+
+describe('rowToStoredEntry(): an undated row (db/204)', () => {
+  it('maps a NULL start_year to start null rather than a date with no year', () => {
+    const stored = rowToStoredEntry(entryRow({ kind: 'skill', start_year: null, start_month: null }), []);
+    expect(stored.start).toBeNull();
+  });
+});

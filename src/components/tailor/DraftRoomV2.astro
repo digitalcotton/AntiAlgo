@@ -21,6 +21,7 @@
  * this component renders only once at least one document is ready.
  */
 import { groupResumeSection, type ResumeGroup } from '../../lib/resume-grouping';
+import type { EntryDate } from '../../lib/record';
 import { DESCRIPTION_KINDS } from '../../lib/tailor';
 import type { ResumeRender, CoverRender, RenderEntry, RenderHeader } from '../../lib/tailor';
 import type { RenderVersionRow } from '../../lib/generated-render-store';
@@ -114,11 +115,16 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 function md(year: number, month: number | null): string {
   return month === null ? String(year) : `${MONTHS[month - 1]} ${year}`;
 }
-function entryRange(entry: RenderEntry): string {
-  return `${md(entry.core.start.year, entry.core.start.month)} to ${entry.core.end === null ? 'Present' : md(entry.core.end.year, entry.core.end.month)}`;
+/** null for an undated entry or fold (db/204): no dates are drawn for it. */
+function range(start: EntryDate | null, end: EntryDate | null): string | null {
+  if (start === null) return null;
+  return `${md(start.year, start.month)} to ${end === null ? 'Present' : md(end.year, end.month)}`;
 }
-function groupRange(group: ResumeGroup): string {
-  return `${md(group.start.year, group.start.month)} to ${group.end === null ? 'Present' : md(group.end.year, group.end.month)}`;
+function entryRange(entry: RenderEntry): string | null {
+  return range(entry.core.start, entry.core.end);
+}
+function groupRange(group: ResumeGroup): string | null {
+  return range(group.start, group.end);
 }
 /** A stored instant as a short, honest "N units ago", never a fake clock. */
 function timeAgo(iso: string | null): string | null {
@@ -205,7 +211,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
                   <div class="dr-doc-entry">
                     <p class="dr-doc-entry-head">
                       <span class="dr-doc-entry-title">{row.entry.core.officialTitle}</span>
-                      <span class="dr-doc-entry-dates mono">{entryRange(row.entry)}</span>
+                      {entryRange(row.entry) && <span class="dr-doc-entry-dates mono">{entryRange(row.entry)}</span>}
                     </p>
                     {row.entry.core.employerOrInstitution && <p class="dr-doc-entry-org mono">{row.entry.core.employerOrInstitution}</p>}
                     {row.entry.bullets.length === 0
@@ -216,7 +222,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
                   <div class="dr-doc-entry">
                     <p class="dr-doc-entry-head">
                       <span class="dr-doc-entry-title">{row.group.issuer}</span>
-                      <span class="dr-doc-entry-dates mono">{groupRange(row.group)}</span>
+                      {groupRange(row.group) && <span class="dr-doc-entry-dates mono">{groupRange(row.group)}</span>}
                     </p>
                     <p class="dr-doc-line">{row.group.titles.join(', ')}</p>
                   </div>

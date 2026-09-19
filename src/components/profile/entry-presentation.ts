@@ -58,7 +58,10 @@ export function formatDate(year: number, month: number | null): string {
   return month === null ? String(year) : `${MONTH_NAMES[month - 1]} ${year}`;
 }
 
-export function formatRange(entry: Pick<StoredEntry, 'start' | 'end'>): string {
+/** null for an undated entry (db/204): the row shows no dates rather than a
+    "Present" nobody stated. */
+export function formatRange(entry: Pick<StoredEntry, 'start' | 'end'>): string | null {
+  if (entry.start === null) return null;
   const start = formatDate(entry.start.year, entry.start.month);
   const end = entry.end === null ? 'Present' : formatDate(entry.end.year, entry.end.month);
   return `${start} to ${end}`;

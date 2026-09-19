@@ -188,7 +188,6 @@ const artifactOpen =
                 id={`edit-start-year-${entry.prfId}`}
                 type="number"
                 name="startYear"
-                required
                 min="1900"
                 max="2100"
                 value={edit!.values.startYear}
@@ -206,6 +205,12 @@ const artifactOpen =
               </select>
             </div>
           </div>
+          <p class="field-hint">Required for a role held, education, or a project. A skill, an artifact, or a piece of recognition can leave it blank.</p>
+          {(issueMessage(edit!.issues, 'start') || issueMessage(edit!.issues, 'start.year') || issueMessage(edit!.issues, 'start.month')) && (
+            <p class="field-issue">
+              {issueMessage(edit!.issues, 'start') ?? issueMessage(edit!.issues, 'start.year') ?? issueMessage(edit!.issues, 'start.month')}
+            </p>
+          )}
 
           <div class="field field-checkbox">
             <input

@@ -881,3 +881,21 @@ describe('changeRecord: derived by byte-comparison, never narrated', () => {
     expect(cr.counts.rewrote).toBeGreaterThan(0);
   });
 });
+
+describe('renderResume(): an undated entry (db/204) sorts after every dated one in its section', () => {
+  it('keeps the dated skills newest-first and puts the undated skill last, by prfId', async () => {
+    const record: ProfileRecord = [
+      entry(),
+      entry({ prfId: 'PRF-0002', kind: 'skill', employerOrInstitution: null, officialTitle: 'Figma', start: { year: 2018, month: 1 }, description: '' }),
+      entry({ prfId: 'PRF-0003', kind: 'skill', employerOrInstitution: null, officialTitle: 'TypeScript', start: null, description: '' }),
+      entry({ prfId: 'PRF-0004', kind: 'skill', employerOrInstitution: null, officialTitle: 'Postgres', start: { year: 2021, month: 1 }, description: '' }),
+      entry({ prfId: 'PRF-0005', kind: 'skill', employerOrInstitution: null, officialTitle: 'Astro', start: null, description: '' })
+    ];
+    const resume = await renderResume(record, postingTarget());
+    const skills = resume.sections.find((section) => section.kind === 'skill');
+    expect(skills).toBeDefined();
+    expect(skills?.entries.map((e) => e.prfId)).toEqual(['PRF-0004', 'PRF-0002', 'PRF-0003', 'PRF-0005']);
+    // The undated cores come through byte-identical, start null and all.
+    expect(skills?.entries.find((e) => e.prfId === 'PRF-0003')?.core.start).toBeNull();
+  });
+});

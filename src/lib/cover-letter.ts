@@ -74,13 +74,16 @@ export interface LetterSelection {
  * 2021 to Present" when the entry names no organization. Template interpolation
  * of the immutable core only: officialTitle and employerOrInstitution appear
  * verbatim with no call chained onto either (gate 8), and the dates come from
- * dateRange(coreOf(entry)), the same rule the resume's meta line uses.
+ * dateRange(coreOf(entry)), the same rule the resume's meta line uses. An
+ * undated entry (db/204) has no date clause at all: "Python", never "Python,
+ * to Present".
  */
 export function coreSentence(entry: ProfileEntry): string {
   const range = dateRange(coreOf(entry));
-  return entry.employerOrInstitution
-    ? `${entry.officialTitle} at ${entry.employerOrInstitution}, ${range}`
-    : `${entry.officialTitle}, ${range}`;
+  const named = entry.employerOrInstitution
+    ? `${entry.officialTitle} at ${entry.employerOrInstitution}`
+    : entry.officialTitle;
+  return range === null ? named : `${named}, ${range}`;
 }
 
 /** An entry's description as trimmed, non-empty lines. Reads entry.description

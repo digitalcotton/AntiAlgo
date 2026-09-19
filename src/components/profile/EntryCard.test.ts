@@ -110,3 +110,20 @@ describe('EntryCard.astro, editable={true} with a real edit state', () => {
     expect(html).toContain('Add artifact');
   });
 });
+
+describe('EntryCard.astro: an undated entry (db/204) shows no date range', () => {
+  it('leaves the dates cell empty rather than printing a "Present" nobody stated', async () => {
+    const html = await renderEntryCard({
+      entry: entry({ kind: 'skill', employerOrInstitution: null, officialTitle: 'Figma', start: null }),
+      editable: false
+    });
+    expect(html).not.toContain('to Present');
+    // The cell stays in the summary grid (the columns are fixed), just empty.
+    expect(html).toMatch(/record-summary-dates[^>]*><\/span>/);
+  });
+
+  it('still prints the range for a dated entry', async () => {
+    const html = await renderEntryCard({ entry: entry(), editable: false });
+    expect(html).toContain('March 2020 to Present');
+  });
+});

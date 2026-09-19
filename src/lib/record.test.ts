@@ -436,3 +436,63 @@ describe('validateEntry(): a core field carrying whitespace or a hidden characte
     expect(validateEntry(validInput()).ok).toBe(true);
   });
 });
+
+describe('validateEntry(): a start date is optional for a skill, an artifact and a recognition (db/204)', () => {
+  function undatedInput(overrides: Record<string, unknown> = {}) {
+    return {
+      kind: 'skill',
+      employerOrInstitution: null,
+      officialTitle: 'Figma',
+      start: null,
+      end: null,
+      location: null,
+      description: '',
+      classification: 'private',
+      artifacts: [],
+      ...overrides
+    };
+  }
+
+  it('accepts a skill with no start at all, and the entry carries start null', () => {
+    const result = validateEntry(undatedInput());
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.entry.start).toBeNull();
+  });
+
+  it('reads the blank shape a form posts ({ year: undefined, month: null }) as no start, not as a bad year', () => {
+    const result = validateEntry(undatedInput({ start: { year: undefined, month: null } }));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.entry.start).toBeNull();
+  });
+
+  it('accepts an artifact and a recognition with no start too', () => {
+    expect(validateEntry(undatedInput({ kind: 'artifact' })).ok).toBe(true);
+    expect(validateEntry(undatedInput({ kind: 'recognition', employerOrInstitution: 'Scrum Alliance' })).ok).toBe(true);
+  });
+
+  it('still requires a start for role_held, education and project, on the start.year field', () => {
+    for (const kind of ['role_held', 'education', 'project']) {
+      const result = validateEntry(undatedInput({ kind, employerOrInstitution: 'Acme Corp' }));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.issues.some((i) => i.field === 'start.year')).toBe(true);
+    }
+  });
+
+  it('refuses a start month with no start year: a month of an unstated year identifies nothing', () => {
+    const result = validateEntry(undatedInput({ start: { year: undefined, month: 3 } }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.issues.some((i) => i.field === 'start.year')).toBe(true);
+  });
+
+  it('refuses an end with no start: not a range the record can print', () => {
+    const result = validateEntry(undatedInput({ end: { year: 2022, month: 1 } }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.issues.some((i) => i.field === 'end')).toBe(true);
+  });
+
+  it('still validates a dated skill exactly as before', () => {
+    const result = validateEntry(undatedInput({ start: { year: 2021, month: 6 } }));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.entry.start).toEqual({ year: 2021, month: 6 });
+  });
+});

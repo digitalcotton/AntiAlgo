@@ -90,7 +90,9 @@ function formatDate(year: number, month: number | null): string {
   return month === null ? String(year) : `${MONTH_NAMES[month - 1]} ${year}`;
 }
 
-function formatRange(entry: RenderEntry): string {
+/** null for an undated entry (db/204): no dates are drawn for it. */
+function formatRange(entry: RenderEntry): string | null {
+  if (entry.core.start === null) return null;
   const start = formatDate(entry.core.start.year, entry.core.start.month);
   const end = entry.core.end === null ? 'Present' : formatDate(entry.core.end.year, entry.core.end.month);
   return `${start} to ${end}`;
@@ -98,7 +100,8 @@ function formatRange(entry: RenderEntry): string {
 
 /** The date range for a folded credential group (resume-grouping.ts): the same
     shape as an entry's, from the group's own combined start and end. */
-function formatGroupRange(group: ResumeGroup): string {
+function formatGroupRange(group: ResumeGroup): string | null {
+  if (group.start === null) return null;
   const start = formatDate(group.start.year, group.start.month);
   const end = group.end === null ? 'Present' : formatDate(group.end.year, group.end.month);
   return `${start} to ${end}`;
@@ -184,7 +187,7 @@ function hasContactHeader(header: RenderHeader | null | undefined): header is Re
             <div class="entry-core">
               <span class="entry-title">{row.entry.core.officialTitle}</span>
               {row.entry.core.employerOrInstitution && <span class="entry-employer">{row.entry.core.employerOrInstitution}</span>}
-              <span class="entry-dates mono">{formatRange(row.entry)}</span>
+              {formatRange(row.entry) && <span class="entry-dates mono">{formatRange(row.entry)}</span>}
             </div>
             {row.entry.bullets.length === 0 ? (
               DESCRIPTION_KINDS.has(row.entry.kind) && (
@@ -203,7 +206,7 @@ function hasContactHeader(header: RenderHeader | null | undefined): header is Re
           <div class="doc-entry">
             <div class="entry-core">
               <span class="entry-title">{row.group.issuer}</span>
-              <span class="entry-dates mono">{formatGroupRange(row.group)}</span>
+              {formatGroupRange(row.group) && <span class="entry-dates mono">{formatGroupRange(row.group)}</span>}
             </div>
             <p class="entry-bullet">
               {row.group.titles.join(', ')}
@@ -274,7 +277,7 @@ function hasContactHeader(header: RenderHeader | null | undefined): header is Re
                 <div class="entry-core">
                   <span class="entry-title">{entry.core.officialTitle}</span>
                   {entry.core.employerOrInstitution && <span class="entry-employer">{entry.core.employerOrInstitution}</span>}
-                  <span class="entry-dates mono">{formatRange(entry)}</span>
+                  {formatRange(entry) && <span class="entry-dates mono">{formatRange(entry)}</span>}
                 </div>
                 {entry.bullets.length === 0 ? (
                   DESCRIPTION_KINDS.has(entry.kind) && (

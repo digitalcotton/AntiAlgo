@@ -48,8 +48,9 @@ export interface ResumeGroup {
   readonly titles: readonly string[];
   /** Every folded entry's PRF id, so the group still cites all of them. */
   readonly prfIds: readonly string[];
-  /** The earliest start across the folded entries. */
-  readonly start: EntryDate;
+  /** The earliest start across the folded entries that have one; null when
+      none does (an undated credential, db/204, carries no start to fold). */
+  readonly start: EntryDate | null;
   /** null if any folded entry is ongoing, else the latest end. */
   readonly end: EntryDate | null;
 }
@@ -121,9 +122,11 @@ export function groupResumeSection(section: RenderSection): readonly ResumeRow[]
     if (foldedIssuers.has(issuer)) continue;
     foldedIssuers.add(issuer);
     const members = section.entries.filter((candidate) => isThin(candidate) && issuerOf(candidate) === issuer);
-    const start = members
-      .map((member) => member.core.start)
-      .reduce((earliest, next) => (monthIndex(next) < monthIndex(earliest) ? next : earliest));
+    const dated = members.map((member) => member.core.start).filter((date): date is EntryDate => date !== null);
+    const start =
+      dated.length === 0
+        ? null
+        : dated.reduce((earliest, next) => (monthIndex(next) < monthIndex(earliest) ? next : earliest));
     const ends = members.map((member) => member.core.end);
     const end = ends.some((value) => value === null)
       ? null
