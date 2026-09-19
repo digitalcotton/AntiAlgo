@@ -343,12 +343,43 @@ export async function getRenders(
    ------------------------------------------------------------------------- */
 
 /**
- * Starts a job draft: one 'pending' row per kind for this (user, job), each
- * with a fresh id, application_id null and job_id set to the posting's slug.
- * A prior job draft for the same posting is deleted first, so a second press
- * starts fresh rather than appending: one resume and one cover per posting,
- * the same "no history to pick from" shape beginDraft() keeps for an
- * application. Scoped to userId like every write in this file.
+ * Appends one new version of a (user, job, kind) draft (db/202): reads the
+ * current max version, retires whatever row was current, then inserts the fresh
+ * 'pending' row as version N+1 and current. Order matters: the retire runs
+ * before the insert so the current-only partial unique
+ * (generated_render_job_current_uidx) never sees two current rows for the same
+ * kind at once. A re-draft therefore keeps the prior version rather than
+ * deleting it, which is what makes the room's version list and restore possible.
+ * The note (db/027) rides the cover row only, the letter's opening anchor.
+ */
+async function appendJobRenderVersion(
+  userId: string,
+  jobId: string,
+  kind: RenderKind,
+  id: string,
+  reason: string | null
+): Promise<void> {
+  const { rows } = await db().query<{ next: string }>(
+    'SELECT COALESCE(MAX(version), 0) + 1 AS next FROM generated_render WHERE user_id = $1 AND job_id = $2 AND kind = $3',
+    [userId, jobId, kind]
+  );
+  const nextVersion = Number(rows[0]?.next ?? '1');
+  await db().query(
+    'UPDATE generated_render SET is_current = false WHERE user_id = $1 AND job_id = $2 AND kind = $3 AND is_current',
+    [userId, jobId, kind]
+  );
+  await db().query(
+    `INSERT INTO generated_render (id, user_id, application_id, job_id, kind, status, payload, provider, model, reason, version, is_current)
+     VALUES ($1, $2, NULL, $3, $4, 'pending', NULL, NULL, NULL, $5, $6, true)`,
+    [id, userId, jobId, kind, kind === 'cover' ? reason : null, nextVersion]
+  );
+}
+
+/**
+ * Starts a job draft: a new current version of BOTH kinds for this (user, job),
+ * each with a fresh id, application_id null and job_id set to the posting's slug.
+ * Unlike before db/202, a prior draft is NOT deleted: it becomes an earlier
+ * version the room can list and restore. Scoped to userId like every write here.
  */
 export async function beginJobDraft(
   userId: string,
@@ -358,22 +389,8 @@ export async function beginJobDraft(
   const resumeId = randomUUID();
   const coverId = randomUUID();
 
-  await db().query('DELETE FROM generated_render WHERE user_id = $1 AND job_id = $2', [userId, jobId]);
-
-  for (const [id, kind] of [
-    [resumeId, 'resume'],
-    [coverId, 'cover']
-  ] as const) {
-    // The note (db/027) is written only on the cover row: it is the letter's
-    // opening anchor and the resume has no channel for it. It is kept so a
-    // later cover-only retry, which has no payload to read it back from, can
-    // still open the letter with the person's own words.
-    await db().query(
-      `INSERT INTO generated_render (id, user_id, application_id, job_id, kind, status, payload, provider, model, reason)
-       VALUES ($1, $2, NULL, $3, $4, 'pending', NULL, NULL, NULL, $5)`,
-      [id, userId, jobId, kind, kind === 'cover' ? reason : null]
-    );
-  }
+  await appendJobRenderVersion(userId, jobId, 'resume', resumeId, reason);
+  await appendJobRenderVersion(userId, jobId, 'cover', coverId, reason);
 
   // The first-draft funnel milestone, best-effort. Kept only once per person.
   await recordEvent(userId, 'first_draft');
@@ -382,13 +399,12 @@ export async function beginJobDraft(
 }
 
 /**
- * Restarts ONE document of a job draft, leaving the other alone: deletes just
- * this kind's row and inserts a fresh 'pending' one. The per-document retry the
- * room's "Draft the cover letter again" button drives. The partial unique index
- * generated_render_job_uidx (user, job, kind) is per kind, so replacing one row
- * while its sibling stands is allowed. A cover retry carries the note forward:
- * the caller's `reason` when the form still holds it, else the value the deleted
- * row was keeping (db/027), so the person's words are never lost to a retry.
+ * Restarts ONE document of a job draft as a new version, leaving the other's
+ * current version alone. The per-document retry the room's "Draft the cover
+ * letter again" button drives, and the shape steered regeneration reuses. A
+ * cover retry carries the note forward: the caller's `reason` when the form
+ * still holds it, else the value the current cover version keeps (db/027), so
+ * the person's words are never lost to a retry.
  */
 export async function beginJobDraftDocument(
   userId: string,
@@ -397,17 +413,16 @@ export async function beginJobDraftDocument(
   reason: string | null = null
 ): Promise<{ id: string; reason: string | null }> {
   const id = randomUUID();
-  const deleted = await db().query<{ reason: string | null }>(
-    'DELETE FROM generated_render WHERE user_id = $1 AND job_id = $2 AND kind = $3 RETURNING reason',
-    [userId, jobId, kind]
-  );
-  const carried = reason ?? deleted.rows[0]?.reason ?? null;
+  let carried = reason;
+  if (carried === null && kind === 'cover') {
+    const { rows } = await db().query<{ reason: string | null }>(
+      'SELECT reason FROM generated_render WHERE user_id = $1 AND job_id = $2 AND kind = $3 AND is_current',
+      [userId, jobId, kind]
+    );
+    carried = rows[0]?.reason ?? null;
+  }
   const stored = kind === 'cover' ? carried : null;
-  await db().query(
-    `INSERT INTO generated_render (id, user_id, application_id, job_id, kind, status, payload, provider, model, reason)
-     VALUES ($1, $2, NULL, $3, $4, 'pending', NULL, NULL, NULL, $5)`,
-    [id, userId, jobId, kind, stored]
-  );
+  await appendJobRenderVersion(userId, jobId, kind, id, stored);
   return { id, reason: stored };
 }
 
@@ -422,7 +437,10 @@ export async function getJobRenders(
   jobId: string
 ): Promise<{ resume: RenderRow | null; cover: RenderRow | null }> {
   const { rows } = await db().query<GeneratedRenderRow>(
-    `SELECT ${RENDER_COLUMNS} FROM generated_render WHERE user_id = $1 AND job_id = $2`,
+    // is_current (db/202): the room reads the CURRENT version of each kind. The
+    // rest of this function is unchanged, so the one-row-per-kind byKind Map and
+    // every downstream reader (status, PDF/DOCX) keep working exactly as before.
+    `SELECT ${RENDER_COLUMNS} FROM generated_render WHERE user_id = $1 AND job_id = $2 AND is_current`,
     [userId, jobId]
   );
   const byKind = new Map(rows.map((row) => [row.kind, rowToRenderRow(row)] as const));
@@ -440,8 +458,114 @@ export async function getJobRenders(
 export async function countRecentJobRenders(userId: string, windowMs: number): Promise<number> {
   const sinceIso = new Date(Date.now() - windowMs).toISOString();
   const { rows } = await db().query<{ n: string }>(
+    // Counts rows STARTED in the window (created_at), which versioning does not
+    // change: each draft still inserts one or two rows, and older versions carry
+    // an older created_at that falls outside the window. So this still bounds how
+    // fast a session spends the key's credit, the reason it exists.
     'SELECT count(*)::text AS n FROM generated_render WHERE user_id = $1 AND job_id IS NOT NULL AND created_at >= $2',
     [userId, sinceIso]
   );
   return Number(rows[0]?.n ?? '0');
+}
+
+/* -------------------------------------------------------------------------
+   Draft versions (db/202): listing a posting's earlier drafts and restoring
+   one as current. The room's "Earlier drafts are kept" panel reads these.
+   ------------------------------------------------------------------------- */
+
+/** One draft version's metadata, without its payload (kept light for a list). */
+export interface RenderVersionRow {
+  readonly id: string;
+  readonly kind: RenderKind;
+  readonly version: number;
+  readonly status: RenderStatus;
+  readonly provider: string | null;
+  readonly model: string | null;
+  readonly isCurrent: boolean;
+  readonly createdAt: Date;
+}
+
+interface RenderVersionDbRow {
+  id: string;
+  kind: RenderKind;
+  version: number;
+  status: RenderStatus;
+  provider: string | null;
+  model: string | null;
+  is_current: boolean;
+  created_at: Date | string;
+}
+
+/**
+ * Every version of one kind for one posting, newest first. Metadata only, so
+ * the room can list "Draft 2, current" and "Draft 1, first pass" without pulling
+ * every stored payload. Scoped to userId.
+ */
+export async function listJobRenderVersions(
+  userId: string,
+  jobId: string,
+  kind: RenderKind
+): Promise<RenderVersionRow[]> {
+  const { rows } = await db().query<RenderVersionDbRow>(
+    `SELECT id, kind, version, status, provider, model, is_current, created_at
+       FROM generated_render
+      WHERE user_id = $1 AND job_id = $2 AND kind = $3
+      ORDER BY version DESC`,
+    [userId, jobId, kind]
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    version: row.version,
+    status: row.status,
+    provider: row.provider,
+    model: row.model,
+    isCurrent: row.is_current,
+    createdAt: toDate(row.created_at)
+  }));
+}
+
+/** One specific version's full render row, scoped to userId. Null if the id is
+    not this person's draft of this posting and kind. */
+export async function getJobRenderVersion(
+  userId: string,
+  jobId: string,
+  kind: RenderKind,
+  id: string
+): Promise<RenderRow | null> {
+  const { rows } = await db().query<GeneratedRenderRow>(
+    `SELECT ${RENDER_COLUMNS} FROM generated_render WHERE id = $1 AND user_id = $2 AND job_id = $3 AND kind = $4`,
+    [id, userId, jobId, kind]
+  );
+  return rows[0] ? rowToRenderRow(rows[0]) : null;
+}
+
+/**
+ * Makes an earlier version current, so the room and the download path read it.
+ * Only a version that actually holds a document ('ready' or 'fallback') can be
+ * restored: a pending or failed row has nothing to make current. Retire-then-set
+ * order keeps the current-only partial unique satisfied throughout. Returns
+ * false and changes nothing when the id is not eligible or not this person's.
+ */
+export async function restoreJobRenderVersion(
+  userId: string,
+  jobId: string,
+  kind: RenderKind,
+  id: string
+): Promise<boolean> {
+  const eligible = await db().query(
+    `SELECT 1 FROM generated_render
+      WHERE id = $1 AND user_id = $2 AND job_id = $3 AND kind = $4 AND status IN ('ready', 'fallback')`,
+    [id, userId, jobId, kind]
+  );
+  if (eligible.rowCount === 0) return false;
+  await db().query(
+    'UPDATE generated_render SET is_current = false WHERE user_id = $1 AND job_id = $2 AND kind = $3 AND is_current',
+    [userId, jobId, kind]
+  );
+  await db().query(
+    'UPDATE generated_render SET is_current = true WHERE id = $1 AND user_id = $2 AND job_id = $3 AND kind = $4',
+    [id, userId, jobId, kind]
+  );
+  return true;
 }
