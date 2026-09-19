@@ -369,7 +369,12 @@ export async function buildDeskHome(userId: string): Promise<DeskHomeData> {
       postingsObserved: stats?.postings_observed ?? null,
       verifiedLive: stats?.verified_live ?? null,
       killed: stats?.killed ?? null,
-      sweptAt: isoDay(stats?.swept_at ?? null)
+      // The full instant, not the day: the sweep panel prints the real finish
+      // time from it (SweepPanel.astro finishedStamp).
+      sweptAt: (() => {
+        const ms = toMs(stats?.swept_at ?? null);
+        return ms === null ? null : new Date(ms).toISOString();
+      })()
     },
     titleIndex: buildTitleIndex(liveRows),
     lastSeenAt: isoDay(lastSeenAt)
