@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
-import Prelist from './prelist.astro';
-import { DEFAULT_PER_PAGE } from '../lib/board-query';
+import Prelist from '../src/pages/prelist.astro';
+import { DEFAULT_PER_PAGE } from '../src/lib/board-query';
 
 /**
  * /prelist holds one page, and the whole point is that it never holds the list.
