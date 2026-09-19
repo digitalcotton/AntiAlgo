@@ -352,3 +352,29 @@ describe('parseResumeDeterministic: the no-key fallback wraps the line parser', 
     expect(proposals.entries.length).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe('buildProposalsFromModelJson: a skill survives an issuer the resume never spelled out', () => {
+  it('keeps the skill the resume names and drops only the unverifiable issuer', () => {
+    const reply = JSON.parse(honestModelReply());
+    reply.entries.push({
+      kind: 'skill',
+      employerOrInstitution: 'Figma Inc',
+      officialTitle: 'design system',
+      startYear: 2021,
+      startMonth: null,
+      endYear: null,
+      endMonth: null,
+      location: null,
+      description: ''
+    });
+    const result = buildProposalsFromModelJson(RESUME, JSON.stringify(reply));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const skill = result.proposals.entries.find((e) => e.candidate.kind === 'skill');
+    expect(skill).toBeDefined();
+    expect(skill?.candidate.officialTitle).toBe('design system');
+    expect(skill?.candidate.employerOrInstitution).toBeNull();
+    // A role with an invented employer is still fatal (the existing rule).
+    expect(result.notes.join(' ')).not.toContain('left out');
+  });
+});

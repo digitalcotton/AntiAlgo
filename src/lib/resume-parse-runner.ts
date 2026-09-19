@@ -30,7 +30,8 @@ import { isOn } from './flags';
 import { getDecryptedKey, keyMeta } from './keychain-store';
 import { GENERATION_PROVIDER_ORDER, PROVIDER_REGISTRY } from './generation-providers';
 import { parseResumeDeterministic, parseResumeWithProvider } from './resume-parse';
-import { beginParse, completeParse, type StoredParseOutcome } from './resume-parse-store';
+import { beginParse, clearParse, completeParse, type StoredParseOutcome } from './resume-parse-store';
+import { applyParsedProposals } from './resume-parse-apply';
 import type { Provider } from './keychain';
 
 /**
@@ -118,6 +119,21 @@ export async function parseInBackground(userId: string, sourceText: string, prov
     }
 
     await completeParse(userId, outcome);
+
+    // Land the read in the record straight away (resume-parse-apply.ts): the
+    // owner wants an upload to become record rows without a confirm click. The
+    // buffer is cleared only after the apply succeeds; if the apply itself
+    // throws, the row stays 'ready' so the review screen still offers the
+    // proposals rather than losing them.
+    try {
+      const applied = await applyParsedProposals(userId, outcome.proposals);
+      console.log(
+        `resume-parse-runner: applied the read for user ${userId}: ${applied.created} entries created, ${applied.failed} failed, ${applied.links} links, name ${applied.name ? 'set' : 'kept'}.`
+      );
+      await clearParse(userId);
+    } catch (applyError) {
+      console.error(`resume-parse-runner: could not apply the read for user ${userId}; leaving it for review.`, applyError);
+    }
   } catch (error) {
     // The one honest dead end: the deterministic reader is pure and does not
     // throw, so reaching here means the decrypt or the completeParse write

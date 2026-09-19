@@ -353,9 +353,18 @@ function buildOneEntry(raw: unknown, normalisedSource: string): EntryProposal | 
   if (officialTitle === null || !occursInSource(officialTitle, normalisedSource)) return null;
 
   // employer: optional in general, but if present it must be on the page (a
-  // fabricated employer is exactly the kind of invention this guards).
-  const employer = asStringOrNull(raw.employerOrInstitution);
-  if (employer !== null && !occursInSource(employer, normalisedSource)) return null;
+  // fabricated employer is exactly the kind of invention this guards). For a
+  // role or a degree that is fatal: an invented company on a job is the
+  // invention. For a skill, an artifact or a recognition the field holds an
+  // issuing body the model is ASKED to supply and the resume often does not
+  // spell out ("Figma" is on the page, "Figma Inc" is not), so there the
+  // unverifiable issuer is dropped and the skill the resume actually names is
+  // kept, the same way an unverifiable location is dropped below.
+  let employer = asStringOrNull(raw.employerOrInstitution);
+  if (employer !== null && !occursInSource(employer, normalisedSource)) {
+    if (kind === 'role_held' || kind === 'education') return null;
+    employer = null;
+  }
 
   // location: optional; a location not on the page is dropped, not fatal.
   let location = asStringOrNull(raw.location);

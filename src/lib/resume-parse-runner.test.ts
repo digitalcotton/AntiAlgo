@@ -33,9 +33,22 @@ vi.mock('./resume-parse', () => ({
 
 const beginParse = vi.fn(async (..._args: unknown[]) => {});
 const completeParse = vi.fn(async (..._args: unknown[]) => {});
+const clearParse = vi.fn(async (..._args: unknown[]) => {});
 vi.mock('./resume-parse-store', () => ({
   beginParse: (...args: unknown[]) => beginParse(...args),
-  completeParse: (...args: unknown[]) => completeParse(...args)
+  completeParse: (...args: unknown[]) => completeParse(...args),
+  clearParse: (...args: unknown[]) => clearParse(...args)
+}));
+
+// The read now lands in the record the moment it completes
+// (resume-parse-apply.ts). Mocked so no createEntry/addLink opens a
+// connection; what is proved here is the ORDER: complete, apply, then clear,
+// and that a failed apply leaves the row for review rather than clearing it.
+const applyParsedProposals = vi.fn(
+  async (..._args: unknown[]) => ({ created: 0, failed: 0, links: 0, name: false, createdIds: [] as string[] })
+);
+vi.mock('./resume-parse-apply', () => ({
+  applyParsedProposals: (...args: unknown[]) => applyParsedProposals(...args)
 }));
 
 // The import is deferred until after the mock-backing vi.fns above are
@@ -149,5 +162,41 @@ describe('parseInBackground', () => {
     expect(outcome.notes).toBe(deterministic.notes);
     expect(parseResumeDeterministic).toHaveBeenCalledTimes(1);
     expect(parseResumeDeterministic).toHaveBeenCalledWith('a resume');
+  });
+});
+
+describe('parseInBackground: a finished read lands in the record, then the buffer clears', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    parseResumeDeterministic.mockImplementation(() => freshDeterministic());
+    applyParsedProposals.mockResolvedValue({ created: 2, failed: 0, links: 1, name: true, createdIds: ['a', 'b'] });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  it('f: applies the completed outcome proposals, and only then clears the parse', async () => {
+    await parseInBackground('user_1', 'some resume text', null);
+
+    const outcome = outcomeFromLastComplete();
+    expect(applyParsedProposals).toHaveBeenCalledTimes(1);
+    expect(applyParsedProposals.mock.calls[0][0]).toBe('user_1');
+    expect(applyParsedProposals.mock.calls[0][1]).toBe(outcome.proposals);
+    expect(clearParse).toHaveBeenCalledTimes(1);
+    // Order: complete, apply, clear.
+    const order = [
+      completeParse.mock.invocationCallOrder[0],
+      applyParsedProposals.mock.invocationCallOrder[0],
+      clearParse.mock.invocationCallOrder[0]
+    ];
+    expect(order).toEqual([...order].sort((x, y) => x - y));
+  });
+
+  it('g: a failed apply leaves the row for review: completed, never cleared', async () => {
+    applyParsedProposals.mockRejectedValueOnce(new Error('write failed'));
+
+    await parseInBackground('user_1', 'some resume text', null);
+
+    expect(completeParse).toHaveBeenCalledTimes(1);
+    expect(clearParse).not.toHaveBeenCalled();
   });
 });
