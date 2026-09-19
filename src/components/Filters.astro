@@ -3,9 +3,9 @@ import type { FilterGroup } from '../lib/data';
 import { withBase } from '../../site.config.mjs';
 
 /**
- * The filter row: one control per group, each a native select, plus two
- * MASTER-SPEC F10 controls that live beside it: the seen dimmer and the
- * applied-suppression recovery banner.
+ * The filter row: one control per group, each a native select, plus the seen
+ * dimmer (MASTER-SPEC F10) beside it. Applied rows are tagged, never hidden
+ * (owner decision, 2026-09-19; see the script's applied-tag section).
  *
  * WHY THE CANVAS'S FOUR GROUPS ARE THREE HERE. The canvas draws "Role family:
  * All" and the data carries no role family. Deriving one by reading job titles
@@ -141,8 +141,7 @@ const widest = (group: FilterGroup): string =>
     it sits inside the same strip), and the seen dimmer as the inverted cell
     at the end. Each label is the machine's uppercase mono voice and its
     value sits beside it, so the row reads "LOCATION All", "SORT Fit Comp
-    Age", "DIM SEEN on". The suppression banner below is not part of the
-    strip (it is a sentence, not a control) and stays a sibling.
+    Age", "DIM SEEN on".
   */}
   <Row class="filters-row" method={serverMode ? 'get' : undefined} action={serverMode ? action : undefined}>
     {serverMode && hidden.map(([name, value]) => <input type="hidden" name={name} value={value} />)}
@@ -260,35 +259,6 @@ const widest = (group: FilterGroup): string =>
     </label>
   </Row>
 
-  {/*
-    APPLIED SUPPRESSION'S RECOVERY BANNER (MASTER-SPEC F10's first bullet: "A
-    suppressed row must be recoverable... say on the page that rows are being
-    suppressed and how many, derived, and give a way to see them"). Hidden by
-    default and revealed only once the account probe below actually answers
-    with a non-empty suppressed set, so a signed-out visitor, and a signed-in
-    one who has applied to nothing verifiedJobs() still lists, sees no banner
-    at all rather than one reporting zero. The count is written by script
-    from GET /settings/filters's own suppressedSlugs array, never typed here:
-    the number is the array's own length, exactly as derived as the rows it
-    names.
-
-    A SIBLING OF .filters-row, NOT ONE OF ITS CONTROLS. It is a sentence with
-    a recovery link, not a filter, so it sits below the one-line control row
-    on its own full-width line rather than competing for space, or scroll
-    room, inside the row it does not belong to.
-
-    NESTED INSIDE .filters, NOT A SIBLING OF IT, DELIBERATELY. index.astro
-    (which this task cannot edit) places this component inside a flex row
-    with SortControl, split by justify-content: space-between; a third,
-    variably-hidden flex child at that level would shift the gap between
-    those two every time the banner appeared or vanished. Inside .filters,
-    this line simply drops to its own row and touches nothing outside this
-    component's own box.
-  */}
-  <p class="suppression-note" data-suppression-note hidden>
-    <span data-suppression-count></span> hidden because you've applied.
-    <button type="button" class="suppression-toggle" data-suppression-toggle>Show them</button>
-  </p>
 </div>
 
 <script>
@@ -427,8 +397,13 @@ const widest = (group: FilterGroup): string =>
     menus.push({ cell, menu, trigger, select });
   }
 
+  const titleMenu = document.querySelector<HTMLDetailsElement>('[data-title-menu]');
   document.addEventListener('click', (event) => {
     const target = event.target;
+    // The title list closes on any click outside it, like the facet menus.
+    if (titleMenu && titleMenu.open && !(target instanceof Element && target.closest('[data-title-menu]'))) {
+      titleMenu.open = false;
+    }
     if (target instanceof Element && (target.closest('.filter') || target.closest('.menu'))) return;
     closeMenus();
   });
@@ -678,61 +653,16 @@ const widest = (group: FilterGroup): string =>
   document.addEventListener('index:rows', applySeenDimming);
 
   /* -------------------------------------------------------------------------
-     MASTER-SPEC F10, first bullet, signed-in half: applied suppression.
-
-     REHIDING AFTER EVERY index:rows, NOT REMOVING ROWS UP FRONT. JobTable
-     .astro's own controller decides pagination and re-sets every row's
-     `hidden` attribute on every filter, sort and page change; a row this
-     script hid once would be un-hidden the next time that controller ran.
-     So this listens for the same index:rows report JobTable already sends
-     after every change and re-applies suppression on top of it, honestly:
-     the count in the banner is always exactly suppressedSlugs.length, but a
-     page can show fewer than a full page of rows when a suppressed row and
-     a page boundary land together, because this script cannot re-run
-     JobTable's own pagination math without becoming a second copy of it.
-     See this component's own header, and this task's report, for the
-     precise index.astro edit that removes this limitation by suppressing
-     rows before JobTable ever sees them.
+     THE APPLIED TAG (owner decision, 2026-09-19: no row is ever hidden for
+     having been applied to; the old suppression and its banner are gone).
+     The account probe below returns suppressedSlugs, which IS "postings this
+     reader applied to", and each such row gets `data-applied`, a boolean fact
+     a CSS rule elsewhere reacts to. Re-applied after every index:rows, since
+     JobTable's controller re-renders rows on every change.
      ------------------------------------------------------------------------- */
-
-  const accountFiltersUrl = root?.getAttribute('data-account-filters-url') || '';
-  const suppressionNote = document.querySelector<HTMLElement>('[data-suppression-note]');
-  const suppressionCount = document.querySelector<HTMLElement>('[data-suppression-count]');
-  const suppressionToggle = document.querySelector<HTMLButtonElement>('[data-suppression-toggle]');
 
   let signedIn = false;
   let suppressedSlugs: string[] = [];
-  let showingSuppressed = false;
-
-  function suppressionLabel(count: number): string {
-    return count === 1 ? '1 role you\'ve applied to is' : `${count} roles you've applied to are`;
-  }
-
-  function applySuppression(): void {
-    if (suppressedSlugs.length === 0) return;
-    const suppressedSet = new Set(suppressedSlugs);
-    for (const row of document.querySelectorAll<HTMLElement>('[data-job-row][data-slug]')) {
-      const slug = row.getAttribute('data-slug');
-      if (slug !== null && suppressedSet.has(slug) && !showingSuppressed) {
-        row.hidden = true;
-      }
-    }
-  }
-
-  /* -------------------------------------------------------------------------
-     THE APPLIED TAG. Same fetch, same slug set, no second endpoint: a row is
-     tagged "Applied" exactly where it is a candidate for suppression above,
-     because suppressedSlugs already IS "postings this reader applied to".
-     One data attribute on the row, `data-applied`, in the same shape the
-     seen dimmer's own `data-seen-dimmed` uses: a boolean fact written onto
-     the row by script, and a CSS rule elsewhere reacts to its presence. The
-     row's own `hidden` state (owned by applySuppression above and by
-     JobTable's controller) is what actually keeps the tag off screen while a
-     reader has not asked to see their applied rows: this function does not
-     branch on showingSuppressed at all, because a tag on a hidden row is
-     already invisible, and the tag needs no un-tagging the moment the row is
-     revealed by the "Show them" click below.
-     ------------------------------------------------------------------------- */
 
   function applyAppliedTag(): void {
     if (suppressedSlugs.length === 0) return;
@@ -743,26 +673,6 @@ const widest = (group: FilterGroup): string =>
     }
   }
 
-  if (suppressionToggle) {
-    suppressionToggle.addEventListener('click', () => {
-      showingSuppressed = !showingSuppressed;
-      suppressionToggle.textContent = showingSuppressed ? 'Hide them again' : 'Show them';
-      applySuppression();
-      if (showingSuppressed) {
-        // Un-hiding here rather than waiting for the next index:rows: the
-        // reveal is this click's own promise, and a reader who asked to see
-        // the hidden rows should see them on this click, not on the next
-        // filter change.
-        const suppressedSet = new Set(suppressedSlugs);
-        for (const row of document.querySelectorAll<HTMLElement>('[data-job-row][data-slug]')) {
-          const slug = row.getAttribute('data-slug');
-          if (slug !== null && suppressedSet.has(slug)) row.hidden = false;
-        }
-      }
-    });
-  }
-
-  document.addEventListener('index:rows', applySuppression);
   document.addEventListener('index:rows', applyAppliedTag);
 
   /* -------------------------------------------------------------------------
@@ -819,17 +729,7 @@ const widest = (group: FilterGroup): string =>
           ? body.suppressedSlugs.filter((value: unknown): value is string => typeof value === 'string')
           : [];
 
-      // Tags before suppression: the tag only needs to know which slugs
-      // qualify, not whether the reader has chosen to reveal them, so it is
-      // written the moment the set is known rather than nested inside the
-      // banner's own non-empty check below.
       applyAppliedTag();
-
-      if (suppressedSlugs.length > 0 && suppressionNote && suppressionCount) {
-        suppressionCount.textContent = suppressionLabel(suppressedSlugs.length);
-        suppressionNote.hidden = false;
-        applySuppression();
-      }
     } catch {
       // A network failure reads exactly like signed-out: the browser-only
       // state already applied above is the honest, complete answer.
@@ -838,7 +738,7 @@ const widest = (group: FilterGroup): string =>
 </script>
 
 <style>
-  /* THE STRIP. .filters stacks the row and the suppression note; the row is
+  /* THE STRIP. .filters stacks the row; the row is
      the strip itself: cells edge to edge, divided by hairlines, no gaps and
      no chips. Board.astro's .controls draws the strip's outer edges. */
   .filters {
@@ -1264,47 +1164,11 @@ const widest = (group: FilterGroup): string =>
     }
   }
 
-  /* Applied suppression's recovery line (MASTER-SPEC F10's own "must be
-     recoverable"). Sits below the controls, in the muted voice the rest of
-     the page's editorial asides already use, never in the mono machine
-     voice: this line states what THIS SITE did (hid some rows), not a fact
-     the sweep measured. .filters is a column flex container now (see its
-     own rule above), so this sits on its own row simply by being a sibling
-     of .filters-row rather than needing a flex-basis trick to escape a
-     wrapping row it used to share space in. */
-  .suppression-note {
-    font-size: var(--size-150);
-    color: var(--color-muted);
-    margin-block-start: var(--space-200);
-  }
-
-  .suppression-toggle {
-    font-family: var(--font-family-sans);
-    font-size: var(--size-150);
-    color: var(--color-foreground);
-    background: none;
-    border: none;
-    padding: 0;
-    text-decoration: underline;
-    text-underline-offset: var(--text-underline-offset);
-    cursor: pointer;
-  }
-
-  .suppression-toggle:hover {
-    color: var(--color-muted);
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    .suppression-toggle {
-      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
-    }
-  }
-
   /* On a phone the controls stack full width, which is what the canvas's
      "Filters (4)" button collapses into once opened. Full width targets rather
      than a row of chips: three chips on one line at 375px are three targets a
      thumb misses. Targets .filters-row, not .filters: .filters only ever
-     stacks its two children (the row, the suppression note) top to bottom,
+     stacks its children top to bottom,
      the same at every width, and it is the row's own chips that need to
      drop from a wrapping line of chips to a full width column here. */
   @media (max-width: 48rem) { /* --breakpoint-phone */

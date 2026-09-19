@@ -83,13 +83,6 @@ describe('Filters.astro: the control row reads as one set, the dimmer folded in'
     expect(html).toContain('data-seen-dimmer-toggle checked');
   });
 
-  it('keeps the suppression note outside .filters-row, as a sibling in .filters', async () => {
-    const html = await renderFilters();
-    const rowEnd = html.indexOf('</div>', html.indexOf('class="filters-row"'));
-    const noteStart = html.indexOf('data-suppression-note');
-    expect(rowEnd).toBeGreaterThan(-1);
-    expect(noteStart).toBeGreaterThan(rowEnd);
-  });
 });
 
 describe('Filters.astro: the applied tag reuses the one account fetch, no second endpoint', () => {
@@ -109,16 +102,17 @@ describe('Filters.astro: the applied tag reuses the one account fetch, no second
     }
   });
 
-  it('sets data-applied from the same suppressedSlugs array applySuppression() already reads', async () => {
+  it('sets data-applied from the one suppressedSlugs array the account probe fills', async () => {
     expect(SOURCE).toContain("row.toggleAttribute('data-applied'");
     expect(SOURCE).toContain('function applyAppliedTag');
-    // One array, assigned once, read by both applySuppression() and
-    // applyAppliedTag(): no second "suppressedSlugs =" assignment anywhere,
-    // which would mean a second, independently-derived set.
+    // One array, assigned once: no second "suppressedSlugs =" assignment
+    // anywhere, which would mean a second, independently-derived set.
     const assignments = SOURCE.match(/\bsuppressedSlugs\s*=[^=]/g) ?? [];
     expect(assignments).toHaveLength(1);
     expect(SOURCE).toContain('const appliedSet = new Set(suppressedSlugs)');
-    expect(SOURCE).toContain('const suppressedSet = new Set(suppressedSlugs)');
+    // No row is ever hidden for having been applied to (owner decision, 2026-09-19).
+    expect(SOURCE).not.toContain('data-suppression-note');
+    expect(SOURCE).not.toContain('function applySuppression');
   });
 });
 
