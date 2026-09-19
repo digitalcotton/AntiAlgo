@@ -42,7 +42,7 @@ import DraftDocuments from '../../../components/tailor/DraftDocuments.astro';
 import DraftRoomV2 from '../../../components/tailor/DraftRoomV2.astro';
 import { applyLabel } from '../../../lib/data';
 import { estimateDraftCost, formatCost } from '../../../lib/generation-cost';
-import { routeFor, boardDetailPath, jobDraftPath, jobDraftPdfPath } from '../../../data/nav';
+import { routeFor, boardDetailPath, jobDraftPdfPath } from '../../../data/nav';
 import { draftableJobBySlug } from '../../../lib/draft-job';
 import AddedPostingNote from '../../../components/desk/AddedPostingNote.astro';
 import { addedApplicationId, hostnameOf, isAddedSlug } from '../../../lib/added-posting';
@@ -145,13 +145,11 @@ const settingsPath = routeFor('settings');
 const profilePath = routeFor('profile');
 const jobDraftEndpoint = routeFor('desk-job-draft');
 
-// The pixel-perfect draft room (DraftRoomV2) renders the moment ANY one document
-// is ready, without waiting on the other: the room prints the ready document with
-// a live typewriter reveal while its own poller watches the still-drafting one and
-// prints it in place the instant it lands. Only when NEITHER document has landed
-// yet does the plain big-loading path below hold the page. Versions are read only
-// when the room will show.
-const useRoomV2 = !!resumePayload || !!coverPayload;
+// The pixel-perfect draft room (DraftRoomV2) renders once drafting has settled
+// (nothing still pending) and at least one document is ready. While a draft is
+// still in flight, the DraftDocuments path below keeps its loading and per-
+// document failure states. Versions are read only when the room will show.
+const useRoomV2 = !anyPending && (!!resumePayload || !!coverPayload);
 const resumeVersions = useRoomV2 ? await listJobRenderVersions(viewer.userId, slug, 'resume') : [];
 const coverVersions = useRoomV2 ? await listJobRenderVersions(viewer.userId, slug, 'cover') : [];
 const roomPostingHref = postingHref ?? (job ? boardDetailPath(slug) : jobDraftEndpoint);
@@ -201,10 +199,6 @@ const coverCost = costVmFor(cover);
           postingHref={roomPostingHref}
           resume={resumePayload}
           cover={coverPayload}
-          resumeState={resumeState}
-          coverState={coverState}
-          resumeFailureReason={resumeFailureReason}
-          coverFailureReason={coverFailureReason}
           resumeVersions={resumeVersions}
           coverVersions={coverVersions}
           resumeUpdatedAt={resumeUpdatedIso}
@@ -253,35 +247,7 @@ const coverCost = costVmFor(cover);
         )
       }
 
-      {
-        /* Before the room shows (neither document ready yet), poll the status
-           endpoint and reload once either one settles, so the page turns into the
-           live-printing room the moment the first document lands. This replaces
-           the old whole-page meta refresh; the room, once shown, does its own
-           in-place polling instead of reloading (which would restart the print). */
-        anyPending && !useRoomV2 && (
-          <script
-            define:vars={{ statusUrl: `${jobDraftPath(slug)}/status`, r0: resumeState, c0: coverState }}
-            is:inline
-          >
-            (function () {
-              function tick() {
-                fetch(statusUrl, { headers: { accept: 'application/json' } })
-                  .then(function (res) { return res.ok ? res.json() : null; })
-                  .then(function (j) {
-                    if (j && ((j.resume && j.resume.status !== r0) || (j.cover && j.cover.status !== c0))) {
-                      window.location.reload();
-                    } else {
-                      window.setTimeout(tick, 1500);
-                    }
-                  })
-                  .catch(function () { window.setTimeout(tick, 1500); });
-              }
-              window.setTimeout(tick, 1500);
-            })();
-          </script>
-        )
-      }
+      {anyPending && <meta http-equiv="refresh" content="3" />}
 
       {
         showBigLoading && (
@@ -298,7 +264,7 @@ const coverCost = costVmFor(cover);
       }
 
       {
-        !useRoomV2 && oneReadyOnePending && (
+        oneReadyOnePending && (
           <p class="muted">
             {resumeState === 'ready'
               ? 'Your resume is ready. Still drafting the cover letter.'

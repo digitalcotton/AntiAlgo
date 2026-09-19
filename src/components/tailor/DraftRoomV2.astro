@@ -23,7 +23,7 @@
 import { groupResumeSection, type ResumeGroup } from '../../lib/resume-grouping';
 import { DESCRIPTION_KINDS } from '../../lib/tailor';
 import type { ResumeRender, CoverRender, RenderEntry, RenderHeader } from '../../lib/tailor';
-import type { RenderVersionRow, DocumentState } from '../../lib/generated-render-store';
+import type { RenderVersionRow } from '../../lib/generated-render-store';
 import { jobDraftPath, jobDraftPdfPath } from '../../data/nav';
 
 interface Props {
@@ -33,10 +33,6 @@ interface Props {
   postingHref: string;
   resume: ResumeRender | null;
   cover: CoverRender | null;
-  resumeState: DocumentState;
-  coverState: DocumentState;
-  resumeFailureReason: string | null;
-  coverFailureReason: string | null;
   resumeVersions: RenderVersionRow[];
   coverVersions: RenderVersionRow[];
   resumeUpdatedAt: string | null;
@@ -73,10 +69,6 @@ const {
   postingHref,
   resume,
   cover,
-  resumeState,
-  coverState,
-  resumeFailureReason,
-  coverFailureReason,
   resumeVersions,
   coverVersions,
   resumeUpdatedAt,
@@ -165,14 +157,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
 ];
 ---
 
-<article
-  class="dr"
-  data-slug={slug}
-  data-status-url={`${jobDraftPath(slug)}/status`}
-  data-self-url={jobDraftPath(slug)}
-  data-resume-state={resumeState}
-  data-cover-state={coverState}
->
+<article class="dr" data-slug={slug}>
   <nav class="dr-crumbs" aria-label="Breadcrumb">
     <a href={postingHref}>&larr; Back to the posting</a>
     <span class="dr-crumb-sep" aria-hidden="true">/</span>
@@ -202,7 +187,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
     {resume ? (
       <>
         <p class="dr-doc-meta mono-label">resume{resumeUpdatedAt ? `, drafted ${timeAgo(resumeUpdatedAt)}` : ''}</p>
-        <article class="dr-doc dr-preprint" data-print-key={`resume:${resumeUpdatedAt ?? ''}`}>
+        <article class="dr-doc">
           {hasHeader(resume.header) && (
             <header class="dr-doc-contact">
               {resume.header.name && <p class="dr-doc-name">{resume.header.name}</p>}
@@ -298,22 +283,8 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
           </section>
         )}
       </>
-    ) : resumeState === 'failed' ? (
-      <div class="dr-doc-failed" role="alert">
-        <p class="dr-doc-failed-title">The resume did not finish</p>
-        <p class="dr-doc-failed-detail">The reason: {resumeFailureReason ?? 'it did not finish in time'}. Nothing partial was kept.</p>
-        <form method="POST" action={regenerateAction} class="dr-doc-failed-form">
-          <input type="hidden" name="slug" value={slug} />
-          <input type="hidden" name="kind" value="resume" />
-          <button type="submit" class="dr-btn dr-btn-primary">Draft the resume again</button>
-        </form>
-      </div>
     ) : (
-      <div class="dr-writing" role="status" aria-live="polite">
-        <p class="dr-writing-label">Writing your resume<span class="dr-writing-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span><span class="dr-caret dr-caret-idle" aria-hidden="true"></span></p>
-        <p class="dr-writing-sub mono-label">Reading your record and the posting, line by line. It prints here the moment it is verified.</p>
-        <div class="dr-skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
-      </div>
+      <p class="dr-doc-empty">The resume is still drafting.</p>
     )}
   </section>
 
@@ -321,7 +292,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
     {cover ? (
       <>
         <p class="dr-doc-meta mono-label">cover letter{coverUpdatedAt ? `, drafted ${timeAgo(coverUpdatedAt)}` : ''}</p>
-        <article class="dr-doc dr-preprint" data-print-key={`cover:${coverUpdatedAt ?? ''}`}>
+        <article class="dr-doc">
           {hasHeader(cover.header) && (
             <header class="dr-doc-contact">
               {cover.header.name && <p class="dr-doc-name">{cover.header.name}</p>}
@@ -391,22 +362,8 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
           </section>
         )}
       </>
-    ) : coverState === 'failed' ? (
-      <div class="dr-doc-failed" role="alert">
-        <p class="dr-doc-failed-title">The cover letter did not finish</p>
-        <p class="dr-doc-failed-detail">The reason: {coverFailureReason ?? 'it did not finish in time'}. Nothing partial was kept.</p>
-        <form method="POST" action={regenerateAction} class="dr-doc-failed-form">
-          <input type="hidden" name="slug" value={slug} />
-          <input type="hidden" name="kind" value="cover" />
-          <button type="submit" class="dr-btn dr-btn-primary">Draft the cover letter again</button>
-        </form>
-      </div>
     ) : (
-      <div class="dr-writing" role="status" aria-live="polite">
-        <p class="dr-writing-label">Writing your cover letter<span class="dr-writing-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span><span class="dr-caret dr-caret-idle" aria-hidden="true"></span></p>
-        <p class="dr-writing-sub mono-label">Drawing the letter from your record's own evidence. It prints here the moment it is verified.</p>
-        <div class="dr-skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
-      </div>
+      <p class="dr-doc-empty">The cover letter is still drafting.</p>
     )}
   </section>
 
@@ -427,172 +384,24 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
     <p class="dr-send-note">Opens the posting in a new tab and moves this role to Applied on your desk. You still paste and submit there.</p>
     <p class="dr-footer-note mono-label">Drafted on your own key. Your profile and the posting text only. No other applicant's data was read.</p>
   </section>
+
 </article>
 
-<noscript><style>.dr-doc.dr-preprint { visibility: visible; }</style></noscript>
-
 <script>
-  // The draft room's client behaviour: copy-as-text, the live typewriter reveal
-  // of each verified document, and an in-place poller that prints the second
-  // document the moment it lands. Everything here is presentation over text the
-  // server already verified; nothing unverified is ever shown (a document only
-  // reaches this component once its row is 'ready'/'fallback').
-
-  function bindCopy(scope: ParentNode) {
-    for (const btn of scope.querySelectorAll('.dr-copy')) {
-      btn.addEventListener('click', async () => {
-        const doc = (btn as HTMLElement).closest('.dr-panel')?.querySelector('.dr-doc');
-        const text = (doc as HTMLElement | null)?.innerText ?? '';
-        try {
-          await navigator.clipboard.writeText(text);
-          const was = btn.textContent;
-          btn.textContent = 'Copied';
-          setTimeout(() => { btn.textContent = was; }, 1500);
-        } catch {
-          // Clipboard blocked: leave the label as-is rather than claim success.
-        }
-      });
-    }
-  }
-
-  const REVEAL_BUDGET_MS = 2600;
-  const prefersReduced = typeof window.matchMedia === 'function'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  function markSeen(key: string) {
-    try { sessionStorage.setItem('drprint:' + key, '1'); } catch { /* private mode: fine */ }
-  }
-  function wasSeen(key: string): boolean {
-    try { return sessionStorage.getItem('drprint:' + key) === '1'; } catch { return false; }
-  }
-
-  // Reveal one document with a word-by-word print and a trailing caret. The text
-  // is already in the DOM (verified server-side); we only stage its appearance.
-  // Words are wrapped so we can raise them one at a time; the wrapping targets
-  // the class the CSS hides ONLY under .dr-armed, so a document that never gets
-  // armed (no JS, reduced motion, or a revisit) stays fully visible.
-  function revealDoc(doc: HTMLElement) {
-    if (!doc || doc.dataset.printed === '1') return;
-    doc.dataset.printed = '1';
-    const key = doc.dataset.printKey || '';
-
-    if (prefersReduced || wasSeen(key)) {
-      doc.classList.remove('dr-preprint');
-      markSeen(key);
-      return;
-    }
-
-    const walker = document.createTreeWalker(doc, NodeFilter.SHOW_TEXT, {
-      acceptNode: (n) => (n.nodeValue && n.nodeValue.trim()) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+  for (const btn of document.querySelectorAll('.dr-copy')) {
+    btn.addEventListener('click', async () => {
+      const doc = (btn as HTMLElement).closest('.dr-panel')?.querySelector('.dr-doc');
+      const text = (doc as HTMLElement | null)?.innerText ?? '';
+      try {
+        await navigator.clipboard.writeText(text);
+        const was = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(() => { btn.textContent = was; }, 1500);
+      } catch {
+        // Clipboard blocked: leave the label as-is rather than claim success.
+      }
     });
-    const textNodes: Text[] = [];
-    let tn: Node | null;
-    while ((tn = walker.nextNode())) textNodes.push(tn as Text);
-
-    const words: HTMLElement[] = [];
-    for (const node of textNodes) {
-      const frag = document.createDocumentFragment();
-      for (const part of (node.nodeValue || '').split(/(\s+)/)) {
-        if (part === '') continue;
-        if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(part)); continue; }
-        const span = document.createElement('span');
-        span.className = 'dr-w';
-        span.textContent = part;
-        frag.appendChild(span);
-        words.push(span);
-      }
-      node.parentNode && node.parentNode.replaceChild(frag, node);
-    }
-
-    doc.classList.remove('dr-preprint');
-    if (words.length === 0) { markSeen(key); return; }
-    doc.classList.add('dr-armed');
-
-    const caret = document.createElement('span');
-    caret.className = 'dr-caret';
-    caret.setAttribute('aria-hidden', 'true');
-    const per = Math.min(40, Math.max(8, Math.round(REVEAL_BUDGET_MS / words.length)));
-    let i = 0;
-    function step() {
-      if (i >= words.length) {
-        caret.remove();
-        doc.classList.remove('dr-armed');
-        doc.classList.add('dr-printed');
-        markSeen(key);
-        return;
-      }
-      const w = words[i++];
-      w.classList.add('dr-w-on');
-      w.insertAdjacentElement('afterend', caret);
-      window.setTimeout(step, per);
-    }
-    step();
   }
-
-  function revealAll(scope: ParentNode) {
-    for (const doc of scope.querySelectorAll('.dr-doc[data-print-key]')) revealDoc(doc as HTMLElement);
-  }
-
-  // Initial pass: bind and print whatever is already on the page.
-  bindCopy(document);
-  revealAll(document);
-
-  // The poller: while a document is still drafting, ask the status endpoint (the
-  // same pure state the room reads), and when a pending kind settles, fetch the
-  // room's own HTML, lift that one panel in, and print it. A settled document is
-  // never re-fetched, and a full reload is never issued, so a print in flight in
-  // the other panel is never torn down.
-  const article = document.querySelector('.dr') as HTMLElement | null;
-  const statusUrl = article?.dataset.statusUrl || '';
-  const selfUrl = article?.dataset.selfUrl || '';
-  const state: Record<'resume' | 'cover', string> = {
-    resume: article?.dataset.resumeState || 'none',
-    cover: article?.dataset.coverState || 'none'
-  };
-  const stillPending = () => state.resume === 'pending' || state.cover === 'pending';
-
-  async function injectKind(kind: 'resume' | 'cover') {
-    try {
-      const res = await fetch(selfUrl, { headers: { accept: 'text/html' } });
-      if (!res.ok) return;
-      const parsed = new DOMParser().parseFromString(await res.text(), 'text/html');
-      const fresh = parsed.querySelector('.dr-panel-' + kind);
-      const live = document.querySelector('.dr-panel-' + kind);
-      if (!fresh || !live) return;
-      live.innerHTML = fresh.innerHTML;
-      const pairs: [string, string][] = [['.dr-status', '.dr-status']];
-      for (const [sel] of pairs) {
-        const f = parsed.querySelector(sel);
-        const l = document.querySelector(sel);
-        if (f && l) l.innerHTML = f.innerHTML;
-      }
-      bindCopy(live);
-      revealAll(live);
-    } catch {
-      // Network hiccup: the next tick tries again.
-    }
-  }
-
-  async function tick() {
-    try {
-      const res = await fetch(statusUrl, { headers: { accept: 'application/json' } });
-      if (res.ok) {
-        const j = await res.json();
-        for (const kind of ['resume', 'cover'] as const) {
-          const next = j[kind]?.status;
-          if (state[kind] === 'pending' && next && next !== 'pending') {
-            state[kind] = next;
-            await injectKind(kind);
-          }
-        }
-      }
-    } catch {
-      // Ignore and keep polling until both kinds are terminal.
-    }
-    if (stillPending()) window.setTimeout(tick, 1300);
-  }
-
-  if (statusUrl && stillPending()) window.setTimeout(tick, 1300);
 </script>
 
 <style>
@@ -639,65 +448,6 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
   .dr-doc-empty { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
   .is-tailored { background: var(--color-tailor-highlight, rgb(239, 231, 200)); box-shadow: 0 0 0 3px var(--color-tailor-highlight, rgb(239, 231, 200)); color: #0b0b0d; }
 
-  /* The live print. A document arrives verified and whole; the reveal only
-     stages its appearance. .dr-preprint holds the doc invisible (but laid out,
-     no reflow) until the script arms it; the word class it hides exists only
-     once the script wraps words, so a doc that is never armed (no JS / reduced
-     motion / a revisit) simply stays visible. */
-  .dr-doc.dr-preprint { visibility: hidden; }
-  .dr-doc.dr-armed .dr-w { opacity: 0; }
-  .dr-doc.dr-armed .dr-w.dr-w-on { opacity: 1; transition: opacity 120ms ease-out; }
-  /* Hold a tailored line's highlight until its words start printing, so the
-     cream box sweeps in with the text instead of sitting empty ahead of it.
-     Where :has() is unavailable the highlight simply lands when the print ends
-     (dr-armed drops), which is fine. */
-  .dr-doc.dr-armed .is-tailored { background: transparent; box-shadow: none; color: inherit; }
-  .dr-doc.dr-armed .is-tailored:has(.dr-w-on) { background: var(--color-tailor-highlight, rgb(239, 231, 200)); box-shadow: 0 0 0 3px var(--color-tailor-highlight, rgb(239, 231, 200)); color: #0b0b0d; }
-  .dr-caret {
-    display: inline-block; width: 0.5ch; height: 1.05em; margin-left: 1px;
-    transform: translateY(0.18em); background: var(--color-signal);
-    animation: dr-caret-blink 1s steps(1, end) infinite;
-  }
-  .dr-caret-idle { transform: translateY(0.12em); margin-left: 4px; }
-  @keyframes dr-caret-blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
-
-  /* The still-drafting panel: an honest "writing" state with a pulsing caret and
-     a faint skeleton, so flipping to the second tab shows the work in flight. */
-  .dr-writing { border: var(--border-hairline) solid var(--color-line); background: var(--color-surface-raised); padding: var(--space-700); }
-  .dr-writing-label { margin: 0; font-size: var(--size-300); letter-spacing: -0.01em; }
-  .dr-writing-dots span { animation: dr-dot 1.4s infinite; }
-  .dr-writing-dots span:nth-child(2) { animation-delay: 0.2s; }
-  .dr-writing-dots span:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes dr-dot { 0%, 60%, 100% { opacity: 0.2; } 30% { opacity: 1; } }
-  .dr-writing-sub { margin: var(--space-300) 0 0; color: var(--color-muted); }
-  .dr-skeleton { margin: var(--space-500) 0 0; display: flex; flex-direction: column; gap: var(--space-300); }
-  .dr-skeleton span {
-    height: 0.8em; border-radius: 2px;
-    background: linear-gradient(90deg, var(--color-line) 25%, var(--color-hover-surface, var(--color-surface)) 37%, var(--color-line) 63%);
-    background-size: 400% 100%; animation: dr-shimmer 1.4s ease infinite;
-  }
-  .dr-skeleton span:nth-child(1) { width: 92%; }
-  .dr-skeleton span:nth-child(2) { width: 78%; }
-  .dr-skeleton span:nth-child(3) { width: 85%; }
-  .dr-skeleton span:nth-child(4) { width: 64%; }
-  .dr-skeleton span:nth-child(5) { width: 80%; }
-  @keyframes dr-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
-
-  /* A per-document failure inside its own panel, so the other document still
-     prints. The reason is our own minted sentence; nothing partial is shown. */
-  .dr-doc-failed { border: var(--border-hairline) solid var(--color-stat-loss); background: var(--color-surface-raised); padding: var(--space-700); display: flex; flex-direction: column; gap: var(--space-300); align-items: flex-start; }
-  .dr-doc-failed-title { margin: 0; font-weight: var(--weight-bold); font-size: var(--size-300); }
-  .dr-doc-failed-detail { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
-  .dr-doc-failed-form { margin: var(--space-300) 0 0; width: 100%; max-width: 22rem; }
-
-  @media (prefers-reduced-motion: reduce) {
-    .dr-doc.dr-preprint { visibility: visible; }
-    .dr-doc.dr-armed .dr-w, .dr-doc.dr-armed .dr-w.dr-w-on { opacity: 1; transition: none; }
-    .dr-caret, .dr-writing-dots span, .dr-skeleton span { animation: none; }
-    .dr-caret { opacity: 1; }
-    .dr-skeleton span { background: var(--color-line); }
-  }
-
   .dr-doc-actions { margin-top: var(--space-400); display: flex; flex-wrap: wrap; gap: var(--space-300); }
   .dr-btn { display: inline-block; padding: var(--space-300) var(--space-500); font-family: var(--font-family-mono); font-size: var(--size-100); text-decoration: none; cursor: pointer; color: var(--color-foreground); background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-foreground); }
   /* The primary action, in the brand signal orange (tokens.css: signal is for
@@ -734,6 +484,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
   .dr-send-apply { margin: 0; }
   .dr-send-note { margin: var(--space-400) 0 0; color: var(--color-muted); font-size: var(--size-100); }
   .dr-footer-note { margin: var(--space-400) 0 0; padding-top: var(--space-400); border-top: var(--border-hairline) solid var(--color-line); color: var(--color-muted); }
+
 
   @media (max-width: 40rem) {
     .dr-doc { padding: var(--space-500); }
