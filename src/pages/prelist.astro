@@ -2,10 +2,13 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Board from '../components/Board.astro';
 import BoardTabs from '../components/BoardTabs.astro';
-import { prospectRows, sortJobs } from '../lib/data';
+import { ageHistogramFromJobs, facetGroupsFromCounts, prospectRows } from '../lib/data';
 import { getBoardStats } from '../lib/job-store';
 import { isConfigured } from '../lib/db';
 import { isOn } from '../lib/flags';
+import { boardHref, clampPage, parseBoardQuery } from '../lib/board-query';
+import { listProspectsFiltered, type ProspectPage } from '../lib/prospect-board';
+import { routeFor } from '../data/nav';
 import { withBase } from '../../site.config.mjs';
 
 /**
@@ -22,6 +25,18 @@ import { withBase } from '../../site.config.mjs';
  * Pre-List is and the count on it, not the rows, the same wall /desk uses.
  * Astro.locals.verdict is set by middleware (src/lib/entitlement.ts) before this
  * runs. prerender = false because the wall is decided per request.
+ *
+ * ONE PAGE PER REQUEST (since 2026-09-19), for the same reason the board holds
+ * one: this page used to hand Board.astro every prospect and let client mode
+ * render all of them into the document, hiding the ones past the first page.
+ * Measured, that was a 6.3 MB document of 25,623 elements, which crashed phones
+ * and stalled desktops. The address now carries the page, the rows per page, the
+ * search, the facets and the sort (src/lib/board-query.ts, the board's own
+ * contract); src/lib/prospect-board.ts filters, counts, sorts and slices the
+ * static list the way the job store does it in SQL for /board; and this page
+ * never holds more than one page of rows. A page past the end answers with a
+ * redirect to the last page, so the address a reader lands on names a page that
+ * exists. The wall branch does none of this work.
  */
 export const prerender = false;
 
@@ -31,13 +46,37 @@ const reason = verdict?.reason ?? 'signed-out';
 
 const prelistPaidLive = isOn('prelist_paid');
 
-const jobs = sortJobs(prospectRows(), 'fit');
-const prospectCount = jobs.length;
+// The whole population, for the tab count and the wall's number. Never the page:
+// "386 companies are on it" is a fact about the list, not about what is on screen.
+const allProspects = prospectRows();
+const prospectCount = allProspects.length;
+
+const boardPath = routeFor('prelist');
+const query = parseBoardQuery(Astro.url.searchParams);
 
 // The same sweep numbers the board tab shows, so the tiles read the same on both
 // tabs. The list and the count below differ per tab; the sweep does not.
 const boardStats = isConfigured() ? await getBoardStats() : null;
 const verifiedLive = boardStats?.verified_live ?? 0;
+
+// Only a reader past the wall gets a page computed; the walled branch renders no
+// rows, so filtering and slicing for it would be work nobody sees.
+let served: ProspectPage | null = null;
+let paged = { page: query.page, pages: 1 };
+if (allowed) {
+  served = listProspectsFiltered(allProspects, query);
+  paged = clampPage(query.page, served.total, query.per);
+  if (paged.page !== query.page) {
+    return Astro.redirect(boardHref(boardPath, query, { page: paged.page }), 302);
+  }
+}
+const groups = served
+  ? facetGroupsFromCounts(served.counts, {
+      location: query.location,
+      comp: query.comp,
+      freshness: query.freshness
+    })
+  : [];
 ---
 
 <BaseLayout
@@ -58,9 +97,15 @@ const verifiedLive = boardStats?.verified_live ?? 0;
     </header>
 
     {
-      allowed ? (
+      allowed && served ? (
         <Board
-          jobs={jobs}
+          jobs={served.rows}
+          mode="server"
+          page={{ total: served.total, page: paged.page, pages: paged.pages, per: query.per }}
+          query={query}
+          groups={groups}
+          ageHistogram={ageHistogramFromJobs(allProspects)}
+          boardPath={boardPath}
           active="prelist"
           prospectCount={prospectCount}
           boards={boardStats?.boards_swept}

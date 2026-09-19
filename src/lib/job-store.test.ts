@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const query = vi.fn();
 vi.mock('./db', () => ({ db: () => ({ query }) }));
 
-import { likePattern, listBoardAges, listBoardFiltered } from './job-store';
+import { likePattern, listBoardAgeHistogram, listBoardFiltered } from './job-store';
 
 beforeEach(() => {
   query.mockReset();
@@ -91,32 +91,44 @@ describe('listBoardFiltered', () => {
   });
 });
 
-describe('listBoardAges', () => {
-  it('reads dates for every row and never the description', async () => {
+describe('listBoardAgeHistogram', () => {
+  it('asks the database for the distribution, not the rows', async () => {
+    // The plot is a histogram; the old query read every row (13,302 / 4.8 MB)
+    // to build it. This asks Postgres to GROUP BY age and never selects a row's
+    // heavy columns or, indeed, the rows.
     query.mockResolvedValue({ rows: [] });
-    await listBoardAges();
-    const [sql] = query.mock.calls[0];
+    await listBoardAgeHistogram('2026-09-18');
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toContain('GROUP BY days');
     expect(sql).not.toMatch(/\bj\.description\b/);
-    expect(sql).toContain('j.published');
-    expect(sql).toContain('j.first_seen');
-  });
-
-  it('reads the whole set, because the plot is a claim about the whole set', async () => {
-    // It used to default to LIMIT 5000 with no ORDER BY. Under 1,900 rows the
-    // cap never bound; carrying the whole crawl it binds every time, and the
-    // plot would describe an arbitrary subset while still printing "N roles".
-    query.mockResolvedValue({ rows: [] });
-    await listBoardAges();
-    const [sql, params] = query.mock.calls[0];
     expect(sql).not.toContain('LIMIT');
-    expect(params).toEqual([]);
+    // The sweep day is the "to" end of every age, bound not interpolated.
+    expect(params).toEqual(['2026-09-18']);
   });
 
-  it('bounds the read only when a caller asks for it', async () => {
+  it('mirrors ageOf: killed rows age to their kill date, and the strict first-seen guard', async () => {
     query.mockResolvedValue({ rows: [] });
-    await listBoardAges(100);
-    const [sql, params] = query.mock.calls[0];
-    expect(sql).toContain('LIMIT $1');
-    expect(params).toEqual([100]);
+    await listBoardAgeHistogram('2026-09-18');
+    const [sql] = query.mock.calls[0];
+    expect(sql).toContain("j.status = 'killed'");
+    expect(sql).toContain('k.killed_on::date');
+    expect(sql).toContain('k.first_published::date');
+    expect(sql).toContain('j.first_seen::date < $1::date');
+  });
+
+  it('reads the buckets and the axis max out of one result set', async () => {
+    query.mockResolvedValue({
+      rows: [
+        { days: 2, rows: 3, rep_company: 'Acme', rep_title: 'Engineer', rep_published_at: null, axis_max: null },
+        { days: 40, rows: 1, rep_company: 'Globex', rep_title: 'Designer', rep_published_at: null, axis_max: null },
+        // The rollup row (days null) carries the axis max over every measured row.
+        { days: null, rows: 0, rep_company: null, rep_title: null, rep_published_at: null, axis_max: 900 }
+      ]
+    });
+    const hist = await listBoardAgeHistogram('2026-09-18');
+    expect(hist.byDay).toHaveLength(2);
+    expect(hist.byDay[0]).toMatchObject({ days: 2, rows: 3, repCompany: 'Acme', repTitle: 'Engineer' });
+    expect(hist.axisMax).toBe(900);
+    expect(hist.total).toBe(4);
   });
 });

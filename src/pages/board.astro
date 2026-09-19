@@ -2,9 +2,9 @@
 import AccountCta from '../components/AccountCta.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Board from '../components/Board.astro';
-import { facetGroupsFromCounts, loadStats, prospectRows, sweepDate, sweptStamp, type Job } from '../lib/data';
+import { EMPTY_AGE_HISTOGRAM, facetGroupsFromCounts, loadStats, prospectRows, sweepDate, sweptStamp, type AgeHistogram, type Job } from '../lib/data';
 import { isConfigured } from '../lib/db';
-import { getBoardStats, listBoardAges, listBoardFiltered, type BoardFilteredResult, type FacetCounts } from '../lib/job-store';
+import { getBoardStats, listBoardAgeHistogram, listBoardFiltered, type BoardFilteredResult, type FacetCounts } from '../lib/job-store';
 import { boardRowToJob } from '../lib/board-jobs';
 import { listWatches } from '../lib/ledger-watch-store';
 import { boardHref, clampPage, parseBoardQuery } from '../lib/board-query';
@@ -125,11 +125,12 @@ if (page !== query.page) {
 
 const jobs = served.rows.map(boardRowToJob);
 const groups = facetGroupsFromCounts(served.counts, query);
-// The age plot is a fact about the whole set, never about one page.
-let ageJobs: Job[] = [];
+// The age plot is a fact about the whole set, never about one page: the store
+// returns its distribution (one row per age), not the rows themselves.
+let ageHistogram: AgeHistogram = EMPTY_AGE_HISTOGRAM;
 if (isConfigured()) {
   try {
-    ageJobs = (await listBoardAges()).map(boardRowToJob);
+    ageHistogram = await listBoardAgeHistogram(sweepDate());
   } catch (error) {
     console.error('board: the age plot could not read the store; rendering without it.', error);
   }
@@ -190,7 +191,7 @@ const prospectCount = prospectRows().length;
       page={{ total: served.total, page, pages, per: query.per }}
       query={query}
       groups={groups}
-      ageJobs={ageJobs}
+      ageHistogram={ageHistogram}
       boardPath={boardPath}
       active="board"
       prospectCount={prospectCount}

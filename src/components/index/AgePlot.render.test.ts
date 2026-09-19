@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 
 import AgePlot from './AgePlot.astro';
-import type { Job } from '../../lib/data';
+import { ageHistogramFromJobs, type Job } from '../../lib/data';
 
 /**
  * The age strip says "N roles" and calls itself "Age of every verified role".
@@ -51,9 +51,11 @@ function job(i: number, daysOld: number): Job {
   };
 }
 
+// The store hands the plot a distribution, not rows; ageHistogramFromJobs is the
+// in-memory twin of that GROUP BY, so these fixtures still read as "given jobs".
 async function render(jobs: Job[]): Promise<string> {
   const container = await AstroContainer.create();
-  return container.renderToString(AgePlot, { props: { jobs } });
+  return container.renderToString(AgePlot, { props: { histogram: ageHistogramFromJobs(jobs) } });
 }
 
 /** As the board mounts it: with a hrefFor, so the handles and count line render. */
@@ -61,7 +63,7 @@ async function renderInteractive(jobs: Job[]): Promise<string> {
   const container = await AstroContainer.create();
   const hrefFor = (min: number | null, max: number | null) =>
     `/board?age_min=${min ?? ''}&age_max=${max ?? ''}`;
-  return container.renderToString(AgePlot, { props: { jobs, hrefFor } });
+  return container.renderToString(AgePlot, { props: { histogram: ageHistogramFromJobs(jobs), hrefFor } });
 }
 
 const countTicks = (html: string) => (html.match(/class="[^"]*\btick\b/g) ?? []).length;

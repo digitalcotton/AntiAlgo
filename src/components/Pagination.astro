@@ -47,7 +47,35 @@ interface Props {
 }
 
 const { current, total, prevHref, nextHref, picker, class: className } = Astro.props;
-const pageNumbers = picker ? Array.from({ length: Math.max(1, total) }, (_, i) => i + 1) : [];
+
+/**
+ * THE PAGE LIST IS WINDOWED, BECAUSE IT USED TO BE THE PAGE.
+ *
+ * This select held one option per page. On 2026-09-19 the board carried 13,302
+ * rows, which at five to a page is 2,661 options: 94 KB of markup and 2,661 DOM
+ * nodes, a third of the whole document, to draw one control. It grew with every
+ * night's crawl, and on a phone it opened a native picker 2,661 entries deep.
+ *
+ * So above a threshold the list stops being every page and becomes the pages a
+ * reader is plausibly reaching for: the ends, and a window either side of where
+ * they are. The typed "Go to page" field beside it already reaches any page at
+ * all and is bound by the same min and max, so nothing is lost but the scroll.
+ * Below the threshold every page is still listed and the control is unchanged.
+ */
+const PAGE_LIST_MAX = 100;
+const PAGE_WINDOW = 10;
+
+function pageOptions(pages: number, at: number): number[] {
+  if (pages <= PAGE_LIST_MAX) return Array.from({ length: Math.max(1, pages) }, (_, i) => i + 1);
+  const wanted = new Set<number>([1, pages, at]);
+  for (let step = 1; step <= PAGE_WINDOW; step += 1) {
+    if (at - step >= 1) wanted.add(at - step);
+    if (at + step <= pages) wanted.add(at + step);
+  }
+  return [...wanted].sort((a, b) => a - b);
+}
+
+const pageNumbers = picker ? pageOptions(Math.max(1, total), current) : [];
 
 // Link mode is chosen by the caller passing either href, not by a flag, so the
 // two cannot disagree.

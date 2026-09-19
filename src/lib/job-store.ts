@@ -1,7 +1,8 @@
 /**
  * job-store.ts: the read/write half of the general-tracker job table
  * (db/017_jobs.sql). The site reads the /board surface one page at a time
- * through listBoardFiltered() (2026-09-11) and the age plot through listBoardAges();
+ * through listBoardFiltered() (2026-09-11) and the age plot through
+ * listBoardAgeHistogram(), a GROUP BY rather than a read of every row (2026-09-19);
  * the mini's tracker is the only writer in production, but upsertJobs() lives
  * here so the ingest has one place that knows the table's shape.
  *
@@ -11,6 +12,7 @@
  */
 import { db } from './db';
 import type { BoardRow } from './board-jobs';
+import type { AgeHistogram, AgeBucket } from './data';
 import { normalizeTitle } from './ledger-titles';
 
 /**
@@ -339,41 +341,104 @@ export async function listAllKills(): Promise<BoardKillRow[]> {
 import { FRESH_WINDOW_DAYS as FRESH_WINDOW_DAYS_SQL } from './data';
 
 /**
- * Every row's dates and nothing heavy, for the age plot, which is a fact about
- * the whole set ("Age of every verified role") and never about one page. The
- * other BoardRow columns come back as typed nulls, the same shape the slug
- * fallback in getBoardJobBySlug uses.
+ * The age plot's data, as a distribution the database computes rather than a
+ * list of rows the page reads.
+ *
+ * WHAT THIS REPLACED, AND WHY. This was listBoardAges(): every row's dates,
+ * deliberately unbounded, "because the plot is a claim about every row." It was
+ * a claim about every row, but the page never needed every row to make it. The
+ * plot is a histogram — how many roles sit at each age — and a histogram is a
+ * GROUP BY. Measured on 2026-09-19 the old read pulled 13,302 rows / 4.8 MB out
+ * of Postgres on every request to / and /board and grew with the crawl; this
+ * returns ~one row per distinct age (549 on that day, 12 KB) and says exactly
+ * the same thing. The rows themselves never leave the database.
+ *
+ * IT MIRRORS ageOf() (src/lib/data.ts), through the same columns boardRowToJob
+ * maps: a killed row ages to its kill date, everything else to the sweep day;
+ * the "from" date is the published date (or the kill's first-published date),
+ * and only failing that the first-seen date, and only when first-seen is
+ * strictly before the sweep day. A row with neither has no age and no mark.
+ *
+ * TWO SETS, ONE ROUND TRIP. The buckets are the title-bearing rows, the ones
+ * that get a mark and a count. axisMax is the oldest age over EVERY measured
+ * row, title or not, because the axis is drawn to the oldest thing on it. Both
+ * come back from one statement: the bucket rows, then a final rollup row
+ * (days IS NULL) carrying the axis max.
  */
-export async function listBoardAges(limit?: number): Promise<BoardRow[]> {
-  /*
-   * NO DEFAULT LIMIT, DELIBERATELY. This used to be `limit = 5000` with a bare
-   * LIMIT and no ORDER BY. While the board held about 1,900 rows the cap never
-   * bound and nobody noticed. Once the board carries the whole crawl it binds
-   * every time, and because nothing orders the rows the plot would describe an
-   * arbitrary subset while the count line above it, the aria-label and
-   * data-total all still said "N roles" as though it were the whole set. A
-   * silent wrong number is the one thing this codebase refuses to ship, so the
-   * cap is gone: the plot is a claim about every row, and the query returns
-   * every row.
-   *
-   * It is affordable because this is the narrow shape: nine real columns, the
-   * rest typed nulls, no description and no comp. A caller that genuinely wants
-   * a bounded read has to ask for it by passing a limit, and then it owns the
-   * job of saying out loud that the answer is partial.
-   */
-  const bounded = typeof limit === 'number' && Number.isFinite(limit) && limit > 0;
-  const { rows } = await db().query<BoardRow>(
-    `SELECT j.id, j.slug, j.company, j.title, j.published, j.first_seen, j.last_seen, j.status, j.fit_total, j.kill_id,
-            NULL::text AS url, NULL::text AS location, NULL::text AS country, false AS remote, j.ats,
-            NULL::text AS posting_id, NULL::text AS department, NULL::text AS comp_posted, NULL::jsonb AS comp_range,
-            NULL::int AS days_up, NULL::jsonb AS fit_components, j.source, NULL::text AS description,
-            k.kill_rule, k.reason AS kill_reason, k.killed_on, k.first_published AS kill_first_published,
-            k.pipeline AS kill_pipeline
-       FROM jobs j LEFT JOIN board_kills k ON k.id = j.kill_id
-      ${bounded ? 'LIMIT $1' : ''}`,
-    bounded ? [Math.floor(limit as number)] : []
+const AGE_MEASURED_CTE = `
+  WITH measured AS (
+    SELECT
+      j.title AS title,
+      j.company AS company,
+      j.published AS published_at,
+      CASE
+        WHEN COALESCE(j.published::date, k.first_published::date) IS NOT NULL
+          THEN (CASE WHEN j.status = 'killed' THEN k.killed_on::date ELSE $1::date END)
+               - COALESCE(j.published::date, k.first_published::date)
+        WHEN j.first_seen::date < $1::date
+          THEN (CASE WHEN j.status = 'killed' THEN k.killed_on::date ELSE $1::date END)
+               - j.first_seen::date
+        ELSE NULL
+      END AS days
+    FROM jobs j
+    LEFT JOIN board_kills k ON k.id = j.kill_id
+  )`;
+
+interface AgeRow {
+  days: number | null;
+  rows: number;
+  rep_company: string | null;
+  rep_title: string | null;
+  /** A timestamp column: node-postgres hands it back as a Date. */
+  rep_published_at: Date | string | null;
+  axis_max: number | null;
+}
+
+/** The published instant as the ISO string formatAgeLabel expects, or null. */
+function instantString(value: Date | string | null): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  const ms = Date.parse(String(value));
+  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+}
+
+export async function listBoardAgeHistogram(sweepDate: string): Promise<AgeHistogram> {
+  const { rows } = await db().query<AgeRow>(
+    `${AGE_MEASURED_CTE}
+     SELECT days,
+            count(*)::int AS rows,
+            (array_agg(company     ORDER BY published_at ASC NULLS LAST))[1] AS rep_company,
+            (array_agg(title       ORDER BY published_at ASC NULLS LAST))[1] AS rep_title,
+            (array_agg(published_at ORDER BY published_at ASC NULLS LAST))[1] AS rep_published_at,
+            NULL::int AS axis_max
+       FROM measured
+      WHERE days IS NOT NULL AND title IS NOT NULL
+      GROUP BY days
+      UNION ALL
+     SELECT NULL::int AS days, 0 AS rows, NULL, NULL, NULL,
+            max(days) FILTER (WHERE days IS NOT NULL)::int AS axis_max
+       FROM measured
+      ORDER BY days ASC NULLS LAST`,
+    [sweepDate]
   );
-  return rows;
+
+  let axisMax = 0;
+  const byDay: AgeBucket[] = [];
+  for (const row of rows) {
+    if (row.days === null) {
+      axisMax = row.axis_max ?? 0;
+      continue;
+    }
+    byDay.push({
+      days: row.days,
+      rows: row.rows,
+      repCompany: row.rep_company ?? '',
+      repTitle: row.rep_title ?? '',
+      repPublishedAt: instantString(row.rep_published_at)
+    });
+  }
+
+  return { byDay, axisMax, total: byDay.reduce((sum, b) => sum + b.rows, 0) };
 }
 
 /**

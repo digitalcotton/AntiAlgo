@@ -2318,10 +2318,117 @@ export const formatHours = (hours: number): string => `${hours}h`;
 export function formatAgeDuration(job: Job): string | null {
   const age = ageOf(job);
   if (!age) return null;
-  const hours = ageHours(job);
-  // Hours only through 48; everything after 48 hours is shown in days.
-  if (hours !== null && hours <= 48) return formatHours(hours);
-  return formatDays(age.days);
+  return formatAgeLabel(job.published_at, age.days);
+}
+
+/**
+ * The same duration label as formatAgeDuration, from a row's own two facts
+ * rather than from a whole Job.
+ *
+ * The age plot no longer holds a Job per row; it holds a per-day histogram whose
+ * representative carries only a published instant and a day count (the two
+ * things the label needs). So the hours-vs-days rule lives here, and
+ * formatAgeDuration above is its Job-shaped caller, so the two can never drift.
+ * The rule is unchanged: hours through 48 when there is an instant to measure
+ * from and it is still that young, days after that.
+ */
+export function formatAgeLabel(publishedAt: string | null, days: number): string {
+  if (publishedAt) {
+    const from = utcInstantMillis(publishedAt);
+    const to = utcInstantMillis(sweptAt());
+    if (from !== null && to !== null) {
+      const hours = Math.round((to - from) / MS_PER_HOUR);
+      if (hours >= 0 && hours <= 48) return formatHours(hours);
+    }
+  }
+  return formatDays(days);
+}
+
+/**
+ * The age plot's data, as a distribution rather than a list of rows.
+ *
+ * The plot is a histogram: how many verified roles sit at each age, on one axis
+ * with two filter handles. It never needs the rows themselves, so the store
+ * hands it this shape (src/lib/job-store.ts listBoardAgeHistogram) built by a
+ * GROUP BY, instead of every row of the crawl. `ageHistogramFromJobs` below is
+ * the same shape built in memory from Jobs: the reference the SQL must match,
+ * and what the plot's own tests render.
+ */
+export interface AgeBucket {
+  /** The measured age in whole days, the group key. */
+  days: number;
+  /** How many verified (title-bearing) roles sit at this age. */
+  rows: number;
+  /** One posting at this age, named only where a tick stands for exactly one. */
+  repCompany: string;
+  repTitle: string;
+  /** That posting's published instant, for the young end's hours label. */
+  repPublishedAt: string | null;
+}
+
+export interface AgeHistogram {
+  /** One entry per distinct measured age, ascending. Title-bearing rows only. */
+  byDay: AgeBucket[];
+  // (axisMax and total follow; EMPTY_AGE_HISTOGRAM below is the no-rows value.)
+  /**
+   * The oldest measured age, over EVERY measured row including title-less ones,
+   * because the axis is drawn to the oldest thing on it whether or not that row
+   * gets a mark.
+   */
+  axisMax: number;
+  /** Every title-bearing measured row, the number the plot prints. */
+  total: number;
+}
+
+/** The distribution of a board with nothing to plot: no marks, a zero axis. */
+export const EMPTY_AGE_HISTOGRAM: AgeHistogram = { byDay: [], axisMax: 0, total: 0 };
+
+/**
+ * Build the age histogram from Jobs, in memory. The store does this in SQL over
+ * the whole crawl; this is the in-memory twin for tests and small sets, and it
+ * reads age through ageOf() so it cannot disagree with the rest of the site
+ * about how old a row is.
+ */
+export function ageHistogramFromJobs(jobs: readonly Job[]): AgeHistogram {
+  const measured = jobs
+    .map((job) => ({ job, age: ageOf(job) }))
+    .filter((row): row is { job: Job; age: NonNullable<ReturnType<typeof ageOf>> } => row.age !== null);
+
+  const axisMax = measured.reduce((most, row) => Math.max(most, row.age.days), 0);
+
+  // The representative is the row with the earliest published instant (nulls
+  // last), matching the SQL's array_agg ORDER BY, so both name the same posting
+  // where a bucket has exactly one and label the same instant where it has more.
+  const earlier = (a: string | null, b: string | null): boolean => {
+    if (a === null) return false;
+    if (b === null) return true;
+    return a < b;
+  };
+
+  const byDayMap = new Map<number, AgeBucket>();
+  for (const { job, age } of measured) {
+    if (job.title === null) continue;
+    const bucket = byDayMap.get(age.days);
+    if (!bucket) {
+      byDayMap.set(age.days, {
+        days: age.days,
+        rows: 1,
+        repCompany: job.company,
+        repTitle: job.title,
+        repPublishedAt: job.published_at
+      });
+      continue;
+    }
+    bucket.rows += 1;
+    if (earlier(job.published_at, bucket.repPublishedAt)) {
+      bucket.repCompany = job.company;
+      bucket.repTitle = job.title;
+      bucket.repPublishedAt = job.published_at;
+    }
+  }
+
+  const byDay = [...byDayMap.values()].sort((a, b) => a.days - b.days);
+  return { byDay, axisMax, total: byDay.reduce((sum, b) => sum + b.rows, 0) };
 }
 
 /**

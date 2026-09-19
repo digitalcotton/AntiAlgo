@@ -9,7 +9,7 @@ import LoadingState from './LoadingState.astro';
 import Pagination from './Pagination.astro';
 import SortControl from './SortControl.astro';
 import StatTiles from './StatTiles.astro';
-import { clusterJobs, filterGroups, paginate, SORT_KEYS, type FilterGroup, type Job, type SortKey } from '../lib/data';
+import { ageHistogramFromJobs, clusterJobs, filterGroups, paginate, SORT_KEYS, type AgeHistogram, type FilterGroup, type Job, type SortKey } from '../lib/data';
 import { PER_PAGE_OPTIONS, boardHref, hiddenFields, pageSpan, type BoardQuery } from '../lib/board-query';
 
 /**
@@ -42,8 +42,9 @@ interface Props {
   query?: BoardQuery;
   /** Server mode: the groups with counts the store computed over the set. */
   groups?: FilterGroup[];
-  /** Server mode: every row's dates for the age plot (never one page's). */
-  ageJobs?: readonly Job[];
+  /** Server mode: the age distribution over the whole set, from the store's
+      GROUP BY (never one page's rows). Client mode builds it from `jobs`. */
+  ageHistogram?: AgeHistogram;
   /** Server mode: the board's own path, the forms' and links' target. */
   boardPath?: string;
   /** Which tab is live, for the view switch. */
@@ -81,7 +82,7 @@ const {
   page: served,
   query,
   groups: servedGroups,
-  ageJobs,
+  ageHistogram,
   boardPath = '',
   active,
   prospectCount,
@@ -148,7 +149,7 @@ const ageHref = serverMode
     <StatTiles boards={boards} verifiedLive={verifiedLive} liveMetric={serverMode ? 'board_rows' : undefined} />
 
     <AgePlot
-      jobs={serverMode ? (ageJobs ?? jobs) : jobs}
+      histogram={ageHistogram ?? ageHistogramFromJobs(jobs)}
       range={serverMode ? { min: q.ageMin, max: q.ageMax } : undefined}
       hrefFor={ageHref}
     />

@@ -1,5 +1,5 @@
 ---
-import { ageOf, formatAgeDuration, formatDays, type Job } from '../../lib/data';
+import { formatAgeLabel, formatDays, type AgeHistogram } from '../../lib/data';
 
 /**
  * Every verified row's age on one axis, and two handles that turn the axis
@@ -44,7 +44,12 @@ import { ageOf, formatAgeDuration, formatDays, type Job } from '../../lib/data';
  */
 
 interface Props {
-  jobs: readonly Job[];
+  /**
+   * The age distribution over the whole set, one entry per measured age. The
+   * store builds this with a GROUP BY (job-store.ts listBoardAgeHistogram), so
+   * the plot never receives the rows themselves. See data.ts AgeHistogram.
+   */
+  histogram: AgeHistogram;
   /** The range in the address, either end open. Undefined means no filter. */
   range?: { min: number | null; max: number | null };
   /** The board address for a range. Present only where the address is the state. */
@@ -52,14 +57,15 @@ interface Props {
   class?: string;
 }
 
-const { jobs, range, hrefFor, class: className } = Astro.props as Props;
+const { histogram, range, hrefFor, class: className } = Astro.props as Props;
 
-/** One mark: a row, its measured age, and where it sits on the axis. */
+/** One mark: an age, how many roles sit at it, and where it sits on the axis. */
 interface Mark {
-  slug: string;
   company: string;
   title: string;
   days: number;
+  /** How many roles this age stands for. */
+  rows: number;
   label: string;
   /** Position along the axis, 0 to 100. */
   at: number;
@@ -69,29 +75,25 @@ interface Mark {
 const EDGE_DAYS = [2, 4, 7] as const;
 const BAND_DAYS = 7;
 
-const measured = jobs
-  .map((job) => ({ job, age: ageOf(job) }))
-  .filter((row): row is { job: Job; age: NonNullable<ReturnType<typeof ageOf>> } => row.age !== null);
-
-// The axis runs from zero to the oldest row, or to the last edge where every
-// row is younger than it, so the edges are always on the chart.
-const oldest = measured.reduce((most, row) => Math.max(most, row.age.days), 0);
-const axisMax = Math.max(oldest, BAND_DAYS);
+// The axis runs from zero to the oldest measured row (whether or not it earns a
+// mark), or to the last cited edge where everything is younger, so the edges are
+// always on the chart. The oldest came from the store over the whole set.
+const axisMax = Math.max(histogram.axisMax, BAND_DAYS);
+const total = histogram.total;
 
 const position = (days: number): number =>
   axisMax <= 0 ? 0 : (Math.sqrt(days) / Math.sqrt(axisMax)) * 100;
 
-const marks: Mark[] = measured
-  .filter(({ job }) => job.title !== null)
-  .map(({ job, age }) => ({
-    slug: job.slug,
-    company: job.company,
-    title: job.title as string,
-    days: age.days,
-    label: formatAgeDuration(job) ?? formatDays(age.days),
-    at: position(age.days)
-  }))
-  .sort((a, b) => a.days - b.days);
+// One mark per distinct age. The store already sorted byDay ascending and
+// counted each; here it only gains its axis position and reader-facing label.
+const marks: Mark[] = histogram.byDay.map((bucket) => ({
+  company: bucket.repCompany,
+  title: bucket.repTitle,
+  days: bucket.days,
+  rows: bucket.rows,
+  label: formatAgeLabel(bucket.repPublishedAt, bucket.days),
+  at: position(bucket.days)
+}));
 
 /*
  * ONE TICK PER RENDERED POSITION, NOT PER ROW.
@@ -129,9 +131,11 @@ for (const mark of marks) {
   const key = `${Math.round(mark.at / TICK_RESOLUTION)}:${past ? 1 : 0}`;
   const seen = tickBuckets.get(key);
   if (seen) {
-    seen.rows += 1;
+    // Each mark already stands for `rows` roles at one age; a rendered tick can
+    // collapse several ages onto one position, so it sums their counts.
+    seen.rows += mark.rows;
   } else {
-    tickBuckets.set(key, { at: mark.at, days: mark.days, past, first: mark, rows: 1 });
+    tickBuckets.set(key, { at: mark.at, days: mark.days, past, first: mark, rows: mark.rows });
   }
 }
 const ticks: Tick[] = [...tickBuckets.values()].map((b) => ({
@@ -146,14 +150,17 @@ const ticks: Tick[] = [...tickBuckets.values()].map((b) => ({
 
 const youngest = marks.at(0) ?? null;
 const eldest = marks.at(-1) ?? null;
-const showBothEnds = youngest !== null && eldest !== null && youngest.slug !== eldest.slug;
+// Two ends worth naming only when the youngest and oldest sit at different ages;
+// one age for the whole set is a single end.
+const showBothEnds = youngest !== null && eldest !== null && youngest.days !== eldest.days;
 
 // The range, clamped to the axis. An open end reads as the axis's own end.
 const interactive = hrefFor !== undefined;
 const lo = Math.min(axisMax, Math.max(0, range?.min ?? 0));
 const hi = Math.min(axisMax, Math.max(lo, range?.max ?? axisMax));
 const rangeSet = interactive && (range?.min !== null && range?.min !== undefined || range?.max !== null && range?.max !== undefined);
-const kept = marks.filter((mark) => mark.days >= lo && mark.days <= hi).length;
+// Sum the counts of the ages inside the range, not the ages themselves.
+const kept = marks.filter((mark) => mark.days >= lo && mark.days <= hi).reduce((sum, mark) => sum + mark.rows, 0);
 const loAt = position(lo);
 const hiAt = position(hi);
 const resetHref = interactive ? hrefFor(null, null) : '';
@@ -169,7 +176,7 @@ const resetHref = interactive ? hrefFor(null, null) : '';
       data-hi={hi}
       data-edges={EDGE_DAYS.join(',')}
       data-board-href={resetHref || undefined}
-      data-total={marks.length}
+      data-total={total}
     >
       <figcaption class="head">
         <span class="kicker mono-label">Age of every verified role</span>
@@ -177,7 +184,7 @@ const resetHref = interactive ? hrefFor(null, null) : '';
           <span class="status mono-label">
             <span data-age-status>
               Showing <span data-truth="machine">{kept.toLocaleString()}</span> of{' '}
-              <span data-truth="machine">{marks.length.toLocaleString()}</span> roles, {formatDays(lo)} to {formatDays(hi)}
+              <span data-truth="machine">{total.toLocaleString()}</span> roles, {formatDays(lo)} to {formatDays(hi)}
             </span>
             {rangeSet && (
               <a class="reset" href={resetHref} data-age-reset>
@@ -195,7 +202,7 @@ const resetHref = interactive ? hrefFor(null, null) : '';
           <div
             class="axis"
             role="img"
-            aria-label={`${marks.length} verified roles by age, from the youngest at ${youngest?.label ?? formatDays(0)} to the oldest at ${eldest?.label ?? formatDays(0)}`}
+            aria-label={`${total} verified roles by age, from the youngest at ${youngest?.label ?? formatDays(0)} to the oldest at ${eldest?.label ?? formatDays(0)}`}
           >
             {/* The three cited days, as faint edges a handle can snap to. */}
             {EDGE_DAYS.filter((days) => days <= axisMax).map((days) => (

@@ -10,8 +10,8 @@ import { daysToLaunch, withBase } from '../../site.config.mjs';
 // The live board, the same component /board renders, now on the home page.
 import Board from '../components/Board.astro';
 import { boardRowToJob } from '../lib/board-jobs';
-import { getBoardStats, listBoardFiltered, listBoardAges } from '../lib/job-store';
-import { facetGroupsFromCounts, prospectRows, sweepDate, sweptStamp as boardSweptStamp, type Job } from '../lib/data';
+import { getBoardStats, listBoardFiltered, listBoardAgeHistogram } from '../lib/job-store';
+import { EMPTY_AGE_HISTOGRAM, facetGroupsFromCounts, prospectRows, sweepDate, sweptStamp as boardSweptStamp, type AgeHistogram, type Job } from '../lib/data';
 import { parseBoardQuery } from '../lib/board-query';
 import { isConfigured } from '../lib/db';
 import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
@@ -53,7 +53,7 @@ const bq = parseBoardQuery(new URLSearchParams());
 const country = (Astro.request.headers.get('x-vercel-ip-country') || 'US').toUpperCase();
 const EMPTY_COUNTS = { total: 0, location: {}, comp: {}, freshness: {} };
 let bServed: Awaited<ReturnType<typeof listBoardFiltered>> = { rows: [], total: 0, counts: EMPTY_COUNTS };
-let bAgeJobs: Job[] = [];
+let bAgeHistogram: AgeHistogram = EMPTY_AGE_HISTOGRAM;
 let bStats: Awaited<ReturnType<typeof getBoardStats>> = null;
 // The teaser shows LIVE roles from the visitor's country: a US visitor sees US
 // roles, someone abroad sees their own. The fallback keeps it full and never
@@ -71,7 +71,7 @@ if (isConfigured()) {
   } catch (error) {
     console.error('home board: the job store did not answer; rendering an empty board.', error);
   }
-  try { bAgeJobs = (await listBoardAges()).map(boardRowToJob); } catch (error) { console.error('home board: age plot could not read the store.', error); }
+  try { bAgeHistogram = await listBoardAgeHistogram(sweepDate()); } catch (error) { console.error('home board: age plot could not read the store.', error); }
   try { bStats = await getBoardStats(); } catch (error) { console.error('home board: stats row could not be read.', error); }
 }
 const bJobs = bServed.rows.map(boardRowToJob);
@@ -153,7 +153,7 @@ const REFUSALS = [
         page={{ total: bServed.total, page: 1, pages: bPages, per: HOME_ROWS }}
         query={bq}
         groups={bGroups}
-        ageJobs={bAgeJobs}
+        ageHistogram={bAgeHistogram}
         boardPath={boardPath}
         active="board"
         prospectCount={prospectRows().length}
