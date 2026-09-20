@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Board from '../components/Board.astro';
-import BoardTabs from '../components/BoardTabs.astro';
 import { ageHistogramFromJobs, facetGroupsFromCounts, prospectRows } from '../lib/data';
 import { getBoardStats } from '../lib/job-store';
 import { isConfigured } from '../lib/db';
@@ -108,6 +107,9 @@ const groups = served
           boardPath={boardPath}
           active="prelist"
           prospectCount={prospectCount}
+          tabs={false}
+          label="Newly funded"
+          labelCount={prospectCount}
           boards={boardStats?.boards_swept}
           verifiedLive={boardStats ? verifiedLive : undefined}
           ariaLabel="Newly funded"
@@ -116,7 +118,10 @@ const groups = served
         <section class="board" aria-label="Newly funded">
           <div class="board-head">
             <div class="board-tabs-row">
-              <BoardTabs active="prelist" prospectCount={prospectCount} />
+              <span class="board-label">
+                Newly funded
+                <span class="board-label-count" aria-label={`${prospectCount} tracked`}>{prospectCount}</span>
+              </span>
             </div>
           </div>
           <div class="prelist-wall">
@@ -222,6 +227,27 @@ const groups = served
     padding: var(--space-300) var(--space-600);
     background: var(--color-surface-raised);
     border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  /* The same one-view title Board.astro draws for the member branch. */
+  .board-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-foreground);
+    white-space: nowrap;
+  }
+
+  .board-label-count {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-normal);
+    color: var(--color-muted);
   }
 
   .prelist-wall {

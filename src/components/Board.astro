@@ -72,6 +72,13 @@ interface Props {
    * keeps only the sweep stamp.
    */
   tabs?: boolean;
+  /**
+   * A plain title in the switch's place, for a page that is one view only
+   * (the Pre-List since 2026-09-19). Rendered only when tabs is off and a
+   * page passes it; labelCount is the same tracked figure the tab carried.
+   */
+  label?: string;
+  labelCount?: number;
   /** A teaser (the homepage): a few rows and "Open the full board", no pager.
    *  A full page-picker over thousands of pages makes no sense on a 2-row taste
    *  and only wraps the controls onto a second line. */
@@ -96,6 +103,8 @@ const {
   hrefFor,
   fit = true,
   tabs = true,
+  label,
+  labelCount,
   teaser = false,
   perPage = 8,
   ariaLabel = 'The board'
@@ -139,7 +148,18 @@ const ageHref = serverMode
 <section class="board" aria-label={ariaLabel} data-board-mode={mode}>
   <div class="board-head">
     <div class="board-tabs-row">
-      {tabs && <BoardTabs active={active} prospectCount={prospectCount} />}
+      {tabs ? (
+        <BoardTabs active={active} prospectCount={prospectCount} />
+      ) : (
+        label && (
+          <span class="board-label">
+            {label}
+            {labelCount !== undefined && (
+              <span class="board-label-count" aria-label={`${labelCount} tracked`}>{labelCount}</span>
+            )}
+          </span>
+        )
+      )}
       {/* The sweep stamp, right of the tabs on the same row, and at the right
           edge on its own when the switch is off. The page owns the element
           (it carries data-swept and data-assurance-text, which the staleness
@@ -385,6 +405,28 @@ const ageHref = serverMode
     padding: var(--space-300) var(--space-600);
     background: var(--color-surface-raised);
     border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+
+  /* The one-view title: the tab's own register (BoardTabs.astro .board-tab)
+     without the box, its count in the mono figure register one step down. */
+  .board-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-foreground);
+    white-space: nowrap;
+  }
+
+  .board-label-count {
+    font-family: var(--font-family-mono);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-normal);
+    color: var(--color-muted);
   }
 
   /* Pushed to the right edge whether or not the switch is beside it. */
