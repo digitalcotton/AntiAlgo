@@ -1,0 +1,23 @@
+---
+/**
+ * The active step's frame: a raised panel with a heavy rule under its head.
+ * The head carries the step number (when it is a step), the title and the
+ * time note; the body is the slot.
+ */
+interface Props {
+  n?: number;
+  title: string;
+  time: string;
+}
+const { n, title, time } = Astro.props;
+---
+
+<section class="cr-card">
+  <div class="cr-card-head">
+    <h2 class="cr-card-title">{n !== undefined && <span class="cr-card-n">{n}</span>}{title}</h2>
+    <span class="cr-card-time">{time}</span>
+  </div>
+  <div class="cr-card-body">
+    <slot />
+  </div>
+</section>

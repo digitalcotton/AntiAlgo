@@ -1,0 +1,28 @@
+---
+/**
+ * The compact tracker: one row at the top of the Desk (paid) or the Profile
+ * (free) until the flow completes. The dots are the steps; the count and the
+ * next step's name are the model's; Continue opens /start on that step.
+ */
+import type { ComeReady } from '../../lib/come-ready';
+import { routeFor } from '../../data/nav';
+import { withBase } from '../../../site.config.mjs';
+
+interface Props {
+  model: ComeReady;
+}
+const { model } = Astro.props;
+const continueHref = model.nextStep?.href ? withBase(model.nextStep.href) : routeFor('come-ready');
+---
+
+<div class="crc">
+  <div class="crc-left">
+    <span class="crc-name">Come ready</span>
+    <span class="crc-dots" aria-hidden="true">
+      {model.steps.map((s) => <span class="crc-dot" data-tone={s.status === 'done' ? 'done' : undefined}></span>)}
+    </span>
+    <span class="crc-count">{model.doneCount} of {model.total} done</span>
+    <span class="crc-next">Next: {model.nextName}</span>
+  </div>
+  <a class="crc-continue" href={continueHref}>Continue</a>
+</div>

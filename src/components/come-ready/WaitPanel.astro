@@ -1,0 +1,70 @@
+---
+/**
+ * The waitlisted account's one panel: what opens on admission. No button;
+ * there is nothing to do here yet.
+ */
+import StepCard from './StepCard.astro';
+import RingMark from './RingMark.astro';
+import { dayStamp } from '../../lib/stats';
+
+interface Props {
+  joinedAt: Date | null;
+}
+const { joinedAt } = Astro.props;
+
+const FREE_OPENS = [
+  { name: 'Every job page: the fit score', def: 'and the math behind it, shown to signed-in readers' },
+  { name: 'A title menu in the board', def: "your titles, with tonight's live count beside each" },
+  { name: 'Add any job by link', def: "ours or anyone's, checked nightly at the company's page" },
+  { name: 'Jobs Data, preview', def: 'pay ladders and remote against in-office, the public cut' }
+];
+---
+
+<StepCard title="What opens on admission" time={joinedAt ? `Joined ${dayStamp(joinedAt)}` : 'On the waitlist'}>
+  <p class="cr-intro">Admission is by hand, one at a time. Sign-in opens with the first admissions. Until then the board is yours as it is for everyone: every role, verified nightly at the company's own page.</p>
+  <ul class="cr-opens-list">
+    {FREE_OPENS.map((o) => (
+      <li>
+        <RingMark />
+        <span>
+          <span class="cr-open-name">{o.name}</span>
+          <span class="cr-open-def">{o.def}</span>
+        </span>
+      </li>
+    ))}
+  </ul>
+  <p class="cr-note cr-note-gap">Nothing to do here yet. We write to this address once, on the day you are admitted.</p>
+</StepCard>
+
+<style>
+  .cr-opens-list {
+    margin: 18px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .cr-opens-list li {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+    padding: 10px 0;
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .cr-opens-list .cr-mark {
+    margin-top: 5px;
+  }
+  .cr-open-name {
+    display: block;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+  .cr-open-def {
+    display: block;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--color-muted);
+  }
+  .cr-note-gap {
+    margin-top: 16px;
+  }
+</style>

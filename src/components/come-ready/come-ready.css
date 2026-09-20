@@ -1,0 +1,582 @@
+/* Come ready (/start): the classes its components share. Imported by the
+   page (and by any page carrying the compact tracker), so it reaches only
+   those routes. Every value is the owner's design ("Come ready -
+   onboarding.html" and "Come ready - free account onboarding.html",
+   2026-09-20) mapped onto the site's tokens; the two hatch stripes are the
+   design's own greys because the site's hatch pair starts one step lighter. */
+
+.cr-page {
+  container-type: inline-size;
+  --cr-hatch-a: var(--gray-100);
+  --cr-hatch-b: var(--gray-150);
+  --cr-ink-fixed: #0b0b0d;
+  padding-bottom: 64px;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  font-variant-numeric: tabular-nums;
+}
+:root[data-theme='dark'] .cr-page {
+  --cr-hatch-a: var(--gray-900);
+  --cr-hatch-b: var(--gray-925);
+}
+
+/* The page head. */
+.cr-head {
+  padding: 30px 0 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: var(--border-hairline) solid var(--color-line);
+}
+.cr-eyebrow {
+  margin: 0;
+  font-family: var(--font-family-mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.cr-title {
+  margin: 10px 0 0;
+  font-weight: 700;
+  font-size: clamp(2.25rem, 4vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+.cr-lede {
+  margin: 14px 0 0;
+  font-size: 1.25rem;
+  line-height: 1.5;
+  max-width: 46ch;
+  text-wrap: pretty;
+}
+.cr-count {
+  text-align: right;
+}
+.cr-count-n {
+  display: block;
+  font-family: var(--font-family-mono);
+  font-weight: 700;
+  font-size: 3.25rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.cr-count-of {
+  font-size: 1.625rem;
+  color: var(--color-muted);
+  font-weight: 400;
+}
+.cr-count-label {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-family-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/* Two columns: the tracker and the active step. */
+.cr-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.5fr);
+  gap: 0 clamp(24px, 4vw, 56px);
+  align-items: start;
+}
+.cr-tracker {
+  position: sticky;
+  /* The signed-in header measures 68px at 1440; the tracker's own 18px top
+     padding is the air under it. */
+  top: 68px;
+  padding: 18px clamp(16px, 2vw, 32px) 24px 0;
+  border-right: var(--border-hairline) solid var(--color-line);
+}
+.cr-active {
+  padding: 18px 0 0;
+}
+
+/* One tracker row. Tone follows the row's state. */
+.cr-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 6px 14px;
+  align-items: start;
+  padding: 12px 0;
+  border-bottom: var(--border-hairline) solid var(--color-line);
+  color: var(--color-muted);
+  text-decoration: none;
+}
+a.cr-row:hover {
+  background: var(--color-hover-surface);
+  color: var(--color-muted);
+}
+.cr-row[data-status='done'],
+a.cr-row[data-status='done']:hover {
+  color: var(--color-mark-live);
+}
+.cr-row[data-status='next'],
+.cr-row[data-status='reading'],
+.cr-row[data-status='waiting'],
+a.cr-row[data-status='next']:hover,
+a.cr-row[data-status='reading']:hover,
+a.cr-row[data-status='waiting']:hover {
+  color: var(--color-foreground);
+}
+.cr-row-name {
+  display: block;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.cr-row[data-status='next'] .cr-row-name,
+.cr-row[data-status='reading'] .cr-row-name,
+.cr-row[data-status='waiting'] .cr-row-name {
+  font-weight: 700;
+}
+.cr-row-n {
+  font-family: var(--font-family-mono);
+  font-size: 0.82rem;
+  color: var(--color-muted);
+  margin-right: 10px;
+}
+.cr-row-hint {
+  display: block;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--color-muted);
+  text-wrap: pretty;
+}
+.cr-row-tag {
+  font-family: var(--font-family-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding-top: 6px;
+  color: var(--color-muted);
+}
+.cr-row[data-status='done'] .cr-row-tag {
+  color: var(--color-mark-live);
+}
+.cr-row[data-status='next'] .cr-row-tag,
+.cr-row[data-status='reading'] .cr-row-tag {
+  color: var(--color-foreground);
+}
+.cr-row[data-status='skipped'] .cr-row-tag,
+.cr-row[data-status='locked'] .cr-row-tag,
+.cr-row[data-status='waiting'] .cr-row-tag {
+  color: var(--color-banner-stale);
+}
+
+/* The ring-and-core mark. */
+.cr-mark {
+  position: relative;
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--color-line-strong);
+  flex-shrink: 0;
+}
+.cr-mark::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: transparent;
+}
+.cr-mark[data-tone='done'] {
+  border-color: var(--color-mark-live);
+}
+.cr-mark[data-tone='done']::after {
+  background: var(--color-mark-live);
+}
+.cr-mark[data-tone='next'] {
+  border-color: var(--color-foreground);
+}
+.cr-row .cr-mark {
+  margin-top: 5px;
+}
+
+/* The tracker's foot: the door, compact. */
+.cr-foot {
+  padding: 14px 0 0;
+}
+.cr-foot-label {
+  margin: 0;
+  font-family: var(--font-family-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.cr-foot-label[data-tone='live'] {
+  color: var(--color-mark-live);
+}
+.cr-foot-note {
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--color-muted);
+  text-wrap: pretty;
+}
+
+/* The active step's card. */
+.cr-card {
+  background: var(--color-surface-raised);
+  border: var(--border-hairline) solid var(--color-line);
+  border-radius: var(--radius);
+}
+.cr-card-head {
+  padding: 18px 22px 14px;
+  border-bottom: var(--border-heavy) solid var(--color-line-strong);
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+.cr-card-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.625rem;
+  line-height: 1.15;
+}
+.cr-card-n {
+  font-family: var(--font-family-mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-right: 12px;
+}
+.cr-card-time {
+  font-family: var(--font-family-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.cr-card-body {
+  padding: 18px 22px 22px;
+}
+.cr-intro {
+  margin: 0;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  max-width: 58ch;
+  text-wrap: pretty;
+}
+
+/* Shared small parts. */
+.cr-label {
+  display: block;
+  margin: 0 0 6px;
+  font-family: var(--font-family-mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.cr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+  min-height: 44px;
+  padding: 12px 24px;
+  background: var(--color-signal);
+  color: var(--cr-ink-fixed);
+  border: 0;
+  border-radius: var(--radius);
+  font-family: var(--font-family-mono);
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+}
+.cr-btn:hover,
+.cr-btn:focus-visible {
+  color: var(--cr-ink-fixed);
+  filter: brightness(0.94);
+}
+.cr-link {
+  font-size: 0.95rem;
+  color: var(--color-foreground);
+  text-decoration: none;
+  border-bottom: var(--border-hairline) solid var(--color-line-strong);
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cr-link:hover {
+  color: var(--color-muted);
+}
+.cr-link-quiet {
+  font-size: 0.95rem;
+  color: var(--color-muted);
+  text-decoration: none;
+  border-bottom: var(--border-hairline) solid var(--color-line);
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cr-link-quiet:hover {
+  color: var(--color-foreground);
+}
+.cr-note {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--color-muted);
+  max-width: 58ch;
+  text-wrap: pretty;
+}
+.cr-ok {
+  font-size: 0.95rem;
+  color: var(--color-mark-live);
+}
+.cr-loss {
+  margin: 8px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--color-stat-loss);
+}
+.cr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  align-items: center;
+}
+.cr-input,
+.cr-textarea {
+  width: 100%;
+  background: var(--color-surface-raised);
+  color: var(--color-foreground);
+  border: var(--border-hairline) solid var(--color-line-strong);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font: inherit;
+  min-height: 44px;
+}
+.cr-input::placeholder,
+.cr-textarea::placeholder {
+  color: var(--color-muted);
+  opacity: 1;
+}
+.cr-input:focus,
+.cr-textarea:focus {
+  outline: none;
+  border-color: var(--color-foreground);
+  box-shadow: inset 0 0 0 1px var(--color-foreground);
+}
+.cr-input[aria-invalid='true'] {
+  border-color: var(--color-stat-loss);
+}
+.cr-textarea {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  resize: vertical;
+}
+.cr-mono {
+  font-family: var(--font-family-mono);
+}
+.cr-rule {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: var(--border-hairline) solid var(--color-line);
+}
+.cr-rule-tight {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: var(--border-hairline) solid var(--color-line);
+}
+.cr-rule-loose {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: var(--border-hairline) solid var(--color-line);
+}
+.cr-between {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+/* A hatched slot: a locked band or an empty door. */
+.cr-hatch {
+  margin-top: 18px;
+  padding: 22px;
+  border: var(--border-hairline) solid var(--color-line);
+  border-radius: var(--radius);
+  background: repeating-linear-gradient(135deg, var(--cr-hatch-a) 0 5px, var(--cr-hatch-b) 5px 10px);
+}
+
+/* A ring-marked box: connected, done, added. */
+.cr-box {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 14px 16px;
+  border: var(--border-hairline) solid var(--color-line-strong);
+  border-radius: var(--radius);
+}
+.cr-box[data-tone='live'] {
+  border-color: var(--color-mark-live);
+}
+.cr-box .cr-mark {
+  margin-top: 5px;
+}
+.cr-box-line {
+  margin: 0;
+  font-weight: 500;
+}
+.cr-box-meta {
+  margin: 4px 0 0;
+  font-family: var(--font-family-mono);
+  font-size: 0.82rem;
+  color: var(--color-muted);
+  line-height: 1.6;
+}
+.cr-box-sub {
+  margin: 4px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--color-muted);
+}
+.cr-box .cr-link {
+  display: inline-block;
+  margin-top: 8px;
+}
+
+/* The one signature moment: the key's connected flip, once. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes cr-connect-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .cr-motion {
+    animation: cr-connect-in var(--motion-duration-signature) var(--motion-easing-standard) both;
+  }
+  .cr-btn,
+  .cr-link,
+  .cr-link-quiet,
+  .cr-input,
+  .cr-textarea,
+  a.cr-row {
+    transition:
+      color var(--motion-duration-instant) var(--motion-easing-standard),
+      background-color var(--motion-duration-instant) var(--motion-easing-standard),
+      border-color var(--motion-duration-instant) var(--motion-easing-standard);
+  }
+}
+
+/* The compact tracker (the Desk, the Profile). */
+.crc {
+  border-bottom: var(--border-hairline) solid var(--color-line);
+  padding: 10px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  align-items: center;
+  justify-content: space-between;
+}
+.crc-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.crc-name {
+  font-family: var(--font-family-mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.crc-dots {
+  display: inline-flex;
+  gap: 5px;
+}
+.crc-dot {
+  position: relative;
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--color-line-strong);
+}
+.crc-dot::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: transparent;
+}
+.crc-dot[data-tone='done'] {
+  border-color: var(--color-mark-live);
+}
+.crc-dot[data-tone='done']::after {
+  background: var(--color-mark-live);
+}
+.crc-count {
+  font-family: var(--font-family-mono);
+  font-size: 0.82rem;
+  color: var(--color-muted);
+}
+.crc-next {
+  font-size: 0.95rem;
+}
+.crc-continue {
+  font-family: var(--font-family-mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border-bottom: var(--border-hairline) solid var(--color-line-strong);
+  padding-bottom: 1px;
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--color-foreground);
+}
+.crc-continue:hover {
+  color: var(--color-muted);
+}
+
+/* The narrow pass, 900 and under: one column, the tracker above the step. */
+@container (max-width: 900px) {
+  .cr-flow {
+    grid-template-columns: 1fr;
+  }
+  .cr-tracker {
+    position: static;
+    border-right: 0;
+    padding-right: 0;
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    padding-bottom: 12px;
+  }
+  /* Two classes deep on purpose: each grid's own rule lives in its component's
+     scoped style at the same specificity, and this one has to win. */
+  .cr-flow .cr-providers,
+  .cr-flow .cr-door-role,
+  .cr-flow .cr-opens {
+    grid-template-columns: 1fr;
+  }
+}

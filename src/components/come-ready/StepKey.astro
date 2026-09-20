@@ -1,0 +1,276 @@
+---
+/**
+ * Connect your key: step 4 of the paid flow, designed as a round trip. Pick
+ * a console, read the trip, open it in a new tab, paste the key here on
+ * return. The paste field checks the key's shape as you type with the same
+ * rules and the same reason strings src/lib/keychain.ts applies on save (the
+ * server is still the decision: the form posts to /settings/keys/save, which
+ * returns here with saved=1 when the key is stored). The connected state
+ * slides in once, the site's one 320ms moment, and only on that return.
+ */
+import StepCard from './StepCard.astro';
+import RingMark from './RingMark.astro';
+import type { ConnectedKey } from '../../lib/come-ready-store';
+import { PROVIDERS, type Provider } from '../../lib/keychain';
+import { PROVIDER_REGISTRY } from '../../lib/generation-providers';
+import { dayStamp } from '../../lib/stats';
+import { routeFor } from '../../data/nav';
+import { withBase } from '../../../site.config.mjs';
+
+interface Props {
+  key: ConnectedKey | null;
+  keysConfigured: boolean;
+  /** The provider chosen on this visit (?provider=), or null. */
+  chosen: Provider | null;
+  /** True on the return from a save: the connected state plays its moment. */
+  justSaved: boolean;
+  selfPath: string;
+  nextPath: string;
+  skipPath: string;
+}
+const { key, keysConfigured, chosen, justSaved, selfPath, nextPath, skipPath } = Astro.props;
+
+/** The consoles, in the site's provider order. Addresses as the Your key
+    page lists them; the one-line reasons are the design's. */
+const CONSOLES: Record<Provider, { host: string; url: string; reason: string; placeholder: string }> = {
+  anthropic: { host: 'console.anthropic.com', url: 'https://console.anthropic.com/settings/keys', reason: 'Keys start with sk-ant-. Writes and reads with Claude.', placeholder: 'sk-ant-...' },
+  openai: { host: 'platform.openai.com', url: 'https://platform.openai.com/api-keys', reason: 'The console most readers have seen once already.', placeholder: 'sk-...' },
+  kimi: { host: 'platform.moonshot.ai', url: 'https://platform.moonshot.ai/console/api-keys', reason: 'Long documents at low cost.', placeholder: 'sk-...' },
+  deepseek: { host: 'platform.deepseek.com', url: 'https://platform.deepseek.com/api_keys', reason: 'The cheapest draft of the four.', placeholder: 'sk-...' }
+};
+
+/** The trip, as the Your key page words it. The fifth step there is "Paste
+    it into Settings"; here the paste field below is that step. */
+const TRIP = ['Sign in, or make the account.', 'Open the API keys page.', 'Create a key.', 'Set a monthly spend cap.'];
+
+const saveAction = routeFor('settings-keys-save');
+const provider: Provider = chosen ?? 'anthropic';
+const console = CONSOLES[provider];
+const returnPath = `${selfPath}&saved=1`;
+---
+
+<StepCard n={4} title="Connect your key" time="3 to 5 min, off site">
+  <p class="cr-intro">Unlocks the resumé reader and drafting. Your model, your bill, cents per draft. The key is encrypted for you alone and read only at the instant a draft is written.</p>
+
+  {key ? (
+    <div class:list={['cr-connected', { 'cr-motion': justSaved }]}>
+      <div class="cr-box" data-tone="live">
+        <RingMark tone="done" />
+        <div>
+          <p class="cr-box-line">{key.label}. Connected, key ends in <span class="cr-mono">{key.last4}</span>.</p>
+          <p class="cr-box-meta">added {dayStamp(key.addedAt)} &#183; writes with {key.writesWith} &#183; reads with {key.readsWith}</p>
+        </div>
+      </div>
+      <p class="cr-note cr-note-gap">Shape checked now. The first draft is the first real test; if the provider refuses the key, the draft says so and nothing is spent.</p>
+      <div class="cr-actions cr-next">
+        <a class="cr-btn" href={withBase(nextPath)}>Next: bring your resumé</a>
+        <span class="cr-ok">The reader is on.</span>
+      </div>
+    </div>
+  ) : (
+    <>
+      <span class="cr-label cr-pick">Pick one console</span>
+      <div class="cr-providers">
+        {PROVIDERS.map((id) => (
+          <a class="cr-provider" href={withBase(`${selfPath}&provider=${id}`)} aria-current={chosen === id ? 'true' : undefined}>
+            <span class="cr-between cr-provider-head">
+              <span class="cr-provider-name">{PROVIDER_REGISTRY[id].label}</span>
+              <span class="cr-provider-host">{CONSOLES[id].host}</span>
+            </span>
+            <span class="cr-provider-reason">{CONSOLES[id].reason}</span>
+          </a>
+        ))}
+      </div>
+
+      {chosen && (
+        <div class="cr-rule-loose">
+          <span class="cr-label">The trip, at {console.host}</span>
+          <ol class="cr-trip">
+            {TRIP.map((text, i) => (
+              <li>
+                <span class="cr-trip-n">{i + 1}</span>
+                <span>{text}</span>
+              </li>
+            ))}
+          </ol>
+          <p class="cr-intro cr-intro-gap">Set a monthly spend cap in their console. Drafting costs cents; the cap is your ceiling.</p>
+          <div class="cr-actions cr-actions-gap">
+            <a class="cr-btn" href={console.url} target="_blank" rel="noopener">Open {console.host}</a>
+            <span class="cr-note">Opens in a new tab. This one waits here.</span>
+          </div>
+        </div>
+      )}
+
+      <div class="cr-rule">
+        {keysConfigured ? (
+          <form method="POST" action={saveAction} class="cr-paste" data-cr-key-form data-provider={provider}>
+            <input type="hidden" name="provider" value={provider} />
+            <input type="hidden" name="return" value={returnPath} />
+            <label class="cr-paste-label" for="cr-key">Paste it here when you are back.</label>
+            <input
+              id="cr-key"
+              class="cr-input cr-mono"
+              type="password"
+              name="key"
+              placeholder={console.placeholder}
+              aria-label="Your API key"
+              autocomplete="off"
+              spellcheck="false"
+              autofocus={chosen !== null}
+              data-cr-key
+              required
+            />
+            <p class="cr-loss" data-cr-key-reason hidden></p>
+            <p class="cr-note cr-note-gap">Shape checked now. The first draft is the first real test; if the provider refuses the key, the draft says so and nothing is spent.</p>
+            <div class="cr-actions cr-actions-gap">
+              <button type="submit" class="cr-btn">Save key</button>
+              <a class="cr-link-quiet" href={withBase(skipPath)}>Skip for now</a>
+            </div>
+          </form>
+        ) : (
+          <div class="cr-paste">
+            <p class="cr-note">Key storage is not configured on this deployment right now. Nothing can be stored.</p>
+            <div class="cr-actions cr-actions-gap">
+              <a class="cr-link-quiet" href={withBase(skipPath)}>Skip for now</a>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  )}
+</StepCard>
+
+<script>
+  // The key's shape, checked as it is typed, with the exact rules and reason
+  // strings of src/lib/keychain.ts validateKeyShape() (20 to 512 characters,
+  // no whitespace, no control characters, the Anthropic prefix). Nothing is
+  // sent anywhere here; the server runs the same check again on save.
+  const MIN = 20;
+  const MAX = 512;
+  const ANTHROPIC_PREFIX = 'sk-ant-';
+  function reasonFor(provider: string, value: string): string | null {
+    if (value.length === 0) return 'key is empty';
+    if (value.length < MIN || value.length > MAX) return `key length must be between ${MIN} and ${MAX} characters`;
+    if (/\s/.test(value)) return 'key contains whitespace';
+    if (/[\x00-\x1f\x7f]/.test(value)) return 'key contains control characters';
+    if (provider === 'anthropic' && !value.startsWith(ANTHROPIC_PREFIX)) return `anthropic keys start with '${ANTHROPIC_PREFIX}'`;
+    return null;
+  }
+  const form = document.querySelector<HTMLFormElement>('[data-cr-key-form]');
+  const field = form?.querySelector<HTMLInputElement>('[data-cr-key]') ?? null;
+  const line = form?.querySelector<HTMLElement>('[data-cr-key-reason]') ?? null;
+  if (form && field && line) {
+    const provider = form.dataset.provider ?? 'anthropic';
+    const show = (reason: string | null) => {
+      line.textContent = reason ?? '';
+      line.hidden = reason === null;
+      field.setAttribute('aria-invalid', reason === null ? 'false' : 'true');
+    };
+    field.addEventListener('input', () => {
+      // An empty field is not yet a mistake; the reason appears once there is text.
+      show(field.value.length === 0 ? null : reasonFor(provider, field.value));
+    });
+    form.addEventListener('submit', (event) => {
+      const reason = reasonFor(provider, field.value);
+      if (reason !== null) {
+        event.preventDefault();
+        show(reason);
+        field.focus();
+      }
+    });
+  }
+</script>
+
+<style>
+  .cr-pick {
+    margin: 18px 0 6px;
+  }
+  .cr-providers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .cr-provider {
+    display: block;
+    padding: 12px 14px;
+    border: var(--border-hairline) solid var(--color-line);
+    border-radius: var(--radius);
+    color: var(--color-foreground);
+    text-decoration: none;
+  }
+  .cr-provider:hover {
+    background: var(--color-hover-surface);
+    color: var(--color-foreground);
+  }
+  .cr-provider[aria-current='true'] {
+    border: var(--border-heavy) solid var(--color-foreground);
+    padding: 11px 13px;
+  }
+  .cr-provider-head {
+    gap: 10px;
+    flex-wrap: nowrap;
+  }
+  .cr-provider-name {
+    font-weight: 500;
+  }
+  .cr-provider-host {
+    font-family: var(--font-family-mono);
+    font-size: 0.78rem;
+    color: var(--color-muted);
+  }
+  .cr-provider-reason {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--color-muted);
+  }
+  .cr-trip {
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .cr-trip li {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    line-height: 1.5;
+  }
+  .cr-trip-n {
+    font-family: var(--font-family-mono);
+    font-size: 0.82rem;
+    color: var(--color-muted);
+    padding-top: 3px;
+  }
+  .cr-intro-gap {
+    margin-top: 12px;
+  }
+  .cr-actions-gap {
+    margin-top: 16px;
+  }
+  .cr-note-gap {
+    margin-top: 10px;
+  }
+  .cr-paste-label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+  .cr-paste .cr-input {
+    font-size: 0.95rem;
+  }
+  .cr-connected {
+    margin-top: 18px;
+  }
+  .cr-connected .cr-box {
+    margin-top: 0;
+  }
+  .cr-connected .cr-note-gap {
+    margin-top: 12px;
+  }
+  .cr-next {
+    margin-top: 18px;
+  }
+</style>

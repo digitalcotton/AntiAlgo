@@ -1,0 +1,64 @@
+---
+/**
+ * The tracker: every step as a row with its state, hint and tag, then the
+ * foot (the door, compact). A row with its own view is a link to it; the
+ * first two rows are facts and are not links.
+ */
+import RingMark from './RingMark.astro';
+import type { ComeReady } from '../../lib/come-ready';
+import { withBase } from '../../../site.config.mjs';
+
+interface Props {
+  model: ComeReady;
+}
+const { model } = Astro.props;
+
+const toneOf = (status: string): 'done' | 'next' | 'later' =>
+  status === 'done' ? 'done' : status === 'next' || status === 'reading' || status === 'waiting' ? 'next' : 'later';
+---
+
+<div class="cr-tracker">
+  {
+    model.steps.map((step) =>
+      step.href ? (
+        <a class="cr-row" href={withBase(step.href)} data-status={step.status} aria-current={model.active === step.n ? 'step' : undefined}>
+          <RingMark tone={toneOf(step.status)} />
+          <span style="min-width:0;">
+            <span class="cr-row-name"><span class="cr-row-n">{step.n}</span>{step.name}</span>
+            <span class="cr-row-hint">{step.hint}</span>
+          </span>
+          <span class="cr-row-tag">{step.status}</span>
+        </a>
+      ) : (
+        <div class="cr-row" data-status={step.status}>
+          <RingMark tone={toneOf(step.status)} />
+          <span style="min-width:0;">
+            <span class="cr-row-name"><span class="cr-row-n">{step.n}</span>{step.name}</span>
+            <span class="cr-row-hint">{step.hint}</span>
+          </span>
+          <span class="cr-row-tag">{step.status}</span>
+        </div>
+      )
+    )
+  }
+  <div class="cr-foot">
+    {model.edition === 'paid' ? (
+      model.doorOpen ? (
+        <>
+          <p class="cr-foot-label" data-tone="live">Ready to draft</p>
+          <p class="cr-foot-note">This list leaves the page after your first draft.</p>
+        </>
+      ) : (
+        <>
+          <p class="cr-foot-label">Then: draft your first application</p>
+          <p class="cr-foot-note">Not a step. The door opens when 3, 4 and 5 are done.</p>
+        </>
+      )
+    ) : (
+      <>
+        <p class="cr-foot-label">Then: what the paid account opens</p>
+        <p class="cr-foot-note">Not a step. Your choice, at one price that does not move.</p>
+      </>
+    )}
+  </div>
+</div>

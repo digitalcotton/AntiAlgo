@@ -1,0 +1,163 @@
+---
+/**
+ * The door of the paid flow: your first draft. Not a step. One live role
+ * under a core title, the Desk's own fit-ranked first row within its 14-day
+ * window, with the Draft button posting to the same endpoint the Desk's
+ * cards post to. With no such role, the Desk's own words and the board's
+ * title menu as the other way in. Never an invented role.
+ */
+import StepCard from './StepCard.astro';
+import type { DeskHomeData } from '../../lib/desk-home';
+import type { ComeReadyTitle } from '../../lib/come-ready-store';
+import { boardDetailPath, routeFor } from '../../data/nav';
+import { formatDate } from '../../lib/data';
+
+interface Props {
+  home: DeskHomeData | null;
+  coreTitles: ComeReadyTitle[];
+  /** Whether 3, 4 and 5 are done; the door is shown either way when asked
+      for, but the Draft button only acts when the pipeline can draft. */
+  open: boolean;
+}
+const { home, coreTitles, open } = Astro.props;
+const role = home?.core[0] ?? null;
+const draftAction = routeFor('desk-job-draft');
+const boardHref = routeFor('board');
+const allLive = home?.sweep.verifiedLive ?? null;
+const roleSub = role ? [role.company, role.remote ? 'Remote' : role.location].filter(Boolean).join(', ') : '';
+---
+
+<StepCard title="Your first draft" time="Not a step. The door.">
+  <p class="cr-intro">Written in your voice on your own key; you read both documents before anything leaves your hands.</p>
+
+  {home === null ? (
+    <div class="cr-hatch">
+      <p class="cr-box-line">The Desk is warming up</p>
+      <p class="cr-box-sub">We could not read the sweep just now. Reload in a moment; nothing you have saved is lost.</p>
+    </div>
+  ) : role ? (
+    <div class="cr-door-role">
+      <div style="min-width:0;">
+        <p class="cr-door-under">Under {role.matched[0] ?? coreTitles[0]?.title ?? 'your titles'}, core</p>
+        <p class="cr-door-title">{role.slug ? <a href={boardDetailPath(role.slug)}>{role.title}</a> : role.title}</p>
+        {roleSub && <p class="cr-door-sub">{roleSub}</p>}
+        <p class="cr-door-meta">
+          <span class="cr-door-fit">fit {role.fit}</span>
+          {role.firstSeen && <> &#183; first seen {formatDate(role.firstSeen)}</>}
+          {role.ats && <> &#183; via {role.ats}</>}
+        </p>
+      </div>
+      <form method="POST" action={draftAction}>
+        <input type="hidden" name="slug" value={role.slug ?? ''} />
+        <button type="submit" class="cr-btn" disabled={!role.slug || !open}>Draft</button>
+      </form>
+    </div>
+  ) : (
+    <div class="cr-hatch cr-empty">
+      <p class="cr-box-line">{coreTitles.length === 0 ? 'Name a core title above and its live roles land here.' : 'No role under your core titles in the last 14 days.'}</p>
+      <p class="cr-box-sub cr-empty-sub">The sweep runs nightly. Until one lands, the board's title menu is the other way in.</p>
+      <div class="cr-chips">
+        {coreTitles.map((t) => (
+          <a class="cr-chip" href={`${boardHref}?title=${encodeURIComponent(t.title)}`}>
+            <span>{t.title}</span>
+            {t.liveCount !== null && <span class="cr-chip-n">{t.liveCount.toLocaleString()}</span>}
+          </a>
+        ))}
+        <a class="cr-chip" href={boardHref}>
+          <span>All titles</span>
+          {allLive !== null && <span class="cr-chip-n">{allLive.toLocaleString()}</span>}
+        </a>
+      </div>
+    </div>
+  )}
+  {!open && role && <p class="cr-note cr-note-gap">The door opens when 3, 4 and 5 are done.</p>}
+</StepCard>
+
+<style>
+  .cr-door-role {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px 24px;
+    align-items: center;
+    padding: 18px 20px;
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-radius: var(--radius);
+  }
+  .cr-door-under {
+    margin: 0;
+    font-family: var(--font-family-mono);
+    font-size: 0.82rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .cr-door-title {
+    margin: 6px 0 0;
+    font-weight: 700;
+    font-size: 1.625rem;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+  .cr-door-title a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .cr-door-sub {
+    margin: 4px 0 0;
+    font-size: 1.0625rem;
+  }
+  .cr-door-meta {
+    margin: 8px 0 0;
+    font-family: var(--font-family-mono);
+    font-size: 0.82rem;
+    color: var(--color-muted);
+    line-height: 1.6;
+  }
+  .cr-door-fit {
+    color: var(--color-mark-live);
+  }
+  .cr-btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .cr-empty {
+    padding: 22px 20px;
+  }
+  .cr-empty-sub {
+    margin-top: 6px;
+    max-width: 56ch;
+    text-wrap: pretty;
+  }
+  .cr-chips {
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .cr-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 14px;
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-radius: var(--radius);
+    background: var(--color-surface-raised);
+    color: var(--color-foreground);
+    font-size: 0.95rem;
+    text-decoration: none;
+  }
+  .cr-chip:hover {
+    background: var(--color-hover-surface);
+    color: var(--color-foreground);
+  }
+  .cr-chip-n {
+    font-family: var(--font-family-mono);
+    font-size: 0.78rem;
+    color: var(--color-muted);
+  }
+  .cr-note-gap {
+    margin-top: 12px;
+  }
+</style>

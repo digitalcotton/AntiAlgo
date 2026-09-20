@@ -1,0 +1,120 @@
+---
+/**
+ * The door of the free flow: what the paid account opens. Not a step, a
+ * choice. The checkout form renders only while the stripe flag is on, the
+ * same rule /the-account applies; otherwise the same honest line it prints.
+ */
+import StepCard from './StepCard.astro';
+import RingMark from './RingMark.astro';
+import { routeFor } from '../../data/nav';
+import { withBase } from '../../../site.config.mjs';
+
+interface Props {
+  billingOpen: boolean;
+}
+const { billingOpen } = Astro.props;
+const checkoutAction = withBase('/billing/checkout');
+const stayHref = routeFor('profile');
+
+const PAID_OPENS = [
+  { name: 'The Desk', def: 'the sweep narrowed to your titles, new and died nightly' },
+  { name: 'Bring your own key', def: 'drafting in your voice, on your bill' },
+  { name: 'The Profile Record', def: 'your facts, kept exact, private' },
+  { name: 'Tailored resumé and cover letter', def: 'one of each, per posting' },
+  { name: 'Opportunities, the Pre-List, the Drop', def: 'what you told us, who raised, the week at source' },
+  { name: 'Jobs Data, the whole thing', def: 're-cut to your titles' }
+];
+---
+
+<StepCard title="What the paid account opens" time="Not a step. Your choice.">
+  <div class="cr-price">
+    <span class="cr-price-figure">$7.25</span>
+    <span class="cr-price-line">a month. The federal minimum wage has not moved since 2009, and neither will this.</span>
+  </div>
+  <div class="cr-opens">
+    {PAID_OPENS.map((o) => (
+      <div class="cr-open">
+        <RingMark tone="done" />
+        <span>
+          <span class="cr-open-name">{o.name}</span>
+          <span class="cr-open-def">{o.def}</span>
+        </span>
+      </div>
+    ))}
+  </div>
+  <p class="cr-note cr-note-gap cr-note-wide">Your titles and the job you added come with you. Your AI runs on your key, so we never pay for it and never charge for it.</p>
+  {billingOpen ? (
+    <div class="cr-actions cr-next">
+      <form method="POST" action={checkoutAction}>
+        <button type="submit" class="cr-btn">Open the paid account, $7.25 a month</button>
+      </form>
+      <span class="cr-note">Card details are entered on Stripe's page, never here.</span>
+    </div>
+  ) : (
+    <div class="cr-actions cr-next">
+      <span class="cr-note">Billing is not open yet. The paid column opens the day billing does. Card details will be entered on Stripe's page, never here.</span>
+    </div>
+  )}
+  <a class="cr-link-quiet cr-stay" href={stayHref}>Stay on the free account</a>
+</StepCard>
+
+<style>
+  .cr-price {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .cr-price-figure {
+    font-family: var(--font-family-sans);
+    font-weight: 700;
+    font-size: 3.25rem;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .cr-price-line {
+    font-size: 1.0625rem;
+    line-height: 1.3;
+  }
+  .cr-opens {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 24px;
+  }
+  .cr-open {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+    padding: 10px 0;
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .cr-open .cr-mark {
+    margin-top: 5px;
+  }
+  .cr-open-name {
+    display: block;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+  .cr-open-def {
+    display: block;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--color-muted);
+  }
+  .cr-note-gap {
+    margin-top: 16px;
+  }
+  .cr-note-wide {
+    max-width: 60ch;
+  }
+  .cr-next {
+    margin-top: 20px;
+  }
+  .cr-stay {
+    display: inline-block;
+    margin-top: 14px;
+  }
+</style>

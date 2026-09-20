@@ -1,0 +1,14 @@
+---
+/**
+ * The ring-and-core mark the Come ready designs draw beside every step and
+ * every settled box: a 2px ring, a core that fills only when the thing is
+ * done. Decorative; the row's own text carries the state.
+ */
+interface Props {
+  tone?: 'done' | 'next' | 'later';
+  class?: string;
+}
+const { tone = 'later', class: className } = Astro.props;
+---
+
+<span class:list={['cr-mark', className]} data-tone={tone} aria-hidden="true"></span>

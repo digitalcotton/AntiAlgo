@@ -1,0 +1,131 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Tracker from '../components/come-ready/Tracker.astro';
+import StepTitles from '../components/come-ready/StepTitles.astro';
+import StepKey from '../components/come-ready/StepKey.astro';
+import StepResume from '../components/come-ready/StepResume.astro';
+import StepLetter from '../components/come-ready/StepLetter.astro';
+import DoorPaid from '../components/come-ready/DoorPaid.astro';
+import WaitPanel from '../components/come-ready/WaitPanel.astro';
+import StepEmail from '../components/come-ready/StepEmail.astro';
+import StepAddJob from '../components/come-ready/StepAddJob.astro';
+import DoorFree from '../components/come-ready/DoorFree.astro';
+import '../components/come-ready/come-ready.css';
+import { loadComeReady } from '../lib/come-ready-store';
+import { ENTRY_KINDS } from '../lib/record';
+import { PROVIDERS, type Provider } from '../lib/keychain';
+import { loginEmail } from '../lib/record-store';
+import { isOn } from '../lib/flags';
+import { routeFor } from '../data/nav';
+import { dayStamp } from '../lib/stats';
+
+/**
+ * /start: Come ready, the first run (owner's designs, 2026-09-20). One page,
+ * three editions decided by tier: a waitlisted account sees what opens on
+ * admission; a free account its five steps (place held, admitted, email,
+ * titles, add a job) and the door to the paid account; a paid account its
+ * six (account, membership, titles, key, resumé, letter and links) and the
+ * door to its first draft. One tracker on the left, the active step on the
+ * right; ?step= opens a step, and every form returns here.
+ *
+ * GATED AT THE WAITLISTED RANK BY MIDDLEWARE (entitlement.ts '/start') and
+ * dark under the onboarding flag (flags.config.mjs FLAGGED_ROUTES), the
+ * same kill switch as the Profile's checklist. The step model is pure
+ * (src/lib/come-ready.ts); every fact comes from the stores that own it
+ * (src/lib/come-ready-store.ts). A paid account that has drafted once is
+ * done here and is sent to the Desk.
+ */
+export const prerender = false;
+
+const viewer = Astro.locals.viewer ?? null;
+if (!viewer) return Astro.redirect(`${routeFor('sign-in')}?next=${encodeURIComponent('/start')}`, 302);
+
+const params = Astro.url.searchParams;
+const requested = params.get('step');
+const providerParam = params.get('provider');
+const chosen: Provider | null = (PROVIDERS as readonly string[]).includes(providerParam ?? '') ? (providerParam as Provider) : null;
+const justSaved = params.get('saved') === '1';
+
+const view = await loadComeReady(viewer, requested);
+const { model, edition } = view;
+if (model.complete) return Astro.redirect(routeFor('desk'), 302);
+
+const email = edition === 'free' ? await loginEmail(viewer.userId).catch(() => null) : null;
+
+const entriesByKind: Record<string, number> = {};
+for (const kind of ENTRY_KINDS) entriesByKind[kind] = view.entries.filter((e) => e.kind === kind).length;
+
+const status = (n: number) => model.steps.find((s) => s.n === n)?.status;
+const titleIndex = view.home?.titleIndex ?? [];
+
+const eyebrow =
+  edition === 'paid' ? 'Membership active' : edition === 'free' ? 'Free account' : view.joinedAt ? `Waitlisted, joined ${dayStamp(view.joinedAt)}` : 'Waitlisted';
+const title = edition === 'waitlisted' ? 'Your place is held.' : 'Come ready.';
+const lede =
+  edition === 'paid'
+    ? 'Everything the account does runs on three things only you can bring: the titles you want, your own AI key, your own resumé. Twenty minutes, in this order.'
+    : edition === 'free'
+      ? 'The free account runs on two things only you can bring: the titles you want and the jobs you are chasing. Five minutes, in this order.'
+      : 'The account opens the day you are admitted. Until then, this is what it will hold, and the board is already yours to read.';
+---
+
+<BaseLayout
+  title="Come ready"
+  active="come-ready"
+  description="Come ready: the first run. What to bring, what each thing unlocks, and where you are."
+  noindex
+>
+  <main class="shell cr-page">
+    <header class="cr-head">
+      <div>
+        <p class="cr-eyebrow">{eyebrow}</p>
+        <h1 class="cr-title">{title}</h1>
+        <p class="cr-lede">{lede}</p>
+      </div>
+      <div class="cr-count">
+        <span class="cr-count-n">{model.doneCount}<span class="cr-count-of"> of {model.total}</span></span>
+        <span class="cr-count-label">done</span>
+      </div>
+    </header>
+
+    <div class="cr-flow">
+      <Tracker model={model} />
+      <div class="cr-active">
+        {edition === 'waitlisted' && <WaitPanel joinedAt={view.joinedAt} />}
+
+        {edition === 'paid' && model.active === 3 && (
+          <StepTitles edition="paid" n={3} coreTitles={view.coreTitles} stretchTitles={view.stretchTitles} titleIndex={titleIndex} prefs={view.home?.prefs ?? null} selfPath="/start?step=3" nextPath="/start?step=4" />
+        )}
+        {edition === 'paid' && model.active === 4 && (
+          <StepKey key={view.key} keysConfigured={view.keysConfigured} chosen={chosen} justSaved={justSaved} selfPath="/start?step=4" nextPath="/start?step=5" skipPath="/start?step=5" />
+        )}
+        {edition === 'paid' && model.active === 5 && (
+          <StepResume
+            locked={status(5) === 'locked'}
+            reading={status(5) === 'reading'}
+            done={status(5) === 'done'}
+            parse={view.parse}
+            landed={view.landed}
+            entriesByKind={entriesByKind}
+            entries={view.entries.length}
+            links={view.links.length}
+            nameSet={view.nameSet}
+            keyLabel={view.key?.label ?? null}
+            keyPath="/start?step=4"
+            nextPath="/start?step=6"
+            selfPath="/start?step=5"
+          />
+        )}
+        {edition === 'paid' && model.active === 6 && <StepLetter letter={view.letter} links={view.links} selfPath="/start?step=6" doorPath="/start?step=door" />}
+        {edition === 'paid' && model.active === 'door' && <DoorPaid home={view.home} coreTitles={view.coreTitles} open={model.doorOpen} />}
+
+        {edition === 'free' && model.active === 3 && <StepEmail verified={viewer.emailVerified} email={email} nextPath="/start?step=4" skipPath="/start?step=4" />}
+        {edition === 'free' && model.active === 4 && (
+          <StepTitles edition="free" n={4} coreTitles={view.coreTitles} stretchTitles={view.stretchTitles} titleIndex={titleIndex} prefs={null} selfPath="/start?step=4" nextPath="/start?step=5" />
+        )}
+        {edition === 'free' && model.active === 5 && <StepAddJob added={view.addedJob} enabled={isOn('add_posting')} doorPath="/start?step=door" />}
+        {edition === 'free' && model.active === 'door' && <DoorFree billingOpen={isOn('stripe')} />}
+      </div>
+    </div>
+  </main>
+</BaseLayout>

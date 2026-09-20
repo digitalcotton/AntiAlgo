@@ -1,0 +1,127 @@
+---
+/**
+ * Add your cover letter and links: step 6 of the paid flow, optional. The
+ * letter on file is shown as it is kept; without one, a paste form to the
+ * Profile's own endpoint. Links post to the Profile's link endpoint. Both
+ * return here.
+ */
+import StepCard from './StepCard.astro';
+import type { CoverLetterOnFile } from '../../lib/record-store';
+import type { StoredLink } from '../../lib/profile-links';
+import { routeFor } from '../../data/nav';
+import { withBase } from '../../../site.config.mjs';
+
+interface Props {
+  letter: CoverLetterOnFile | null;
+  links: StoredLink[];
+  selfPath: string;
+  doorPath: string;
+}
+const { letter, links, selfPath, doorPath } = Astro.props;
+const coverAction = routeFor('profile-import-cover');
+const linkAction = routeFor('profile-link');
+---
+
+<StepCard n={6} title="Add your cover letter and links" time="Optional, 1 min">
+  <p class="cr-intro">Unlocks better drafts. Both optional; done when the letter is on file.</p>
+
+  <div class="cr-letter">
+    <label class="cr-between cr-field-label" for="cr-letter">
+      <span>Cover letter on file</span>
+      <span class="cr-tag" data-tone={letter ? 'live' : undefined}>{letter ? 'Added' : 'Optional'}</span>
+    </label>
+    {letter ? (
+      <textarea id="cr-letter" class="cr-textarea" rows="7" readonly aria-label="Cover letter">{letter.text}</textarea>
+    ) : (
+      <form method="POST" action={coverAction} class="cr-letter-form">
+        <input type="hidden" name="return" value={selfPath} />
+        <textarea id="cr-letter" class="cr-textarea" name="pasted" rows="7" placeholder="Paste the cover letter you reuse." aria-label="Cover letter" required></textarea>
+        <button type="submit" class="cr-btn cr-btn-gap">Save cover letter</button>
+      </form>
+    )}
+    <p class="cr-note cr-note-gap cr-note-wide">Kept as a writing sample only. The cover letter draft takes its voice from it; the resumé draft never sees it. Any dated role it names is proposed into your record for review.</p>
+  </div>
+
+  <div class="cr-rule-loose">
+    <label class="cr-between cr-field-label" for="cr-link">
+      <span>Links</span>
+      <span class="cr-tag">Optional</span>
+    </label>
+    {links.length > 0 && (
+      <ul class="cr-links">
+        {links.map((l) => (
+          <li class="cr-link-row"><span class="cr-mono cr-link-url">{l.url}</span></li>
+        ))}
+      </ul>
+    )}
+    <form method="POST" action={linkAction} class="cr-link-form">
+      <input type="hidden" name="intent" value="add" />
+      <input type="hidden" name="return" value={selfPath} />
+      <input id="cr-link" class="cr-input" type="url" name="url" inputmode="url" autocomplete="off" placeholder="Paste any link. We read what it is from the address." aria-label="Add a link" />
+      <button type="submit" class="cr-btn">Add</button>
+    </form>
+    <p class="cr-note cr-note-small">Links sit at the top of every draft.</p>
+  </div>
+
+  <div class="cr-actions cr-next">
+    <a class="cr-btn" href={withBase(doorPath)}>Done. Show my first draft</a>
+  </div>
+</StepCard>
+
+<style>
+  .cr-letter {
+    margin-top: 18px;
+  }
+  .cr-field-label {
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .cr-tag {
+    font-family: var(--font-family-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .cr-tag[data-tone='live'] {
+    color: var(--color-mark-live);
+  }
+  .cr-btn-gap {
+    margin-top: 12px;
+  }
+  .cr-note-gap {
+    margin-top: 8px;
+  }
+  .cr-note-wide {
+    max-width: 60ch;
+  }
+  .cr-note-small {
+    margin-top: 8px;
+  }
+  .cr-links {
+    margin: 0 0 10px;
+    padding: 0;
+    list-style: none;
+  }
+  .cr-link-row {
+    padding: 8px 0;
+    border-top: var(--border-hairline) solid var(--color-line);
+    font-size: 0.95rem;
+  }
+  .cr-link-url {
+    font-size: 0.82rem;
+    overflow-wrap: anywhere;
+  }
+  .cr-link-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .cr-link-form .cr-input {
+    font-size: 1.0625rem;
+  }
+  .cr-next {
+    margin-top: 22px;
+  }
+</style>

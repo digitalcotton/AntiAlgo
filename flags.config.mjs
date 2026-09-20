@@ -297,6 +297,9 @@ export const FLAGGED_ROUTES = {
   // /billing/checkout. Dark flag, flat 404, so the pitch and the button are
   // both gone rather than a live page with a dead button.
   '/upgrade': 'stripe',
+  // Come ready (/start), the first run, rides the same kill switch as the
+  // Profile's checklist: off, and the page is a flat 404.
+  '/start': 'onboarding',
   // src/pages/billing/checkout.ts and src/pages/billing/webhook.ts both carry
   // `export const prerender = false`. One entry covers both by prefix, same
   // as '/desk' covers desk/save.ts, desk/application.ts, etc. above.

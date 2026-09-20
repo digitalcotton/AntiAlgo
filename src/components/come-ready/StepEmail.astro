@@ -1,0 +1,49 @@
+---
+/**
+ * Verify your email: step 3 of the free flow. Reads the account's own
+ * verified flag; the sent state offers the site's existing resend page.
+ */
+import StepCard from './StepCard.astro';
+import RingMark from './RingMark.astro';
+import { routeFor } from '../../data/nav';
+import { withBase } from '../../../site.config.mjs';
+
+interface Props {
+  verified: boolean;
+  email: string | null;
+  nextPath: string;
+  skipPath: string;
+}
+const { verified, email, nextPath, skipPath } = Astro.props;
+---
+
+<StepCard n={3} title="Verify your email" time="Under a minute">
+  <p class="cr-intro">Unlocks the one message we send: the night a job you added dies, or a company on your titles posts. No digest, no news.</p>
+  <div class="cr-box" data-tone={verified ? 'live' : undefined}>
+    <RingMark tone={verified ? 'done' : 'next'} />
+    <div>
+      <p class="cr-box-line">{verified ? 'Verified.' : 'Sent. Open it and press the one link inside.'}</p>
+      {email && <p class="cr-box-meta">{email}</p>}
+    </div>
+  </div>
+  {verified ? (
+    <div class="cr-actions cr-next">
+      <a class="cr-btn" href={withBase(nextPath)}>Next: name your titles</a>
+    </div>
+  ) : (
+    <div class="cr-actions cr-next-tight">
+      <span class="cr-note">Not there after a few minutes?</span>
+      <a class="cr-link" href={routeFor('verify-email')}>Send it again</a>
+      <a class="cr-link-quiet" href={withBase(skipPath)}>Skip for now</a>
+    </div>
+  )}
+</StepCard>
+
+<style>
+  .cr-next {
+    margin-top: 18px;
+  }
+  .cr-next-tight {
+    margin-top: 16px;
+  }
+</style>

@@ -1,0 +1,301 @@
+---
+/**
+ * Name your titles: step 3 of the paid flow, step 4 of the free one. The
+ * watch list's own machinery (POST /ledger/watch, the live title index as a
+ * datalist) with the first-run changes the design asks for: the input is
+ * focused, the five most live titles are offered before the reader types,
+ * an added title shows its live count, stretch is a quieter second add, and
+ * the Desk's controls sit collapsed on the same card (paid only; the Desk
+ * is paid).
+ */
+import StepCard from './StepCard.astro';
+import type { ComeReadyTitle } from '../../lib/come-ready-store';
+import type { LedgerSelection } from '../../lib/ledger-prefs-store';
+import type { TitleCount } from '../../lib/ledger-titles';
+import { routeFor } from '../../data/nav';
+import { withBase } from '../../../site.config.mjs';
+
+interface Props {
+  edition: 'paid' | 'free';
+  n: number;
+  coreTitles: ComeReadyTitle[];
+  stretchTitles: string[];
+  /** The live title index, most common first; empty when the sweep could not be read. */
+  titleIndex: TitleCount[];
+  prefs: LedgerSelection | null;
+  /** This step's own address, base-free (the forms return here). */
+  selfPath: string;
+  nextPath: string;
+}
+const { edition, n, coreTitles, stretchTitles, titleIndex, prefs, selfPath, nextPath } = Astro.props;
+
+const watchAction = routeFor('ledger-watch');
+const prefsAction = routeFor('ledger-prefs');
+const hasTitle = coreTitles.length > 0;
+const suggestions = titleIndex.slice(0, 5);
+const options = titleIndex.slice(0, 200);
+
+const PAY_FLOORS = [
+  { label: 'any', value: 0 },
+  { label: '150k+', value: 150_000 },
+  { label: '200k+', value: 200_000 },
+  { label: '250k+', value: 250_000 },
+  { label: '300k+', value: 300_000 },
+  { label: '400k+', value: 400_000 },
+  { label: '500k+', value: 500_000 },
+  { label: '700k+', value: 700_000 }
+];
+const remoteOnly = Boolean(prefs?.remoteOnly);
+const floor = prefs?.compFloor ?? 0;
+const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${floor > 0 ? `$${Math.round(floor / 1000)}k+` : 'none set'}.`;
+---
+
+<StepCard n={n} title="Name your titles" time="1 to 2 min">
+  {edition === 'paid' ? (
+    <p class="cr-intro">Unlocks the Desk, narrowed to your titles tonight, and a title menu in the board's search cell. The board itself is never pre-filtered.</p>
+  ) : (
+    <p class="cr-intro">Unlocks a title menu in the board's search cell, with tonight's live count beside each. The board itself is never pre-filtered. The Desk, the sweep narrowed to your titles nightly, is on the paid account.</p>
+  )}
+
+  <div class="cr-titles">
+    <span class="cr-label">Core, apply today</span>
+    {coreTitles.map((t) => (
+      <div class="cr-title-row">
+        <span class="cr-title-name">{t.title}</span>
+        {t.liveCount !== null ? (
+          <span class="cr-title-live">{t.liveCount} live{t.titlesLive !== null && t.titlesTotal !== null && <span class="cr-title-of">, {t.titlesLive} of {t.titlesTotal} titles</span>}</span>
+        ) : (
+          <span class="cr-title-of cr-mono">not counted</span>
+        )}
+      </div>
+    ))}
+    <form method="POST" action={watchAction} class="cr-add">
+      <input type="hidden" name="intent" value="add" />
+      <input type="hidden" name="shelf" value="core" />
+      <input type="hidden" name="return" value={selfPath} />
+      <input
+        class="cr-input"
+        type="text"
+        name="title"
+        list="cr-title-index"
+        minlength="2"
+        maxlength="120"
+        placeholder="Type a title, two letters or more"
+        aria-label="Add a core title"
+        autofocus={!hasTitle}
+        autocomplete="off"
+      />
+      <button type="submit" class="cr-btn">Add title</button>
+    </form>
+    <datalist id="cr-title-index">{options.map((o) => <option value={o.title}>{o.count.toLocaleString()} live</option>)}</datalist>
+    {!hasTitle && suggestions.length > 0 && (
+      <div class="cr-suggest">
+        <p class="cr-suggest-head">Most live tonight</p>
+        {suggestions.map((g) => (
+          <form method="POST" action={watchAction}>
+            <input type="hidden" name="intent" value="add" />
+            <input type="hidden" name="shelf" value="core" />
+            <input type="hidden" name="return" value={selfPath} />
+            <input type="hidden" name="title" value={g.title} />
+            <button type="submit" class="cr-suggest-row">
+              <span>{g.title}</span>
+              <span class="cr-suggest-live">{g.count.toLocaleString()} live</span>
+            </button>
+          </form>
+        ))}
+      </div>
+    )}
+  </div>
+
+  {hasTitle && (
+    <details class="cr-stretch">
+      <summary class="cr-between cr-rule">
+        <span class="cr-label cr-label-inline">Stretch, working toward</span>
+        <span class="cr-link">{stretchTitles.length > 0 ? `${stretchTitles.join(', ')}. Add another` : 'Add a title you are working toward'}</span>
+      </summary>
+      <form method="POST" action={watchAction} class="cr-add cr-add-stretch">
+        <input type="hidden" name="intent" value="add" />
+        <input type="hidden" name="shelf" value="stretch" />
+        <input type="hidden" name="return" value={selfPath} />
+        <input class="cr-input" type="text" name="title" list="cr-title-index" minlength="2" maxlength="120" placeholder="Type a title, two letters or more" aria-label="Add a stretch title" autocomplete="off" />
+        <button type="submit" class="cr-btn">Add title</button>
+      </form>
+    </details>
+  )}
+
+  {edition === 'paid' && (
+    <details class="cr-controls">
+      <summary class="cr-between cr-rule-tight">
+        <span class="cr-note">{controlsLine}</span>
+        <span class="cr-link">Open controls</span>
+      </summary>
+      <div class="cr-controls-body">
+        <div class="cr-control-row">
+          <span class="cr-label cr-label-inline">where</span>
+          <div class="cr-actions">
+            <form method="POST" action={prefsAction}>
+              <input type="hidden" name="field" value="remote" />
+              <input type="hidden" name="value" value="1" />
+              <input type="hidden" name="return" value={selfPath} />
+              <button type="submit" class="cr-chip" aria-pressed={remoteOnly}>remote only</button>
+            </form>
+            <form method="POST" action={prefsAction}>
+              <input type="hidden" name="field" value="remote" />
+              <input type="hidden" name="value" value="0" />
+              <input type="hidden" name="return" value={selfPath} />
+              <button type="submit" class="cr-chip" aria-pressed={!remoteOnly}>anywhere</button>
+            </form>
+          </div>
+        </div>
+        <div class="cr-control-row">
+          <span class="cr-label cr-label-inline">pay floor</span>
+          <div class="cr-actions cr-actions-tight">
+            {PAY_FLOORS.map((f) => (
+              <form method="POST" action={prefsAction}>
+                <input type="hidden" name="field" value="floor" />
+                <input type="hidden" name="value" value={String(f.value)} />
+                <input type="hidden" name="return" value={selfPath} />
+                <button type="submit" class="cr-chip" aria-pressed={floor === f.value}>{f.label}</button>
+              </form>
+            ))}
+          </div>
+        </div>
+      </div>
+    </details>
+  )}
+
+  {hasTitle && (
+    <div class="cr-actions cr-next">
+      {edition === 'paid' ? (
+        <>
+          <a class="cr-btn" href={withBase(nextPath)}>Next: connect your key</a>
+          <span class="cr-ok">The Desk turns on tonight.</span>
+        </>
+      ) : (
+        <>
+          <a class="cr-btn" href={withBase(nextPath)}>Next: add a job by link</a>
+          <span class="cr-ok">Your titles are in the board's menu now.</span>
+        </>
+      )}
+    </div>
+  )}
+</StepCard>
+
+<style>
+  .cr-titles {
+    margin-top: 18px;
+  }
+  .cr-title-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: baseline;
+    padding: 10px 0;
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .cr-title-name {
+    font-weight: 500;
+  }
+  .cr-title-live {
+    font-family: var(--font-family-mono);
+    font-size: 0.82rem;
+    color: var(--color-mark-live);
+    white-space: nowrap;
+  }
+  .cr-title-of {
+    color: var(--color-muted);
+    font-size: 0.82rem;
+  }
+  .cr-add {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: stretch;
+    margin-top: 6px;
+  }
+  .cr-add .cr-input {
+    font-size: 1.0625rem;
+  }
+  .cr-add-stretch {
+    margin-top: 12px;
+  }
+  .cr-suggest {
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-top: 0;
+    border-radius: 0 0 var(--radius) var(--radius);
+  }
+  .cr-suggest-head {
+    margin: 0;
+    padding: 8px 12px;
+    font-family: var(--font-family-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+  .cr-suggest-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    padding: 9px 12px;
+    border: 0;
+    border-bottom: var(--border-hairline) solid var(--color-line);
+    background: transparent;
+    color: var(--color-foreground);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .cr-suggest-row:hover {
+    background: var(--color-hover-surface);
+  }
+  .cr-suggest-live {
+    font-family: var(--font-family-mono);
+    font-size: 0.82rem;
+    color: var(--color-muted);
+  }
+  summary {
+    list-style: none;
+    cursor: pointer;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  .cr-label-inline {
+    display: inline;
+    margin: 0;
+  }
+  .cr-controls-body {
+    display: grid;
+    gap: 12px;
+    padding-top: 14px;
+  }
+  .cr-control-row {
+    display: grid;
+    gap: 6px;
+  }
+  .cr-actions-tight {
+    gap: 8px;
+  }
+  .cr-chip {
+    min-height: 36px;
+    padding: 0 12px;
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-radius: var(--radius);
+    background: var(--color-surface-raised);
+    color: var(--color-foreground);
+    font-family: var(--font-family-mono);
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  .cr-chip[aria-pressed='true'] {
+    background: var(--color-surface-inverse);
+    color: var(--color-foreground-inverse);
+    border-color: var(--color-surface-inverse);
+  }
+  .cr-next {
+    margin-top: 22px;
+  }
+</style>
