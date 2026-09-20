@@ -215,10 +215,13 @@ const shelves: { key: 'core' | 'stretch'; label: string; caption: string; list: 
   .wl-index .mono-label { margin-right: var(--space-200); }
   /* The edit action reads as a button, not a footnote: bordered, foreground
      ink, filled on hover. */
-  .wl-toggle { display: inline-block; padding: var(--space-200) var(--space-400); border: var(--border-hairline) solid var(--color-foreground); color: var(--color-foreground); }
+  /* The page's primary control (owner's call, 2026-09-20): the site's
+     signal-orange CTA with the same values as Add a job on Opportunities and
+     Open controls on Jobs Data. Dark ink in both themes; hover dims. */
+  .wl-toggle { display: inline-flex; align-items: center; justify-content: center; padding: var(--space-300) var(--space-500); border: var(--border-hairline) solid var(--color-signal); border-radius: var(--radius); background: var(--color-signal); color: var(--gray-950); font-family: var(--font-family-sans); font-weight: var(--weight-bold); font-size: var(--size-100); letter-spacing: var(--tracking-loose); text-transform: uppercase; white-space: nowrap; }
   .wl-toggle::after { content: 'Edit watch list +'; }
   .wl-d[open] .wl-toggle::after { content: 'Done editing \2212'; }
-  .wl-head:hover .wl-toggle { background: var(--color-foreground); color: var(--color-foreground-inverse); }
+  .wl-head:hover .wl-toggle { opacity: 0.86; }
 
   /* Editor. */
   .wl-editor { display: flex; flex-direction: column; gap: var(--space-500); padding-top: var(--space-500); }
