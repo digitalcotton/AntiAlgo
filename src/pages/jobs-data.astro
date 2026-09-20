@@ -87,6 +87,10 @@ const boardHref = routeFor('board');
           tick();
           window.addEventListener('scroll', tick, { passive: true });
           window.addEventListener('resize', tick);
+          // The subnav eases shut and open (styled below), so the header's height
+          // settles only when that transition ends: re-measure then.
+          var subnav = hdr.querySelector('.subnav');
+          if (subnav) subnav.addEventListener('transitionend', tick);
         })();
       </script>
       <script src={appJs} is:inline defer></script>
@@ -125,7 +129,19 @@ const boardHref = routeFor('board');
   /* While the cut bar is stuck under the header (html[data-cut-stuck], set by
      the inline script above), the member subnav closes; it reopens the moment
      the bar unsticks. Page-scoped: the attribute only ever appears here. */
-  :global(html[data-cut-stuck] .subnav) { display: none; }
+  :global(.subnav) {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition:
+      grid-template-rows var(--motion-duration-signature) var(--motion-easing-standard),
+      opacity var(--motion-duration-signature) var(--motion-easing-standard),
+      border-top-color var(--motion-duration-instant) var(--motion-easing-standard);
+  }
+  :global(.subnav > *) { min-height: 0; overflow: hidden; }
+  :global(html[data-cut-stuck] .subnav) { grid-template-rows: 0fr; opacity: 0; border-top-color: transparent; }
+  @media (prefers-reduced-motion: reduce) {
+    :global(.subnav) { transition: none; }
+  }
 
   .ledger-preview {
     padding-block: var(--space-700, 2.5rem) var(--space-800, 4rem);
