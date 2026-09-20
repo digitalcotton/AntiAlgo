@@ -64,33 +64,9 @@ const returnPath = `${selfPath}&saved=1`;
       </div>
       <p class="cr-note cr-note-gap">Shape checked now. The first draft is the first real test; if the provider refuses the key, the draft says so and nothing is spent.</p>
 
-      {/* The way back out. A reader who pasted the wrong key replaces it; one
-          who picked the wrong console removes it and the picker returns. */}
+      {/* The way back out: one action, because picking again is also how a
+          wrong key is replaced, and the console picker is where that starts. */}
       <div class="cr-actions cr-undo">
-        <details class="cr-replace">
-          <summary class="cr-link">Replace key</summary>
-          {keysConfigured && (
-            <form method="POST" action={saveAction} class="cr-paste cr-replace-form" data-cr-key-form data-provider={key.provider}>
-              <input type="hidden" name="provider" value={key.provider} />
-              <input type="hidden" name="return" value={returnPath} />
-              <label class="cr-paste-label" for="cr-key-replace">A new key for {key.label}.</label>
-              <input
-                id="cr-key-replace"
-                class="cr-input cr-mono"
-                type="password"
-                name="key"
-                placeholder={CONSOLES[key.provider].placeholder}
-                aria-label={`A new ${key.label} key`}
-                autocomplete="off"
-                spellcheck="false"
-                data-cr-key
-                required
-              />
-              <p class="cr-loss" data-cr-key-reason hidden></p>
-              <button type="submit" class="cr-btn cr-replace-save">Save key</button>
-            </form>
-          )}
-        </details>
         <form method="POST" action={removeAction}>
           <input type="hidden" name="provider" value={key.provider} />
           <input type="hidden" name="return" value={selfPath} />
@@ -312,21 +288,6 @@ const returnPath = `${selfPath}&saved=1`;
   .cr-undo {
     margin-top: 14px;
     gap: 12px 20px;
-  }
-  .cr-replace summary {
-    list-style: none;
-    display: inline;
-    cursor: pointer;
-  }
-  .cr-replace summary::-webkit-details-marker {
-    display: none;
-  }
-  .cr-replace-form {
-    margin-top: 12px;
-    min-width: 32ch;
-  }
-  .cr-replace-save {
-    margin-top: 12px;
   }
   .cr-next {
     margin-top: 18px;
