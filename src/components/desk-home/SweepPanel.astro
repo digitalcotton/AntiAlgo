@@ -67,7 +67,11 @@ const hasClock = steps.some((s) => s.at !== null);
       </li>
     ))}
   </ol>
-  <p class="sp-foot">{sweptAt ? `finished ${finishedStamp(sweptAt)}` : 'sweep pending'}</p>
+  {/* The finish is the save stage when the sweep wrote its stage instants
+      (2026-09-20): the generation stamp is the crawl's START, and a footer
+      that called it finished read fifteen minutes early. Without stages the
+      stamp is the only instant there is. */}
+  <p class="sp-foot">{(stages?.save ?? sweptAt) ? `finished ${finishedStamp(stages?.save ?? sweptAt!)}` : 'sweep pending'}</p>
 </aside>
 
 <style>

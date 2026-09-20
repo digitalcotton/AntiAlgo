@@ -21,6 +21,10 @@ describe('SweepPanel.astro: a clock only where the sweep measured one', () => {
     expect(html).toContain('sp-steps-clock');
     const times = [...html.matchAll(/class="sp-time"[^>]*>([^<]*)</g)].map((m) => m[1]);
     expect(times).toEqual(['07:30:01', '07:30:12', '', '', '07:30:31', '07:30:38']);
+    // The footer's finish is the save stage, not the generation stamp (which
+    // is the crawl's start).
+    expect(html).toContain('finished 07:30:38, 2026-09-19');
+    expect(html).not.toContain('finished 07:30:44');
   });
 
   it('ignores a stage value that is not an instant', async () => {
