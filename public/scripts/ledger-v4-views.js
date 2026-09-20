@@ -37,7 +37,7 @@
         <div data-two="" style="display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:clamp(22px,4vw,64px);align-items:start;">
           <div>
             <span style="font-family:var(--font-family-mono);font-size:0.72rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--color-muted);display:inline-flex;align-items:center;gap:8px;"><span aria-hidden="true" style="width:7px;height:7px;background:var(--color-signal);border-radius:1px;"></span>Tonight's read</span>
-            <h1 style="margin:16px 0 0;font-weight:600;font-size:clamp(1.9rem,4.2vw,3.1rem);line-height:1.04;letter-spacing:-0.03em;max-width:24ch;text-wrap:pretty;">Read the design market like a data scientist.</h1>
+            <h1 style="margin:16px 0 0;font-weight:600;font-size:clamp(1.9rem,4.2vw,3.1rem);line-height:1.04;letter-spacing:-0.03em;max-width:24ch;text-wrap:pretty;">Read the market in your sector like a data scientist.</h1>
             <p style="margin:18px 0 0;font-size:1.02rem;line-height:1.55;color:var(--color-muted);max-width:62ch;text-wrap:pretty;">Every night the sweep reads company careers pages directly, verifies what is still there, and publishes what came down by rule. This page is the structure underneath that: what pays, what is fresh, who recycles, and where roles are about to open. Nothing here reads a mind. Every number carries the night it was read.</p>
             <div style="margin-top:22px;display:flex;flex-wrap:wrap;gap:8px 10px;">
               <span style="font-family:var(--font-family-mono);font-size:0.68rem;border:1px solid var(--color-signal);padding:3px 9px;color:var(--color-muted);">tier one data: active</span>
