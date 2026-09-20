@@ -482,7 +482,9 @@ const saveNote = applyTrack
   .jd-link-save:hover, .jd-link-save:focus-visible { color: var(--color-foreground); border-bottom-color: var(--color-foreground); }
 
   /* row 2: description beside the fit sidebar */
-  .jd-body-row { display: grid; grid-template-columns: 1.78fr 1fr; gap: var(--space-600); align-items: start; }
+  /* The right column is the rail's own 392px track, so the fit card's left
+     edge meets the rail's above it (owner's call, 2026-09-20). */
+  .jd-body-row { display: grid; grid-template-columns: minmax(0, 1fr) 392px; gap: var(--space-600); align-items: start; }
   .jd-body-main { display: flex; flex-direction: column; gap: var(--space-500); min-width: 0; }
   /* the fit card follows the reader down, clearing the sticky mini action bar */
   .jd-body-aside { min-width: 0; position: sticky; top: 84px; align-self: start; }
