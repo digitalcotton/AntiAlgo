@@ -222,10 +222,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
   {hasTitle && (
     <div class="cr-actions cr-next">
       {edition === 'paid' ? (
-        <>
-          <a class="cr-btn" href={withBase(nextPath)}>Next: connect your key</a>
-          <span class="cr-ok">The Desk turns on tonight.</span>
-        </>
+        <a class="cr-btn" href={withBase(nextPath)}>Next: connect your key</a>
       ) : (
         <>
           <a class="cr-btn" href={withBase(nextPath)}>Next: add a job by link</a>
