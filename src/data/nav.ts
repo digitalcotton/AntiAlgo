@@ -48,7 +48,8 @@ export const ROUTES = [
   // settings/delete.ts live where they do).
   { key: 'waitlist-join', pattern: '/waitlist/join', kind: 'asset', note: 'POST. Saves an email on the waitlist and answers with its position in line.', sitemap: false },
   { key: 'account', pattern: '/account', kind: 'static', note: 'The signed-in account page, member tier and above.', sitemap: false },
-  { key: 'internal', pattern: '/internal', kind: 'static', note: 'Exists so the internal gate is reachable and its denial is provable.', sitemap: false },
+  { key: 'internal', pattern: '/internal', kind: 'static', note: 'Exists so the internal gate is reachable and its denial is provable. Carries the owner control that sets an account tier.', sitemap: false },
+  { key: 'internal-tier', pattern: '/internal/tier', kind: 'asset', note: "POST. Sets one account's tier by email. Internal only; an internal account is never changed.", sitemap: false },
 
   // --- The board and its surfaces, copied in from the Index ---
   { key: 'board', pattern: '/board', kind: 'static', note: "The board: every tracked and posted role, verified last night, the site's main listing surface.", sitemap: true },

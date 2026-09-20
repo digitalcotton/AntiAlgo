@@ -2,19 +2,111 @@
 export const prerender = false;
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { db, isConfigured } from '../../lib/db';
+import { dayStamp } from '../../lib/stats';
+import { routeFor } from '../../data/nav';
 
 /*
  * Exists so the `internal` gate is reachable and its server-side denial is
  * provable: a signed-out reader is sent to sign-in, a waitlisted account to
- * the waitlist page, a member gets a 403. Never a destination.
+ * the waitlist page, a member gets a 403.
+ *
+ * It also carries the one owner control the site needs and had nowhere to
+ * put: set an account's tier. Until 2026-09-20 the only code that wrote
+ * 'paid' was the Stripe webhook (dark), so making a test account paid meant
+ * raw SQL in the Neon console. The accounts are listed with their tiers
+ * beside it, because "which address did I actually type" was the other half
+ * of that problem.
  */
+const RELAY_COOKIE = 'internal_tier_relay';
+const raw = Astro.cookies.get(RELAY_COOKIE)?.value ?? null;
+Astro.cookies.delete(RELAY_COOKIE, { path: '/internal' });
+let relay: { ok: boolean; message: string } | null = null;
+if (raw) {
+  try {
+    const parsed = JSON.parse(raw) as { ok?: unknown; message?: unknown };
+    if (typeof parsed.message === 'string') relay = { ok: parsed.ok === true, message: parsed.message };
+  } catch {
+    relay = null;
+  }
+}
+
+interface AccountRow {
+  email: string;
+  tier: string | null;
+  verified: boolean;
+  created: Date;
+}
+let accounts: AccountRow[] = [];
+let listFailed = false;
+if (isConfigured()) {
+  try {
+    const { rows } = await db().query<{ email: string; tier: string | null; verified: boolean; created: Date }>(
+      `SELECT u.email, p.tier, u."emailVerified" AS verified, u."createdAt" AS created
+         FROM "user" u
+         LEFT JOIN app_user_profile p ON p.user_id = u.id
+        ORDER BY u."createdAt" DESC
+        LIMIT 50`
+    );
+    accounts = rows;
+  } catch (error) {
+    console.error('internal: could not list accounts.', error);
+    listFailed = true;
+  }
+}
+
+const TIERS = ['waitlisted', 'member', 'paid'] as const;
 ---
 
 <BaseLayout title="Internal" noindex>
   <section class="shell page">
     <span class="kicker">Internal</span>
     <h1>The gate is real.</h1>
-    <p>You are reading this because your account is internal tier. Nobody else reaches this line.</p>
+    <p class="muted">You are reading this because your account is internal tier. Nobody else reaches this line.</p>
+
+    <section class="block" aria-labelledby="tier-h">
+      <h2 id="tier-h">Set an account's tier</h2>
+      <p class="muted">
+        Stripe is dark, so nothing else writes the paid tier. An internal account is never changed here.
+      </p>
+
+      {relay && (
+        <p class="relay" data-ok={relay.ok} role="status">{relay.message}</p>
+      )}
+
+      <form class="tier-form" method="POST" action={routeFor('internal-tier')}>
+        <label class="field">
+          <span class="field-label">Email address</span>
+          <input class="field-input" type="email" name="email" required autocomplete="off" placeholder="you@wherever.com" />
+        </label>
+        <label class="field">
+          <span class="field-label">Tier</span>
+          <select class="field-input" name="tier">
+            {TIERS.map((t) => <option value={t} selected={t === 'paid'}>{t}</option>)}
+          </select>
+        </label>
+        <button class="cta" type="submit">Set tier</button>
+      </form>
+    </section>
+
+    <section class="block" aria-labelledby="accounts-h">
+      <h2 id="accounts-h">Accounts</h2>
+      {listFailed ? (
+        <p class="muted">The account list could not be read just now.</p>
+      ) : accounts.length === 0 ? (
+        <p class="muted">No accounts yet.</p>
+      ) : (
+        <ul class="accounts">
+          {accounts.map((a) => (
+            <li class="account">
+              <span class="acct-email mono">{a.email}</span>
+              <span class="acct-tier mono-label" data-tier={a.tier ?? 'none'}>{a.tier ?? 'no profile'}</span>
+              <span class="acct-meta mono">{a.verified ? 'verified' : 'unverified'} &#183; {dayStamp(a.created)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   </section>
 </BaseLayout>
 
@@ -25,5 +117,95 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     flex-direction: column;
     gap: var(--space-400);
     align-items: flex-start;
+  }
+  .muted {
+    color: var(--color-muted);
+    max-width: 60ch;
+  }
+  .block {
+    width: 100%;
+    max-width: 60rem;
+    margin-top: var(--space-600);
+    padding-top: var(--space-500);
+    border-top: var(--border-heavy) solid var(--color-line-strong);
+  }
+  .block h2 {
+    margin: 0 0 var(--space-200);
+    font-size: var(--size-400);
+  }
+  .relay {
+    margin: var(--space-400) 0 0;
+    padding: var(--space-300) var(--space-400);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-radius: var(--radius);
+    font-size: var(--size-150);
+  }
+  .relay[data-ok='true'] {
+    border-color: var(--color-mark-live);
+    color: var(--color-mark-live);
+  }
+  .relay[data-ok='false'] {
+    border-color: var(--color-stat-loss);
+    color: var(--color-stat-loss);
+  }
+  .tier-form {
+    margin-top: var(--space-400);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-400);
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+  }
+  .field-label {
+    font-family: var(--font-family-mono);
+    font-weight: var(--weight-medium);
+    font-size: var(--size-075);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .tier-form .field-input {
+    min-width: 26ch;
+  }
+  .tier-form select.field-input {
+    min-width: 16ch;
+  }
+  .accounts {
+    list-style: none;
+    margin: var(--space-400) 0 0;
+    padding: 0;
+  }
+  .account {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 10ch auto;
+    gap: var(--space-400);
+    align-items: baseline;
+    padding: var(--space-300) 0;
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .acct-email {
+    overflow-wrap: anywhere;
+  }
+  .acct-tier[data-tier='paid'],
+  .acct-tier[data-tier='internal'] {
+    color: var(--color-mark-live);
+  }
+  .acct-tier[data-tier='none'] {
+    color: var(--color-stat-loss);
+  }
+  .acct-meta {
+    color: var(--color-muted);
+    font-size: var(--size-050);
+    white-space: nowrap;
+  }
+  @media (max-width: 48rem) {
+    .account {
+      grid-template-columns: 1fr;
+      gap: var(--space-100);
+    }
   }
 </style>
