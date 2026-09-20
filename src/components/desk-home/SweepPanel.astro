@@ -89,6 +89,7 @@ const hasClock = steps.some((s) => s.at !== null);
   .sp-step-accent { color: var(--color-stat-loss); }
   /* The time column, only when the sweep logged a clock (design: 76px grid). */
   .sp-steps-clock .sp-step { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: baseline; }
-  .sp-time { font-size: 0.72rem; color: var(--color-line-strong); }
+  /* Muted, not the rule colour the design drew: it is text and must clear AA. */
+  .sp-time { font-size: 0.72rem; color: var(--color-muted); }
   .sp-foot { margin: var(--space-200) 0 0; padding-top: var(--space-300); border-top: var(--border-hairline) dashed var(--color-line-strong); color: var(--color-muted); font-size: 0.68rem; }
 </style>
