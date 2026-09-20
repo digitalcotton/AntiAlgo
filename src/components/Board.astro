@@ -79,6 +79,12 @@ interface Props {
    */
   label?: string;
   labelCount?: number;
+  /**
+   * Whether the sweep stat tiles render under the title row. Off on the
+   * Pre-List (since 2026-09-19): the sweep's counts describe postings, not the
+   * funded companies that page lists. On everywhere else.
+   */
+  tiles?: boolean;
   /** A teaser (the homepage): a few rows and "Open the full board", no pager.
    *  A full page-picker over thousands of pages makes no sense on a 2-row taste
    *  and only wraps the controls onto a second line. */
@@ -105,6 +111,7 @@ const {
   tabs = true,
   label,
   labelCount,
+  tiles = true,
   teaser = false,
   perPage = 8,
   ariaLabel = 'The board'
@@ -171,7 +178,7 @@ const ageHref = serverMode
     {/* Kills are never passed in. The board's own table has no kill rules, so
         the only kill counts that exist are the sweep's, and StatTiles reads
         those itself. See the note in StatTiles.astro. */}
-    <StatTiles boards={boards} verifiedLive={verifiedLive} liveMetric={serverMode ? 'board_rows' : undefined} />
+    {tiles && <StatTiles boards={boards} verifiedLive={verifiedLive} liveMetric={serverMode ? 'board_rows' : undefined} />}
 
     <AgePlot
       histogram={ageHistogram ?? ageHistogramFromJobs(jobs)}

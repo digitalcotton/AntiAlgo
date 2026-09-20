@@ -2,8 +2,6 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Board from '../components/Board.astro';
 import { ageHistogramFromJobs, facetGroupsFromCounts, prospectRows } from '../lib/data';
-import { getBoardStats } from '../lib/job-store';
-import { isConfigured } from '../lib/db';
 import { isOn } from '../lib/flags';
 import { boardHref, clampPage, parseBoardQuery } from '../lib/board-query';
 import { listProspectsFiltered, type ProspectPage } from '../lib/prospect-board';
@@ -52,11 +50,6 @@ const prospectCount = allProspects.length;
 
 const boardPath = routeFor('prelist');
 const query = parseBoardQuery(Astro.url.searchParams);
-
-// The same sweep numbers the board tab shows, so the tiles read the same on both
-// tabs. The list and the count below differ per tab; the sweep does not.
-const boardStats = isConfigured() ? await getBoardStats() : null;
-const verifiedLive = boardStats?.verified_live ?? 0;
 
 // Only a reader past the wall gets a page computed; the walled branch renders no
 // rows, so filtering and slicing for it would be work nobody sees.
@@ -110,8 +103,7 @@ const groups = served
           tabs={false}
           label="Newly funded"
           labelCount={prospectCount}
-          boards={boardStats?.boards_swept}
-          verifiedLive={boardStats ? verifiedLive : undefined}
+          tiles={false}
           ariaLabel="Newly funded"
         />
       ) : (
