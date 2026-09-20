@@ -1,6 +1,7 @@
 ---
 import { INDEX, routeFor } from '../data/nav';
 import { SITE } from '../data/site';
+import { isOn } from '../lib/flags';
 
 /**
  * The footer, from the Anti Algo home canvas. Two rows: the story pages with
@@ -27,9 +28,11 @@ const MEMBER = [
   { label: 'Profile', href: routeFor('profile') },
   { label: 'Settings', href: routeFor('settings') }
 ];
+// The kill list link exists only while the list does (kill_list flag), the
+// same rule the tiles, the report and the not-here coda follow.
 const PRODUCT = [
   { label: 'The Index', href: INDEX.board },
-  { label: 'Kill list', href: INDEX.kills },
+  ...(isOn('kill_list') ? [{ label: 'Kill list', href: INDEX.kills }] : []),
   { label: 'The Report', href: INDEX.report },
   { label: 'Not here, on purpose', href: INDEX.notHere },
   { label: 'Methodology', href: INDEX.methodology }

@@ -7,6 +7,10 @@ describe('SiteFooter.astro: the sign-up action is for signed-out readers only', 
     const container = await AstroContainer.create();
     const out = await container.renderToString(SiteFooter, { locals: { viewer: null } });
     expect(out).toContain('Save my spot');
+    // The kill list is dark (kill_list flag off in both editions), so the
+    // signed-out product row carries no link to it.
+    expect(out).not.toContain('Kill list');
+    expect(out).toContain('>The Report<');
     const signedIn = await container.renderToString(SiteFooter, {
       locals: { viewer: { userId: 'u1', tier: 'member', firstName: 'Ryan', emailVerified: true } }
     });
