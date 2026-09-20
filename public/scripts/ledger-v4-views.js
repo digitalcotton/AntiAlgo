@@ -85,7 +85,7 @@
             <span style="font-family:var(--font-family-mono);font-size:0.74rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--color-muted);white-space:nowrap;">Set the cut</span>
           </span>
           <span style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;">
-            <button data-act="toggle-watch" aria-expanded="${vm.watchOpenStr}" aria-controls="watch-body" style="min-height:32px;padding:6px 11px;cursor:pointer;border:1px solid var(--color-line-strong);background:transparent;color:var(--color-foreground);font-family:var(--font-family-mono);font-size:0.72rem;border-radius:var(--radius);white-space:nowrap;display:inline-flex;gap:8px;align-items:center;" data-hover="border-color:var(--color-foreground);"><span>${vm.watchToggleLabel}</span><span aria-hidden="true">${vm.watchToggleGlyph}</span></button>
+            <button data-act="toggle-watch" aria-expanded="${vm.watchOpenStr}" aria-controls="watch-body" style="padding:var(--space-300) var(--space-500);cursor:pointer;border:1px solid var(--color-signal);background:var(--color-signal);color:var(--gray-950);font-family:var(--font-family-sans);font-weight:700;font-size:var(--size-100);letter-spacing:var(--tracking-loose);text-transform:uppercase;border-radius:var(--radius);white-space:nowrap;display:inline-flex;gap:8px;align-items:center;justify-content:center;" data-hover="opacity:0.86;"><span>${vm.watchToggleLabel}</span><span aria-hidden="true">${vm.watchToggleGlyph}</span></button>
           </span>
         </div>
   
