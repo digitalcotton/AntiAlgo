@@ -5,6 +5,7 @@ import MarkLegend from '../../../components/MarkLegend.astro';
 import ShareCard from '../_ShareCard.astro';
 import { killSlug, killsWithCards, type Kill } from '../../../lib/data';
 import { killCardImagePath, routeFor } from '../../../data/nav';
+import { isOn } from '../../../lib/flags';
 
 /**
  * /kills/[slug]/card: the single-kill share card, one per record.
@@ -40,6 +41,9 @@ import { killCardImagePath, routeFor } from '../../../data/nav';
  */
 
 export function getStaticPaths() {
+  // No cards while the kill list is dark (kill_list flag): a prerendered
+  // route cannot 404 per request, so it builds no paths instead.
+  if (!isOn('kill_list')) return [];
   return killsWithCards().map((kill) => ({
     params: { slug: killSlug(kill) },
     props: { kill }

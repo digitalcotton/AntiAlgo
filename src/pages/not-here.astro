@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { isOn } from '../lib/flags';
 import InsightStrip from '../components/InsightStrip.astro';
 import { routeFor } from '../data/nav';
 import { sweptStamp } from '../lib/data';
@@ -177,8 +178,12 @@ const INSTEAD = [
 
       <p class="coda-links">
         <a class="coda-link" href={routeFor('methodology')}>How the machine works</a>
-        <span class="coda-sep" aria-hidden="true">·</span>
-        <a class="coda-link" href={routeFor('kills')}>What died this sweep</a>
+        {isOn('kill_list') && (
+          <>
+            <span class="coda-sep" aria-hidden="true">·</span>
+            <a class="coda-link" href={routeFor('kills')}>What died this sweep</a>
+          </>
+        )}
       </p>
     </footer>
   </div>

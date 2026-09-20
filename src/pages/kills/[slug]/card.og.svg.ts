@@ -10,6 +10,7 @@ import {
 } from '../../../lib/data';
 import { displayUrl } from '../../../data/site';
 import { routeFor } from '../../../data/nav';
+import { isOn } from '../../../lib/flags';
 import {
   CARD,
   CARD_DEFS,
@@ -54,8 +55,9 @@ import {
 // somebody shared in August still renders in December. Same set as card.astro,
 // from one function, because an image route and its page route that disagree
 // produce a page whose social preview is a 404.
+// No images while the kill list is dark (kill_list flag), same as card.astro.
 export const getStaticPaths = (() =>
-  killsWithCards().map((kill) => ({ params: { slug: killSlug(kill) }, props: { kill } }))) satisfies GetStaticPaths;
+  isOn('kill_list') ? killsWithCards().map((kill) => ({ params: { slug: killSlug(kill) }, props: { kill } })) : []) satisfies GetStaticPaths;
 
 const TITLE_SIZE = 50;
 const TITLE_LEADING = 60;

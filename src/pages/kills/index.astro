@@ -1,4 +1,8 @@
 ---
+// Rendered per request (since 2026-09-20) so the kill_list flag's 404 in
+// middleware is decided live rather than at build. Everything it reads is
+// still the published JSON.
+export const prerender = false;
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import AppealLine from '../../components/AppealLine.astro';
 import KillRow from '../../components/KillRow.astro';

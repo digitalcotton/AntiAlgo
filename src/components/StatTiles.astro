@@ -1,6 +1,7 @@
 ---
 import Reading from './Reading.astro';
 import { routeFor } from '../data/nav';
+import { isOn } from '../lib/flags';
 
 /**
  * The four sweep numbers, as the approved canvas orders them: boards swept,
@@ -82,7 +83,9 @@ interface Props {
  * to kills-archive.json by gate 2 like every other figure here. The night's
  * own count is still stated, in the fourth tile and on the kill list itself.
  */
-const { linkKills = true, boards, verifiedLive, liveMetric, class: className } = Astro.props;
+// The caption links exist only while the kill list itself does (kill_list
+// flag); a page can still pass linkKills={false} to drop them on a lit site.
+const { linkKills = isOn('kill_list'), boards, verifiedLive, liveMetric, class: className } = Astro.props;
 const killsHref = routeFor('kills');
 const byRuleHref = `${killsHref}#by-rule`;
 ---

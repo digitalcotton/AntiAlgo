@@ -57,6 +57,19 @@ export function edition() {
  * without guessing at the reasoning that set it.
  */
 export const FLAGS = {
+  // OFF in both editions (owner decision, 2026-09-20): the kill list is held
+  // back. While off, /kills and everything under it (the share cards and
+  // their social images) are dark: the page 404s through FLAGGED_ROUTES, the
+  // card routes build no paths, the sitemap skips them, and every link into
+  // the list (the tiles' captions, the report's method link, the not-here
+  // coda, the Drop's notes) is left out. Flip on to bring the whole set back
+  // in one edit.
+  kill_list: {
+    why:
+      'The kill list is held back until it is ready to be a product surface. While off, /kills ' +
+      'is a flat 404, no kill share card is built, and no page links into it.',
+    editions: { design: false, broad: false }
+  },
   // --- AntiAlgo's own flag ---
   waitlist: {
     why:
@@ -242,6 +255,10 @@ export function isOn(flag, ed = edition()) {
  */
 /** @type {Record<string, any>} */
 export const FLAGGED_ROUTES = {
+  // src/pages/kills/index.astro carries `export const prerender = false` so
+  // this 404 is decided per request; the card routes under it are prerendered
+  // and build no paths while the flag is off (see their getStaticPaths).
+  '/kills': 'kill_list',
   // The two machine routes are called by the Mac mini with a shared secret,
   // never by a browser. Dark flag, flat 404.
   '/machine': 'add_posting',

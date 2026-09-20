@@ -1,4 +1,5 @@
 import { indexUrl, withBase } from '../../site.config.mjs';
+import { routeIsLit } from '../../flags.config.mjs';
 
 /**
  * The route registry: the complete inventory of what this site emits, and
@@ -63,7 +64,7 @@ export const ROUTES = [
   { key: 'colophon', pattern: '/colophon', kind: 'static', note: 'The stack, the gates, the conformance run, the decision log. How this was built is the argument.', sitemap: true },
   { key: 'data', pattern: '/data', kind: 'static', note: 'What the dataset is: method, coverage by population, history length, the kill rules link, the free monthly analysis, and two calls to action.', sitemap: true },
   { key: 'covenant', pattern: '/covenant', kind: 'static', note: 'The covenant: nine promises about money and observation, each marked checkable today or written before the feature.', sitemap: true },
-  { key: 'drop', pattern: '/drop', kind: 'static', note: 'The weekly drop: what entered, what died, what changed, what is verified, with the sweep stamp on every number.', sitemap: true },
+  { key: 'drop', pattern: '/drop', kind: 'static', note: 'The weekly drop: what entered, what died, what changed, what is verified, with the sweep stamp on every number. Behind sign-in since 2026-09-20.', sitemap: false },
   { key: 'jobs-data', pattern: '/jobs-data', kind: 'static', note: 'Jobs Data (The Ledger until 2026-09-19): a paid, behind-login read of the market against the titles you watch, counted from last night, sweep stamp on every number.', sitemap: false },
   { key: 'ledger', pattern: '/ledger', kind: 'static', note: 'Deprecated 2026-09-19: the old address of Jobs Data, kept only as a permanent redirect to /jobs-data so saved links still land.', sitemap: false },
   { key: 'ledger-watch', pattern: '/ledger/watch', kind: 'asset', note: 'POST. Adds, removes or reshelves one watched title for the signed-in paid reader.', sitemap: false },
@@ -144,7 +145,10 @@ export function routeFor(key: RouteKey): string {
   return withBase(route.pattern);
 }
 
-export const sitemapRoutes = (): readonly RouteEntry[] => ROUTES.filter((r) => r.sitemap && r.kind === 'static');
+// A route behind a dark flag (flags.config.mjs FLAGGED_ROUTES) is a 404, so
+// it is never listed however its own sitemap field reads.
+export const sitemapRoutes = (): readonly RouteEntry[] =>
+  ROUTES.filter((r) => r.sitemap && r.kind === 'static' && routeIsLit(r.pattern));
 
 // --- Dynamic-route path builders, one per parameterised pattern above. Never
 // type these paths by hand; the board and desk pages import these. ---

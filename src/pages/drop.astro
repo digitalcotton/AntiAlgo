@@ -24,6 +24,7 @@ import {
   firstSeenVisible,
   type Kill
 } from '../lib/data';
+import { isOn } from '../lib/flags';
 import { routeFor } from '../data/nav';
 
 /**
@@ -38,12 +39,10 @@ import { routeFor } from '../data/nav';
  * page does not get to break: structure may be derived, facts may not; a
  * number renders only when its provenance can be shown; one clock.
  *
- * PUBLIC AND STATIC, LIKE /kills AND /report, NOT LIKE /desk OR /prelist.
- * This route carries no `export const prerender = false` and reads no
- * `Astro.locals.verdict`: everything on it is already public on /, /kills
- * and /report individually, so walling the weekly roll-up of the same facts
- * behind sign-in would gate a summary of information a stranger can already
- * read. The signed-in half of this feature (the personalized digest email)
+ * MEMBER DATA, RENDERED PER REQUEST (owner decision, 2026-09-20; it was
+ * public and static before). The wall is entitlement.ts's '/drop' policy,
+ * decided in middleware, so this file only carries `prerender = false` and
+ * reads no verdict itself: a signed-out reader never reaches it. The signed-in half of this feature (the personalized digest email)
  * lives in `emails/templates/weekly-digest.mjs`, not here; this page is the
  * generic, always-on cadence surface member-nav.ts's own "The Drop" entry
  * points at.
@@ -158,8 +157,12 @@ const closedThisWeek = closedInWindow(closedJobs(), window, daysBetween);
 // page never prints a sweep total outside that component.
 // ---------------------------------------------------------------------------
 
+export const prerender = false;
+
 const indexHref = routeFor('index');
 const killsHref = routeFor('kills');
+// Links into the kill list exist only while it does (kill_list flag).
+const killListOn = isOn('kill_list');
 const reportHref = routeFor('report');
 ---
 
@@ -181,7 +184,7 @@ const reportHref = routeFor('report');
     <section class="drop-section" aria-labelledby="verified-heading">
       <h2 id="verified-heading" class="section-heading">What is verified</h2>
       <p class="drop-note">
-        The sweep's own totals, as of {stamp}. The same tiles <a class="drop-link" href={killsHref}>the kill list</a> shows.
+        The sweep's own totals, as of {stamp}.{killListOn && <> The same tiles <a class="drop-link" href={killsHref}>the kill list</a> shows.</>}
       </p>
       <StatTiles />
     </section>
@@ -252,9 +255,11 @@ const reportHref = routeFor('report');
             title="Nothing died this week"
             detail={`Nothing tripped a rule in the seven days ending ${formatDate(today)}. The record holds ${record.length} kill${record.length === 1 ? '' : 's'}${recordSince ? ` since ${recordSince}` : ''}, kept whether or not this week added to it.`}
           >
-            <a slot="action" class="drop-link" href={killsHref}>
-              See the kill list
-            </a>
+            {killListOn && (
+              <a slot="action" class="drop-link" href={killsHref}>
+                See the kill list
+              </a>
+            )}
           </EmptyState>
         ) : (
           <>
@@ -264,8 +269,8 @@ const reportHref = routeFor('report');
                 <>
                   {' '}
                   {publishableThisWeek.length} of {diedThisWeek.length} carry a rule this site still stands behind and are
-                  published below; the rest are held or unattributed, exactly as <a class="drop-link" href={killsHref}>the
-                  kill list</a> explains them.
+                  published below; the rest are held or unattributed{killListOn && <>, exactly as <a class="drop-link" href={killsHref}>the
+                  kill list</a> explains them</>}.
                 </>
               )}
             </p>
@@ -334,8 +339,8 @@ const reportHref = routeFor('report');
     <section class="drop-section drop-elsewhere" aria-labelledby="elsewhere-heading">
       <h2 id="elsewhere-heading" class="section-heading">Elsewhere</h2>
       <p class="drop-note">
-        Every posting live at this sweep is on <a class="drop-link" href={indexHref}>the index</a>. Every kill,
-        held and unattributed records included, is on <a class="drop-link" href={killsHref}>the kill list</a>. The
+        Every posting live at this sweep is on <a class="drop-link" href={indexHref}>the index</a>.{killListOn && <> Every kill,
+        held and unattributed records included, is on <a class="drop-link" href={killsHref}>the kill list</a>.</>} The
         wider figures, with their sources, are on <a class="drop-link" href={reportHref}>the report</a>.
       </p>
     </section>

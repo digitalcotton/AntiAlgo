@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { isOn } from '../lib/flags';
 import NewHereStrip from '../components/NewHereStrip.astro';
 import Figure from '../components/report/Figure.astro';
 import FactLine from '../components/report/FactLine.astro';
@@ -145,6 +146,7 @@ const rankedState = hasSweepCounts ? 'ready' : 'empty';
 
 const methodologyHref = routeFor('methodology');
 const killsHref = routeFor('kills');
+const killListOn = isOn('kill_list');
 const writingHref = `${SITE.parent.url}/writing`;
 // absoluteUrl, not `${SITE.url}${path}`: routeFor() already carries the base.
 // This string is the print-only footer, so the doubled prefix it used to build
@@ -370,10 +372,12 @@ const canonical = absoluteUrl(routeFor('report'));
           <a class="method-link" href={methodologyHref}>Methodology</a>
           <span class="method-link-note">The sweep, the kill rules, the rubric and its weights.</span>
         </li>
-        <li>
-          <a class="method-link" href={killsHref}>The kill list</a>
-          <span class="method-link-note">Every posting the machine closed, with its dates and the rule it tripped.</span>
-        </li>
+        {killListOn && (
+          <li>
+            <a class="method-link" href={killsHref}>The kill list</a>
+            <span class="method-link-note">Every posting the machine closed, with its dates and the rule it tripped.</span>
+          </li>
+        )}
         <li>
           <a class="method-link" href={writingHref}>Writing on tokenstoagents.ai</a>
           <span class="method-link-note">The research this index came out of.</span>

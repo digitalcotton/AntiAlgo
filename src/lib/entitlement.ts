@@ -110,12 +110,16 @@ export const ROUTE_POLICY: Record<string, Tier> = {
   // prefix, its one action route (prelist/follow.ts). Keeps a real shop
   // window for a signed-out reader, like /desk.
   '/prelist': 'member',
+  // The Drop (owner decision, 2026-09-20): the weekly roll-up is member data,
+  // not a public summary. Same wall as /desk; drop.astro carries
+  // `export const prerender = false` so this policy is decided per request.
+  '/drop': 'member',
   // Exists so the internal gate is reachable and its denial is provable.
   '/internal': 'internal'
 };
 
 /** Prefixes that are gated. Anything at or under one of these must have a policy. */
-export const GATED_PREFIXES = ['/account', '/desk', '/opportunities', '/settings', '/profile', '/drafts', '/prelist', '/internal'] as const;
+export const GATED_PREFIXES = ['/account', '/desk', '/opportunities', '/settings', '/profile', '/drafts', '/prelist', '/drop', '/internal'] as const;
 
 function assertEveryGatedPrefixHasAPolicy(): void {
   const missing = GATED_PREFIXES.filter((p) => !(p in ROUTE_POLICY));
