@@ -252,13 +252,30 @@ const saveNote = applyTrack
       </div>
     </div>
 
-    <!-- action rail -->
+    <!-- action rail (design: "Job Detail upgrade, rail as the page (1c)",
+         2026-09-20): the reader's own note first, then the draft button, then
+         Apply and Save as a row of text controls under a hairline. The note
+         posts as `reason`, which desk/job-draft.ts already reads (600 char
+         cap, same as its own backstop) and the cover letter uses verbatim as
+         its anchor. The textarea exists only with the real draft form; a
+         signed-out reader or one without a key keeps the link button. -->
     <div class="jd-actions" id="jd-actions">
       {!isClosed && (
         <>
           {signedIn && hasKey ? (
             <form class="jd-draft-form" method="POST" action={draftAction}>
               <input type="hidden" name="slug" value={job.slug} />
+              <label class="jd-reason-label" for="jd-reason">Tell the model why you want this role and what to lead with.</label>
+              <div class="jd-reason-lines">
+                <textarea
+                  id="jd-reason"
+                  class="jd-reason"
+                  name="reason"
+                  rows="6"
+                  maxlength="600"
+                  placeholder="Why this role, in your own words. Then the one piece of your record to lead with, and anything the drafts must say."
+                ></textarea>
+              </div>
               <button type="submit" class="jd-btn jd-btn-primary">Draft resumé and cover letter</button>
             </form>
           ) : (
@@ -268,30 +285,30 @@ const saveNote = applyTrack
         </>
       )}
 
-      {applyUrl && (applyTrack ? (
-        <form class="jd-apply-form" method="POST" action={applyTrack.action} target="_blank" data-apply-url={applyUrl}>
-          <input type="hidden" name="intent" value="click" />
-          <input type="hidden" name="url" value={applyUrl} />
-          <input type="hidden" name="then" value="posting" />
-          {applyTrack.title && <input type="hidden" name="titleOverride" value={applyTrack.title} />}
-          <input type="hidden" name="companyOverride" value={applyTrack.company} />
-          <button type="submit" class="jd-btn jd-btn-outline">Apply on {ats} &#8599;</button>
-        </form>
-      ) : (
-        <a class="jd-btn jd-btn-outline" href={applyUrl} target="_blank" rel="noopener nofollow">Apply on {ats} &#8599;</a>
-      ))}
+      <div class="jd-actions-row">
+        {applyUrl && (applyTrack ? (
+          <form class="jd-apply-form" method="POST" action={applyTrack.action} target="_blank" data-apply-url={applyUrl}>
+            <input type="hidden" name="intent" value="click" />
+            <input type="hidden" name="url" value={applyUrl} />
+            <input type="hidden" name="then" value="posting" />
+            {applyTrack.title && <input type="hidden" name="titleOverride" value={applyTrack.title} />}
+            <input type="hidden" name="companyOverride" value={applyTrack.company} />
+            <button type="submit" class="jd-link jd-link-apply">Apply on {ats} &#8599;</button>
+          </form>
+        ) : (
+          <a class="jd-link jd-link-apply" href={applyUrl} target="_blank" rel="noopener nofollow">Apply on {ats} &#8599;</a>
+        ))}
 
-      {!isClosed && (signedIn ? (
-        <form class="jd-save-form" method="POST" action={routeFor('desk-save')}>
-          <input type="hidden" name="intent" value="save" />
-          <input type="hidden" name="url" value={applyUrl ?? ''} />
-          <button type="submit" class="jd-btn jd-btn-ghost">Save to the desk</button>
-        </form>
-      ) : (
-        <a class="jd-btn jd-btn-ghost" href={signInHref}>Save to the desk</a>
-      ))}
-
-      <p class="jd-actions-note">Apply now if your documents are ready.{applyTrack ? ' Either way the role lands on your desk and stays tracked.' : ''}</p>
+        {!isClosed && (signedIn ? (
+          <form class="jd-save-form" method="POST" action={routeFor('desk-save')}>
+            <input type="hidden" name="intent" value="save" />
+            <input type="hidden" name="url" value={applyUrl ?? ''} />
+            <button type="submit" class="jd-link jd-link-save">Save to the desk</button>
+          </form>
+        ) : (
+          <a class="jd-link jd-link-save" href={signInHref}>Save to the desk</a>
+        ))}
+      </div>
     </div>
   </div>
 
@@ -363,7 +380,8 @@ const saveNote = applyTrack
   /* row 1: one bordered white frame split into the posting card and the rail. */
   .jd-top-row {
     display: grid;
-    grid-template-columns: 1.78fr 1fr;
+    /* The design's split: the card takes what is left of a 392px rail. */
+    grid-template-columns: minmax(0, 1fr) 392px;
     border: var(--border-hairline) solid var(--color-line-strong);
     background: var(--color-surface-raised);
   }
@@ -422,27 +440,42 @@ const saveNote = applyTrack
   .jd-howto p { margin: 0 0 var(--space-200); color: var(--color-muted); font-size: var(--size-100); max-width: 70ch; }
   .jd-howto a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: var(--text-underline-offset); }
 
-  /* action rail (right column): the shaded paper fill inside the frame */
-  .jd-actions { background: var(--color-hover-surface); padding: var(--space-600); display: flex; flex-direction: column; gap: var(--space-300); }
-  .jd-draft-form, .jd-apply-form { margin: 0; }
+  /* action rail (right column): the shaded paper fill inside the frame. Values
+     are the design's (rail as the page, 1c): 34/34/36 padding, 14px gaps. */
+  .jd-actions { background: var(--color-hover-surface); border-left: var(--border-hairline) solid var(--color-line); padding: 34px 34px 36px; display: flex; flex-direction: column; gap: 14px; }
+  .jd-draft-form { margin: 0; display: flex; flex-direction: column; gap: 14px; }
+  .jd-apply-form { margin: 0; }
 
-  .jd-btn { display: block; width: 100%; box-sizing: border-box; text-align: center; padding: var(--space-400) var(--space-500); font-family: var(--font-family-sans); font-weight: var(--weight-semibold, 600); font-size: var(--size-150); line-height: 1.2; text-decoration: none; cursor: pointer; border: var(--border-hairline) solid var(--color-foreground); border-radius: var(--radius); }
+  /* the reader's note: a 21px label over a ruled field, one rule every 34px,
+     the text set on the same 34px line so it sits on the rules */
+  .jd-reason-label { font-size: 21px; font-weight: var(--weight-semibold, 600); line-height: 1.25; letter-spacing: -0.02em; text-wrap: pretty; }
+  .jd-reason-lines { background: repeating-linear-gradient(to bottom, transparent 0 33px, var(--color-line-strong) 33px 34px); }
+  .jd-reason { display: block; width: 100%; box-sizing: border-box; resize: none; background: transparent; border: none; padding: 0; margin: 0; font: inherit; font-size: 17px; line-height: 34px; min-height: 204px; color: var(--color-foreground); field-sizing: content; }
+  .jd-reason::placeholder { color: var(--gray-500); }
+  .jd-reason:focus-visible { outline: none; }
 
-  /* primary: the site's signal-orange CTA, dark ink in both themes on hover too */
-  .jd-btn-primary { background: var(--color-signal); color: var(--gray-950); border-color: var(--color-signal); font-weight: var(--weight-bold); }
-  .jd-btn-primary:hover, .jd-btn-primary:focus-visible { background: var(--color-signal); color: var(--gray-950); border-color: var(--color-signal); }
+  .jd-btn { display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; min-height: 56px; padding: 0 24px; font-family: var(--font-family-sans); font-weight: var(--weight-semibold, 600); font-size: 18px; line-height: 1.2; text-decoration: none; cursor: pointer; white-space: nowrap; border: var(--border-hairline) solid var(--color-foreground); border-radius: var(--radius); }
 
+  /* primary: the site's signal-orange CTA (owner's call over the design's ink), dark ink in both themes on hover too */
+  .jd-btn-primary { background: var(--color-signal); color: var(--gray-950); border-color: var(--color-signal); }
+  .jd-btn-primary:hover, .jd-btn-primary:focus-visible { background: var(--color-signal); color: var(--gray-950); border-color: var(--color-signal); opacity: 0.86; }
+
+  /* outline: the fit card's sign-in control, unchanged */
   .jd-btn-outline { color: var(--color-foreground); background: transparent; }
   .jd-btn-outline:hover { background: var(--color-surface-raised); }
+  .jd-btn-inline { display: inline-block; width: auto; min-height: 0; padding: var(--space-300) var(--space-500); font-size: var(--size-150); }
 
-  /* save: de-emphasised ghost that posts to /desk/save, with a real rollover. */
+  .jd-draft-note { margin: 0; color: var(--color-muted); font-size: 15.5px; line-height: 1.55; text-wrap: pretty; }
+
+  /* Apply and Save as a row of text controls under a hairline: Apply bold
+     with an ink rule, Save muted with a line-strong rule that darkens on hover */
+  .jd-actions-row { border-top: var(--border-hairline) solid var(--color-line); margin-top: 8px; padding-top: 18px; display: flex; gap: 26px; flex-wrap: wrap; }
   .jd-save-form { margin: 0; }
-  .jd-btn-ghost { color: var(--color-muted); background: transparent; border-color: var(--color-line-strong); font-weight: var(--weight-regular); }
-  .jd-btn-ghost:hover, .jd-btn-ghost:focus-visible { color: var(--color-foreground); border-color: var(--color-foreground); background: var(--color-surface-raised); }
-
-  .jd-btn-inline { display: inline-block; width: auto; padding: var(--space-300) var(--space-500); }
-
-  .jd-draft-note, .jd-actions-note { margin: 0; color: var(--color-muted); font-size: var(--size-075); line-height: 1.5; }
+  .jd-link { display: inline-block; background: none; border: none; border-radius: 0; margin: 0; padding: 0 0 5px; font-family: var(--font-family-sans); font-size: 17px; line-height: 1.2; text-decoration: none; cursor: pointer; white-space: nowrap; }
+  .jd-link-apply { color: var(--color-foreground); font-weight: var(--weight-semibold, 600); border-bottom: var(--border-hairline) solid var(--color-foreground); }
+  .jd-link-apply:hover, .jd-link-apply:focus-visible { color: var(--color-muted); }
+  .jd-link-save { color: var(--color-muted); font-weight: var(--weight-regular); border-bottom: var(--border-hairline) solid var(--color-line-strong); }
+  .jd-link-save:hover, .jd-link-save:focus-visible { color: var(--color-foreground); border-bottom-color: var(--color-foreground); }
 
   /* row 2: description beside the fit sidebar */
   .jd-body-row { display: grid; grid-template-columns: 1.78fr 1fr; gap: var(--space-600); align-items: start; }
@@ -483,12 +516,19 @@ const saveNote = applyTrack
   /* stack to one column below the lap breakpoint: main first, sidebar second */
   @media (max-width: 60rem) {
     .jd-top-row { grid-template-columns: 1fr; }
+    /* the design's narrow rail (380): border on top, 26/20/28 padding, 19px
+       label, one rule every 32px, 16px text on a 32px line, 160px minimum */
+    .jd-actions { border-left: none; border-top: var(--border-hairline) solid var(--color-line); padding: 26px 20px 28px; }
+    .jd-reason-label { font-size: 19px; }
+    .jd-reason-lines { background: repeating-linear-gradient(to bottom, transparent 0 31px, var(--color-line-strong) 31px 32px); }
+    .jd-reason { font-size: 16px; line-height: 32px; min-height: 160px; }
+    .jd-draft-note { font-size: 14.5px; }
     .jd-body-row { grid-template-columns: 1fr; gap: var(--space-600); }
     .jd-body-aside { position: static; }
   }
 
   @media (max-width: 48rem) {
-    .jd-card, .jd-actions, .jd-fit { padding: var(--space-500); }
+    .jd-card, .jd-fit { padding: var(--space-500); }
     .jd-history-cols { grid-template-columns: 1fr; gap: var(--space-500); }
   }
 </style>
