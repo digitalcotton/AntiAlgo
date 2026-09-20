@@ -331,7 +331,10 @@ const REFUSALS = [
     font-size: var(--fs-h1);
     line-height: 1.04;
     letter-spacing: var(--tt);
-    max-width: 22ch;
+    /* 28ch, up from the design's 22ch, since the frame widened to 86rem on
+       2026-09-20: measured at 1440 in 58px type the title sets in two balanced
+       lines at 980px instead of three at 770px. */
+    max-width: 28ch;
     text-wrap: pretty;
   }
   .h2 {
@@ -356,7 +359,9 @@ const REFUSALS = [
     font-size: var(--fs-17);
     line-height: 1.55;
     color: var(--ink);
-    max-width: 58ch;
+    /* 68ch, up from the design's 58ch, for the same widened frame: measured
+       at 1440 the lede sets in three lines at 718px instead of four at 613px. */
+    max-width: 68ch;
     text-wrap: pretty;
   }
   .mono-inline {
