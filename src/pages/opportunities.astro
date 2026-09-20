@@ -1296,7 +1296,9 @@ function columnOf(states: readonly ApplicationState[]): StoredApplication[] {
     overflow: hidden;
   }
   .view-toggle-link {
-    padding: var(--space-200) var(--space-400);
+    /* --space-300 vertical, so the switch's box is the Add a job button's
+       height beside it (owner's call, 2026-09-20). */
+    padding: var(--space-300) var(--space-400);
     font-family: var(--font-family-sans);
     font-weight: var(--weight-medium);
     font-size: var(--size-100);

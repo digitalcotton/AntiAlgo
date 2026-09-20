@@ -63,7 +63,26 @@ const { action, view } = Astro.props;
 </dialog>
 
 <style>
-  .add-job-trigger,
+  /* The trigger is the page's primary action (owner's call, 2026-09-20): the
+     site's signal-orange CTA, the same values as global.css .cta, dark ink in
+     both themes. The modal's own submit below keeps the quiet inverse fill. */
+  .add-job-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-signal);
+    color: var(--gray-950);
+    border: var(--border-hairline) solid var(--color-signal);
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: var(--space-300) var(--space-500);
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-bold);
+    font-size: var(--size-100);
+    letter-spacing: var(--tracking-snug);
+    white-space: nowrap;
+  }
+
   .ap-submit {
     display: inline-flex;
     align-items: center;
