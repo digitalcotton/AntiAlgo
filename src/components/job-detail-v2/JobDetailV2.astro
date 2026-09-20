@@ -371,7 +371,11 @@ const saveNote = applyTrack
 </script>
 
 <style>
-  .jd { max-width: none; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-600); }
+  /* width: 100%, because the board page renders this inside a flex column and
+     the auto side margins there switch the item from stretch to shrink-to-fit,
+     so the frame took its content's own width and grew when the history
+     opened (found signed in, 2026-09-20). */
+  .jd { width: 100%; max-width: none; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-600); }
 
   .jd-crumbs { font-family: var(--font-family-mono); font-size: var(--size-100); }
   .jd-crumbs a { color: var(--color-muted); text-decoration: none; }
