@@ -68,7 +68,9 @@
   var watchSeq = 0;
 
   var state = {
-    theme: (mount && mount.dataset.theme === 'dark') ? 'dark' : 'light',
+    // Read from the root, never written here: BaseLayout's theme authority
+    // owns data-theme (see antialgo:themechange below).
+    theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light',
     watches: [],
     where: 'anywhere', floor: 0, priced: 'any', age: 0, level: 'any',
     ats: 'any', friction: 'any', risk: 'any', record: 'any',
@@ -517,8 +519,6 @@
     });
     var bandRows = TEAM.filter(function (t) { return t[2]; }).reduce(function (a, t) { return a + t[1]; }, 0);
 
-    var themeGlyph = st.theme === 'dark' ? 'Light' : 'Dark';
-
     // ---- TSV export string (built pure; the copy-cut handler writes it out)
     var tsvCols = ['title', 'issuer', 'level', 'family', 'where', 'remote', 'min_k', 'max_k', 'range_printed', 'published', 'age_days', 'fit', 'applicant_system', 'apply_friction', 'apply_minutes', 'kill_risk', 'issuer_kills', 'issuer_max_fired', 'first_observed'];
     var tsvBody = cutSorted.map(function (r) {
@@ -702,7 +702,6 @@
         { tag: 'not claimed', ink: 'var(--color-muted)', text: 'Nothing on this page states intent. A posting reposted 28 times is a count we measured. Why it came back is a mind state no sweep can read, so this page does not print one.' }
       ],
 
-      themeGlyph: themeGlyph
     };
   }
 
@@ -797,11 +796,6 @@
       case 'toggle-rows': state.rowsOpen = !state.rowsOpen; break;
       case 'toggle-watch': state.watchOpen = !state.watchOpen; break;
       case 'toggle-named': state.named = !state.named; break;
-      case 'toggle-theme': {
-        state.theme = state.theme === 'dark' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', state.theme);
-        break;
-      }
       case 'watch-all':
         state.watches = TITLE_INDEX.map(function (t, i) {
           return { id: 'a' + i, title: t.title, shelf: t.title === 'Design Leadership' ? 'stretch' : 'core', off: [], expanded: false };
@@ -876,7 +870,10 @@
   // -------------------------------------------------------------------------
   function init() {
     if (!mount) return;
-    document.documentElement.setAttribute('data-theme', state.theme);
+    document.addEventListener('antialgo:themechange', function (e) {
+      state.theme = e.detail && e.detail.theme === 'dark' ? 'dark' : 'light';
+      render();
+    });
     mount.addEventListener('click', onClick);
     mount.addEventListener('input', onInput);
     mount.addEventListener('pointerover', onRead);

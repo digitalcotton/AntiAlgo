@@ -53,17 +53,58 @@ const robots = noindex ? 'noindex, follow' : 'index, follow, max-image-preview:l
     <meta charset="utf-8" />
     <!-- Theme, resolved before first paint: the stored choice wins, the OS
          preference seeds a first visit. Inline and first so no stylesheet can
-         paint the wrong surface. -->
+         paint the wrong surface.
+
+         THE ONE THEME AUTHORITY (since 2026-09-20). This script is the only
+         code on the site that writes data-theme or the stored choice. It
+         exposes window.antialgoTheme: get() reads the root, set(next) writes
+         the root and storage and fires "antialgo:themechange" on the document.
+         Everything else (the header toggle, the Jobs Data app, page styles)
+         reads the root or listens for the event and never writes. Two writers
+         is how the site flipped between light and dark from page to page. It
+         also follows the OS when no choice is stored, and follows another tab's
+         choice through the storage event, so every open page agrees. -->
     <script is:inline>
       (() => {
-        let theme;
-        try {
-          theme = localStorage.getItem('theme');
-        } catch {}
-        if (theme !== 'dark' && theme !== 'light') {
-          theme = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        const root = document.documentElement;
+        const KEY = 'theme';
+        const valid = (t) => t === 'dark' || t === 'light';
+        const stored = () => {
+          try {
+            const t = localStorage.getItem(KEY);
+            return valid(t) ? t : null;
+          } catch {
+            return null;
+          }
+        };
+        const os = () =>
+          window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        const apply = (theme) => {
+          if (root.getAttribute('data-theme') === theme) return;
+          root.setAttribute('data-theme', theme);
+          document.dispatchEvent(new CustomEvent('antialgo:themechange', { detail: { theme } }));
+        };
+        window.antialgoTheme = {
+          get: () => (valid(root.getAttribute('data-theme')) ? root.getAttribute('data-theme') : os()),
+          set: (next) => {
+            if (!valid(next)) return;
+            try {
+              localStorage.setItem(KEY, next);
+            } catch {}
+            apply(next);
+          }
+        };
+        apply(stored() || os());
+        // No stored choice: the site follows the OS as it changes.
+        if (window.matchMedia) {
+          matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (!stored()) apply(os());
+          });
         }
-        document.documentElement.setAttribute('data-theme', theme);
+        // Another tab chose: this one follows.
+        window.addEventListener('storage', (e) => {
+          if (e.key === KEY && valid(e.newValue)) apply(e.newValue);
+        });
       })();
     </script>
 

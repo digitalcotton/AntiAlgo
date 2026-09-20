@@ -58,7 +58,12 @@
 </style>
 
 <script>
+  // The toggle never writes the theme itself: it asks the one authority
+  // (window.antialgoTheme, BaseLayout.astro's pre-paint script) and syncs
+  // its own state from the root, on click and whenever the theme changes
+  // from anywhere else (another tab, the OS).
   const root = document.documentElement;
+  const authority = (window as unknown as { antialgoTheme?: { get: () => string; set: (t: string) => void } }).antialgoTheme;
   document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]').forEach((btn) => {
     const sync = () => {
       const dark = root.getAttribute('data-theme') === 'dark';
@@ -67,12 +72,11 @@
     };
     btn.addEventListener('click', () => {
       const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      root.setAttribute('data-theme', next);
-      try {
-        localStorage.setItem('theme', next);
-      } catch {}
+      if (authority) authority.set(next);
+      else root.setAttribute('data-theme', next);
       sync();
     });
+    document.addEventListener('antialgo:themechange', sync);
     sync();
   });
 </script>
