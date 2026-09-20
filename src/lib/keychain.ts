@@ -385,5 +385,16 @@ export function validateKeyShape(provider: Provider, plaintext: string): KeyShap
   if (provider === 'anthropic' && !plaintext.startsWith(ANTHROPIC_PREFIX)) {
     return { ok: false, reason: `anthropic keys start with '${ANTHROPIC_PREFIX}'` };
   }
+  // AND THE REVERSE, WHICH MATTERS MORE. A key filed under the wrong
+  // provider is not a typo that fails later: the draft calls that provider's
+  // endpoint with this key in the Authorization header, so an Anthropic key
+  // stored as a DeepSeek key would be transmitted to DeepSeek. The prefix is
+  // the only tell any of the four gives: sk-ant- is Anthropic and nobody
+  // else's, while OpenAI, Kimi and DeepSeek all issue plain sk- keys that
+  // cannot be told apart here. So this closes the one case that can be
+  // known, and the first draft remains the test for the rest.
+  if (provider !== 'anthropic' && plaintext.startsWith(ANTHROPIC_PREFIX)) {
+    return { ok: false, reason: `a key starting with '${ANTHROPIC_PREFIX}' is an anthropic key, not a ${provider} key` };
+  }
   return { ok: true };
 }

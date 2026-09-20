@@ -154,6 +154,9 @@ const returnPath = `${selfPath}&saved=1`;
     if (/\s/.test(value)) return 'key contains whitespace';
     if (/[\x00-\x1f\x7f]/.test(value)) return 'key contains control characters';
     if (provider === 'anthropic' && !value.startsWith(ANTHROPIC_PREFIX)) return `anthropic keys start with '${ANTHROPIC_PREFIX}'`;
+    if (provider !== 'anthropic' && value.startsWith(ANTHROPIC_PREFIX)) {
+      return `a key starting with '${ANTHROPIC_PREFIX}' is an anthropic key, not a ${provider} key`;
+    }
     return null;
   }
   const form = document.querySelector<HTMLFormElement>('[data-cr-key-form]');

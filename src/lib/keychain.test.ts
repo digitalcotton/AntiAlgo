@@ -227,6 +227,17 @@ describe('validateKeyShape()', () => {
     expect(result.ok).toBe(false);
   });
 
+  // The draft sends the stored key to the stored provider's endpoint, so a
+  // key filed under the wrong one is not a late typo: it hands an Anthropic
+  // key to DeepSeek.
+  it('refuses an sk-ant- key filed under any other provider', () => {
+    for (const provider of ['openai', 'kimi', 'deepseek'] as const) {
+      const result = validateKeyShape(provider, FAKE_KEY);
+      expect(result.ok).toBe(false);
+      expect(result.ok === false && result.reason).toContain(provider);
+    }
+  });
+
   it('refuses an empty string', () => {
     const result = validateKeyShape('anthropic', '');
     expect(result.ok).toBe(false);
