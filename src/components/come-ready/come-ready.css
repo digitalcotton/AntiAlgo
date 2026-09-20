@@ -344,6 +344,48 @@ a.cr-row[data-status='waiting']:hover {
   font-size: 0.95rem;
   color: var(--color-mark-live);
 }
+/* The band a file is dropped on, drawn the same on the resumé step and the
+   cover letter: a dashed frame with its own invitation inside. Shared, so
+   the two cannot drift, and declared here rather than in either component so
+   the .is-dragging rule below reaches its border on source order. */
+.cr-drop {
+  margin-top: 18px;
+  padding: 26px 22px;
+  border: var(--border-hairline) dashed var(--color-line-strong);
+  border-radius: var(--radius);
+  text-align: center;
+}
+.cr-drop-label {
+  display: block;
+  cursor: pointer;
+}
+.cr-drop-line {
+  display: block;
+  font-weight: 500;
+}
+.cr-drop-hint {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-family-mono);
+  font-size: 0.82rem;
+  color: var(--color-muted);
+}
+.cr-drop .cr-btn {
+  margin-top: 14px;
+}
+/* The plain submit a browser with no script needs; the script hides it. Its
+   class sets display, so the hidden attribute needs its own line to win. */
+.cr-nojs {
+  margin-left: 12px;
+}
+.cr-nojs[hidden] {
+  display: none;
+}
+.cr-file:focus-visible + .cr-btn {
+  outline: 2px solid var(--color-foreground);
+  outline-offset: 2px;
+}
+
 /* A band a file can be dropped on, while a file is over it: the edge closes
    into a solid signal line and the fill takes the faintest wash of the same
    colour. Eight percent reads as "this will catch it" on paper and on ink

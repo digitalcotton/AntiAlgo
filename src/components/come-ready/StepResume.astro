@@ -276,51 +276,8 @@ const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,applicati
   .cr-hatch .cr-intro {
     margin-top: 10px;
   }
-  .cr-drop {
-    margin-top: 18px;
-    padding: 26px 22px;
-    border: var(--border-hairline) dashed var(--color-line-strong);
-    border-radius: var(--radius);
-    text-align: center;
-  }
-  /* The wash and the transition live in come-ready.css, shared with the
-     cover letter's band. The EDGE has to be coloured here: this file's own
-     border rule is scoped with an attribute, which outranks the shared
-     .is-dragging, so the dashes would stay grey under the pointer. */
-  .cr-drop.is-dragging {
-    border-style: solid;
-    border-color: var(--color-signal);
-  }
-  .cr-drop-label {
-    display: block;
-    cursor: pointer;
-  }
-  .cr-drop-line {
-    display: block;
-    font-weight: 500;
-  }
-  .cr-drop-hint {
-    display: block;
-    margin-top: 6px;
-    font-family: var(--font-family-mono);
-    font-size: 0.82rem;
-    color: var(--color-muted);
-  }
-  .cr-drop .cr-btn-gap {
-    margin-top: 14px;
-  }
-  .cr-nojs {
-    margin-left: 12px;
-  }
-  /* The class sets display, so the hidden attribute the script adds needs
-     its own rule to win. */
-  .cr-nojs[hidden] {
-    display: none;
-  }
-  .cr-file:focus-visible + .cr-btn {
-    outline: 2px solid var(--color-foreground);
-    outline-offset: 2px;
-  }
+  /* The band itself, its wash and its no-script button all live in
+     come-ready.css, shared with the cover letter's band. */
   .cr-paste-details {
     margin-top: 12px;
   }

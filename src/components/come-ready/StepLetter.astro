@@ -36,23 +36,26 @@ const linkAction = routeFor('profile-link');
     {letter ? (
       <textarea id="cr-letter" class="cr-textarea" rows="7" readonly aria-label="Cover letter">{letter.text}</textarea>
     ) : (
-      <div class="cr-letter-zone cr-dropzone" data-cr-letter-drop>
+      <>
+        {/* The same band the resumé step draws, on the same endpoint's file
+            half. Its own form, because a file and a pasted body are two
+            different requests. */}
+        <form method="POST" action={coverAction} enctype="multipart/form-data" class="cr-drop cr-dropzone" data-cr-letter-drop>
+          <input type="hidden" name="return" value={selfPath} />
+          <label class="cr-drop-label" for="cr-letter-file">
+            <span class="cr-drop-line">Drop your letter here, or choose a file.</span>
+            <span class="cr-drop-hint">PDF, Word (.docx), Markdown or plain text. Or paste it below.</span>
+          </label>
+          <input id="cr-letter-file" class="cr-file visually-hidden" type="file" name="file" accept={ACCEPT} required data-cr-letter-file />
+          <label class="cr-btn" for="cr-letter-file">Choose a file</label>
+          <button type="submit" class="cr-btn cr-nojs" data-cr-letter-nojs>Save that file</button>
+        </form>
         <form method="POST" action={coverAction} class="cr-letter-form">
           <input type="hidden" name="return" value={selfPath} />
-          <textarea id="cr-letter" class="cr-textarea" name="pasted" rows="7" placeholder="Paste the cover letter you reuse, or drop the file on this box." aria-label="Cover letter" required></textarea>
+          <textarea id="cr-letter" class="cr-textarea cr-letter-paste" name="pasted" rows="7" placeholder="Or paste the cover letter you reuse." aria-label="Cover letter" required></textarea>
           <button type="submit" class="cr-btn cr-btn-gap">Save cover letter</button>
         </form>
-        {/* The file half of the same endpoint. Its own form because a file
-            and a pasted body are two different requests, and its input is
-            hidden because the box itself is the target: choosing a file and
-            dropping one land in the same place. */}
-        <form method="POST" action={coverAction} enctype="multipart/form-data" class="cr-letter-file">
-          <input type="hidden" name="return" value={selfPath} />
-          <input id="cr-letter-file" class="visually-hidden" type="file" name="file" accept={ACCEPT} data-cr-letter-file />
-          <label class="cr-link-quiet" for="cr-letter-file">Or choose a file: PDF, Word (.docx), Markdown or plain text.</label>
-          <button type="submit" class="cr-btn cr-btn-gap cr-nojs" data-cr-letter-nojs>Save that file</button>
-        </form>
-      </div>
+      </>
     )}
     <p class="cr-note cr-note-gap cr-note-wide">Kept as a writing sample only. The cover letter draft takes its voice from it; the resumé draft never sees it. Any dated role it names is proposed into your record for review.</p>
   </div>
@@ -103,22 +106,8 @@ const linkAction = routeFor('profile-link');
 <style>
   /* A border that is there all along and only takes a colour on a drag, so
      the box does not grow by a pixel under the pointer. */
-  .cr-letter-zone {
-    border: var(--border-hairline) solid transparent;
-    border-radius: var(--radius);
-    padding: 8px;
-    margin: -8px -8px 0;
-  }
-  /* Astro scopes this file's selectors with an attribute, which outranks the
-     shared .is-dragging rule, so the edge is coloured here or not at all. */
-  .cr-letter-zone.is-dragging {
-    border-color: var(--color-signal);
-  }
-  .cr-letter-file {
-    margin-top: 10px;
-  }
-  .cr-nojs[hidden] {
-    display: none;
+  .cr-letter-paste {
+    margin-top: 12px;
   }
   .cr-letter {
     margin-top: 18px;
