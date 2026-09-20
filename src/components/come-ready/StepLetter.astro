@@ -6,23 +6,27 @@
  * return here.
  */
 import StepCard from './StepCard.astro';
+import RingMark from './RingMark.astro';
 import type { CoverLetterOnFile } from '../../lib/record-store';
 import type { StoredLink } from '../../lib/profile-links';
 import { routeFor } from '../../data/nav';
 import { withBase } from '../../../site.config.mjs';
 
 interface Props {
+  /** A read of this letter (or a resumé) is running right now. */
+  parsePending?: boolean;
   letter: CoverLetterOnFile | null;
   links: StoredLink[];
   selfPath: string;
   doorPath: string;
 }
-const { letter, links, selfPath, doorPath } = Astro.props;
+const { letter, links, parsePending = false, selfPath, doorPath } = Astro.props;
 const coverAction = routeFor('profile-import-cover');
 /** The types the cover endpoint's own extractor accepts, the same list the
     resumé band offers. */
 const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const linkAction = routeFor('profile-link');
+const statusUrl = routeFor('profile-import-status');
 ---
 
 <StepCard n={6} title="Add your cover letter and links" time="Optional, 1 min">
@@ -57,7 +61,13 @@ const linkAction = routeFor('profile-link');
         </form>
       </>
     )}
-    <p class="cr-note cr-note-gap cr-note-wide">Kept as a writing sample only. The cover letter draft takes its voice from it; the resumé draft never sees it. Any dated role it names is proposed into your record for review.</p>
+    {parsePending && (
+      <div class="cr-reading-line" data-cr-letter-reading data-status-url={statusUrl} data-return={withBase(selfPath)} role="status" aria-live="polite">
+        <RingMark />
+        <span>Reading your letter on your key. Any link and any dated role it names lands below when it finishes.</span>
+      </div>
+    )}
+    <p class="cr-note cr-note-gap cr-note-wide">Kept as a writing sample only. The cover letter draft takes its voice from it; the resumé draft never sees it. Any link it names is added below, and any dated role is proposed into your record.</p>
   </div>
 
   <div class="cr-rule-loose">
@@ -89,6 +99,43 @@ const linkAction = routeFor('profile-link');
 <script>
   import { wireDropZone } from '../../lib/drop-zone';
 
+  // A saved letter is read in the background on the member's key, and the
+  // links and roles it names only reach this page once that read lands. The
+  // page used to say nothing and change nothing, so the reader was left
+  // looking at a letter that appeared to have done nothing. This waits for
+  // the read and loads the step again when it finishes.
+  const reading = document.querySelector<HTMLElement>('[data-cr-letter-reading]');
+  if (reading) {
+    const statusUrl = reading.dataset.statusUrl ?? '';
+    const back = reading.dataset.return ?? '';
+    const POLL_MS = 3000;
+    const POLL_LIMIT = 40;
+    void (async () => {
+      for (let n = 0; n < POLL_LIMIT; n += 1) {
+        await new Promise((r) => setTimeout(r, POLL_MS));
+        try {
+          const response = await fetch(statusUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+          // A session that expired mid-wait does not answer with an error: the
+          // gate redirects to sign-in and this reads a 200 of HTML. Anything
+          // that is not the JSON this endpoint speaks ends the wait and hands
+          // the reader back to the page, which knows where to send them.
+          const isJson = (response.headers.get('content-type') ?? '').includes('application/json');
+          if (!response.ok || response.redirected || !isJson) {
+            window.location.assign(back);
+            return;
+          }
+          const body = (await response.json()) as { status?: string };
+          if (body.status === 'ready' || body.status === 'none') {
+            window.location.assign(back);
+            return;
+          }
+        } catch {
+          // A blip is not an answer; the next tick asks again.
+        }
+      }
+    })();
+  }
+
   // The same band the resumé step has, on the letter. With no script the
   // file form still posts through its own button; with script, the box takes
   // a drop and a chosen file submits itself.
@@ -108,6 +155,18 @@ const linkAction = routeFor('profile-link');
      the box does not grow by a pixel under the pointer. */
   .cr-letter-paste {
     margin-top: 12px;
+  }
+  .cr-reading-line {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 14px;
+    align-items: center;
+    margin-top: 14px;
+    padding: 12px 14px;
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    line-height: 1.45;
   }
   .cr-letter {
     margin-top: 18px;

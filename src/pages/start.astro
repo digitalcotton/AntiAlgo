@@ -135,7 +135,9 @@ const lede =
             selfPath="/start?step=5"
           />
         )}
-        {edition === 'paid' && model.active === 6 && <StepLetter letter={view.letter} links={view.links} selfPath="/start?step=6" doorPath="/start?step=door" />}
+        {edition === 'paid' && model.active === 6 && (
+          <StepLetter letter={view.letter} links={view.links} parsePending={view.parse?.status === 'pending'} selfPath="/start?step=6" doorPath="/start?step=door" />
+        )}
         {edition === 'paid' && model.active === 'door' && <DoorPaid home={view.home} coreTitles={view.coreTitles} open={model.doorOpen} />}
 
         {edition === 'free' && model.active === 3 && <StepEmail verified={viewer.emailVerified} email={email} nextPath="/start?step=4" skipPath="/start?step=4" />}
