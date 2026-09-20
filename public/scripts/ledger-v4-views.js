@@ -292,7 +292,7 @@
         <div data-charts="" style="margin-top:26px;display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--color-line);border:1px solid var(--color-line);">
   
           <!-- PAY LADDER -->
-          <div style="background:var(--color-surface);padding:clamp(18px,2vw,24px);display:flex;flex-direction:column;">
+          <div style="background:var(--color-surface-raised);padding:clamp(18px,2vw,24px);display:flex;flex-direction:column;">
             <div style="display:flex;flex-wrap:wrap;gap:8px 12px;justify-content:space-between;align-items:baseline;">
               <h3 style="margin:0;font-size:1.04rem;font-weight:600;letter-spacing:-0.01em;">Pay ladder by seniority</h3>
               <span style="font-family:var(--font-family-mono);font-size:0.62rem;letter-spacing:0.08em;border:1px solid var(--color-line);color:var(--color-line-strong);padding:2px 6px;white-space:nowrap;">TIER 1</span>
@@ -315,7 +315,7 @@
           </div>
   
           <!-- REMOTE VS ONSITE -->
-          <div style="background:var(--color-surface);padding:clamp(18px,2vw,24px);display:flex;flex-direction:column;">
+          <div style="background:var(--color-surface-raised);padding:clamp(18px,2vw,24px);display:flex;flex-direction:column;">
             <div style="display:flex;flex-wrap:wrap;gap:8px 12px;justify-content:space-between;align-items:baseline;">
               <h3 style="margin:0;font-size:1.04rem;font-weight:600;letter-spacing:-0.01em;">Remote against in-office pay</h3>
               <span style="font-family:var(--font-family-mono);font-size:0.62rem;letter-spacing:0.08em;border:1px solid var(--color-line);color:var(--color-line-strong);padding:2px 6px;white-space:nowrap;">TIER 1</span>
@@ -338,7 +338,7 @@
           </div>
   
           <!-- FIT VS PAY -->
-          <div style="background:var(--color-surface);padding:clamp(18px,2vw,24px);display:flex;flex-direction:column;">
+          <div style="background:var(--color-surface-raised);padding:clamp(18px,2vw,24px);display:flex;flex-direction:column;">
             <div style="display:flex;flex-wrap:wrap;gap:8px 12px;justify-content:space-between;align-items:baseline;">
               <h3 style="margin:0;font-size:1.04rem;font-weight:600;letter-spacing:-0.01em;">Fit against pay</h3>
               <span style="font-family:var(--font-family-mono);font-size:0.62rem;letter-spacing:0.08em;border:1px solid var(--color-line);color:var(--color-line-strong);padding:2px 6px;white-space:nowrap;">TIER 1</span>
@@ -361,7 +361,7 @@
           </div>
   
           <!-- NEGOTIATION BAND -->
-          <div style="background:var(--color-surface);padding:clamp(18px,2vw,24px);display:flex;flex-direction:column;">
+          <div style="background:var(--color-surface-raised);padding:clamp(18px,2vw,24px);display:flex;flex-direction:column;">
             <div style="display:flex;flex-wrap:wrap;gap:8px 12px;justify-content:space-between;align-items:baseline;">
               <h3 style="margin:0;font-size:1.04rem;font-weight:600;letter-spacing:-0.01em;">Negotiation band</h3>
               <span style="font-family:var(--font-family-mono);font-size:0.62rem;letter-spacing:0.08em;border:1px solid var(--color-line);color:var(--color-line-strong);padding:2px 6px;white-space:nowrap;">TIER 1</span>
