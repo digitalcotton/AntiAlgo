@@ -14,8 +14,8 @@ const STORY = [
   { label: 'Evidence', href: routeFor('evidence') },
   { label: 'Your key', href: routeFor('your-key') }
 ];
-// A signed-in reader already has a spot: no sign-up link for them (the
-// header applies the same rule).
+// The footer carries no sign-up action in either state (owner decision,
+// 2026-09-20): the header's Save my spot is the one.
 const signedIn = Boolean(Astro.locals.viewer);
 // Signed in, the footer is the member's own surfaces (the same four the
 // signed-in header shows, plus the two account pages) and nothing from the
@@ -30,10 +30,11 @@ const MEMBER = [
 ];
 // The kill list link exists only while the list does (kill_list flag), the
 // same rule the tiles, the report and the not-here coda follow.
+// No link to the board: a signed-out reader has the header's "The board" for
+// that (owner decision, 2026-09-20). The report link follows its own flag.
 const PRODUCT = [
-  { label: 'The Index', href: INDEX.board },
   ...(isOn('kill_list') ? [{ label: 'Kill list', href: INDEX.kills }] : []),
-  { label: 'The Report', href: INDEX.report },
+  ...(isOn('report') ? [{ label: 'The Report', href: INDEX.report }] : []),
   { label: 'Not here, on purpose', href: INDEX.notHere },
   { label: 'Methodology', href: INDEX.methodology }
 ];
@@ -54,7 +55,6 @@ const PRODUCT = [
           <nav class="ftr-nav" aria-label="The story">
             {STORY.map((l) => <a href={l.href}>{l.label}</a>)}
           </nav>
-          <a class="ftr-action" href={`${routeFor('sign-up')}?from=footer`}>Save my spot</a>
         </div>
         <div class="ftr-row">
           <nav class="ftr-nav" aria-label="The product">

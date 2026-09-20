@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { isOn } from '../lib/flags';
 import Reading from '../components/Reading.astro';
 import { loadStats, sweptStamp } from '../lib/data';
 import { routeFor } from '../data/nav';
@@ -65,6 +66,8 @@ const postingsObserved: number | null = stats._meta?.postings_observed ?? null;
 const methodologyHref = routeFor('methodology');
 const killRulesHref = `${methodologyHref}#kills`;
 const reportHref = routeFor('report');
+// The link exists only while the report does (report flag); the sentence stays.
+const reportOn = isOn('report');
 const covenantHref = withBase('/covenant');
 
 const reportMailHref = `mailto:${SITE.contact}?subject=${encodeURIComponent('The Index: annual report waitlist')}`;
@@ -176,7 +179,7 @@ const feedMailHref = `mailto:${SITE.contact}?subject=${encodeURIComponent('The I
       <h2 class="section-title">The free monthly analysis</h2>
 
       <p class="prose">
-        <a class="inline-link" href={reportHref}>The report</a> publishes what a sweep finds, the same night the
+        {reportOn ? <a class="inline-link" href={reportHref}>The report</a> : 'The report'} publishes what a sweep finds, the same night the
         data is: the arrival window, how long postings live, what died and under which rule. It runs from the same
         two files this page does, so nothing in it is stated twice with two different numbers. One issue exists
         today because one sweep exists behind it; the cadence becomes monthly the day there is a month of sweeps to

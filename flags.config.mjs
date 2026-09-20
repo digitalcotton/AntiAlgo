@@ -64,6 +64,16 @@ export const FLAGS = {
   // the list (the tiles' captions, the report's method link, the not-here
   // coda, the Drop's notes) is left out. Flip on to bring the whole set back
   // in one edit.
+  // OFF in both editions (owner decision, 2026-09-20): the report is held
+  // back the same way as the kill list. /report, /report/cover and the
+  // social image are dark, the sitemap skips them, and the footer, /data and
+  // the Drop leave their links to it out.
+  report: {
+    why:
+      'The report is held back until it is ready to be a product surface. While off, /report and ' +
+      'its cover and social image are a flat 404, and no page links into it.',
+    editions: { design: false, broad: false }
+  },
   kill_list: {
     why:
       'The kill list is held back until it is ready to be a product surface. While off, /kills ' +
@@ -259,6 +269,11 @@ export const FLAGGED_ROUTES = {
   // this 404 is decided per request; the card routes under it are prerendered
   // and build no paths while the flag is off (see their getStaticPaths).
   '/kills': 'kill_list',
+  // report.astro, report/cover.astro and report.og.svg.ts all carry
+  // `export const prerender = false` so this 404 is decided per request. The
+  // image sits beside /report, not under it, so it needs its own entry.
+  '/report': 'report',
+  '/report.og.svg': 'report',
   // The two machine routes are called by the Mac mini with a shared secret,
   // never by a browser. Dark flag, flat 404.
   '/machine': 'add_posting',

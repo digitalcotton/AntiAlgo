@@ -1,4 +1,8 @@
 import type { APIRoute } from 'astro';
+
+// Rendered per request (since 2026-09-20): dark with the report flag, see
+// flags.config.mjs FLAGGED_ROUTES ('/report.og.svg' has its own entry).
+export const prerender = false;
 import { sweptStamp } from '../lib/data';
 import { formatReading, killedByRuleTotal } from '../lib/readings';
 import { displayUrl } from '../data/site';

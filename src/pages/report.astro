@@ -1,4 +1,8 @@
 ---
+// Rendered per request (since 2026-09-20) so the report flag's 404 in
+// middleware is decided live rather than at build. Everything it reads is
+// still the published JSON and the closed fact list.
+export const prerender = false;
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { isOn } from '../lib/flags';
 import NewHereStrip from '../components/NewHereStrip.astro';

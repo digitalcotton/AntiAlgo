@@ -163,6 +163,7 @@ const indexHref = routeFor('index');
 const killsHref = routeFor('kills');
 // Links into the kill list exist only while it does (kill_list flag).
 const killListOn = isOn('kill_list');
+const reportOn = isOn('report');
 const reportHref = routeFor('report');
 ---
 
@@ -347,8 +348,8 @@ const reportHref = routeFor('report');
       <h2 id="elsewhere-heading" class="section-heading">Elsewhere</h2>
       <p class="drop-note">
         Every posting live at this sweep is on <a class="drop-link" href={indexHref}>the index</a>.{killListOn && <> Every kill,
-        held and unattributed records included, is on <a class="drop-link" href={killsHref}>the kill list</a>.</>} The
-        wider figures, with their sources, are on <a class="drop-link" href={reportHref}>the report</a>.
+        held and unattributed records included, is on <a class="drop-link" href={killsHref}>the kill list</a>.</>}{reportOn && <> The
+        wider figures, with their sources, are on <a class="drop-link" href={reportHref}>the report</a>.</>}
       </p>
     </section>
   </div>
