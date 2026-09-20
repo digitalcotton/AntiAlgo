@@ -62,6 +62,17 @@ describe('a member route', () => {
   });
 });
 
+describe('the paid route', () => {
+  it('/start demands paid: a member is insufficient-tier, paid and internal pass', () => {
+    expect(requiredTierFor('/start')).toBe('paid');
+    expect(decide('/start', viewer('member')).reason).toBe('insufficient-tier');
+    expect(decide('/start', viewer('waitlisted')).reason).toBe('waitlisted');
+    expect(decide('/start', null).reason).toBe('signed-out');
+    expect(decide('/start', viewer('paid')).allow).toBe(true);
+    expect(decide('/start', viewer('internal')).allow).toBe(true);
+  });
+});
+
 describe('public routes', () => {
   it('are not gated and allow everyone, including a waitlisted account', () => {
     for (const path of ['/', '/sign-up', '/sign-in', '/waitlist']) {

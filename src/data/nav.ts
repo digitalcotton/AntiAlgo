@@ -82,6 +82,8 @@ export const ROUTES = [
 
   // --- The Desk (the titles-driven member home) and the Opportunities tracker ---
   { key: 'desk', pattern: '/desk', kind: 'static', note: 'The Desk: the paid member home. Name the titles you want and the board narrows to them; a nightly read of what is new and what died under those titles.', sitemap: false },
+  // 'come-ready', not 'start': the key 'start' already names the home page above.
+  { key: 'come-ready', pattern: '/start', kind: 'static', note: "Come ready: the paid member's first run. Titles, key, resumé, cover letter and links, then the first draft. Behind the paid account.", sitemap: false },
   { key: 'opportunities', pattern: '/opportunities', kind: 'static', note: 'The applications tracker (formerly The Desk): what you did with an application vs what the sweep observed, two tracks, never one status. Behind sign-in.', sitemap: false },
   { key: 'desk-save', pattern: '/desk/save', kind: 'asset', note: 'POST. Saves or unsaves one verified posting for the signed-in account.', sitemap: false },
   { key: 'desk-application', pattern: '/desk/application', kind: 'asset', note: 'POST. Creates, confirms, transitions, archives or unarchives one application, by intent field.', sitemap: false },
