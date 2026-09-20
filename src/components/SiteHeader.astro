@@ -2,7 +2,6 @@
 import BrandMark from './BrandMark.astro';
 import ThemeToggle from './ThemeToggle.astro';
 import SignOut from './SignOut.astro';
-import MemberSubnav from './MemberSubnav.astro';
 import { routeFor } from '../data/nav';
 import { SITE } from '../data/site';
 import { isOn } from '../lib/flags';
@@ -35,13 +34,15 @@ const MARKETING = [
   { label: 'Your key', href: routeFor('your-key') }
 ];
 
-// The signed-in surfaces. "The board" points at /board (the full board), not the
-// marketing home; the rest mirror src/data/member-nav.ts's MEMBER_NAV routes.
+// The signed-in surfaces. "The Board" points at /board (the full board), not the
+// marketing home; the Pre-List is reached from the board's own view switch, not
+// from here. Since 2026-09-19 this one row is the whole member nav: the second
+// row (MemberSubnav) is gone.
 const MEMBER = [
-  { label: 'The board', href: routeFor('board') },
+  { label: 'The Board', href: routeFor('board') },
   { label: 'The Desk', href: routeFor('desk') },
-  { label: 'Pre-List', href: routeFor('prelist') },
-  { label: 'The Drop', href: routeFor('drop') }
+  { label: 'Opportunities', href: routeFor('opportunities') },
+  { label: 'Jobs Data', href: routeFor('jobs-data') }
 ];
 ---
 
@@ -79,11 +80,6 @@ const MEMBER = [
       )}
     </nav>
   </div>
-  {/* The workspace sub-row. Self-gating: it renders only for a signed-in
-      reader standing in the desk cluster, and nothing otherwise, so the header
-      stays one row everywhere else. Inside <header> so both rows stick together
-      under the one heavy bottom border. */}
-  <MemberSubnav />
 </header>
 
 <style>

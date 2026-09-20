@@ -5,7 +5,8 @@ import { withBase } from '../../site.config.mjs';
  * The signed-in chrome's navigation, in one place.
  *
  * TWO LISTS, ONE SOURCE. MEMBER_NAV is the signed-in reader's surfaces (Index,
- * The Desk, Pre-List, The Drop, Profile, Settings); ACCOUNT_MENU is the short
+ * The Desk, Opportunities, The Drop, Jobs Data, Profile, Settings; the Pre-List
+ * is reached from the board's own view switch); ACCOUNT_MENU is the short
  * Account disclosure (Profile, Settings, Sign out). SiteFooter.astro's "Your
  * desk" group and the Profile page's no-JS "Your surfaces" nav both render
  * MEMBER_NAV; SiteHeader.astro's Account menu renders ACCOUNT_MENU. Typing any
@@ -39,37 +40,10 @@ export const MEMBER_NAV: MemberNavItem[] = [
   { key: 'index', label: 'Index', href: routeFor('index'), built: true },
   { key: 'desk', label: 'The Desk', href: routeFor('desk'), built: true },
   { key: 'opportunities', label: 'Opportunities', href: routeFor('opportunities'), built: true },
-  { key: 'prelist', label: 'Pre-List', href: routeFor('prelist'), built: true },
   { key: 'drop', label: 'The Drop', href: routeFor('drop'), built: true },
   { key: 'jobs-data', label: 'Jobs Data', href: routeFor('jobs-data'), built: true },
   { key: 'profile', label: 'Profile', href: routeFor('profile'), built: true },
   { key: 'settings', label: 'Settings', href: routeFor('settings'), built: true }
-];
-
-/**
- * The signed-in reader's WORKING surfaces, shown as a secondary nav row under
- * the main header whenever the reader is standing on one of them (see
- * MemberSubnav.astro). This is the cluster the chrome calls "Your desk": the
- * Desk itself, the paid Jobs Data page, and the Pre-List. It gives Jobs Data the home
- * in the chrome it did not have, and lets a reader move between the three places
- * they work without going back up to the main nav.
- *
- * WHY THESE THREE AND NOT, SAY, THE DROP. Every surface here is rendered per
- * request (`export const prerender = false`), so the header can read
- * `Astro.locals.viewer` and know the reader is signed in. The Drop is a static
- * public page: on it the viewer is never resolved, so a member subnav could not
- * render there anyway, and listing it would put a link in the row that leads to
- * a page where the row vanishes. The Index (public), Profile and Settings (the
- * Account menu) are left out for the same "keep it to where you work" reason.
- *
- * Same routeFor()/built discipline as MEMBER_NAV: an entry here cannot outlive
- * its route, and a not-yet-built one renders as text, never a dead anchor.
- */
-export const WORKSPACE_NAV: MemberNavItem[] = [
-  { key: 'desk', label: 'The Desk', href: routeFor('desk'), built: true },
-  { key: 'opportunities', label: 'Opportunities', href: routeFor('opportunities'), built: true },
-  { key: 'jobs-data', label: 'Jobs Data', href: routeFor('jobs-data'), built: true },
-  { key: 'prelist', label: 'Pre-List', href: routeFor('prelist'), built: true }
 ];
 
 /** A link row in the account menu: everything except sign out. */

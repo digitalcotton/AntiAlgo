@@ -64,33 +64,18 @@ const boardHref = routeFor('board');
       </div>
       <script id="ledger-data" type="application/json" is:inline set:html={dataJson}></script>
       {/* The cut bar (ledger-v4-views.js #watch) sticks under the site's own
-          sticky header, whose height varies with the member subnav and the
-          viewport, so the offset is measured from the header itself. */}
+          sticky header, whose height varies with the viewport, so the offset
+          is measured from the header itself. */}
       <script is:inline>
         (function () {
           var hdr = document.querySelector('header.hdr');
           if (!hdr) return;
           var root = document.documentElement;
-          var fullHeight = 0;
-          // The moment the cut bar reaches the header and sticks, the member
-          // subnav closes (html[data-cut-stuck], styled below); scrolling back
-          // up past that point opens it again. "Stuck" is judged against the
-          // header's OPEN height (measured whenever the subnav is open), so the
-          // subnav's own closing cannot flip the decision back and forth.
           var tick = function () {
-            if (!root.hasAttribute('data-cut-stuck')) fullHeight = hdr.getBoundingClientRect().height;
-            var read = document.getElementById('read');
-            var stuck = !!read && read.getBoundingClientRect().bottom <= fullHeight + 1;
-            root.toggleAttribute('data-cut-stuck', stuck);
             root.style.setProperty('--sticky-top', hdr.getBoundingClientRect().height + 'px');
           };
           tick();
-          window.addEventListener('scroll', tick, { passive: true });
           window.addEventListener('resize', tick);
-          // The subnav eases shut and open (styled below), so the header's height
-          // settles only when that transition ends: re-measure then.
-          var subnav = hdr.querySelector('.subnav');
-          if (subnav) subnav.addEventListener('transitionend', tick);
         })();
       </script>
       <script src={appJs} is:inline defer></script>
@@ -126,23 +111,6 @@ const boardHref = routeFor('board');
 </BaseLayout>
 
 <style>
-  /* While the cut bar is stuck under the header (html[data-cut-stuck], set by
-     the inline script above), the member subnav closes; it reopens the moment
-     the bar unsticks. Page-scoped: the attribute only ever appears here. */
-  :global(.subnav) {
-    display: grid;
-    grid-template-rows: 1fr;
-    transition:
-      grid-template-rows var(--motion-duration-signature) var(--motion-easing-standard),
-      opacity var(--motion-duration-signature) var(--motion-easing-standard),
-      border-top-color var(--motion-duration-instant) var(--motion-easing-standard);
-  }
-  :global(.subnav > *) { min-height: 0; overflow: hidden; }
-  :global(html[data-cut-stuck] .subnav) { grid-template-rows: 0fr; opacity: 0; border-top-color: transparent; }
-  @media (prefers-reduced-motion: reduce) {
-    :global(.subnav) { transition: none; }
-  }
-
   .ledger-preview {
     padding-block: var(--space-700, 2.5rem) var(--space-800, 4rem);
     display: flex;
