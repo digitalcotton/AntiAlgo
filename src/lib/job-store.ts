@@ -45,6 +45,9 @@ export interface BoardStats {
   kills_by_rule: Record<string, number> | null;
   killed_all_time: number;
   kills_exported_at: Date | string | null;
+  /** The sweep's per-stage instants (db/205: read, verify, kill, save as ISO
+      strings), or null until the sweep emits them. */
+  stage_log: Record<string, string> | null;
 }
 
 /**
@@ -55,7 +58,7 @@ export interface BoardStats {
 export async function getBoardStats(): Promise<BoardStats | null> {
   const { rows } = await db().query<BoardStats>(
     `SELECT boards_swept, verified_live, killed, killed_by_rule, postings_observed, swept_at,
-            kills_by_rule, killed_all_time, kills_exported_at
+            kills_by_rule, killed_all_time, kills_exported_at, stage_log
        FROM board_stats WHERE id = 1`
   );
   return rows[0] ?? null;

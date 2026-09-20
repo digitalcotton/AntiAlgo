@@ -435,6 +435,15 @@ try {
   const boardsSwept = Number(meta.boards_swept ?? meta.boards ?? 0) || 0;
   const observed = Number(meta.postings_observed ?? meta.pulled ?? 0) || 0;
   const sweptAt = meta.generated_from || meta.generated_at_utc || null;
+  // The sweep's own stage clock (db/205), copied only where it is an ISO
+  // instant per known stage; anything else is left out rather than guessed.
+  const STAGES = ['read', 'verify', 'kill', 'save'];
+  const stageLog = {};
+  for (const key of STAGES) {
+    const at = meta.stages?.[key];
+    if (typeof at === 'string' && !Number.isNaN(Date.parse(at))) stageLog[key] = new Date(at).toISOString();
+  }
+  const stageLogJson = Object.keys(stageLog).length > 0 ? JSON.stringify(stageLog) : null;
   const { rows: killedRows } = await client.query(`SELECT count(*)::int AS n FROM jobs WHERE status = 'killed'`);
   const { rows: byRuleRows } = await client.query(
     `SELECT k.kill_rule, count(*)::int AS n FROM jobs j JOIN board_kills k ON k.id = j.kill_id
@@ -448,13 +457,13 @@ try {
   const killedAllTime = allTimeRows[0]?.n ?? 0;
   await client.query(
     `INSERT INTO board_stats (id, boards_swept, verified_live, killed, killed_by_rule, postings_observed, swept_at,
-                              kills_by_rule, killed_all_time, kills_exported_at, ingested_at)
-     VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+                              kills_by_rule, killed_all_time, kills_exported_at, stage_log, ingested_at)
+     VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
      ON CONFLICT (id) DO UPDATE SET
        boards_swept = $1, verified_live = $2, killed = $3, killed_by_rule = $4,
        postings_observed = $5, swept_at = $6, kills_by_rule = $7, killed_all_time = $8,
-       kills_exported_at = $9, ingested_at = now()`,
-    [boardsSwept, written, killed, killed, observed, sweptAt, JSON.stringify(killsByRule), killedAllTime, killsExportedAt]
+       kills_exported_at = $9, stage_log = $10, ingested_at = now()`,
+    [boardsSwept, written, killed, killed, observed, sweptAt, JSON.stringify(killsByRule), killedAllTime, killsExportedAt, stageLogJson]
   );
   console.log(`board_stats: boards_swept=${boardsSwept}, verified_live=${written}, killed=${killed} ${JSON.stringify(killsByRule)}, killed_all_time=${killedAllTime}, postings_observed=${observed}`);
 

@@ -14,8 +14,13 @@ interface Props {
   newCoreCount: number;
   diedCount: number;
   sweptAt: string | null;
+  /** The sweep's per-stage instants (db/205), keyed read / verify / kill /
+      save, or null until the sweep logs them. With any present the panel draws
+      the design's time column; the two member lines (live under your titles,
+      new under core) are counted here at page time and carry no sweep time. */
+  stages?: Record<string, string> | null;
 }
-const { boardsSwept, verifiedLive, liveUnderTitles, newCoreCount, diedCount, sweptAt } = Astro.props;
+const { boardsSwept, verifiedLive, liveUnderTitles, newCoreCount, diedCount, sweptAt, stages = null } = Astro.props;
 const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'not counted');
 /** The one real clock, as the design's footer prints it: "07:30:44, 2026-09-16"
     in UTC. Falls back to the plain date if the stamp does not parse. */
@@ -27,14 +32,26 @@ function finishedStamp(iso: string): string {
   return `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}:${two(d.getUTCSeconds())}, ${d.getUTCFullYear()}-${two(d.getUTCMonth() + 1)}-${two(d.getUTCDate())}`;
 }
 
+/** A stage's clock as HH:MM:SS UTC, or null when the sweep did not log it. */
+function stageTime(key: string): string | null {
+  const iso = stages?.[key];
+  if (typeof iso !== 'string') return null;
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return null;
+  const d = new Date(ms);
+  const two = (v: number) => String(v).padStart(2, '0');
+  return `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}:${two(d.getUTCSeconds())}`;
+}
+
 const steps = [
-  { text: `read ${n(boardsSwept)} company sources`, accent: false },
-  { text: `verified ${n(verifiedLive)} postings live`, accent: false },
-  { text: `${liveUnderTitles.toLocaleString()} live under your titles`, accent: false },
-  { text: `${newCoreCount} new under core`, accent: true },
-  { text: `${diedCount} came down by rule`, accent: false },
-  { text: `saved tonight's snapshot`, accent: false }
+  { text: `read ${n(boardsSwept)} company sources`, accent: false, at: stageTime('read') },
+  { text: `verified ${n(verifiedLive)} postings live`, accent: false, at: stageTime('verify') },
+  { text: `${liveUnderTitles.toLocaleString()} live under your titles`, accent: false, at: null },
+  { text: `${newCoreCount} new under core`, accent: true, at: null },
+  { text: `${diedCount} came down by rule`, accent: false, at: stageTime('kill') },
+  { text: `saved tonight's snapshot`, accent: false, at: stageTime('save') }
 ];
+const hasClock = steps.some((s) => s.at !== null);
 ---
 
 <aside class="sp">
@@ -42,9 +59,12 @@ const steps = [
     <span class="sp-title mono-label">Last night's sweep</span>
     <span class="sp-utc mono-label">UTC</span>
   </div>
-  <ol class="sp-steps">
+  <ol class:list={['sp-steps', { 'sp-steps-clock': hasClock }]}>
     {steps.map((s) => (
-      <li class={`sp-step${s.accent ? ' sp-step-accent' : ''}`}>{s.text}</li>
+      <li class={`sp-step${s.accent ? ' sp-step-accent' : ''}`}>
+        {hasClock && <span class="sp-time">{s.at ?? ''}</span>}
+        <span class="sp-text">{s.text}</span>
+      </li>
     ))}
   </ol>
   <p class="sp-foot">{sweptAt ? `finished ${finishedStamp(sweptAt)}` : 'sweep pending'}</p>
@@ -67,5 +87,8 @@ const steps = [
   .sp-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-200); }
   .sp-step { font-size: var(--size-075); color: var(--color-foreground); }
   .sp-step-accent { color: var(--color-stat-loss); }
+  /* The time column, only when the sweep logged a clock (design: 76px grid). */
+  .sp-steps-clock .sp-step { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+  .sp-time { font-size: 0.72rem; color: var(--color-line-strong); }
   .sp-foot { margin: var(--space-200) 0 0; padding-top: var(--space-300); border-top: var(--border-hairline) dashed var(--color-line-strong); color: var(--color-muted); font-size: 0.68rem; }
 </style>

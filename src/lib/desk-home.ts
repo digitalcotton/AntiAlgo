@@ -138,6 +138,9 @@ export interface DeskHomeData {
     verifiedLive: number | null;
     killed: number | null;
     sweptAt: string | null;
+    /** The sweep's per-stage instants (job-store BoardStats.stage_log), or
+        null until the sweep logs them; the panel shows no time column then. */
+    stages: Record<string, string> | null;
   };
   /** Every live board title, most common first: the add-a-title autocomplete. */
   titleIndex: TitleCount[];
@@ -374,7 +377,8 @@ export async function buildDeskHome(userId: string): Promise<DeskHomeData> {
       sweptAt: (() => {
         const ms = toMs(stats?.swept_at ?? null);
         return ms === null ? null : new Date(ms).toISOString();
-      })()
+      })(),
+      stages: stats?.stage_log ?? null
     },
     titleIndex: buildTitleIndex(liveRows),
     lastSeenAt: isoDay(lastSeenAt)
