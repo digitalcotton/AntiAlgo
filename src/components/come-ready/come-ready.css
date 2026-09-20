@@ -344,6 +344,28 @@ a.cr-row[data-status='waiting']:hover {
   font-size: 0.95rem;
   color: var(--color-mark-live);
 }
+/* A refusal that has to be seen. The plain loss line below reads as prose
+   and got lost directly under a field the reader was still looking at, so
+   the one that answers a submit is a panel: the loss colour at a tenth over
+   the surface, a full edge of the same colour, and the sentence in it. */
+.cr-alert {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: var(--border-hairline) solid var(--color-stat-loss);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--color-stat-loss) 10%, transparent);
+  color: var(--color-stat-loss);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  max-width: 58ch;
+  text-wrap: pretty;
+}
+/* The rule above sets display, so the hidden attribute needs its own line
+   to win; the script toggles this element as the reader types. */
+.cr-alert[hidden] {
+  display: none;
+}
+
 .cr-loss {
   margin: 8px 0 0;
   font-size: 0.95rem;

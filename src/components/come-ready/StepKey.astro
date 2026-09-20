@@ -134,7 +134,7 @@ const returnPath = `${selfPath}&saved=1`;
               data-cr-key
               required
             />
-            <p class="cr-loss" data-cr-key-reason hidden={!saveError}>{saveError}</p>
+            <p class="cr-alert" role="alert" data-cr-key-reason hidden={!saveError}>{saveError}</p>
             <p class="cr-note cr-note-gap">Checked with your provider when you save, by reading their model list, which costs nothing. A key they do not recognise is not stored.</p>
             <div class="cr-actions cr-actions-gap">
               <button type="submit" class="cr-btn">Save key</button>
