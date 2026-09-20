@@ -41,7 +41,7 @@ export const MEMBER_NAV: MemberNavItem[] = [
   { key: 'opportunities', label: 'Opportunities', href: routeFor('opportunities'), built: true },
   { key: 'prelist', label: 'Pre-List', href: routeFor('prelist'), built: true },
   { key: 'drop', label: 'The Drop', href: routeFor('drop'), built: true },
-  { key: 'ledger', label: 'The Ledger', href: routeFor('ledger'), built: true },
+  { key: 'jobs-data', label: 'Jobs Data', href: routeFor('jobs-data'), built: true },
   { key: 'profile', label: 'Profile', href: routeFor('profile'), built: true },
   { key: 'settings', label: 'Settings', href: routeFor('settings'), built: true }
 ];
@@ -50,7 +50,7 @@ export const MEMBER_NAV: MemberNavItem[] = [
  * The signed-in reader's WORKING surfaces, shown as a secondary nav row under
  * the main header whenever the reader is standing on one of them (see
  * MemberSubnav.astro). This is the cluster the chrome calls "Your desk": the
- * Desk itself, the paid Ledger, and the Pre-List. It gives the Ledger the home
+ * Desk itself, the paid Jobs Data page, and the Pre-List. It gives Jobs Data the home
  * in the chrome it did not have, and lets a reader move between the three places
  * they work without going back up to the main nav.
  *
@@ -68,7 +68,7 @@ export const MEMBER_NAV: MemberNavItem[] = [
 export const WORKSPACE_NAV: MemberNavItem[] = [
   { key: 'desk', label: 'The Desk', href: routeFor('desk'), built: true },
   { key: 'opportunities', label: 'Opportunities', href: routeFor('opportunities'), built: true },
-  { key: 'ledger', label: 'The Ledger', href: routeFor('ledger'), built: true },
+  { key: 'jobs-data', label: 'Jobs Data', href: routeFor('jobs-data'), built: true },
   { key: 'prelist', label: 'Pre-List', href: routeFor('prelist'), built: true }
 ];
 
