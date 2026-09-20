@@ -18,10 +18,19 @@ import { TIERS, type Viewer } from './entitlement';
 import { viewerFrom } from './viewer';
 
 const PAID_RANK = TIERS.indexOf('paid');
+const MEMBER_RANK = TIERS.indexOf('member');
 
 /** True when this viewer may see the full, personal Ledger. */
 export function isPaidViewer(viewer: Viewer | null | undefined): viewer is Viewer {
   return Boolean(viewer) && Boolean(viewer!.emailVerified) && TIERS.indexOf(viewer!.tier) >= PAID_RANK;
+}
+
+/** True for a verified member or above: the free account's own rank. Same
+    shape as isPaidViewer, one rung lower, for the endpoints the free account
+    may use (naming titles, since the owner's free-account design of
+    2026-09-20 puts the board's title menu on the free account). */
+export function isMemberViewer(viewer: Viewer | null | undefined): viewer is Viewer {
+  return Boolean(viewer) && Boolean(viewer!.emailVerified) && TIERS.indexOf(viewer!.tier) >= MEMBER_RANK;
 }
 
 /**
@@ -34,4 +43,12 @@ export async function paidViewerFrom(context: APIContext): Promise<Viewer | null
   const onLocals = context.locals.viewer as Viewer | null | undefined;
   const viewer = onLocals ?? (await viewerFrom(context));
   return isPaidViewer(viewer) ? viewer : null;
+}
+
+/** The member (or above) viewer for a request, or null. The same resolution
+    as paidViewerFrom, at the free account's rank. */
+export async function memberViewerFrom(context: APIContext): Promise<Viewer | null> {
+  const onLocals = context.locals.viewer as Viewer | null | undefined;
+  const viewer = onLocals ?? (await viewerFrom(context));
+  return isMemberViewer(viewer) ? viewer : null;
 }

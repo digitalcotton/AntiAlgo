@@ -17,7 +17,7 @@
  * under /desk (see that file's header).
  */
 import type { APIContext } from 'astro';
-import { paidViewerFrom } from '../../lib/ledger-access';
+import { memberViewerFrom } from '../../lib/ledger-access';
 import { addWatch, removeWatch, setShelf, type Shelf } from '../../lib/ledger-watch-store';
 import { returnTo } from '../../lib/return-to';
 import { withBase } from '../../../site.config.mjs';
@@ -51,7 +51,11 @@ function shelfFrom(form: FormData): Shelf {
 
 export async function POST(context: APIContext): Promise<Response> {
   try {
-    const viewer = await paidViewerFrom(context);
+    // Member, not paid, since the owner's free-account design (2026-09-20):
+    // the free account names titles too, and the board's title menu reads
+    // them for any signed-in member. The Desk's controls (/ledger/prefs) stay
+    // paid, because the Desk is.
+    const viewer = await memberViewerFrom(context);
     if (!viewer) {
       return new Response('Not available on your account.', { status: 403 });
     }
