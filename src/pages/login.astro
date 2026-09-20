@@ -71,7 +71,7 @@ const BACKEND = [
         <form id="signin-form" class="auth-form" method="POST" action="/auth/sign-in/email" data-next={next}>
           <label class="field">
             <span class="field-label">Email address</span>
-            <input class="field-input" type="email" name="email" required autocomplete="email" />
+            <input class="field-input" type="email" name="email" required autocomplete="email" placeholder="you@company.com" />
           </label>
           <label class="field">
             <span class="field-label">Password</span>
@@ -96,7 +96,7 @@ const BACKEND = [
           </label>
           <label class="field">
             <span class="field-label">Email address</span>
-            <input class="field-input" type="email" name="email" required autocomplete="email" />
+            <input class="field-input" type="email" name="email" required autocomplete="email" placeholder="you@company.com" />
           </label>
           <label class="field">
             <span class="field-label">Password</span>
@@ -139,7 +139,9 @@ const BACKEND = [
   // reflect the mode in the URL without a reload so a refresh stays put.
   function setMode(mode: 'signin' | 'signup', focus = true) {
     const other = mode === 'signin' ? 'signup' : 'signin';
-    const carry = firstEmail(other);
+    // The typed address, not the input itself: assigning the element printed
+    // "[object HTMLInputElement]" into the other tab's field.
+    const carry = firstEmail(other)?.value.trim() ?? '';
     (['signin', 'signup'] as const).forEach((m) => {
       tabs[m]?.setAttribute('aria-selected', String(m === mode));
       if (panels[m]) panels[m]!.hidden = m !== mode;
