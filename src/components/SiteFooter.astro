@@ -16,6 +16,17 @@ const STORY = [
 // A signed-in reader already has a spot: no sign-up link for them (the
 // header applies the same rule).
 const signedIn = Boolean(Astro.locals.viewer);
+// Signed in, the footer is the member's own surfaces (the same four the
+// signed-in header shows, plus the two account pages) and nothing from the
+// marketing site (owner decision, 2026-09-20). Same order as the header.
+const MEMBER = [
+  { label: 'The Board', href: routeFor('board') },
+  { label: 'The Desk', href: routeFor('desk') },
+  { label: 'Opportunities', href: routeFor('opportunities') },
+  { label: 'Jobs Data', href: routeFor('jobs-data') },
+  { label: 'Profile', href: routeFor('profile') },
+  { label: 'Settings', href: routeFor('settings') }
+];
 const PRODUCT = [
   { label: 'The Index', href: INDEX.board },
   { label: 'Kill list', href: INDEX.kills },
@@ -27,19 +38,30 @@ const PRODUCT = [
 
 <footer class="ftr">
   <div class="shell ftr-inner">
-    <div class="ftr-row">
-      <nav class="ftr-nav" aria-label="The story">
-        {STORY.map((l) => <a href={l.href}>{l.label}</a>)}
-      </nav>
-      {!signedIn && <a class="ftr-action" href={`${routeFor('sign-up')}?from=footer`}>Save my spot</a>}
-    </div>
-    <div class="ftr-row">
-      <nav class="ftr-nav" aria-label="The product">
-        {PRODUCT.map((l) => <a href={l.href}>{l.label}</a>)}
-        <span class="ftr-soon">The Desk · soon</span>
-      </nav>
-      <span class="ftr-tag">{SITE.domain} · {SITE.byline}</span>
-    </div>
+    {signedIn ? (
+      <div class="ftr-row">
+        <nav class="ftr-nav" aria-label="Your surfaces">
+          {MEMBER.map((l) => <a href={l.href}>{l.label}</a>)}
+        </nav>
+        <span class="ftr-tag">{SITE.domain} · {SITE.byline}</span>
+      </div>
+    ) : (
+      <>
+        <div class="ftr-row">
+          <nav class="ftr-nav" aria-label="The story">
+            {STORY.map((l) => <a href={l.href}>{l.label}</a>)}
+          </nav>
+          <a class="ftr-action" href={`${routeFor('sign-up')}?from=footer`}>Save my spot</a>
+        </div>
+        <div class="ftr-row">
+          <nav class="ftr-nav" aria-label="The product">
+            {PRODUCT.map((l) => <a href={l.href}>{l.label}</a>)}
+            <span class="ftr-soon">The Desk · soon</span>
+          </nav>
+          <span class="ftr-tag">{SITE.domain} · {SITE.byline}</span>
+        </div>
+      </>
+    )}
   </div>
 </footer>
 
