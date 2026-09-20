@@ -37,7 +37,7 @@ const PRODUCT = [
 ---
 
 <footer class="ftr">
-  <div class="shell ftr-inner">
+  <div class:list={['shell', 'ftr-inner', { 'ftr-member': signedIn }]}>
     {signedIn ? (
       <div class="ftr-row">
         <nav class="ftr-nav" aria-label="Your surfaces">
@@ -75,6 +75,12 @@ const PRODUCT = [
     flex-direction: column;
     gap: 12px;
     padding-block: 24px;
+  }
+  /* Signed in, the same frame as the signed-in header (SiteHeader.astro
+     .hdr-member) and the member pages, so the footer's edges meet theirs. */
+  .ftr-member {
+    max-width: 86rem;
+    padding-inline: clamp(16px, 2.5vw, 36px);
   }
   .ftr-row {
     display: flex;
