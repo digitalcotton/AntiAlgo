@@ -79,7 +79,10 @@ const { action, view } = Astro.props;
     font-family: var(--font-family-sans);
     font-weight: var(--weight-bold);
     font-size: var(--size-100);
-    letter-spacing: var(--tracking-snug);
+    /* All caps with the view switch's loose tracking (owner's call,
+       2026-09-20), so the two controls beside each other read as one family. */
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
     white-space: nowrap;
   }
 
