@@ -396,17 +396,9 @@ const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,applicati
     padding: 0;
     list-style: none;
   }
-  .cr-log-line {
-    display: grid;
-    grid-template-columns: 22px minmax(0, 1fr);
-    gap: 14px;
-    align-items: center;
-    padding: 10px 16px;
-    border-bottom: var(--border-hairline) solid var(--color-line);
-    font-size: 0.95rem;
-    color: var(--color-muted);
-  }
-  .cr-log-line[data-tone='done'] {
-    color: var(--color-foreground);
-  }
+  /* .cr-log-line lives in come-ready.css, not here. Astro scopes a
+     component's styles by stamping an attribute onto the elements in its
+     own template, and the script below builds these rows at runtime, so a
+     rule written here would miss every row a real read produces: the mark
+     and its text would collapse on top of each other. */
 </style>

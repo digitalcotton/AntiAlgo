@@ -488,6 +488,26 @@ a.cr-row[data-status='waiting']:hover {
   }
 }
 
+/* One line of the resumé read's log. Here rather than in StepResume's own
+   scoped style because that component's script builds these rows as the read
+   runs, and a runtime-built element never carries the attribute Astro scopes
+   a component's CSS with. The 22px track is the mark's column, and the 14px
+   gap is what keeps the ring off the first letter. */
+.cr-log-line {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: var(--border-hairline) solid var(--color-line);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--color-muted);
+}
+.cr-log-line[data-tone='done'] {
+  color: var(--color-foreground);
+}
+
 /* The compact tracker (the Desk, the Profile). */
 .crc {
   border-bottom: var(--border-hairline) solid var(--color-line);
