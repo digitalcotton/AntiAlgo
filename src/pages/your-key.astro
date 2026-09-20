@@ -168,7 +168,9 @@ const STEPS = [
     font-size: var(--fs-h1);
     line-height: 1.04;
     letter-spacing: var(--tt);
-    max-width: 22ch;
+    /* 28ch, up from the design's 22ch, since the frame widened to 86rem on
+       2026-09-20: the same hero measure as the home page. */
+    max-width: 28ch;
     text-wrap: pretty;
   }
   .h2 {
@@ -183,7 +185,9 @@ const STEPS = [
     font-size: var(--fs-17);
     line-height: 1.55;
     color: var(--ink);
-    max-width: 60ch;
+    /* 68ch, up from the design's 60ch, for the same widened frame: the same
+       lede measure as the home page. */
+    max-width: 68ch;
     text-wrap: pretty;
   }
   .hero-how {
