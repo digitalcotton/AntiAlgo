@@ -6,6 +6,10 @@ import SweepPanel from '../components/desk-home/SweepPanel.astro';
 import WatchList from '../components/desk-home/WatchList.astro';
 import RoleCard from '../components/desk-home/RoleCard.astro';
 import DiedList from '../components/desk-home/DiedList.astro';
+import CompactTracker from '../components/come-ready/CompactTracker.astro';
+import '../components/come-ready/come-ready.css';
+import { loadComeReady, type ComeReadyView } from '../lib/come-ready-store';
+import { isOn } from '../lib/flags';
 import { isPaidViewer } from '../lib/ledger-access';
 import { isConfigured } from '../lib/db';
 import { buildDeskHome, type DeskHomeData } from '../lib/desk-home';
@@ -67,6 +71,20 @@ if (paid && viewer && isConfigured()) {
   }
 }
 
+// Come ready's compact tracker (owner's design, frame 8): one row above the
+// Desk until the first run is complete, then gone for good. Built beside the
+// Desk's own data so the sweep is read once; a failure here hides the row
+// and never takes the Desk with it.
+let comeReady: ComeReadyView | null = null;
+if (paid && viewer && data && isOn('onboarding')) {
+  try {
+    comeReady = await loadComeReady(viewer, null, { home: data });
+  } catch (error) {
+    console.error('desk: come-ready tracker failed (Desk kept).', error);
+  }
+}
+const showTracker = comeReady !== null && !comeReady.model.complete;
+
 const watchAction = routeFor('ledger-watch');
 const prefsAction = routeFor('ledger-prefs');
 const boardHref = routeFor('board');
@@ -88,6 +106,7 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
     <div class="shell desk-home">
       {home ? (
         <>
+          {showTracker && comeReady && <CompactTracker model={comeReady.model} />}
           <header class="dh-daily">
             <p class="dh-eyebrow mono-label"><span class="dh-tick" aria-hidden="true"></span> Daily</p>
             <div class="dh-daily-right">

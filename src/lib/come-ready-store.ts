@@ -103,7 +103,13 @@ async function connectedKey(userId: string): Promise<ConnectedKey | null> {
   return { provider: row.provider, label: def.label, last4: row.last4, addedAt: row.createdAt, writesWith, readsWith };
 }
 
-export async function loadComeReady(viewer: Viewer, requested: string | null): Promise<ComeReadyView> {
+export interface LoadOptions {
+  /** A Desk build the caller already has (the Desk page renders the compact
+      tracker beside its own build), so the sweep is not read twice. */
+  home?: DeskHomeData | null;
+}
+
+export async function loadComeReady(viewer: Viewer, requested: string | null, options: LoadOptions = {}): Promise<ComeReadyView> {
   const edition = editionFor(viewer.tier);
   const userId = viewer.userId;
   const configured = isConfigured();
@@ -149,7 +155,7 @@ export async function loadComeReady(viewer: Viewer, requested: string | null): P
   const landed = edition === 'paid' ? await landReadyParse(userId) : null;
 
   const [home, watches, key, entries, links, name, letter, parse, drafts, fetches] = await Promise.all([
-    deskHome(userId),
+    options.home !== undefined ? Promise.resolve(options.home) : deskHome(userId),
     listWatches(userId),
     edition === 'paid' && keysConfigured ? connectedKey(userId) : Promise.resolve(null),
     edition === 'paid' ? listEntries(userId) : Promise.resolve([] as StoredEntry[]),
