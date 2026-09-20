@@ -24,11 +24,14 @@ interface Props {
   chosen: Provider | null;
   /** True on the return from a save: the connected state plays its moment. */
   justSaved: boolean;
+  /** The save endpoint's reason for refusing a key, relayed back to this
+      step so a refusal is answered where it happened. */
+  saveError?: string | null;
   selfPath: string;
   nextPath: string;
   skipPath: string;
 }
-const { key, keysConfigured, chosen, justSaved, selfPath, nextPath, skipPath } = Astro.props;
+const { key, keysConfigured, chosen, justSaved, saveError = null, selfPath, nextPath, skipPath } = Astro.props;
 
 /** The consoles, in the site's provider order. Addresses as the Your key
     page lists them; the one-line reasons are the design's. */
@@ -131,7 +134,7 @@ const returnPath = `${selfPath}&saved=1`;
               data-cr-key
               required
             />
-            <p class="cr-loss" data-cr-key-reason hidden></p>
+            <p class="cr-loss" data-cr-key-reason hidden={!saveError}>{saveError}</p>
             <p class="cr-note cr-note-gap">Checked with your provider when you save, by reading their model list, which costs nothing. A key they do not recognise is not stored.</p>
             <div class="cr-actions cr-actions-gap">
               <button type="submit" class="cr-btn">Save key</button>

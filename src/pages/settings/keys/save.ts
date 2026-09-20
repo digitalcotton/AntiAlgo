@@ -64,7 +64,6 @@ export const prerender = false;
 
 const KEYS_PATH = '/settings';
 const RELAY_COOKIE = 'keys_form_relay';
-const RELAY_COOKIE_PATH = '/settings';
 
 interface RelayPayload {
   provider: Provider;
@@ -80,14 +79,43 @@ function redirect(to = `${KEYS_PATH}#keys`): Response {
   return new Response(null, { status: 303, headers: { Location: withBase(to) } });
 }
 
-function setRelayCookie(context: APIContext, payload: RelayPayload): void {
+/**
+ * Where a REFUSED key sends the reader back to, and the cookie path that
+ * follows from it.
+ *
+ * A refusal used to land on Settings whatever page had asked, which threw a
+ * reader in the middle of Come ready out of the flow for the crime of
+ * pasting the wrong string. It returns to the form that submitted it, and
+ * the relay cookie is scoped to that page so the reason arrives with it.
+ * The saved marker is dropped on the way: nothing was saved.
+ */
+function refusalTarget(form: FormData): { to: string; cookiePath: string } {
+  const back = returnTo(form, `${KEYS_PATH}#keys`).replace('&saved=1', '');
+  const cookiePath = back.startsWith('/start') ? '/start' : KEYS_PATH;
+  return { to: back, cookiePath };
+}
+
+function setRelayCookie(context: APIContext, payload: RelayPayload, cookiePath: string): void {
   context.cookies.set(RELAY_COOKIE, JSON.stringify(payload), {
-    path: withBase(RELAY_COOKIE_PATH),
+    path: withBase(cookiePath),
     httpOnly: true,
     sameSite: 'lax',
     secure: import.meta.env.PROD,
     maxAge: 120
   });
+}
+
+/** Refuses this save: the reason goes back to the page that asked, and so
+    does the console that was picked, so a refusal costs the reader the key
+    they typed and nothing else. `provider` is one of the four, checked
+    before this is called, never a value straight off the form. */
+function refuse(context: APIContext, form: FormData, provider: Provider, message: string): Response {
+  const { to, cookiePath } = refusalTarget(form);
+  const withProvider = to.startsWith('/start')
+    ? `${to}${to.includes('?') ? '&' : '?'}provider=${provider}`
+    : to;
+  setRelayCookie(context, { provider, message }, cookiePath);
+  return redirect(withProvider);
 }
 
 function isProvider(value: unknown): value is Provider {
@@ -129,8 +157,7 @@ export async function POST(context: APIContext): Promise<Response> {
   // other caller, not a cost worth avoiding here.
   const shape = validateKeyShape(provider, plaintext);
   if (!shape.ok) {
-    setRelayCookie(context, { provider, message: `That key was not stored: ${shape.reason}.` });
-    return redirect();
+    return refuse(context, form, provider, `That key was not stored: ${shape.reason}.`);
   }
 
   // Asked once, here, because "connected" should mean somebody checked. A
@@ -138,8 +165,7 @@ export async function POST(context: APIContext): Promise<Response> {
   // reached does not, since that says nothing about the key.
   const check = await verifyKey(provider, plaintext);
   if (check.status === 'refused') {
-    setRelayCookie(context, { provider, message: `That key was not stored: ${check.reason}.` });
-    return redirect();
+    return refuse(context, form, provider, `That key was not stored: ${check.reason}.`);
   }
   if (check.status === 'unreachable') {
     console.warn(`settings/keys/save: storing a ${provider} key unchecked for user ${viewer.userId}: ${check.reason}.`);
@@ -165,18 +191,18 @@ export async function POST(context: APIContext): Promise<Response> {
       // strip the prefix so the relay reads as one plain sentence instead
       // of exposing this file's own error-class naming to a reader.
       const reason = err.message.replace(/^keychain-store: refused to store key: /, '');
-      setRelayCookie(context, { provider, message: `That key was not stored: ${reason}.` });
-      return redirect();
+      return refuse(context, form, provider, `That key was not stored: ${reason}.`);
     }
 
     // Any other failure is treated as the encryption secret being unset or
     // malformed (see this file's own header): the same honest message
     // keys.astro's keyStorageIsConfigured() check would have shown instead of this
     // form, never the underlying error's own text.
-    setRelayCookie(context, {
+    return refuse(
+      context,
+      form,
       provider,
-      message: 'Key storage is not configured on this deployment right now. Nothing was stored.'
-    });
-    return redirect();
+      'Key storage is not configured on this deployment right now. Nothing was stored.'
+    );
   }
 }

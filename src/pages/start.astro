@@ -49,6 +49,22 @@ const justSaved = params.get('saved') === '1';
 // again rather than collapsing under the press that changed them.
 const controlsOpen = params.get('controls') === '1';
 
+// A key the save endpoint refused sends its reason back on this cookie,
+// scoped to this page, so the reader lands on the step they were on with
+// the sentence that explains it rather than on Settings with no thread back.
+const KEY_RELAY = 'keys_form_relay';
+const relayRaw = Astro.cookies.get(KEY_RELAY)?.value ?? null;
+Astro.cookies.delete(KEY_RELAY, { path: '/start' });
+let keyError: string | null = null;
+if (relayRaw) {
+  try {
+    const parsed = JSON.parse(relayRaw) as { message?: unknown };
+    if (typeof parsed.message === 'string') keyError = parsed.message;
+  } catch {
+    keyError = null;
+  }
+}
+
 const view = await loadComeReady(viewer, requested);
 const { model, edition } = view;
 if (model.complete) return Astro.redirect(routeFor('desk'), 302);
@@ -100,7 +116,7 @@ const lede =
           <StepTitles edition="paid" n={3} coreTitles={view.coreTitles} stretchTitles={view.stretchTitles} titleIndex={titleIndex} prefs={view.home?.prefs ?? null} selfPath="/start?step=3" nextPath="/start?step=4" controlsOpen={controlsOpen} />
         )}
         {edition === 'paid' && model.active === 4 && (
-          <StepKey key={view.key} keysConfigured={view.keysConfigured} chosen={chosen} justSaved={justSaved} selfPath="/start?step=4" nextPath="/start?step=5" skipPath="/start?step=5" />
+          <StepKey key={view.key} keysConfigured={view.keysConfigured} chosen={chosen} justSaved={justSaved} saveError={keyError} selfPath="/start?step=4" nextPath="/start?step=5" skipPath="/start?step=5" />
         )}
         {edition === 'paid' && model.active === 5 && (
           <StepResume
