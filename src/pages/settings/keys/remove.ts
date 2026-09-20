@@ -48,17 +48,20 @@
 import type { APIContext } from 'astro';
 import { PROVIDERS, type Provider } from '../../../lib/keychain';
 import { deleteKey } from '../../../lib/keychain-store';
+import { returnTo } from '../../../lib/return-to';
 import { withBase } from '../../../../site.config.mjs';
 
 export const prerender = false;
 
 const KEYS_PATH = '/settings';
 
-function redirect(): Response {
+function redirect(to = `${KEYS_PATH}#keys`): Response {
   // Back to the key section, not the top of the settings page. The #keys
   // fragment matches the id on settings.astro's .keys-block, which carries a
-  // scroll-margin that clears the sticky header.
-  return new Response(null, { status: 303, headers: { Location: `${withBase(KEYS_PATH)}#keys` } });
+  // scroll-margin that clears the sticky header. A removal may instead go
+  // back to an allowed `return` (Come ready's key step, which is where a
+  // reader undoes a key they filed under the wrong provider).
+  return new Response(null, { status: 303, headers: { Location: withBase(to) } });
 }
 
 function isProvider(value: unknown): value is Provider {
@@ -81,5 +84,5 @@ export async function POST(context: APIContext): Promise<Response> {
   }
 
   await deleteKey(viewer.userId, providerField);
-  return redirect();
+  return redirect(returnTo(form, `${KEYS_PATH}#keys`));
 }
