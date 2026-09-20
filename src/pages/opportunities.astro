@@ -1139,6 +1139,10 @@ function columnOf(states: readonly ApplicationState[]): StoredApplication[] {
     flex-direction: column;
     gap: var(--space-800);
     padding-block: var(--space-700) var(--space-800);
+    /* The board's frame (board.astro .index), so every signed-in page and the
+       signed-in header share one width and one pair of edges. */
+    max-width: 86rem;
+    padding-inline: clamp(16px, 2.5vw, 36px);
   }
 
   .desk-head {

@@ -231,7 +231,10 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
     flex-direction: column;
     gap: var(--space-700);
     padding-block: var(--space-600) var(--space-800);
-    max-width: 78rem;
+    /* The board's frame (board.astro .index), so every signed-in page and the
+       signed-in header share one width and one pair of edges. */
+    max-width: 86rem;
+    padding-inline: clamp(16px, 2.5vw, 36px);
   }
 
   /* DAILY header row + swept stamp + in-page anchors. */

@@ -33,7 +33,7 @@
                 </div>`).join('');
   
     return `<section id="read" style="border-bottom:1px solid var(--color-line);">
-      <div style="max-width:1400px;margin-inline:auto;padding:clamp(24px,3.4vw,44px) clamp(16px,4vw,56px) clamp(22px,3vw,34px);">
+      <div style="max-width:1376px;margin-inline:auto;padding:clamp(24px,3.4vw,44px) clamp(16px,2.5vw,36px) clamp(22px,3vw,34px);">
         <div data-two="" style="display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:clamp(22px,4vw,64px);align-items:start;">
           <div>
             <span style="font-family:var(--font-family-mono);font-size:0.72rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--color-muted);display:inline-flex;align-items:center;gap:8px;"><span aria-hidden="true" style="width:7px;height:7px;background:var(--color-signal);border-radius:1px;"></span>Tonight's read</span>
@@ -77,7 +77,7 @@
   
     return `
     <div id="watch" style="position:${vm.stickyPos};top:var(--sticky-top, 84px);z-index:70;background:color-mix(in srgb, var(--color-surface) 95%, transparent);backdrop-filter:saturate(120%) blur(8px);border-top:1px solid var(--color-line-strong);border-bottom:1px solid var(--color-line-strong);">
-      <div style="max-width:1400px;margin-inline:auto;padding:12px clamp(16px,4vw,56px) 14px;">
+      <div style="max-width:1376px;margin-inline:auto;padding:12px clamp(16px,2.5vw,36px) 14px;">
   
         <div style="display:flex;flex-wrap:wrap;gap:10px 20px;align-items:baseline;justify-content:space-between;">
           <span style="display:flex;align-items:baseline;gap:14px;">
@@ -280,7 +280,7 @@
   
     return `
     <section id="crosscuts" style="border-bottom:1px solid var(--color-line);">
-      <div style="max-width:1400px;margin-inline:auto;padding:clamp(24px,3.4vw,44px) clamp(16px,4vw,56px);">
+      <div style="max-width:1376px;margin-inline:auto;padding:clamp(24px,3.4vw,44px) clamp(16px,2.5vw,36px);">
         <div style="display:flex;flex-wrap:wrap;gap:10px 24px;align-items:baseline;justify-content:space-between;">
           <div style="display:flex;align-items:baseline;gap:14px;">
             <span style="font-family:var(--font-family-mono);font-size:0.76rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--color-line-strong);">01</span>
@@ -394,7 +394,7 @@
   function render_drag(vm) {
     return `
     <section id="drag" style="border-bottom:1px solid var(--color-line);background:var(--color-surface-raised);">
-      <div style="max-width:1400px;margin-inline:auto;padding:clamp(24px,3.4vw,44px) clamp(16px,4vw,56px);">
+      <div style="max-width:1376px;margin-inline:auto;padding:clamp(24px,3.4vw,44px) clamp(16px,2.5vw,36px);">
         <div style="display:flex;flex-wrap:wrap;gap:10px 24px;align-items:baseline;justify-content:space-between;">
           <div style="display:flex;align-items:baseline;gap:14px;">
             <span style="font-family:var(--font-family-mono);font-size:0.76rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--color-line-strong);">02</span>
@@ -488,7 +488,7 @@
   
     return `
     <section id="issuers" style="border-bottom:1px solid var(--color-line);">
-      <div style="max-width:1400px;margin-inline:auto;padding:clamp(24px,3.4vw,44px) clamp(16px,4vw,56px);">
+      <div style="max-width:1376px;margin-inline:auto;padding:clamp(24px,3.4vw,44px) clamp(16px,2.5vw,36px);">
         <div style="display:flex;flex-wrap:wrap;gap:10px 24px;align-items:baseline;justify-content:space-between;">
           <div style="display:flex;align-items:baseline;gap:14px;">
             <span style="font-family:var(--font-family-mono);font-size:0.76rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--color-line-strong);">03</span>
@@ -606,7 +606,7 @@
   
     return `
     <section id="archive" style="border-bottom:1px solid var(--color-line);background:var(--color-surface-raised);">
-      <div style="max-width:1400px;margin-inline:auto;padding:clamp(24px,3.4vw,44px) clamp(16px,4vw,56px);">
+      <div style="max-width:1376px;margin-inline:auto;padding:clamp(24px,3.4vw,44px) clamp(16px,2.5vw,36px);">
         <div style="display:flex;flex-wrap:wrap;gap:10px 24px;align-items:baseline;justify-content:space-between;">
           <div style="display:flex;align-items:baseline;gap:14px;">
             <span style="font-family:var(--font-family-mono);font-size:0.76rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--color-line-strong);">04</span>
@@ -644,7 +644,7 @@
   
     return `
     <section id="clockview" style="border-bottom:1px solid var(--color-line);">
-      <div style="max-width:1400px;margin-inline:auto;padding:clamp(24px,3.4vw,44px) clamp(16px,4vw,56px);">
+      <div style="max-width:1376px;margin-inline:auto;padding:clamp(24px,3.4vw,44px) clamp(16px,2.5vw,36px);">
         <div style="display:flex;flex-wrap:wrap;gap:10px 24px;align-items:baseline;justify-content:space-between;">
           <div style="display:flex;align-items:baseline;gap:14px;">
             <span style="font-family:var(--font-family-mono);font-size:0.76rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--color-line-strong);">05</span>
@@ -687,7 +687,7 @@
     </section>
   
     <section style="border-bottom:1px solid var(--color-line);background:var(--color-surface-raised);">
-      <div style="max-width:1400px;margin-inline:auto;padding:clamp(24px,3.4vw,44px) clamp(16px,4vw,56px);">
+      <div style="max-width:1376px;margin-inline:auto;padding:clamp(24px,3.4vw,44px) clamp(16px,2.5vw,36px);">
         <div data-two="" style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:1px;background:var(--color-line);border:1px solid var(--color-line);">
   
           <div style="background:var(--color-surface);padding:clamp(18px,2vw,26px);display:flex;flex-direction:column;">
@@ -776,7 +776,7 @@
   
     return `
     <section id="pipeline" style="border-bottom:1px solid var(--color-line);background:var(--color-surface-inverse);color:var(--color-foreground-inverse);">
-      <div style="max-width:1400px;margin-inline:auto;padding:clamp(26px,4vw,52px) clamp(16px,4vw,56px);">
+      <div style="max-width:1376px;margin-inline:auto;padding:clamp(26px,4vw,52px) clamp(16px,2.5vw,36px);">
         <div style="display:flex;flex-wrap:wrap;gap:10px 24px;align-items:baseline;justify-content:space-between;">
           <div style="display:flex;align-items:baseline;gap:14px;">
             <span style="font-family:var(--font-family-mono);font-size:0.76rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--color-muted-inverse);">06</span>
@@ -875,7 +875,7 @@
   
     return (
       '<section style="border-bottom:1px solid var(--color-line);">' +
-        '<div style="max-width:1400px;margin-inline:auto;padding:clamp(24px,3.4vw,40px) clamp(16px,4vw,56px);">' +
+        '<div style="max-width:1376px;margin-inline:auto;padding:clamp(24px,3.4vw,40px) clamp(16px,2.5vw,36px);">' +
           '<div data-two="" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:clamp(20px,3vw,56px);align-items:start;">' +
             '<div>' +
               '<span style="font-family:var(--font-family-mono);font-size:0.76rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--color-muted);">Method</span>' +
