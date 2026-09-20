@@ -26,8 +26,13 @@ interface Props {
   /** This step's own address, base-free (the forms return here). */
   selfPath: string;
   nextPath: string;
+  /** Whether the reader had the controls open when they pressed one, so the
+      reload lands with them open rather than collapsing under the press. */
+  controlsOpen?: boolean;
 }
-const { edition, n, coreTitles, stretchTitles, titleIndex, prefs, selfPath, nextPath } = Astro.props;
+const { edition, n, coreTitles, stretchTitles, titleIndex, prefs, selfPath, nextPath, controlsOpen = false } = Astro.props;
+/** Where a control returns: this step, with the controls still open. */
+const controlsPath = `${selfPath}&controls=1`;
 
 const watchAction = routeFor('ledger-watch');
 const prefsAction = routeFor('ledger-prefs');
@@ -173,7 +178,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
   )}
 
   {edition === 'paid' && (
-    <details class="cr-controls">
+    <details class="cr-controls" open={controlsOpen}>
       <summary class="cr-between cr-rule-tight">
         <span class="cr-note">{controlsLine}</span>
         <span class="cr-link">Open controls</span>
@@ -185,13 +190,13 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
             <form method="POST" action={prefsAction}>
               <input type="hidden" name="field" value="remote" />
               <input type="hidden" name="value" value="1" />
-              <input type="hidden" name="return" value={selfPath} />
+              <input type="hidden" name="return" value={controlsPath} />
               <button type="submit" class="cr-chip" aria-pressed={remoteOnly}>remote only</button>
             </form>
             <form method="POST" action={prefsAction}>
               <input type="hidden" name="field" value="remote" />
               <input type="hidden" name="value" value="0" />
-              <input type="hidden" name="return" value={selfPath} />
+              <input type="hidden" name="return" value={controlsPath} />
               <button type="submit" class="cr-chip" aria-pressed={!remoteOnly}>anywhere</button>
             </form>
           </div>
@@ -203,7 +208,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
               <form method="POST" action={prefsAction}>
                 <input type="hidden" name="field" value="floor" />
                 <input type="hidden" name="value" value={String(f.value)} />
-                <input type="hidden" name="return" value={selfPath} />
+                <input type="hidden" name="return" value={controlsPath} />
                 <button type="submit" class="cr-chip" aria-pressed={floor === f.value}>{f.label}</button>
               </form>
             ))}

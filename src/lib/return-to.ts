@@ -14,8 +14,9 @@
 
 /** The only return addresses followed: /start, or /start on one step, with
     the optional saved marker the key step uses to play its connected moment
-    once. */
-const ALLOWED_RETURN = /^\/start(\?step=(3|4|5|6|door)(&saved=1)?)?$/;
+    once, and the optional controls marker that keeps the titles step's
+    controls open across a press. */
+const ALLOWED_RETURN = /^\/start(\?step=(3|4|5|6|door)(&saved=1)?(&controls=1)?)?$/;
 
 export function isAllowedReturn(value: unknown): value is string {
   return typeof value === 'string' && ALLOWED_RETURN.test(value);

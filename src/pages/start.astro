@@ -45,6 +45,9 @@ const requested = params.get('step');
 const providerParam = params.get('provider');
 const chosen: Provider | null = (PROVIDERS as readonly string[]).includes(providerParam ?? '') ? (providerParam as Provider) : null;
 const justSaved = params.get('saved') === '1';
+// The titles step's controls were open when a chip was pressed, so they open
+// again rather than collapsing under the press that changed them.
+const controlsOpen = params.get('controls') === '1';
 
 const view = await loadComeReady(viewer, requested);
 const { model, edition } = view;
@@ -94,7 +97,7 @@ const lede =
         {edition === 'waitlisted' && <WaitPanel joinedAt={view.joinedAt} />}
 
         {edition === 'paid' && model.active === 3 && (
-          <StepTitles edition="paid" n={3} coreTitles={view.coreTitles} stretchTitles={view.stretchTitles} titleIndex={titleIndex} prefs={view.home?.prefs ?? null} selfPath="/start?step=3" nextPath="/start?step=4" />
+          <StepTitles edition="paid" n={3} coreTitles={view.coreTitles} stretchTitles={view.stretchTitles} titleIndex={titleIndex} prefs={view.home?.prefs ?? null} selfPath="/start?step=3" nextPath="/start?step=4" controlsOpen={controlsOpen} />
         )}
         {edition === 'paid' && model.active === 4 && (
           <StepKey key={view.key} keysConfigured={view.keysConfigured} chosen={chosen} justSaved={justSaved} selfPath="/start?step=4" nextPath="/start?step=5" skipPath="/start?step=5" />

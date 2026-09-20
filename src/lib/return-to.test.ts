@@ -18,6 +18,14 @@ describe('isAllowedReturn', () => {
     expect(isAllowedReturn('/start?step=4&saved=1')).toBe(true);
   });
 
+  it('returns true for "/start?step=3&controls=1"', () => {
+    expect(isAllowedReturn('/start?step=3&controls=1')).toBe(true);
+  });
+
+  it('returns false for a controls marker with any other value', () => {
+    expect(isAllowedReturn('/start?step=3&controls=2')).toBe(false);
+  });
+
   it('returns false for "/start?step=7"', () => {
     expect(isAllowedReturn('/start?step=7')).toBe(false);
   });
