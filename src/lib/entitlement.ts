@@ -114,11 +114,12 @@ export const ROUTE_POLICY: Record<string, Tier> = {
   // not a public summary. Same wall as /desk; drop.astro carries
   // `export const prerender = false` so this policy is decided per request.
   '/drop': 'member',
-  // Come ready (owner decision, 2026-09-20): the first run begins when payment
-  // clears, so the page itself is paid. The first 'paid' entry in this map: a
-  // member reaching it gets the same insufficient-tier refusal any outranked
-  // route gives, not a preview.
-  '/start': 'paid',
+  // Come ready (owner's designs, 2026-09-20): one page, three editions decided
+  // in-page by tier. A waitlisted account sees what opens on admission, a
+  // member the free account's five steps, a paid account the six that end at
+  // the first draft. So the gate admits every signed-in tier and the page
+  // does the telling apart; only a signed-out reader is sent to sign in.
+  '/start': 'waitlisted',
   // Exists so the internal gate is reachable and its denial is provable.
   '/internal': 'internal'
 };
