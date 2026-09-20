@@ -5,8 +5,9 @@ import { withBase } from '../../site.config.mjs';
  * The signed-in chrome's navigation, in one place.
  *
  * TWO LISTS, ONE SOURCE. MEMBER_NAV is the signed-in reader's surfaces (Index,
- * The Desk, Opportunities, The Drop, Jobs Data, Profile, Settings; the Pre-List
- * is reached from the board's own view switch); ACCOUNT_MENU is the short
+ * The Desk, Opportunities, Jobs Data, Profile, Settings; the Pre-List is reached
+ * from the board's own view switch and The Drop stays a public page off the
+ * member list); ACCOUNT_MENU is the short
  * Account disclosure (Profile, Settings, Sign out). SiteFooter.astro's "Your
  * desk" group and the Profile page's no-JS "Your surfaces" nav both render
  * MEMBER_NAV; SiteHeader.astro's Account menu renders ACCOUNT_MENU. Typing any
@@ -40,7 +41,6 @@ export const MEMBER_NAV: MemberNavItem[] = [
   { key: 'index', label: 'Index', href: routeFor('index'), built: true },
   { key: 'desk', label: 'The Desk', href: routeFor('desk'), built: true },
   { key: 'opportunities', label: 'Opportunities', href: routeFor('opportunities'), built: true },
-  { key: 'drop', label: 'The Drop', href: routeFor('drop'), built: true },
   { key: 'jobs-data', label: 'Jobs Data', href: routeFor('jobs-data'), built: true },
   { key: 'profile', label: 'Profile', href: routeFor('profile'), built: true },
   { key: 'settings', label: 'Settings', href: routeFor('settings'), built: true }
