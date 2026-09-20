@@ -378,8 +378,10 @@ const resetHref = interactive ? hrefFor(null, null) : '';
     transition: opacity var(--motion-duration-instant) var(--motion-easing-standard);
   }
 
+  /* Over-7d ticks in the signal orange, both themes (owner's call, 2026-09-20;
+     they were the amber warning hue, coral in light mode). */
   .tick-past {
-    background: var(--color-banner-stale);
+    background: var(--color-signal);
   }
 
   /* Under the shade a tick still shows, faintly: the shade does most of the
@@ -483,24 +485,7 @@ const resetHref = interactive ? hrefFor(null, null) : '';
   }
 
   .swatch-past {
-    background: var(--color-banner-stale);
-  }
-
-  /* Over-7d in LIGHT mode reads coral, per the age-strip design reference: the
-     shared amber (--color-banner-stale = #7E5200 on paper) goes muddy against the
-     light ground, where the reference wants the warm rust the dark strip's gold
-     carries. Dark mode keeps the amber warning hue untouched. Both theme states
-     are covered: an explicit light theme, and the system-light default (no
-     data-theme stamped), while an explicit or system dark stays amber. */
-  :global(:root[data-theme='light']) .tick-past,
-  :global(:root[data-theme='light']) .swatch-past {
-    background: #c9634a;
-  }
-  @media (prefers-color-scheme: light) {
-    :global(:root:not([data-theme='dark'])) .tick-past,
-    :global(:root:not([data-theme='dark'])) .swatch-past {
-      background: #c9634a;
-    }
+    background: var(--color-signal);
   }
 
   @media (prefers-reduced-motion: reduce) {
