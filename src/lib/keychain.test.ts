@@ -7,6 +7,7 @@ import {
   encryptKey,
   fingerprint,
   last4,
+  pickDraftingProvider,
   validateKeyShape,
   type EncryptedKeyParts
 } from './keychain';
@@ -207,6 +208,35 @@ describe('last4()', () => {
 
   it('matches the tail of the source string exactly', () => {
     expect(FAKE_KEY.endsWith(last4(FAKE_KEY))).toBe(true);
+  });
+});
+
+describe('pickDraftingProvider()', () => {
+  it('uses the designated provider when its key is on file', () => {
+    expect(pickDraftingProvider('deepseek', ['anthropic', 'deepseek'])).toBe('deepseek');
+  });
+
+  it('uses the only key on file when nothing is designated', () => {
+    expect(pickDraftingProvider(null, ['deepseek'])).toBe('deepseek');
+  });
+
+  // The whole point: two keys and no choice made is a question, not a
+  // licence to move someone's bill to whichever vendor this file lists first.
+  it('picks nothing when several keys are on file and none is designated', () => {
+    expect(pickDraftingProvider(null, ['anthropic', 'openai', 'kimi', 'deepseek'])).toBeNull();
+  });
+
+  it('picks nothing when no key is on file', () => {
+    expect(pickDraftingProvider(null, [])).toBeNull();
+    expect(pickDraftingProvider('anthropic', [])).toBeNull();
+  });
+
+  it('ignores a designation whose key has been removed, rather than choosing another', () => {
+    expect(pickDraftingProvider('anthropic', ['openai', 'kimi'])).toBeNull();
+  });
+
+  it('still answers when the designation is gone but one key remains', () => {
+    expect(pickDraftingProvider('anthropic', ['kimi'])).toBe('kimi');
   });
 });
 

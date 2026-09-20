@@ -41,6 +41,8 @@ import {
   encryptKey,
   fingerprint,
   last4,
+  pickDraftingProvider,
+  PROVIDERS,
   validateKeyShape,
   type EncryptedKeyParts,
   type Provider
@@ -241,6 +243,34 @@ export async function hasKey(userId: string, provider: Provider): Promise<boolea
     [userId, provider]
   );
   return rows.length > 0;
+}
+
+/* -------------------------------------------------------------------------
+   Which key drafts (db/206). One provider per account, named by the account,
+   never inferred from an order this code happens to write its list in.
+   ------------------------------------------------------------------------- */
+
+/** The provider this account designated, or null when it never has. Not a
+    guarantee that a key for it still exists; draftingProvider() answers that. */
+export async function getDesignatedProvider(userId: string): Promise<Provider | null> {
+  const { rows } = await db().query<{ drafting_provider: string | null }>(
+    'SELECT drafting_provider FROM app_user_profile WHERE user_id = $1',
+    [userId]
+  );
+  const stored = rows[0]?.drafting_provider ?? null;
+  return stored !== null && (PROVIDERS as readonly string[]).includes(stored) ? (stored as Provider) : null;
+}
+
+/** Names the provider this account drafts with. */
+export async function setDesignatedProvider(userId: string, provider: Provider | null): Promise<void> {
+  await db().query('UPDATE app_user_profile SET drafting_provider = $2 WHERE user_id = $1', [userId, provider]);
+}
+
+/** The provider this account drafts with: the two reads the pure rule in
+    keychain.ts pickDraftingProvider() needs, and that rule applied. */
+export async function draftingProvider(userId: string): Promise<Provider | null> {
+  const [designated, stored] = await Promise.all([getDesignatedProvider(userId), keyMeta(userId)]);
+  return pickDraftingProvider(designated, stored.map((row) => row.provider));
 }
 
 /* -------------------------------------------------------------------------

@@ -55,7 +55,7 @@
 import type { APIContext } from 'astro';
 import { isOn } from '../../../lib/flags';
 import { PROVIDERS, type Provider } from '../../../lib/keychain';
-import { InvalidKeyShapeError, putKey } from '../../../lib/keychain-store';
+import { InvalidKeyShapeError, putKey, setDesignatedProvider } from '../../../lib/keychain-store';
 import { returnTo } from '../../../lib/return-to';
 import { withBase } from '../../../../site.config.mjs';
 
@@ -123,6 +123,17 @@ export async function POST(context: APIContext): Promise<Response> {
 
   try {
     await putKey(viewer.userId, provider, plaintext);
+    // The key just saved is the one to draft with. Saying so here is what
+    // replaced the pipeline's old guess-by-list-order: a person who connects
+    // a second key meant to use it, and if they did not, Settings is where
+    // they say otherwise. A failure to record it leaves the key stored and
+    // the account undesignated, which draftingProvider() reads as "ask",
+    // never as "pick one for them".
+    try {
+      await setDesignatedProvider(viewer.userId, provider);
+    } catch (error) {
+      console.error(`settings/keys/save: stored the key but could not designate ${provider}.`, error);
+    }
     return redirect(returnTo(form, `${KEYS_PATH}#keys`));
   } catch (err) {
     if (err instanceof InvalidKeyShapeError) {

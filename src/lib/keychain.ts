@@ -358,6 +358,29 @@ export type KeyShapeResult = { ok: true } | { ok: false; reason: string };
  * sanity (non-empty, printable, length-bounded) is the honest amount of
  * validation to do on a format this module does not control.
  */
+/**
+ * WHICH KEY DRAFTS, as a pure rule (db/206 stores the designation; the
+ * reads live in keychain-store.ts draftingProvider).
+ *
+ * In order, with no third branch:
+ *   1. the designated provider, when its key is still on file;
+ *   2. the only key on file, when there is exactly one, because "the only
+ *      one" is not a choice between vendors;
+ *   3. null.
+ *
+ * WHAT THIS REPLACED, AND WHY. The pipeline used to take the first key it
+ * found in the order this module happens to list its providers in. Nobody
+ * chose that order and no reader could see it, so connecting a second key
+ * silently moved a person's drafting, and their bill, to another company.
+ * Null here is not a failure: the pipeline already handles "no provider
+ * key" by running the deterministic writer and saying so on the draft. What
+ * null is not is permission to pick a vendor on someone's behalf.
+ */
+export function pickDraftingProvider(designated: Provider | null, onFile: readonly Provider[]): Provider | null {
+  if (designated !== null && onFile.includes(designated)) return designated;
+  return onFile.length === 1 ? onFile[0] : null;
+}
+
 export function validateKeyShape(provider: Provider, plaintext: string): KeyShapeResult {
   if (plaintext.length === 0) {
     return { ok: false, reason: 'key is empty' };

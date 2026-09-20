@@ -74,8 +74,8 @@ import { db } from './db';
 import { deferWork } from './defer-work';
 import { isOn } from './flags';
 import { keyStorageIsConfigured, type Provider } from './keychain';
-import { getDecryptedKey, getWritingModel, keyMeta } from './keychain-store';
-import { generativeProvider, GENERATION_PROVIDER_ORDER, PROVIDER_REGISTRY, type GenerativeStyleProvider } from './generation-providers';
+import { draftingProvider, getDecryptedKey, getWritingModel } from './keychain-store';
+import { generativeProvider, PROVIDER_REGISTRY, type GenerativeStyleProvider } from './generation-providers';
 import { beginDraft, beginJobDraft, beginJobDraftDocument, claimJobRender, completeDraft, failDraft, type RenderKind } from './generated-render-store';
 import { dispatchJobDraftRuns, selfOrigin, type DocumentDispatch } from './draft-run-dispatch';
 import { getCoverLetter, listEntries, listLinks, personName, resolveResumeEmail } from './record-store';
@@ -379,19 +379,16 @@ export async function triggerBackgroundGeneration(
       return decideGenerationTrigger({ keyStorageConfigured, byokFlagOn, preferenceEnabled, hasStoredKey: false });
     }
 
-    const stored = await keyMeta(userId);
-    // First match in GENERATION_PROVIDER_ORDER wins: the same fixed
-    // preference order (anthropic, openai, kimi, deepseek) the old
-    // tailor.astro's own "BYOK PROVIDER SELECTION" section used to pick by,
-    // now owned by this file alone since that page is gone.
-    const chosen = GENERATION_PROVIDER_ORDER.map((id) => stored.find((row) => row.provider === id)).find(
-      (row) => row !== undefined
-    );
+    // The key this account designated, or its only key. Never a pick by the
+    // order this code writes its provider list in: that moved a person's
+    // bill to another vendor the moment they connected a second key
+    // (keychain-store.ts draftingProvider).
+    const chosen = await draftingProvider(userId);
     const decision = decideGenerationTrigger({
       keyStorageConfigured,
       byokFlagOn,
       preferenceEnabled,
-      hasStoredKey: chosen !== undefined
+      hasStoredKey: chosen !== null
     });
     if (!decision.go || !chosen) return decision;
 
@@ -404,7 +401,7 @@ export async function triggerBackgroundGeneration(
     // net, not the primary guard; renderInBackground() carries its own
     // try/catch and is written to never reject.
     deferWork(
-      renderInBackground(userId, applicationId, job, chosen.provider, resumeId, coverId).catch((error) => {
+      renderInBackground(userId, applicationId, job, chosen, resumeId, coverId).catch((error) => {
         console.error(
           `generation-preference-store: renderInBackground rejected for user ${userId}, application ${applicationId}.`,
           error
@@ -652,11 +649,7 @@ export async function triggerJobDraft(
   let provider: Provider | null = null;
   if (keyStorageConfigured && byokFlagOn) {
     try {
-      const stored = await keyMeta(userId);
-      const chosen = GENERATION_PROVIDER_ORDER.map((id) => stored.find((row) => row.provider === id)).find(
-        (row) => row !== undefined
-      );
-      provider = chosen ? chosen.provider : null;
+      provider = await draftingProvider(userId);
     } catch (error) {
       console.error(
         `generation-preference-store: could not read key metadata for a job draft, user ${userId}; drafting deterministically.`,
