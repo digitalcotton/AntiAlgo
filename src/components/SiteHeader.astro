@@ -5,6 +5,8 @@ import SignOut from './SignOut.astro';
 import { routeFor } from '../data/nav';
 import { SITE } from '../data/site';
 import { isOn } from '../lib/flags';
+import { isConfigured } from '../lib/db';
+import { comeReadyPending } from '../lib/come-ready-store';
 
 // The Sign in button is hidden while the `signin` flag is off (the pre-launch
 // waitlist phase). It comes back when sign-in reopens with the first admissions.
@@ -46,6 +48,19 @@ const MEMBER = [
   { label: 'Opportunities', href: routeFor('opportunities') },
   { label: 'Jobs Data', href: routeFor('jobs-data') }
 ];
+
+// Come ready (owner's designs, 2026-09-20): the first run's link, last in the
+// member nav until the run is complete, then gone. One query per signed-in
+// render; a failure hides the link and never takes the header with it.
+let comeReadyShown = false;
+if (viewer && isOn('onboarding') && isConfigured()) {
+  try {
+    comeReadyShown = await comeReadyPending(viewer);
+  } catch (error) {
+    console.error('header: come-ready check failed (link hidden).', error);
+  }
+}
+const comeReadyHref = routeFor('come-ready');
 ---
 
 <header class="hdr">
@@ -60,6 +75,9 @@ const MEMBER = [
           {MEMBER.map((item) => (
             <a class="nav-link" href={item.href} aria-current={isHere(item.href) ? 'page' : undefined}>{item.label}</a>
           ))}
+          {comeReadyShown && (
+            <a class="nav-link" href={comeReadyHref} aria-current={isHere(comeReadyHref) ? 'page' : undefined}>Come ready</a>
+          )}
           <ThemeToggle />
           <details class="account">
             <summary class="account-trigger">{accountLabel} <span class="account-caret" aria-hidden="true">▾</span></summary>

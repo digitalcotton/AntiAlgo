@@ -74,6 +74,26 @@ export async function hasAnyJobRender(userId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/**
+ * Whether the first run still has something to do, in one round trip: the
+ * header asks this on every signed-in render to decide whether to offer the
+ * "Come ready" link. A free or waitlisted account always has the page (its
+ * door is a choice, not a task); a paid account is done once the same four
+ * facts the step model's `complete` reads are all true.
+ */
+export async function comeReadyPending(viewer: Viewer): Promise<boolean> {
+  if (editionFor(viewer.tier) !== 'paid') return true;
+  const { rows } = await db().query<{ drafted: boolean; titled: boolean; keyed: boolean; recorded: boolean }>(
+    `SELECT EXISTS(SELECT 1 FROM generated_render WHERE user_id = $1 AND job_id IS NOT NULL) AS drafted,
+            EXISTS(SELECT 1 FROM ledger_watch WHERE user_id = $1 AND shelf = 'core') AS titled,
+            EXISTS(SELECT 1 FROM user_provider_key WHERE user_id = $1) AS keyed,
+            EXISTS(SELECT 1 FROM record_entry WHERE user_id = $1) AS recorded`,
+    [viewer.userId]
+  );
+  const r = rows[0];
+  return !(r && r.drafted && r.titled && r.keyed && r.recorded);
+}
+
 async function joinedAtOf(userId: string): Promise<Date | null> {
   const { rows } = await db().query<{ created_at: Date }>('SELECT created_at FROM app_user_profile WHERE user_id = $1 LIMIT 1', [userId]);
   return rows[0]?.created_at ?? null;
