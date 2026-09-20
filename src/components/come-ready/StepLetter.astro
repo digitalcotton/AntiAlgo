@@ -51,13 +51,13 @@ const statusUrl = routeFor('profile-import-status');
             <span class="cr-drop-hint">PDF, Word (.docx), Markdown or plain text. Or paste it below.</span>
           </label>
           <input id="cr-letter-file" class="cr-file visually-hidden" type="file" name="file" accept={ACCEPT} required data-cr-letter-file />
-          <label class="cr-btn" for="cr-letter-file">Choose a file</label>
-          <button type="submit" class="cr-btn cr-nojs" data-cr-letter-nojs>Save that file</button>
+          <label class="cr-link cr-letter-choose" for="cr-letter-file">Choose a file</label>
+          <button type="submit" class="cr-link cr-letter-choose cr-nojs" data-cr-letter-nojs>Save that file</button>
         </form>
         <form method="POST" action={coverAction} class="cr-letter-form">
           <input type="hidden" name="return" value={selfPath} />
           <textarea id="cr-letter" class="cr-textarea cr-letter-paste" name="pasted" rows="7" placeholder="Or paste the cover letter you reuse." aria-label="Cover letter" required></textarea>
-          <button type="submit" class="cr-btn cr-btn-gap">Save cover letter</button>
+          <button type="submit" class="cr-link cr-letter-save">Save cover letter</button>
         </form>
       </>
     )}
@@ -154,6 +154,18 @@ const statusUrl = routeFor('profile-import-status');
   /* A border that is there all along and only takes a colour on a drag, so
      the box does not grow by a pixel under the pointer. */
   .cr-letter-paste {
+    margin-top: 12px;
+  }
+  /* This step's one primary is Done, at its foot. Choosing a file and saving
+     the letter are the step's supporting moves, so they take the site's
+     secondary treatment: text with a hairline underline. The resumé step's
+     band keeps its filled button, because there the choice IS the step. */
+  .cr-letter-choose {
+    display: inline-block;
+    margin-top: 14px;
+  }
+  .cr-letter-save {
+    display: inline-block;
     margin-top: 12px;
   }
   .cr-reading-line {
