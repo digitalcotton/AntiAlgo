@@ -263,7 +263,9 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
   .dh-cards { list-style: none; margin: 0; padding: 0; background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-line-strong); }
   .dh-evidence { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px 40px; }
   .dh-evidence-fact { margin: 0; font-size: 0.8rem; line-height: 1.55; }
-  .dh-evidence-source { margin: 6px 0 0; font-size: 0.68rem; color: var(--color-line-strong); }
+  /* Muted, not the rule colour the design used: the source line is text and
+     has to clear AA contrast on paper and on ink. */
+  .dh-evidence-source { margin: 6px 0 0; font-size: 0.68rem; color: var(--color-muted); }
   .dh-evidence-note { margin: 6px 0 0; font-size: 0.88rem; line-height: 1.55; color: var(--color-muted); }
   @media (max-width: 44rem) { .dh-evidence { grid-template-columns: 1fr; } }
   /* An empty lane is the site's hatched slot (the same drawing as the job
