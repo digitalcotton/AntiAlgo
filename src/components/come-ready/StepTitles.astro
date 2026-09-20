@@ -67,6 +67,12 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
         ) : (
           <span class="cr-title-of cr-mono">not counted</span>
         )}
+        <form method="POST" action={watchAction} class="cr-title-remove">
+          <input type="hidden" name="intent" value="remove" />
+          <input type="hidden" name="title" value={t.title} />
+          <input type="hidden" name="return" value={selfPath} />
+          <button type="submit" class="cr-remove" aria-label={`Remove ${t.title}`}>&#215;</button>
+        </form>
       </div>
     ))}
     <form method="POST" action={watchAction} class="cr-add">
@@ -113,6 +119,18 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
         <span class="cr-label cr-label-inline">Stretch, working toward</span>
         <span class="cr-link">{stretchTitles.length > 0 ? `${stretchTitles.join(', ')}. Add another` : 'Add a title you are working toward'}</span>
       </summary>
+      {stretchTitles.map((title) => (
+        <div class="cr-title-row">
+          <span class="cr-title-name">{title}</span>
+          <span></span>
+          <form method="POST" action={watchAction} class="cr-title-remove">
+            <input type="hidden" name="intent" value="remove" />
+            <input type="hidden" name="title" value={title} />
+            <input type="hidden" name="return" value={selfPath} />
+            <button type="submit" class="cr-remove" aria-label={`Remove ${title}`}>&#215;</button>
+          </form>
+        </div>
+      ))}
       <form method="POST" action={watchAction} class="cr-add cr-add-stretch">
         <input type="hidden" name="intent" value="add" />
         <input type="hidden" name="shelf" value="stretch" />
@@ -185,13 +203,33 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
   .cr-titles {
     margin-top: 18px;
   }
+  /* Name, count, and the remove control as its own track, so the counts line
+     up down the list whether or not a row carries one. */
   .cr-title-row {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 2ch;
     gap: 16px;
     align-items: baseline;
     padding: 10px 0;
     border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .cr-title-remove {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .cr-remove {
+    border: 0;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: var(--font-family-mono);
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--color-muted);
+  }
+  .cr-remove:hover,
+  .cr-remove:focus-visible {
+    color: var(--color-stat-loss);
   }
   .cr-title-name {
     font-weight: 500;
