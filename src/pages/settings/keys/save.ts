@@ -56,6 +56,7 @@ import type { APIContext } from 'astro';
 import { isOn } from '../../../lib/flags';
 import { PROVIDERS, type Provider } from '../../../lib/keychain';
 import { InvalidKeyShapeError, putKey } from '../../../lib/keychain-store';
+import { returnTo } from '../../../lib/return-to';
 import { withBase } from '../../../../site.config.mjs';
 
 export const prerender = false;
@@ -69,11 +70,13 @@ interface RelayPayload {
   message: string;
 }
 
-function redirect(): Response {
+function redirect(to = `${KEYS_PATH}#keys`): Response {
   // Back to the key section, not the top of the settings page. The #keys
   // fragment matches the id on settings.astro's .keys-block, which carries a
-  // scroll-margin that clears the sticky header.
-  return new Response(null, { status: 303, headers: { Location: `${withBase(KEYS_PATH)}#keys` } });
+  // scroll-margin that clears the sticky header. A stored key may instead go
+  // back to an allowed `return` (Come ready, /start); a refused one always
+  // lands here, where the relay cookie below is readable.
+  return new Response(null, { status: 303, headers: { Location: withBase(to) } });
 }
 
 function setRelayCookie(context: APIContext, payload: RelayPayload): void {
@@ -120,7 +123,7 @@ export async function POST(context: APIContext): Promise<Response> {
 
   try {
     await putKey(viewer.userId, provider, plaintext);
-    return redirect();
+    return redirect(returnTo(form, `${KEYS_PATH}#keys`));
   } catch (err) {
     if (err instanceof InvalidKeyShapeError) {
       // err.message is 'keychain-store: refused to store key: <reason>';

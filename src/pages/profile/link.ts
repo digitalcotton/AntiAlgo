@@ -26,6 +26,7 @@
 import type { APIContext } from 'astro';
 import { addLink, removeLink } from '../../lib/record-store';
 import { normaliseLinkUrl } from '../../lib/profile-links';
+import { returnTo } from '../../lib/return-to';
 import { withBase } from '../../../site.config.mjs';
 
 export const prerender = false;
@@ -39,10 +40,12 @@ interface RelayPayload {
   reason: string;
 }
 
-function redirect(): Response {
+function redirect(to = `${RETURN_PATH}#links`): Response {
   // Back to the links section by anchor, so a person who scrolled down to add
-  // a link lands back where they were rather than at the top of the page.
-  return new Response(null, { status: 303, headers: { Location: `${withBase(RETURN_PATH)}#links` } });
+  // a link lands back where they were rather than at the top of the page. A
+  // stored link may instead go back to an allowed `return` (Come ready,
+  // /start); a refused one always lands here, where the relay is readable.
+  return new Response(null, { status: 303, headers: { Location: withBase(to) } });
 }
 
 function setRelayCookie(context: APIContext, payload: RelayPayload): void {
@@ -75,7 +78,7 @@ export async function POST(context: APIContext): Promise<Response> {
     if (linkId.length > 0) {
       await removeLink(userId, linkId);
     }
-    return redirect();
+    return redirect(returnTo(form, `${RETURN_PATH}#links`));
   }
 
   if (intent === 'add') {
@@ -96,7 +99,7 @@ export async function POST(context: APIContext): Promise<Response> {
     }
 
     await addLink(userId, result.platform, result.url);
-    return redirect();
+    return redirect(returnTo(form, `${RETURN_PATH}#links`));
   }
 
   return new Response('Unrecognised intent.', { status: 400 });

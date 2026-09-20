@@ -13,6 +13,7 @@
 import type { APIContext } from 'astro';
 import { paidViewerFrom } from '../../lib/ledger-access';
 import { getPrefs, savePrefs, type LedgerSelection } from '../../lib/ledger-prefs-store';
+import { returnTo } from '../../lib/return-to';
 import { withBase } from '../../../site.config.mjs';
 
 export const prerender = false;
@@ -57,7 +58,9 @@ export async function POST(context: APIContext): Promise<Response> {
     }
 
     await savePrefs(userId, next);
-    return toDesk();
+    // Back to the page that posted: the Desk unless the form carried an
+    // allowed `return` (Come ready, /start, sets the same controls).
+    return new Response(null, { status: 303, headers: { Location: withBase(returnTo(form, DESK_PATH)) } });
   } catch (error) {
     console.error('ledger/prefs: failed; returning to the Desk.', error);
     return toDesk();

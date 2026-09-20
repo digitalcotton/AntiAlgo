@@ -36,6 +36,7 @@ import { setCoverLetter, clearCoverLetter } from '../../../lib/record-store';
 import { keyStorageIsConfigured } from '../../../lib/keychain';
 import { keyMeta } from '../../../lib/keychain-store';
 import { isOn } from '../../../lib/flags';
+import { returnTo } from '../../../lib/return-to';
 import { withBase } from '../../../../site.config.mjs';
 
 export const prerender = false;
@@ -109,10 +110,13 @@ export async function POST(context: APIContext): Promise<Response> {
   // resume upload uses, but only with a key (the reader runs a model). With no
   // key the letter is on file as voice and its facts wait; the band says so.
   const hasProviderKey = keyStorageIsConfigured() && isOn('byok') && (await keyMeta(userId)).length > 0;
+  // A stored letter may go back to an allowed `return` (Come ready, /start,
+  // which lands a finished read into the record on its next load); a refused
+  // one always lands on the profile band above.
   if (hasProviderKey) {
     await startResumeParse(userId, sourceName, text);
-    return wantsJson(context) ? jsonResponse({ status: 'started', parsing: true }) : redirectTo(REVIEW_PATH);
+    return wantsJson(context) ? jsonResponse({ status: 'started', parsing: true }) : redirectTo(returnTo(form, REVIEW_PATH));
   }
 
-  return wantsJson(context) ? jsonResponse({ status: 'stored', parsing: false }) : redirectTo(PROFILE_PATH);
+  return wantsJson(context) ? jsonResponse({ status: 'stored', parsing: false }) : redirectTo(returnTo(form, PROFILE_PATH));
 }

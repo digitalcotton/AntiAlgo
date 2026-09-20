@@ -19,6 +19,7 @@
 import type { APIContext } from 'astro';
 import { paidViewerFrom } from '../../lib/ledger-access';
 import { addWatch, removeWatch, setShelf, type Shelf } from '../../lib/ledger-watch-store';
+import { returnTo } from '../../lib/return-to';
 import { withBase } from '../../../site.config.mjs';
 
 export const prerender = false;
@@ -30,6 +31,12 @@ const TITLE_MAX = 200;
 
 function toDesk(): Response {
   return new Response(null, { status: 303, headers: { Location: withBase(DESK_PATH) } });
+}
+
+/** Back to the page that posted: the Desk unless the form carried an allowed
+    `return` (Come ready, /start, edits the same list from its own page). */
+function back(form: FormData): Response {
+  return new Response(null, { status: 303, headers: { Location: withBase(returnTo(form, DESK_PATH)) } });
 }
 
 /** Any non-POST hit (a bare browser GET, a crawler, a prefetch) goes to the Desk
@@ -56,15 +63,15 @@ export async function POST(context: APIContext): Promise<Response> {
 
     if (intent === 'add') {
       if (title) await addWatch(userId, title, shelfFrom(form));
-      return toDesk();
+      return back(form);
     }
     if (intent === 'reshelf') {
       if (title) await setShelf(userId, title, shelfFrom(form));
-      return toDesk();
+      return back(form);
     }
     if (intent === 'remove') {
       if (title) await removeWatch(userId, title);
-      return toDesk();
+      return back(form);
     }
     return new Response('Unrecognised intent.', { status: 400 });
   } catch (error) {
