@@ -661,6 +661,9 @@ const widest = (group: FilterGroup): string =>
      JobTable's controller re-renders rows on every change.
      ------------------------------------------------------------------------- */
 
+  // The endpoint comes off the strip's own data attribute; the frontmatter
+  // constant of the same name is not visible in this script.
+  const accountFiltersUrl = root?.getAttribute('data-account-filters-url') || '';
   let signedIn = false;
   let suppressedSlugs: string[] = [];
 
