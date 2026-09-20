@@ -355,10 +355,13 @@ pre {
 /* The layout shell. One place owns the measure and the gutter, so no screen
    hardcodes a container width. */
 .shell {
-  /* The design's container: 1200px, side padding clamp(20px, 4vw, 56px). */
-  max-width: 75rem;
+  /* The board's frame, site-wide since 2026-09-20 (it was 75rem with 20 to
+     56px gutters, and only the signed-in header, footer and member pages took
+     this wider one). 1376px with 16 to 36px gutters, so every page, signed in
+     or out, shares one width and the header and footer meet its edges. */
+  max-width: 86rem;
   margin-inline: auto;
-  padding-inline: clamp(20px, 4vw, 56px);
+  padding-inline: clamp(16px, 2.5vw, 36px);
 }
 
 /* ---------------------------------------------------------------------------

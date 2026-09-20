@@ -47,7 +47,7 @@ const MEMBER = [
 ---
 
 <header class="hdr">
-  <div class:list={['shell', 'hdr-main', { 'hdr-member': signedIn }]}>
+  <div class="shell hdr-main">
     <a class="brand" href={routeFor('start')} aria-label={`${SITE.name}, home`}>
       <BrandMark />
       <span class="wordmark">anti algo</span>
@@ -100,14 +100,6 @@ const MEMBER = [
     gap: var(--space-500);
     padding-block: var(--space-400);
     flex-wrap: wrap;
-  }
-  /* Signed in, the header takes the board's frame (board.astro .index, and
-     since 2026-09-19 the Desk, Opportunities and Jobs Data too), so the brand
-     sits on the content's left edge and the nav on its right. Signed out, the
-     marketing pages keep the default shell and so does the header. */
-  .hdr-member {
-    max-width: 86rem;
-    padding-inline: clamp(16px, 2.5vw, 36px);
   }
   .brand {
     display: flex;
