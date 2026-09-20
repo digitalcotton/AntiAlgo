@@ -40,6 +40,7 @@
             <h1 style="margin:16px 0 0;font-weight:600;font-size:clamp(1.9rem,4.2vw,3.1rem);line-height:1.04;letter-spacing:-0.03em;max-width:24ch;text-wrap:pretty;">Read the design market like a data scientist.</h1>
             <p style="margin:18px 0 0;font-size:1.02rem;line-height:1.55;color:var(--color-muted);max-width:62ch;text-wrap:pretty;">Every night the sweep reads company careers pages directly, verifies what is still there, and publishes what came down by rule. This page is the structure underneath that: what pays, what is fresh, who recycles, and where roles are about to open. Nothing here reads a mind. Every number carries the night it was read.</p>
             <div style="margin-top:22px;display:flex;flex-wrap:wrap;gap:8px 10px;">
+              <span style="font-family:var(--font-family-mono);font-size:0.68rem;border:1px solid var(--color-line-strong);padding:3px 9px;color:var(--color-signal);">tier one data: active</span>
               <span style="font-family:var(--font-family-mono);font-size:0.68rem;border:1px solid var(--color-line-strong);padding:3px 9px;color:var(--color-muted);">measurement set in mono</span>
               <span style="font-size:0.8rem;border:1px solid var(--color-line);padding:3px 9px;color:var(--color-muted);">absences and framing set in sans</span>
             </div>
@@ -75,7 +76,7 @@
                   </div>`;
   
     return `
-    <div id="watch" style="position:${vm.stickyPos};top:0;z-index:70;background:color-mix(in srgb, var(--color-surface) 95%, transparent);backdrop-filter:saturate(120%) blur(8px);border-top:1px solid var(--color-line-strong);border-bottom:1px solid var(--color-line-strong);">
+    <div id="watch" style="position:${vm.stickyPos};top:var(--sticky-top, 84px);z-index:70;background:color-mix(in srgb, var(--color-surface) 95%, transparent);backdrop-filter:saturate(120%) blur(8px);border-top:1px solid var(--color-line-strong);border-bottom:1px solid var(--color-line-strong);">
       <div style="max-width:1400px;margin-inline:auto;padding:12px clamp(16px,4vw,56px) 14px;">
   
         <div style="display:flex;flex-wrap:wrap;gap:10px 20px;align-items:baseline;justify-content:space-between;">

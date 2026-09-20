@@ -62,6 +62,20 @@ const boardHref = routeFor('board');
         </noscript>
       </div>
       <script id="ledger-data" type="application/json" is:inline set:html={dataJson}></script>
+      {/* The cut bar (ledger-v4-views.js #watch) sticks under the site's own
+          sticky header, whose height varies with the member subnav and the
+          viewport, so the offset is measured from the header itself. */}
+      <script is:inline>
+        (function () {
+          var hdr = document.querySelector('header.hdr');
+          if (!hdr) return;
+          var set = function () {
+            document.documentElement.style.setProperty('--sticky-top', hdr.getBoundingClientRect().height + 'px');
+          };
+          set();
+          window.addEventListener('resize', set);
+        })();
+      </script>
       <script src={appJs} is:inline defer></script>
       <script src={viewsJs} is:inline defer></script>
     </>
