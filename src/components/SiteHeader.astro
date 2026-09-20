@@ -114,7 +114,10 @@ const MEMBER = [
   }
   .nav {
     display: flex;
-    align-items: center;
+    /* Baseline, not centre: the sans links, the mono theme toggle and the
+       padded Save my spot button have different box heights, and centring
+       their boxes put their text on three different baselines. */
+    align-items: baseline;
     gap: var(--space-500);
     flex-wrap: wrap;
   }
