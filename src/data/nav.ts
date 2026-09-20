@@ -38,6 +38,7 @@ export const ROUTES = [
   { key: 'how-it-works', pattern: '/how-it-works', kind: 'static', note: 'Five screens, in the order of your week: what each surface of the product answers.', sitemap: true },
   { key: 'evidence', pattern: '/evidence', kind: 'static', note: 'The research behind the claims, each figure with its source.', sitemap: true },
   { key: 'your-key', pattern: '/your-key', kind: 'static', note: 'Bring your own AI key: what it is, why it never touches our server, and the price.', sitemap: true },
+  { key: 'the-account', pattern: '/the-account', kind: 'static', note: 'What the account opens: no account, account, paid, at one price. The signed-out tiers page.', sitemap: true },
   { key: 'sign-up', pattern: '/sign-up', kind: 'static', note: 'Create an account. Lands on the waitlist page while the waitlist flag is on.', sitemap: false },
   { key: 'sign-in', pattern: '/sign-in', kind: 'static', note: 'Sign in. Sends an already signed-in reader on rather than showing a form they do not need.', sitemap: false },
   { key: 'waitlist', pattern: '/waitlist', kind: 'static', note: 'The one page a waitlisted account sees: it exists, it is on the list, the board is public.', sitemap: false },

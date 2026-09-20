@@ -1,0 +1,346 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { routeFor } from '../data/nav';
+import { accountFacts } from '../lib/viewer';
+import { dayStamp } from '../lib/stats';
+import { isOn } from '../lib/flags';
+import { withBase } from '../../site.config.mjs';
+
+/**
+ * /the-account: what the account opens (owner's design "The account.html",
+ * 2026-09-20). No account, account, paid, at one price. Public, in the
+ * signed-out nav. The masthead, the price block, the three lines true of
+ * every column, the matrix (a table on wide screens, one card per tier at
+ * 900px and under), what stays yours, the one action by viewer state, and four
+ * questions, all with the design's exact values and rows.
+ *
+ * RENDERED PER REQUEST because the action block is decided by the viewer: a
+ * signed-out reader gets Save my spot, a waitlisted account its joined date,
+ * a member the checkout, a paid account its standing. The matrix itself is
+ * the same for everyone. The member's checkout form renders only while the
+ * stripe flag is on: a button that posts to a dark route is a dead button.
+ * The paid state carries no "since" date, because no table records when a
+ * tier became paid; an absent date is not invented.
+ */
+export const prerender = false;
+
+const facts = await accountFacts(Astro);
+const viewer = facts ? facts.tier : 'signed-out';
+const isSignedOut = viewer === 'signed-out' || viewer === 'public';
+const isWaitlisted = viewer === 'waitlisted';
+const isPaid = viewer === 'paid' || viewer === 'internal';
+const isMember = viewer === 'member';
+const billingOpen = isOn('stripe');
+
+const Y = 'yes';
+const N = 'not included';
+type Row = readonly [string, string, string, string, string];
+const groups: { label: string; rows: readonly Row[] }[] = [
+  {
+    label: 'Find',
+    rows: [
+      ['The board', "every role, verified nightly at the company's own page", Y, Y, Y],
+      ['Every job page: the fit score', 'and the math behind it', 'signed in only', Y, Y],
+      ['Kill records', 'what died and the rule it tripped', N, N, Y]
+    ]
+  },
+  {
+    label: 'Work',
+    rows: [
+      ['The Profile Record', 'your facts, kept exact, private', N, N, Y],
+      ['Bring your own key', 'drafting in your voice, on your bill', N, N, Y],
+      ['Tailored resumé and cover letter', 'one of each, per posting', N, N, Y],
+      ['Add any job by link', "ours or anyone's", 'signed in only', Y, Y],
+      ['Opportunities', 'what you told us beside what the sweep observed', N, N, Y],
+      ['The Pre-List', 'companies that raised and have not posted', N, N, Y],
+      ['The Drop', 'the week, read at source', N, N, Y]
+    ]
+  },
+  {
+    label: 'Know',
+    rows: [
+      ['The Desk', 'name your titles, the sweep narrowed to them, new and died under them nightly', N, N, Y],
+      ['Jobs Data', 'pay ladders, remote against in-office, who recycles, re-cut to your titles', 'signed in only', 'preview', Y]
+    ]
+  }
+];
+const tiers = [
+  { name: 'No account', tag: 'free, no email', top: 'heavy', col: 2 },
+  { name: 'Account', tag: 'free', top: 'heavy', col: 3 },
+  { name: 'Paid', tag: '$7.25 a month', top: 'signal', col: 4 }
+] as const;
+const faqs = [
+  { q: 'What does the key cost?', a: "Cents per draft, on your provider's bill, under a monthly spend cap you set in their console. We never pay for it and never charge for it." },
+  { q: 'Does my resumé touch your server?', a: 'No. Your own model reads it on your key. Every value it proposes is checked to occur in the file, and nothing is saved until you have reviewed the proposals.' },
+  { q: 'Will the board ever be paid?', a: 'No. The board is free and always will be. No tiers. One price, and it is for the account, not the board.' },
+  { q: 'How does admission work while the waitlist is on?', a: 'Save your spot with an email. The account is created waitlisted and admitted by hand, one at a time. Sign-in opens with the first admissions.' }
+];
+const signUpHref = `${routeFor('sign-up')}?from=the-account`;
+const checkoutAction = withBase('/billing/checkout');
+---
+
+<BaseLayout title="The account" description="What the account opens: no account, account, paid. One price, $7.25 a month, and it does not move.">
+  <div class="ta">
+    <div class="shell">
+      <div class="ta-masthead">
+        <div class="ta-mast-copy">
+          <p class="ta-eyebrow">One price. It does not move.</p>
+          <h1 class="ta-h1">Free to look and apply. Paid to work.</h1>
+          <p class="ta-lede">The board is free and public forever. The account is where you do the work, and it costs an hour of minimum wage a month.</p>
+        </div>
+        <div class="ta-price">
+          <div class="ta-price-row">
+            <span class="ta-figure">$7.25</span>
+            <span class="ta-figure-label">a month for the account</span>
+          </div>
+          <ul class="ta-price-lines">
+            <li>The federal minimum wage has not moved since 2009, and neither will this.</li>
+            <li>LinkedIn Premium is <span class="ta-mono-figure">$39.99</span> a month and never checks whether a posting is real.</li>
+            <li>Your AI runs on your key, so we never pay for it and never charge for it.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="ta-three">
+        <p><span class="ta-num">1</span>The board is free and always will be.</p>
+        <p><span class="ta-num">2</span>Your key is yours and we never see it.</p>
+        <p><span class="ta-num">3</span>Every number carries the night it was read.</p>
+      </div>
+    </div>
+
+    <div class="shell ta-wide">
+      <table class="ta-table" aria-label="What each tier includes">
+        <thead>
+          <tr>
+            <th scope="col" class="ta-th ta-th-what">What it is</th>
+            <th scope="col" class="ta-th">No account</th>
+            <th scope="col" class="ta-th">Account<span class="ta-th-tag">free</span></th>
+            <th scope="col" class="ta-th">Paid<span class="ta-th-tag">$7.25 a month</span></th>
+          </tr>
+        </thead>
+        {groups.map((g) => (
+          <tbody>
+            <tr><th scope="rowgroup" colspan="4" class="ta-group">{g.label}</th></tr>
+            {g.rows.map(([name, def, a, b, c]) => (
+              <tr>
+                <th scope="row" class="ta-row-head">
+                  <span class="ta-row-name">{name}</span>
+                  <span class="ta-row-def">{def}</span>
+                </th>
+                {[a, b, c].map((v) => (
+                  <td class="ta-cell">
+                    {v === Y ? (
+                      <span class="ta-yes" aria-label="included"><span class="ta-mark" aria-hidden="true"><span></span></span><span class="ta-yes-word">yes</span></span>
+                    ) : (
+                      <span class="ta-no">{v}</span>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        ))}
+      </table>
+    </div>
+
+    <div class="shell ta-narrow">
+      {tiers.map((t) => (
+        <section class:list={['ta-card', `ta-card-${t.top}`]}>
+          <div class="ta-card-head">
+            <span class="ta-card-name">{t.name}</span>
+            <span class="ta-card-tag">{t.tag}</span>
+          </div>
+          {groups.flatMap((g) => g.rows).map((r) => {
+            const v = r[t.col];
+            return (
+              <div class="ta-card-row">
+                <div class="ta-card-copy">
+                  <span class="ta-card-rowname">{r[0]}</span>
+                  <span class="ta-card-rowdef">{r[1]}</span>
+                </div>
+                <div class="ta-card-cell">
+                  {v === Y ? (
+                    <span class="ta-yes" aria-label="included"><span class="ta-mark" aria-hidden="true"><span></span></span><span class="ta-yes-word">yes</span></span>
+                  ) : (
+                    <span class="ta-no ta-no-nowrap">{v}</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      ))}
+    </div>
+
+    <div class="shell ta-yours-wrap">
+      <h2 class="ta-h2">What stays yours</h2>
+      <div class="ta-yours">
+        <div class="ta-yours-quotes">
+          <p class="ta-label">From the covenant, quoted</p>
+          <blockquote class="ta-quote">"Every fact the machine derives about a posting or your own application stays free to the person it concerns for as long as the site exists."</blockquote>
+          <blockquote class="ta-quote">"A lapsed trial ends and does not default into a renewal nobody chose."</blockquote>
+        </div>
+        <div class="ta-yours-if">
+          <p class="ta-label">If you stop paying</p>
+          <ul class="ta-if-lines">
+            <li>Your record, your drafts and your tracker stay readable.</li>
+            <li>The Desk and Jobs Data close.</li>
+            <li>Your key is yours to delete at any time.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="shell">
+      <div class="ta-action">
+        {isSignedOut && (
+          <>
+            <a class="ta-cta" href={signUpHref}>Save my spot</a>
+            <p class="ta-action-note">The waitlist is on. An account holds a place and is admitted by hand, one at a time. Sign-in opens with the first admissions.</p>
+          </>
+        )}
+        {isWaitlisted && facts && (
+          <>
+            <div>
+              <p class="ta-state">Your place is held.</p>
+              <p class="ta-state-stamp">Joined {dayStamp(facts.createdAt)}</p>
+            </div>
+            <p class="ta-action-note">Admission is by hand, one at a time. The account column opens the day you are admitted; the paid column is your choice after that.</p>
+          </>
+        )}
+        {isMember && (
+          billingOpen ? (
+            <>
+              <form method="POST" action={checkoutAction} class="ta-form">
+                <button type="submit" class="ta-cta">Open the paid account, $7.25 a month</button>
+              </form>
+              <p class="ta-action-note">Card details are entered on Stripe's page, never here.</p>
+            </>
+          ) : (
+            <>
+              <div>
+                <p class="ta-state">Your account is open.</p>
+                <p class="ta-state-stamp">Billing is not open yet</p>
+              </div>
+              <p class="ta-action-note">The paid column opens the day billing does. Card details will be entered on Stripe's page, never here.</p>
+            </>
+          )
+        )}
+        {isPaid && (
+          <>
+            <div>
+              <p class="ta-state">You are on the paid account.</p>
+            </div>
+            <p class="ta-action-note">Cancel from your account page, any day. What stays yours is written above.</p>
+          </>
+        )}
+      </div>
+    </div>
+
+    <div class="shell ta-faq-wrap">
+      <h2 class="ta-h2">Four questions</h2>
+      <dl class="ta-faq">
+        {faqs.map((f) => (
+          <div class="ta-faq-row">
+            <dt>{f.q}</dt>
+            <dd>{f.a}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  /* Values are the design's (The account.html): its --paper/--panel/--ink/
+     --muted/--hair/--heavy/--wash/--live/--signal map onto the site's tokens
+     of the same meaning, so both themes come from tokens.css. */
+  .ta { font-size: 1.0625rem; line-height: 1.7; font-variant-numeric: tabular-nums; padding-bottom: 64px; }
+
+  .ta-masthead { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0 clamp(24px, 4vw, 64px); border-bottom: var(--border-hairline) solid var(--color-line); }
+  .ta-mast-copy { padding: 34px 0 30px; }
+  .ta-eyebrow { margin: 0; font-family: var(--font-family-mono); font-size: 0.82rem; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); }
+  .ta-h1 { margin: 14px 0 0; font-weight: 700; font-size: clamp(2.25rem, 4.2vw, 3.25rem); line-height: 1.05; letter-spacing: -0.02em; max-width: 16ch; text-wrap: pretty; }
+  .ta-lede { margin: 20px 0 0; font-size: 1.25rem; line-height: 1.5; max-width: 44ch; text-wrap: pretty; }
+  .ta-price { padding: 30px 0 26px clamp(0px, 3vw, 32px); border-left: var(--border-hairline) solid var(--color-line); }
+  .ta-price-row { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  /* The sans face, not mono: in mono the point sits centred in a full cell and the price reads "$7 . 25". */
+  .ta-figure { font-family: var(--font-family-sans); font-weight: 700; font-size: clamp(3.25rem, 5.5vw, 4.75rem); line-height: 1; letter-spacing: -0.03em; }
+  .ta-figure-label { font-size: 1.0625rem; line-height: 1.3; max-width: 12ch; text-wrap: pretty; }
+  .ta-price-lines { margin: 18px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; font-size: 0.95rem; line-height: 1.55; color: var(--color-foreground); }
+  .ta-price-lines li { padding: 8px 0; border-top: var(--border-hairline) solid var(--color-line); }
+  .ta-mono-figure { font-family: var(--font-family-mono); font-size: 0.875rem; }
+
+  .ta-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 clamp(20px, 3vw, 44px); padding: 18px 0; border-bottom: var(--border-hairline) solid var(--color-line); font-size: 0.95rem; line-height: 1.5; }
+  .ta-three p { margin: 0; text-wrap: pretty; }
+  .ta-num { font-family: var(--font-family-mono); font-size: 0.78rem; color: var(--color-muted); margin-right: 10px; }
+
+  /* The table: wide screens. Column headers stick under the site's sticky header. */
+  .ta-table { width: 100%; border-collapse: collapse; }
+  .ta-th { position: sticky; top: 84px; z-index: 3; background: var(--color-surface); text-align: left; padding: 18px 16px 12px; border-bottom: var(--border-heavy) solid var(--color-line-strong); font-weight: 500; font-size: 1.0625rem; width: 20%; }
+  .ta-th-what { padding-left: 0; width: 40%; font-family: var(--font-family-mono); font-size: 0.82rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); }
+  .ta-th-tag { display: block; font-family: var(--font-family-mono); font-size: 0.78rem; font-weight: 400; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); margin-top: 2px; }
+  .ta-group { text-align: left; padding: 22px 0 6px; font-family: var(--font-family-mono); font-size: 0.78rem; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); border-bottom: var(--border-hairline) solid var(--color-line); }
+  .ta-row-head { text-align: left; font-weight: 500; padding: 12px 16px 12px 0; border-bottom: var(--border-hairline) solid var(--color-line); vertical-align: top; }
+  .ta-row-name { display: block; font-size: 1.0625rem; line-height: 1.4; }
+  .ta-row-def { display: block; font-size: 0.875rem; line-height: 1.45; color: var(--color-muted); font-weight: 400; margin-top: 2px; text-wrap: pretty; }
+  .ta-cell { padding: 12px 16px; border-bottom: var(--border-hairline) solid var(--color-line); vertical-align: top; line-height: 1.4; }
+  .ta-table tbody tr:hover td { background: var(--color-hover-surface); }
+  .ta-yes { display: inline-flex; align-items: center; gap: 10px; color: var(--color-mark-live); }
+  .ta-mark { position: relative; display: inline-block; width: 18px; height: 18px; border: 2px solid var(--color-mark-live); border-radius: 50%; }
+  .ta-mark > span { position: absolute; inset: 4px; border-radius: 50%; background: var(--color-mark-live); }
+  .ta-yes-word { font-family: var(--font-family-mono); font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; }
+  .ta-no { font-size: 0.95rem; color: var(--color-muted); }
+  .ta-no-nowrap { white-space: nowrap; }
+
+  /* The cards: 900px and under. */
+  .ta-narrow { display: none; padding-top: 8px; }
+  .ta-card { background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-line); border-top: var(--border-heavy) solid var(--color-line-strong); border-radius: var(--radius); margin: 14px 0 0; }
+  .ta-card-signal { border-top-color: var(--color-signal); }
+  .ta-card-head { padding: 14px 16px 10px; border-bottom: var(--border-hairline) solid var(--color-line); display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .ta-card-name { font-weight: 700; font-size: 1.25rem; }
+  .ta-card-tag { font-family: var(--font-family-mono); font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); }
+  .ta-card-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: start; padding: 10px 16px; border-bottom: var(--border-hairline) solid var(--color-line); }
+  .ta-card-copy { min-width: 0; }
+  .ta-card-rowname { display: block; font-weight: 500; line-height: 1.4; }
+  .ta-card-rowdef { display: block; font-size: 0.875rem; line-height: 1.45; color: var(--color-muted); text-wrap: pretty; }
+  .ta-card-cell { padding-top: 2px; text-align: right; }
+  .ta-card-cell .ta-yes { gap: 8px; }
+
+  .ta-yours-wrap { padding-top: 36px; }
+  .ta-h2 { margin: 0; padding-bottom: 10px; border-bottom: var(--border-heavy) solid var(--color-line-strong); font-weight: 700; font-size: 1.625rem; line-height: 1.15; letter-spacing: -0.01em; }
+  .ta-yours { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 0 clamp(20px, 3vw, 44px); background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-line); border-top: 0; border-radius: 0 0 var(--radius) var(--radius); }
+  .ta-yours-quotes, .ta-yours-if { padding: 22px clamp(16px, 2vw, 28px); }
+  .ta-yours-if { border-left: var(--border-hairline) solid var(--color-line); }
+  .ta-label { margin: 0; font-family: var(--font-family-mono); font-size: 0.78rem; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); }
+  .ta-quote { margin: 14px 0 0; padding: 0 0 0 18px; border-left: var(--border-hairline) solid var(--color-line-strong); font-size: 1.25rem; line-height: 1.5; text-wrap: pretty; }
+  .ta-quote + .ta-quote { margin-top: 16px; }
+  .ta-if-lines { margin: 10px 0 0; padding: 0; list-style: none; font-size: 1.0625rem; line-height: 1.55; }
+  .ta-if-lines li { padding: 8px 0; border-top: var(--border-hairline) solid var(--color-line); }
+  .ta-if-lines li:last-child { border-bottom: var(--border-hairline) solid var(--color-line); }
+
+  .ta-action { margin-top: 36px; padding: 26px 0; border-top: var(--border-heavy) solid var(--color-line-strong); border-bottom: var(--border-hairline) solid var(--color-line); display: flex; flex-wrap: wrap; gap: 16px 40px; align-items: center; justify-content: space-between; }
+  .ta-form { margin: 0; }
+  .ta-cta { display: inline-flex; align-items: center; flex-shrink: 0; white-space: nowrap; min-height: 44px; padding: 12px 24px; background: var(--color-signal); color: var(--gray-950); font-family: var(--font-family-mono); font-weight: 700; font-size: 0.82rem; letter-spacing: 0.14em; text-transform: uppercase; border: none; border-radius: var(--radius); text-decoration: none; cursor: pointer; }
+  .ta-cta:hover, .ta-cta:focus-visible { color: var(--gray-950); filter: brightness(0.94); }
+  .ta-action-note { margin: 0; font-size: 0.95rem; line-height: 1.5; color: var(--color-muted); max-width: 60ch; text-wrap: pretty; }
+  .ta-state { margin: 0; font-weight: 700; font-size: 1.25rem; line-height: 1.3; }
+  .ta-state-stamp { margin: 4px 0 0; font-family: var(--font-family-mono); font-size: 0.82rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-muted); }
+
+  .ta-faq-wrap { padding-top: 36px; }
+  .ta-faq { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+  .ta-faq-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); gap: 6px clamp(20px, 3vw, 44px); padding: 16px 0; border-bottom: var(--border-hairline) solid var(--color-line); }
+  .ta-faq dt { font-weight: 500; line-height: 1.45; text-wrap: pretty; }
+  .ta-faq dd { margin: 0; font-size: 1.0625rem; line-height: 1.6; color: var(--color-foreground); text-wrap: pretty; }
+
+  @media (max-width: 900px) {
+    .ta-wide { display: none; }
+    .ta-narrow { display: block; }
+    .ta-masthead, .ta-three, .ta-yours, .ta-faq-row { grid-template-columns: 1fr; }
+    .ta-price { padding-left: 0; border-left: none; }
+    .ta-yours-if { border-left: none; }
+    .ta-action { position: sticky; bottom: 0; background: var(--color-surface); z-index: 5; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ta * { transition: none !important; }
+  }
+</style>
