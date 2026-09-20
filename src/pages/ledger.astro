@@ -69,11 +69,23 @@ const boardHref = routeFor('board');
         (function () {
           var hdr = document.querySelector('header.hdr');
           if (!hdr) return;
-          var set = function () {
-            document.documentElement.style.setProperty('--sticky-top', hdr.getBoundingClientRect().height + 'px');
+          var root = document.documentElement;
+          var fullHeight = 0;
+          // The moment the cut bar reaches the header and sticks, the member
+          // subnav closes (html[data-cut-stuck], styled below); scrolling back
+          // up past that point opens it again. "Stuck" is judged against the
+          // header's OPEN height (measured whenever the subnav is open), so the
+          // subnav's own closing cannot flip the decision back and forth.
+          var tick = function () {
+            if (!root.hasAttribute('data-cut-stuck')) fullHeight = hdr.getBoundingClientRect().height;
+            var read = document.getElementById('read');
+            var stuck = !!read && read.getBoundingClientRect().bottom <= fullHeight + 1;
+            root.toggleAttribute('data-cut-stuck', stuck);
+            root.style.setProperty('--sticky-top', hdr.getBoundingClientRect().height + 'px');
           };
-          set();
-          window.addEventListener('resize', set);
+          tick();
+          window.addEventListener('scroll', tick, { passive: true });
+          window.addEventListener('resize', tick);
         })();
       </script>
       <script src={appJs} is:inline defer></script>
@@ -109,6 +121,11 @@ const boardHref = routeFor('board');
 </BaseLayout>
 
 <style>
+  /* While the cut bar is stuck under the header (html[data-cut-stuck], set by
+     the inline script above), the member subnav closes; it reopens the moment
+     the bar unsticks. Page-scoped: the attribute only ever appears here. */
+  :global(html[data-cut-stuck] .subnav) { display: none; }
+
   .ledger-preview {
     padding-block: var(--space-700, 2.5rem) var(--space-800, 4rem);
     display: flex;
