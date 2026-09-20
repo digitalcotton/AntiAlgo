@@ -760,20 +760,15 @@ function columnOf(states: readonly ApplicationState[]): StoredApplication[] {
                             <td>{application.snapshot.company ?? 'Unknown company'}</td>
                             <td>
                               <span class="status-chip">{yourStatusShort(application)}</span>
-                              <details class="cell-more">
-                                <summary class="cell-more-summary">More</summary>
-                                <p class="cell-more-body">{youToldUs(application)}</p>
-                              </details>
+                              <p class="cell-more-body">{youToldUs(application)}</p>
                             </td>
                             <td>
                               {observed.short}
                               {observed.asOf && <span class="cell-detail"> as of {observed.asOf}</span>}
-                              <details class="cell-more">
-                                <summary class="cell-more-summary">More</summary>
-                                <p class="cell-more-body">
-                                  {observed.text}
-                                  {observed.stale && ' The sweep has not confirmed this recently.'}
-                                </p>
+                              <p class="cell-more-body">
+                                {observed.text}
+                                {observed.stale && ' The sweep has not confirmed this recently.'}
+                              </p>
                                 {postingFetches.has(application.id) && (
                                   <PostingCardStatus
                                     row={postingFetches.get(application.id)!.row}
@@ -783,7 +778,6 @@ function columnOf(states: readonly ApplicationState[]): StoredApplication[] {
                                     nowMs={now.getTime()}
                                   />
                                 )}
-                              </details>
                             </td>
                             <td>{formatDate(application.clickedAt.toISOString())}</td>
                             <td class="app-table-actions">
@@ -1340,10 +1334,9 @@ function columnOf(states: readonly ApplicationState[]): StoredApplication[] {
     color: var(--color-foreground);
   }
 
-  /* Table view: trimmed to what a person scanning needs (task 4). A short
-     status chip per track, each with its own "More" disclosure carrying the
-     full You told us / We observed sentence, so neither track is dropped,
-     only tightened. */
+  /* Table view: a short status chip per track with the full You told us / We
+     observed sentence wrapped beneath it (the "More" disclosure it used to
+     hide behind went on 2026-09-19), so neither track is dropped. */
   .table-scroll {
     overflow-x: auto;
   }
@@ -1373,17 +1366,8 @@ function columnOf(states: readonly ApplicationState[]): StoredApplication[] {
   .cell-detail {
     color: var(--color-muted);
   }
-  .cell-more {
-    margin-top: var(--space-100);
-  }
-  .cell-more-summary {
-    cursor: pointer;
-    font-family: var(--font-family-sans);
-    font-size: var(--size-075);
-    letter-spacing: var(--tracking-loose);
-    text-transform: uppercase;
-    color: var(--color-muted);
-  }
+  /* The sentence behind each status sits in the cell and wraps (owner
+     decision, 2026-09-19); the More disclosure it used to hide behind is gone. */
   .cell-more-body {
     margin: var(--space-100) 0 0;
     font-size: var(--size-150);
