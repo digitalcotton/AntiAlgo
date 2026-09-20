@@ -19,6 +19,9 @@ interface Props {
 }
 const { letter, links, selfPath, doorPath } = Astro.props;
 const coverAction = routeFor('profile-import-cover');
+/** The types the cover endpoint's own extractor accepts, the same list the
+    resumé band offers. */
+const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const linkAction = routeFor('profile-link');
 ---
 
@@ -33,11 +36,23 @@ const linkAction = routeFor('profile-link');
     {letter ? (
       <textarea id="cr-letter" class="cr-textarea" rows="7" readonly aria-label="Cover letter">{letter.text}</textarea>
     ) : (
-      <form method="POST" action={coverAction} class="cr-letter-form">
-        <input type="hidden" name="return" value={selfPath} />
-        <textarea id="cr-letter" class="cr-textarea" name="pasted" rows="7" placeholder="Paste the cover letter you reuse." aria-label="Cover letter" required></textarea>
-        <button type="submit" class="cr-btn cr-btn-gap">Save cover letter</button>
-      </form>
+      <div class="cr-letter-zone cr-dropzone" data-cr-letter-drop>
+        <form method="POST" action={coverAction} class="cr-letter-form">
+          <input type="hidden" name="return" value={selfPath} />
+          <textarea id="cr-letter" class="cr-textarea" name="pasted" rows="7" placeholder="Paste the cover letter you reuse, or drop the file on this box." aria-label="Cover letter" required></textarea>
+          <button type="submit" class="cr-btn cr-btn-gap">Save cover letter</button>
+        </form>
+        {/* The file half of the same endpoint. Its own form because a file
+            and a pasted body are two different requests, and its input is
+            hidden because the box itself is the target: choosing a file and
+            dropping one land in the same place. */}
+        <form method="POST" action={coverAction} enctype="multipart/form-data" class="cr-letter-file">
+          <input type="hidden" name="return" value={selfPath} />
+          <input id="cr-letter-file" class="visually-hidden" type="file" name="file" accept={ACCEPT} data-cr-letter-file />
+          <label class="cr-link-quiet" for="cr-letter-file">Or choose a file: PDF, Word (.docx), Markdown or plain text.</label>
+          <button type="submit" class="cr-btn cr-btn-gap cr-nojs" data-cr-letter-nojs>Save that file</button>
+        </form>
+      </div>
     )}
     <p class="cr-note cr-note-gap cr-note-wide">Kept as a writing sample only. The cover letter draft takes its voice from it; the resumé draft never sees it. Any dated role it names is proposed into your record for review.</p>
   </div>
@@ -68,7 +83,43 @@ const linkAction = routeFor('profile-link');
   </div>
 </StepCard>
 
+<script>
+  import { wireDropZone } from '../../lib/drop-zone';
+
+  // The same band the resumé step has, on the letter. With no script the
+  // file form still posts through its own button; with script, the box takes
+  // a drop and a chosen file submits itself.
+  const band = document.querySelector<HTMLElement>('[data-cr-letter-drop]');
+  const input = document.querySelector<HTMLInputElement>('[data-cr-letter-file]');
+  if (band && input) {
+    document.querySelector<HTMLElement>('[data-cr-letter-nojs]')?.setAttribute('hidden', '');
+    input.addEventListener('change', () => {
+      if (input.files && input.files.length > 0) input.form?.requestSubmit();
+    });
+    wireDropZone(band, input);
+  }
+</script>
+
 <style>
+  /* A border that is there all along and only takes a colour on a drag, so
+     the box does not grow by a pixel under the pointer. */
+  .cr-letter-zone {
+    border: var(--border-hairline) solid transparent;
+    border-radius: var(--radius);
+    padding: 8px;
+    margin: -8px -8px 0;
+  }
+  /* Astro scopes this file's selectors with an attribute, which outranks the
+     shared .is-dragging rule, so the edge is coloured here or not at all. */
+  .cr-letter-zone.is-dragging {
+    border-color: var(--color-signal);
+  }
+  .cr-letter-file {
+    margin-top: 10px;
+  }
+  .cr-nojs[hidden] {
+    display: none;
+  }
   .cr-letter {
     margin-top: 18px;
   }

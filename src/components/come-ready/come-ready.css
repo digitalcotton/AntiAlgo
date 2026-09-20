@@ -344,6 +344,30 @@ a.cr-row[data-status='waiting']:hover {
   font-size: 0.95rem;
   color: var(--color-mark-live);
 }
+/* A band a file can be dropped on, while a file is over it: the edge closes
+   into a solid signal line and the fill takes the faintest wash of the same
+   colour. Eight percent reads as "this will catch it" on paper and on ink
+   without the copy inside it losing contrast. Shared, so the resumé band and
+   the cover letter answer a drag identically.
+
+   A BAND WHOSE RESTING BORDER IS SET IN ITS OWN COMPONENT MUST COLOUR ITS
+   OWN EDGE. Astro scopes a component's selectors with an attribute, which
+   outranks this rule, so the border-color below is only reached by a band
+   that declares no border of its own. Both bands that exist today set one,
+   and both carry their own .is-dragging line for the edge. */
+.is-dragging {
+  border-style: solid;
+  border-color: var(--color-signal);
+  background: color-mix(in srgb, var(--color-signal) 8%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cr-dropzone {
+    transition:
+      background-color var(--motion-duration-instant) var(--motion-easing-standard),
+      border-color var(--motion-duration-instant) var(--motion-easing-standard);
+  }
+}
+
 /* A refusal that has to be seen. The plain loss line below reads as prose
    and got lost directly under a field the reader was still looking at, so
    the one that answers a submit is a panel: the loss colour at a tenth over
