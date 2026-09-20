@@ -97,7 +97,7 @@ const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,applicati
 
   {!locked && !reading && !done && (
     <>
-      <form method="POST" action={parseAction} enctype="multipart/form-data" class="cr-drop" data-cr-read>
+      <form method="POST" action={parseAction} enctype="multipart/form-data" class="cr-drop" data-cr-read data-cr-drop>
         <label class="cr-drop-label" for="cr-file">
           <span class="cr-drop-line">Drop a file here, or choose one.</span>
           <span class="cr-drop-hint">PDF, Word (.docx), Markdown or plain text, up to 4 MB. Or paste the text.</span>
@@ -201,6 +201,45 @@ const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,applicati
     });
   }
 
+  // Drag and drop onto the band. Without this the browser treats a dropped
+  // file as a navigation and leaves the page for it, which loses whatever
+  // the reader was doing.
+  const band = document.querySelector<HTMLElement>('[data-cr-drop]');
+  if (band && fileInput) {
+    // Dragging over a child fires dragleave on the parent, so the depth is
+    // counted rather than toggled; toggling makes the wash flicker as the
+    // pointer crosses the label and the button inside the band.
+    let depth = 0;
+    const paint = (on: boolean) => band.classList.toggle('is-dragging', on);
+
+    band.addEventListener('dragenter', (event) => {
+      event.preventDefault();
+      depth += 1;
+      paint(true);
+    });
+    // Without a dragover handler that prevents the default, the drop event
+    // never fires at all.
+    band.addEventListener('dragover', (event) => event.preventDefault());
+    band.addEventListener('dragleave', () => {
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) paint(false);
+    });
+    band.addEventListener('drop', (event) => {
+      event.preventDefault();
+      depth = 0;
+      paint(false);
+      const dropped = event.dataTransfer?.files?.[0];
+      if (!dropped) return;
+      // Handed to the real input, so the form posts exactly what it would
+      // have posted had the file come through the picker, and the change
+      // listener above submits it.
+      const carrier = new DataTransfer();
+      carrier.items.add(dropped);
+      fileInput.files = carrier.files;
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+
   if (panel && log && forms.length > 0) {
     for (const form of forms) {
       form.addEventListener('submit', async (event) => {
@@ -275,6 +314,22 @@ const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,applicati
     border: var(--border-hairline) dashed var(--color-line-strong);
     border-radius: var(--radius);
     text-align: center;
+  }
+  /* A file is over the band: the dashes close into a solid signal edge and
+     the fill takes the faintest wash of the same colour. Eight percent is
+     enough to read as "this will catch it" on paper and on ink without the
+     copy inside it losing contrast. */
+  .cr-drop.is-dragging {
+    border-style: solid;
+    border-color: var(--color-signal);
+    background: color-mix(in srgb, var(--color-signal) 8%, transparent);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .cr-drop {
+      transition:
+        background-color var(--motion-duration-instant) var(--motion-easing-standard),
+        border-color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
   }
   .cr-drop-label {
     display: block;
