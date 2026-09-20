@@ -59,7 +59,6 @@ const PRODUCT = [
         <div class="ftr-row">
           <nav class="ftr-nav" aria-label="The product">
             {PRODUCT.map((l) => <a href={l.href}>{l.label}</a>)}
-            <span class="ftr-soon">The Desk · soon</span>
           </nav>
           <span class="ftr-tag">{SITE.domain} · {SITE.byline}</span>
         </div>
@@ -108,10 +107,6 @@ const PRODUCT = [
   }
   .ftr-nav a:hover {
     color: var(--color-foreground);
-  }
-  .ftr-soon {
-    color: var(--color-muted);
-    white-space: nowrap;
   }
   .ftr-action {
     color: var(--color-foreground);

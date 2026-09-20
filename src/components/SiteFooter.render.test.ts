@@ -13,6 +13,7 @@ describe('SiteFooter.astro: no sign-up action, and the product row follows the f
     expect(out).not.toContain('Kill list');
     expect(out).not.toContain('The Report');
     expect(out).toContain('>Methodology<');
+    expect(out).not.toContain('soon');
     const signedIn = await container.renderToString(SiteFooter, {
       locals: { viewer: { userId: 'u1', tier: 'member', firstName: 'Ryan', emailVerified: true } }
     });
