@@ -32,8 +32,12 @@ const { edition, n, coreTitles, stretchTitles, titleIndex, prefs, selfPath, next
 const watchAction = routeFor('ledger-watch');
 const prefsAction = routeFor('ledger-prefs');
 const hasTitle = coreTitles.length > 0;
-const suggestions = titleIndex.slice(0, 5);
+/** The rows the dropdown filters. Rendered whole and narrowed in place, so
+    the panel needs no request of its own and the top of the list is already
+    there before a key is pressed. */
 const options = titleIndex.slice(0, 200);
+/** How many rows the panel shows at once, before typing and after. */
+const SHOWN = 5;
 
 const PAY_FLOORS = [
   { label: 'any', value: 0 },
@@ -75,42 +79,41 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
         </form>
       </div>
     ))}
-    <form method="POST" action={watchAction} class="cr-add">
+    <form method="POST" action={watchAction} data-cr-combo>
       <input type="hidden" name="intent" value="add" />
       <input type="hidden" name="shelf" value="core" />
       <input type="hidden" name="return" value={selfPath} />
-      <input
-        class="cr-input"
-        type="text"
-        name="title"
-        list="cr-title-index"
-        minlength="2"
-        maxlength="120"
-        placeholder="Type a title, two letters or more"
-        aria-label="Add a core title"
-        autofocus={!hasTitle}
-        autocomplete="off"
-      />
-      <button type="submit" class="cr-btn">Add title</button>
-    </form>
-    <datalist id="cr-title-index">{options.map((o) => <option value={o.title}>{o.count.toLocaleString()} live</option>)}</datalist>
-    {!hasTitle && suggestions.length > 0 && (
-      <div class="cr-suggest">
-        <p class="cr-suggest-head">Most live tonight</p>
-        {suggestions.map((g) => (
-          <form method="POST" action={watchAction}>
-            <input type="hidden" name="intent" value="add" />
-            <input type="hidden" name="shelf" value="core" />
-            <input type="hidden" name="return" value={selfPath} />
-            <input type="hidden" name="title" value={g.title} />
-            <button type="submit" class="cr-suggest-row">
-              <span>{g.title}</span>
-              <span class="cr-suggest-live">{g.count.toLocaleString()} live</span>
-            </button>
-          </form>
-        ))}
+      <div class="cr-add">
+        <input
+          class="cr-input"
+          type="text"
+          name="title"
+          minlength="2"
+          maxlength="120"
+          placeholder="Type a title, two letters or more"
+          aria-label="Add a core title"
+          autofocus={!hasTitle}
+          autocomplete="off"
+          role="combobox"
+          aria-expanded={!hasTitle && options.length > 0 ? 'true' : 'false'}
+          aria-controls="cr-titles-core"
+          aria-autocomplete="list"
+          data-cr-combo-input
+        />
+        <button type="submit" class="cr-btn">Add title</button>
       </div>
-    )}
+      {options.length > 0 && (
+        <div class="cr-suggest" id="cr-titles-core" role="listbox" aria-label="Live titles" data-cr-combo-panel hidden={hasTitle}>
+          <p class="cr-suggest-head">Most live tonight</p>
+          {options.map((o, i) => (
+            <button type="button" class="cr-suggest-row" role="option" data-cr-combo-row data-title={o.title} hidden={i >= SHOWN}>
+              <span>{o.title}</span>
+              <span class="cr-suggest-live">{o.count.toLocaleString()} live</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </form>
   </div>
 
   {hasTitle && (
@@ -131,12 +134,39 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
           </form>
         </div>
       ))}
-      <form method="POST" action={watchAction} class="cr-add cr-add-stretch">
+      <form method="POST" action={watchAction} class="cr-add-stretch" data-cr-combo>
         <input type="hidden" name="intent" value="add" />
         <input type="hidden" name="shelf" value="stretch" />
         <input type="hidden" name="return" value={selfPath} />
-        <input class="cr-input" type="text" name="title" list="cr-title-index" minlength="2" maxlength="120" placeholder="Type a title, two letters or more" aria-label="Add a stretch title" autocomplete="off" />
-        <button type="submit" class="cr-btn">Add title</button>
+        <div class="cr-add">
+          <input
+            class="cr-input"
+            type="text"
+            name="title"
+            minlength="2"
+            maxlength="120"
+            placeholder="Type a title, two letters or more"
+            aria-label="Add a stretch title"
+            autocomplete="off"
+            role="combobox"
+            aria-expanded="false"
+            aria-controls="cr-titles-stretch"
+            aria-autocomplete="list"
+            data-cr-combo-input
+          />
+          <button type="submit" class="cr-btn">Add title</button>
+        </div>
+        {options.length > 0 && (
+          <div class="cr-suggest" id="cr-titles-stretch" role="listbox" aria-label="Live titles" data-cr-combo-panel hidden>
+            <p class="cr-suggest-head">Most live tonight</p>
+            {options.map((o, i) => (
+              <button type="button" class="cr-suggest-row" role="option" data-cr-combo-row data-title={o.title} hidden={i >= SHOWN}>
+                <span>{o.title}</span>
+                <span class="cr-suggest-live">{o.count.toLocaleString()} live</span>
+              </button>
+            ))}
+          </div>
+        )}
       </form>
     </details>
   )}
@@ -199,6 +229,100 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
   )}
 </StepCard>
 
+<script>
+  // The title dropdown, drawn by this site rather than by the browser. A
+  // native <datalist> renders in the platform's own chrome (rounded, system
+  // font) and cannot be styled, so the rows are ours: the whole list is in
+  // the page and typing narrows it in place, which also means no request per
+  // keystroke. With no script the panel stays as the server left it and the
+  // field is still a plain text input that the Add title button submits.
+  const SHOWN = 5;
+
+  document.querySelectorAll<HTMLFormElement>('[data-cr-combo]').forEach((form) => {
+    const input = form.querySelector<HTMLInputElement>('[data-cr-combo-input]');
+    const panel = form.querySelector<HTMLElement>('[data-cr-combo-panel]');
+    if (!input || !panel) return;
+    const rows = Array.from(form.querySelectorAll<HTMLButtonElement>('[data-cr-combo-row]'));
+
+    // Set by Escape and cleared by the next keystroke, so returning focus to
+    // the field after a dismissal does not immediately reopen the list.
+    let dismissed = false;
+
+    const open = (on: boolean) => {
+      panel.hidden = !on;
+      input.setAttribute('aria-expanded', String(on));
+    };
+    const visible = () => rows.filter((row) => !row.hidden);
+
+    function narrow(): void {
+      const query = input!.value.trim().toLowerCase();
+      let shown = 0;
+      for (const row of rows) {
+        const title = (row.dataset.title ?? '').toLowerCase();
+        const hit = query.length === 0 ? true : title.includes(query);
+        row.hidden = !hit || shown >= SHOWN;
+        if (hit && shown < SHOWN) shown += 1;
+      }
+      open(shown > 0);
+    }
+
+    input.addEventListener('input', () => {
+      dismissed = false;
+      narrow();
+    });
+    input.addEventListener('focus', () => {
+      if (!dismissed) narrow();
+    });
+
+    // Down from the field walks into the list, the way the native control
+    // behaved; Escape closes it and gives the field back.
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowDown') {
+        const first = visible()[0];
+        if (first) {
+          event.preventDefault();
+          first.focus();
+        }
+      } else if (event.key === 'Escape' && !panel.hidden) {
+        event.preventDefault();
+        dismissed = true;
+        open(false);
+      }
+    });
+
+    for (const row of rows) {
+      // Choosing a row adds that title, the same act the row beneath the
+      // field performed before: one press, not a fill and a second press.
+      row.addEventListener('click', () => {
+        input.value = row.dataset.title ?? '';
+        form.requestSubmit();
+      });
+      row.addEventListener('keydown', (event) => {
+        const list = visible();
+        const at = list.indexOf(row);
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          const next = list[at + (event.key === 'ArrowDown' ? 1 : -1)];
+          if (next) next.focus();
+          else if (event.key === 'ArrowUp') input.focus();
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          dismissed = true;
+          open(false);
+          input.focus();
+        }
+      });
+    }
+
+    // Leaving the field and the list together closes it; moving between them
+    // does not.
+    form.addEventListener('focusout', (event) => {
+      const to = event.relatedTarget as Node | null;
+      if (!to || !form.contains(to)) open(false);
+    });
+  });
+</script>
+
 <style>
   .cr-titles {
     margin-top: 18px;
@@ -254,7 +378,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
   .cr-add .cr-input {
     font-size: 1.0625rem;
   }
-  .cr-add-stretch {
+  .cr-add-stretch .cr-add {
     margin-top: 12px;
   }
   .cr-suggest {
@@ -286,7 +410,14 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
     text-align: left;
     cursor: pointer;
   }
-  .cr-suggest-row:hover {
+  /* The rule above sets display, so a narrowed-out row needs its own line to
+     beat it: the hidden attribute's own display:none loses to any author
+     rule that sets display. */
+  .cr-suggest-row[hidden] {
+    display: none;
+  }
+  .cr-suggest-row:hover,
+  .cr-suggest-row:focus-visible {
     background: var(--color-hover-surface);
   }
   .cr-suggest-live {
