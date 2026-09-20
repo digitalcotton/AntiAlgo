@@ -17,7 +17,7 @@
  * and the count (the Pre-List keeps a real shop window); the rows themselves are
  * behind the member gate, which is the whole point: being early is the product.
  */
-import { withBase } from '../../site.config.mjs';
+import { routeFor } from '../data/nav';
 
 interface Props {
   active: 'board' | 'prelist';
@@ -26,8 +26,11 @@ interface Props {
 }
 
 const { active, prospectCount } = Astro.props;
-const boardHref = withBase('/');
-const prelistHref = withBase('/prelist');
+// The Board tab is the full board at /board, never the marketing home: a
+// member switching back from Newly funded used to land on the home page's
+// teaser and read it as the signed-out site (fixed 2026-09-20).
+const boardHref = routeFor('board');
+const prelistHref = routeFor('prelist');
 ---
 
 <nav class="board-tabs" aria-label="Board views">
