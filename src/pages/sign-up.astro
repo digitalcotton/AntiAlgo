@@ -77,7 +77,7 @@ const LAUNCH = 'Nov 10, 2026';
         <h1 id="wl-title" class="wl-h1">Get in line for launch.</h1>
         <p class="wl-sub">Email in, position number out. Someone you refer joins, you move up. Small on purpose, for now.</p>
 
-        <form class="wl-form" id="wl-form">
+        <form class="wl-form" id="wl-form" method="POST" action={routeFor('waitlist-join')}>
           <label class="visually-hidden" for="wl-email">Email address</label>
           <input class="wl-input" id="wl-email" name="email" type="email" placeholder="you@wherever.com" required autocomplete="email" />
           <button class="wl-cta" type="submit">Save my spot</button>
@@ -178,7 +178,7 @@ const LAUNCH = 'Nov 10, 2026';
     setInterval(tick, 1000);
   }
 
-  // The waitlist form: a same-origin fetch POST to /api/waitlist, JSON in,
+  // The waitlist form: a same-origin fetch POST to its own action (/waitlist/join), JSON in,
   // JSON out. On success the position replaces the form rather than sitting
   // beside it, so there is exactly one thing on screen to read afterward.
   const form = document.querySelector<HTMLFormElement>('#wl-form');
@@ -194,7 +194,7 @@ const LAUNCH = 'Nov 10, 2026';
     if (button) button.disabled = true;
 
     try {
-      const response = await fetch('/api/waitlist', {
+      const response = await fetch(form.action, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ email })

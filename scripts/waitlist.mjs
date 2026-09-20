@@ -15,7 +15,7 @@
  * this one is email addresses collected before anyone has an account. The
  * order is first-come, by the immutable created_at each row carries (id
  * breaks a tie so the ordering is fully deterministic, matching the position
- * math src/pages/api/waitlist.ts uses when it answers a submission). Position
+ * math src/pages/waitlist/join.ts uses when it answers a submission). Position
  * is computed here, not stored, so it is always accurate and there is no
  * number to keep in sync.
  */

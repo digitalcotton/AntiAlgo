@@ -42,6 +42,11 @@ export const ROUTES = [
   { key: 'sign-up', pattern: '/sign-up', kind: 'static', note: 'Create an account. Lands on the waitlist page while the waitlist flag is on.', sitemap: false },
   { key: 'sign-in', pattern: '/sign-in', kind: 'static', note: 'Sign in. Sends an already signed-in reader on rather than showing a form they do not need.', sitemap: false },
   { key: 'waitlist', pattern: '/waitlist', kind: 'static', note: 'The one page a waitlisted account sees: it exists, it is on the list, the board is public.', sitemap: false },
+  // Beside the waitlist page, not under /api: the root api/ directory is a set
+  // of Vercel functions that claims every /api/* path on the platform, so an
+  // Astro route there is never reached (the same reason settings/export.ts and
+  // settings/delete.ts live where they do).
+  { key: 'waitlist-join', pattern: '/waitlist/join', kind: 'asset', note: 'POST. Saves an email on the waitlist and answers with its position in line.', sitemap: false },
   { key: 'account', pattern: '/account', kind: 'static', note: 'The signed-in account page, member tier and above.', sitemap: false },
   { key: 'internal', pattern: '/internal', kind: 'static', note: 'Exists so the internal gate is reachable and its denial is provable.', sitemap: false },
 

@@ -4,8 +4,13 @@ import type { APIRoute } from 'astro';
 import { db, isConfigured } from '../../lib/db';
 
 /*
- * POST /api/waitlist: the "Save my spot" landing page's one action. Takes an
+ * POST /waitlist/join: the "Save my spot" landing page's one action. Takes an
  * email, no name, no password, and answers with the position it landed at.
+ *
+ * Lived at /api/waitlist until 2026-09-20, where it was never reached: the
+ * repository's root api/ directory is a set of Vercel functions that claims
+ * every /api/* path on the platform, so the platform answered NOT_FOUND
+ * before this route saw the request (nav.ts's waitlist-join entry says why).
  *
  * Idempotent on purpose: an email that is already on the list is not an
  * error, it is a read. Someone who submits twice, or opens the page in two
