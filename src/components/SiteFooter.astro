@@ -4,9 +4,9 @@ import { SITE } from '../data/site';
 import { isOn } from '../lib/flags';
 
 /**
- * The footer, from the Anti Algo home canvas. Two rows: the story pages with
- * the action opposite them, then the product pages with the tagline opposite.
- * All in the machine face, uppercase, quiet.
+ * The footer, from the Anti Algo home canvas. One row (since 2026-09-20): the
+ * story pages then the product pages, with the tagline opposite. Signed in,
+ * the member's surfaces instead. All in the machine face, uppercase, quiet.
  */
 const STORY = [
   { label: 'Home', href: routeFor('start') },
@@ -50,19 +50,14 @@ const PRODUCT = [
         <span class="ftr-tag">{SITE.domain} · {SITE.byline}</span>
       </div>
     ) : (
-      <>
-        <div class="ftr-row">
-          <nav class="ftr-nav" aria-label="The story">
-            {STORY.map((l) => <a href={l.href}>{l.label}</a>)}
-          </nav>
-        </div>
-        <div class="ftr-row">
-          <nav class="ftr-nav" aria-label="The product">
-            {PRODUCT.map((l) => <a href={l.href}>{l.label}</a>)}
-          </nav>
-          <span class="ftr-tag">{SITE.domain} · {SITE.byline}</span>
-        </div>
-      </>
+      <div class="ftr-row">
+        {/* One row since 2026-09-20: the story pages then the product pages,
+            in one nav, with the tagline opposite. */}
+        <nav class="ftr-nav" aria-label="Site">
+          {[...STORY, ...PRODUCT].map((l) => <a href={l.href}>{l.label}</a>)}
+        </nav>
+        <span class="ftr-tag">{SITE.domain} · {SITE.byline}</span>
+      </div>
     )}
   </div>
 </footer>

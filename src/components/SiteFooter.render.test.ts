@@ -14,6 +14,10 @@ describe('SiteFooter.astro: no sign-up action, and the product row follows the f
     expect(out).not.toContain('The Report');
     expect(out).toContain('>Methodology<');
     expect(out).not.toContain('soon');
+    // One row signed out: a single nav holds the story and product links.
+    expect(out).not.toContain('aria-label="The story"');
+    expect(out).not.toContain('aria-label="The product"');
+    expect((out.match(/class="ftr-row"/g) ?? []).length).toBe(1);
     const signedIn = await container.renderToString(SiteFooter, {
       locals: { viewer: { userId: 'u1', tier: 'member', firstName: 'Ryan', emailVerified: true } }
     });
