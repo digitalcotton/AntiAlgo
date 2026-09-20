@@ -21,10 +21,11 @@ describe('listBoardFiltered', () => {
     const [countSql, countParams] = query.mock.calls[0];
     const [pageSql, pageParams] = query.mock.calls[1];
     // The eleven shared params: sweep, fresh window, search, the three facets,
-    // the age range, then country/liveOnly/hasComp (the teaser's extra filters,
-    // defaulted here). No watched titles, so nothing binds past them.
-    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, false, false]);
-    expect(pageParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, false, false, 50, 50]);
+    // the age range, then country/liveOnly/hasComp. liveOnly defaults to TRUE
+    // (2026-09-20): a browsed list never carries a killed row. No watched
+    // titles, so nothing binds past them.
+    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false]);
+    expect(pageParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, 50, 50]);
     expect(countSql).toContain('FILTER (WHERE match_age AND');
     expect(pageSql).toContain('LIMIT $12 OFFSET $13');
     expect(pageSql).toContain('ORDER BY fit_total DESC, company ASC, title ASC, id ASC');
@@ -36,7 +37,7 @@ describe('listBoardFiltered', () => {
     const [countSql, countParams] = query.mock.calls[0];
     const [pageSql, pageParams] = query.mock.calls[1];
     // The title normalises to ONE phrase param, bound after the eleven shared ($12).
-    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, false, false, 'product designer']);
+    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, 'product designer']);
     // Then limit and offset shift past the phrase.
     expect(pageParams.slice(-2)).toEqual([50, 50]);
     expect(pageSql).toContain('LIMIT $13 OFFSET $14');
@@ -112,6 +113,8 @@ describe('listBoardAgeHistogram', () => {
     const [sql] = query.mock.calls[0];
     expect(sql).toContain("j.status = 'killed'");
     expect(sql).toContain('k.killed_on::date');
+    // And the plot reads live rows only (2026-09-20).
+    expect(sql).toContain("WHERE j.status <> 'killed'");
     expect(sql).toContain('k.first_published::date');
     expect(sql).toContain('j.first_seen::date < $1::date');
   });

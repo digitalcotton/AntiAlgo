@@ -84,8 +84,12 @@ export interface BoardFilter {
   /** Optional ISO country code to restrict rows to (the homepage teaser
    *  geo-targets by it). Null/undefined = every country, the board's default. */
   country?: string | null;
-  /** When true, only rows whose status is 'live' — no killed/closed rows. The
-   *  teaser uses it; the board leaves it off and keeps showing kills. */
+  /** When true (the default since 2026-09-20), only rows whose status is
+   *  'live': no killed rows in a list a reader browses. A killed row keeps its
+   *  record page (/board/[slug] resolves it through board_kills.job_slug) and
+   *  its place on the Desk, the tracker and the kill list; it just never sits
+   *  in the board's list, counts or age plot as if it were open. Pass false to
+   *  read everything. */
   liveOnly?: boolean;
   /** When true, only rows that actually show a pay figure (facet_comp is not
    *  'not-listed'), so every teaser row's pay column is filled. */
@@ -266,7 +270,7 @@ export async function listBoardFiltered(opts: BoardFilter): Promise<BoardFiltere
   const page = Math.max(1, Math.floor(opts.page) || 1);
   const shared: unknown[] = [
     opts.sweepDate, FRESH_WINDOW_DAYS_SQL, likePattern(opts.q), opts.location, opts.comp, opts.freshness,
-    opts.ageMin ?? null, opts.ageMax ?? null, opts.country ?? null, opts.liveOnly ?? false, opts.hasComp ?? false
+    opts.ageMin ?? null, opts.ageMax ?? null, opts.country ?? null, opts.liveOnly ?? true, opts.hasComp ?? false
   ];
   // The watched-titles narrowing binds after the 11 shared params ($12..), so
   // the LIMIT/OFFSET indices shift by however many title tokens there are.
@@ -385,6 +389,10 @@ const AGE_MEASURED_CTE = `
       END AS days
     FROM jobs j
     LEFT JOIN board_kills k ON k.id = j.kill_id
+    -- Live rows only (2026-09-20): the plot is titled "age of every verified
+    -- role", and a killed row is not one. The killed branch of the CASE stays
+    -- for the day a caller wants the record's ages.
+    WHERE j.status <> 'killed'
   )`;
 
 interface AgeRow {
