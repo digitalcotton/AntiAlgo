@@ -108,10 +108,10 @@ const slotLine = tailorOn
   <section class:list={['draft-rail', className]} aria-label="Draft for this role">
     <p class="draft-title mono-label">Your documents for this role</p>
     <p class="draft-note mono-label">
-      Applying drafts your resume and cover letter in your voice once you have a
+      Applying drafts your resumé and cover letter in your voice once you have a
       provider key. Set yours up to turn drafting on.
     </p>
-    <a class="draft-submit" href={keySetupHref}>Generate resume and cover letter</a>
+    <a class="draft-submit" href={keySetupHref}>Generate resumé and cover letter</a>
   </section>
 ) : (
 <section
@@ -137,7 +137,7 @@ const slotLine = tailorOn
         placeholder="One or two lines, in your own words. They open the letter."
       ></textarea>
     </label>
-    <button class="draft-submit" type="submit">Generate resume and cover letter</button>
+    <button class="draft-submit" type="submit">Generate resumé and cover letter</button>
   </form>
 
   {untargeted && (
@@ -155,10 +155,10 @@ const slotLine = tailorOn
       <li class="draft-step" data-draft-step="resume" data-step-state="active">
         <Spinner class="draft-step-ring" />
         <span class="draft-step-text" data-step-active>
-          Drafting your resume from your record. Every line will cite one of your entries.
+          Drafting your resumé from your record. Every line will cite one of your entries.
         </span>
-        <span class="draft-step-text" data-step-done hidden>Resume ready.</span>
-        <span class="draft-step-text" data-step-failed hidden>The resume did not finish.</span>
+        <span class="draft-step-text" data-step-done hidden>Resumé ready.</span>
+        <span class="draft-step-text" data-step-failed hidden>The resumé did not finish.</span>
       </li>
       <li class="draft-step" data-draft-step="cover" data-step-state="active">
         <Spinner class="draft-step-ring" />
@@ -181,7 +181,7 @@ const slotLine = tailorOn
     <ul class="draft-files">
       <li hidden data-draft-resume-item>
         <a class="draft-file mono" data-draft-resume href={draftRoom} download>
-          Resume, PDF
+          Resumé, PDF
         </a>
       </li>
       <li hidden data-draft-cover-item>
@@ -194,13 +194,13 @@ const slotLine = tailorOn
       Still drafting the cover letter.
     </p>
     <p class="draft-note mono-label" data-draft-resume-working hidden>
-      Still drafting the resume.
+      Still drafting the resumé.
     </p>
     <p class="draft-note mono-label" data-draft-cover-failed hidden>
       The cover letter did not finish. <a href={draftRoom}>Open the draft room</a> to draft it again.
     </p>
     <p class="draft-note mono-label" data-draft-resume-failed hidden>
-      The resume did not finish. <a href={draftRoom}>Open the draft room</a> to draft it again.
+      The resumé did not finish. <a href={draftRoom}>Open the draft room</a> to draft it again.
     </p>
     <p class="draft-note mono-label" data-draft-deterministic hidden>
       Drafted without a provider key, so this is the deterministic draft.
@@ -216,7 +216,7 @@ const slotLine = tailorOn
   </p>
 
   <p class="draft-signin mono-label" data-draft-signin hidden>
-    <a href={signUpHref}>Sign up</a> to draft a resume and cover letter for this role from your record.
+    <a href={signUpHref}>Sign up</a> to draft a resumé and cover letter for this role from your record.
   </p>
 </section>
 )}

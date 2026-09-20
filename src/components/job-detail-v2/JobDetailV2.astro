@@ -259,10 +259,10 @@ const saveNote = applyTrack
           {signedIn && hasKey ? (
             <form class="jd-draft-form" method="POST" action={draftAction}>
               <input type="hidden" name="slug" value={job.slug} />
-              <button type="submit" class="jd-btn jd-btn-primary">Draft resume and cover letter</button>
+              <button type="submit" class="jd-btn jd-btn-primary">Draft resumé and cover letter</button>
             </form>
           ) : (
-            <a class="jd-btn jd-btn-primary" href={signedIn ? keySetupHref : signInHref}>Draft resume and cover letter</a>
+            <a class="jd-btn jd-btn-primary" href={signedIn ? keySetupHref : signInHref}>Draft resumé and cover letter</a>
           )}
           <p class="jd-draft-note">Written in your voice on your own provider key. You read both drafts before anything leaves your hands.</p>
         </>

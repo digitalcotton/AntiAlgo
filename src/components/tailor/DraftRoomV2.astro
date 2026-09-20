@@ -175,7 +175,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
 
   <p class="dr-status">
     <span class="dr-dot" aria-hidden="true"></span>
-    <strong>{bothReady ? 'Both documents drafted' : (resume ? 'Resume drafted' : 'Cover letter drafted')}</strong>
+    <strong>{bothReady ? 'Both documents drafted' : (resume ? 'Resumé drafted' : 'Cover letter drafted')}</strong>
     {resumeUpdatedAt && <span class="dr-status-sub mono-label">drafted {timeAgo(resumeUpdatedAt)}</span>}
   </p>
   <h1 class="dr-title">Read them before you send them</h1>
@@ -187,10 +187,10 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
   <input type="radio" name="dr-tab" id="dr-tab-cover" class="dr-tab-input" />
   <div class="dr-tabs" role="tablist">
     <div class="dr-tab-group">
-      <label class="dr-tab" for="dr-tab-resume">Resume</label>
+      <label class="dr-tab" for="dr-tab-resume">Resumé</label>
       <label class="dr-tab" for="dr-tab-cover">Cover letter</label>
     </div>
-    <span class="dr-page-meta dr-page-meta-resume mono">resume{resumeUpdatedAt ? `, drafted ${timeAgo(resumeUpdatedAt)}` : ''}</span>
+    <span class="dr-page-meta dr-page-meta-resume mono">resumé{resumeUpdatedAt ? `, drafted ${timeAgo(resumeUpdatedAt)}` : ''}</span>
     <span class="dr-page-meta dr-page-meta-cover mono">cover letter{coverUpdatedAt ? `, drafted ${timeAgo(coverUpdatedAt)}` : ''}</span>
   </div>
 
@@ -203,7 +203,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
       <div class="dr-panel dr-panel-resume">
         {resume ? (
           <>
-            <article class="dr-doc" aria-label="Resume">
+            <article class="dr-doc" aria-label="Resumé">
               {hasHeader(resume.header) && (
                 <header class="dr-doc-contact">
                   {resume.header.name && <p class="dr-doc-name">{resume.header.name}</p>}
@@ -263,7 +263,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
             <p class="dr-highlight-note">Highlighted lines are ones your connected model rephrased for this posting. Everything else is your record's own words, unchanged, so you can tell at a glance what the model touched.</p>
           </>
         ) : (
-          <p class="dr-doc-empty">The resume is still drafting.</p>
+          <p class="dr-doc-empty">The resumé is still drafting.</p>
         )}
       </div>
 
@@ -315,7 +315,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
                   ))}
                 </div>
                 <textarea class="dr-steer-note" name="steerNote" rows="3" maxlength="400" placeholder="Or say it in your own words. Example: cut the utility background to one line and open with the agent work."></textarea>
-                <button type="submit" class="dr-btn dr-btn-regenerate">Regenerate the resume</button>
+                <button type="submit" class="dr-btn dr-btn-regenerate">Regenerate the resumé</button>
               </form>
               <p class="dr-steer-soon mono">A steer shapes the draft your connected model writes; the built-in writer re-drafts unchanged.</p>
               {costLine(resumeCost) && <p class="dr-cost mono">{costLine(resumeCost)}</p>}

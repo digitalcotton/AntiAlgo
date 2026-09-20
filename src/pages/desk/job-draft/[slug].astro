@@ -187,13 +187,13 @@ const coverCost = costVmFor(cover);
 
 <BaseLayout
   title="Your draft for this role"
-  description="The resume and cover letter drafted for this posting, cited to your record."
+  description="The resumé and cover letter drafted for this posting, cited to your record."
   noindex
 >
   <section class="draft-page">
     <div class="shell draft-shell">
       {!useRoomV2 && <span class="kicker">Drafted for this role</span>}
-      {!useRoomV2 && <h1>Your resume and cover letter</h1>}
+      {!useRoomV2 && <h1>Your resumé and cover letter</h1>}
       {!useRoomV2 && <p class="muted">Targeted at: {postingLabel}</p>}
 
       {useRoomV2 && (
@@ -242,11 +242,11 @@ const coverCost = costVmFor(cover);
         !waiting && hasNoDraft && (
           <EmptyState
             title="No draft yet"
-            detail="Nothing has been drafted for this posting. Draft a resume and cover letter for it now."
+            detail="Nothing has been drafted for this posting. Draft a resumé and cover letter for it now."
           >
             <form class="draft-start" slot="action" method="POST" action={jobDraftEndpoint}>
               <input type="hidden" name="slug" value={slug} />
-              <button class="draft-button" type="submit">Draft my resume and cover letter for this role</button>
+              <button class="draft-button" type="submit">Draft my resumé and cover letter for this role</button>
             </form>
           </EmptyState>
         )
@@ -257,7 +257,7 @@ const coverCost = costVmFor(cover);
       {
         showBigLoading && (
           <>
-            <LoadingState label="Drafting your resume and cover letter against this posting" />
+            <LoadingState label="Drafting your resumé and cover letter against this posting" />
             <form class="draft-retry no-print" method="POST" action={jobDraftEndpoint}>
               <input type="hidden" name="slug" value={slug} />
               <p class="muted">
@@ -272,8 +272,8 @@ const coverCost = costVmFor(cover);
         oneReadyOnePending && (
           <p class="muted">
             {resumeState === 'ready'
-              ? 'Your resume is ready. Still drafting the cover letter.'
-              : 'Your cover letter is ready. Still drafting the resume.'}
+              ? 'Your resumé is ready. Still drafting the cover letter.'
+              : 'Your cover letter is ready. Still drafting the resumé.'}
           </p>
         )
       }
@@ -320,7 +320,7 @@ const coverCost = costVmFor(cover);
           <div class="draft-downloads no-print">
             <span class="draft-downloads-label mono-label">Download as PDF</span>
             {resumeDownloadable && (
-              <a class="draft-link" href={jobDraftPdfPath(slug, 'resume')} download>Resume</a>
+              <a class="draft-link" href={jobDraftPdfPath(slug, 'resume')} download>Resumé</a>
             )}
             {coverDownloadable && (
               <a class="draft-link" href={jobDraftPdfPath(slug, 'cover')} download>Cover letter</a>
@@ -348,16 +348,16 @@ const coverCost = costVmFor(cover);
             fallback={providerTried && fellBack}
           >
             <div slot="resume">
-              {resumeState === 'pending' && <LoadingState label="Drafting your resume against this posting" />}
+              {resumeState === 'pending' && <LoadingState label="Drafting your resumé against this posting" />}
               {resumeState === 'failed' && (
                 <EmptyState
-                  title="The resume did not finish"
+                  title="The resumé did not finish"
                   detail={`The reason: ${resumeFailureReason}. Nothing partial was kept.`}
                 >
                   <form class="draft-start" slot="action" method="POST" action={jobDraftEndpoint}>
                     <input type="hidden" name="slug" value={slug} />
                     <input type="hidden" name="kind" value="resume" />
-                    <button class="draft-button" type="submit">Draft the resume again</button>
+                    <button class="draft-button" type="submit">Draft the resumé again</button>
                   </form>
                 </EmptyState>
               )}

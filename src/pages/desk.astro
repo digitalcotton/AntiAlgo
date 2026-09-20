@@ -172,7 +172,7 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
               <section class="dh-lane" id="stretch" aria-labelledby="ns-h">
                 <p class="dh-lane-index mono-label"><span>03</span> In stretch</p>
                 <h2 id="ns-h" class="dh-lane-title">{home.stretchLiveCount} {home.stretchLiveCount === 1 ? 'role' : 'roles'} you are working toward, seen in the last 14 days.</h2>
-                <p class="dh-lane-note">A reach is a reach because the fit is lower, not because we scored your resume against the posting line by line: we do not measure that yet, so we do not claim it.</p>
+                <p class="dh-lane-note">A reach is a reach because the fit is lower, not because we scored your resumé against the posting line by line: we do not measure that yet, so we do not claim it.</p>
                 {home.stretch.length > 0 ? (
                   <>
                     <ol class="dh-cards">{home.stretch.map((r, i) => <RoleCard role={r} rank={i + 1} />)}</ol>

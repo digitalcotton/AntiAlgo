@@ -153,7 +153,7 @@ function hasContactHeader(header: RenderHeader | null | undefined): header is Re
 }
 
 {resume ? (
-<article class="draft-document" aria-label="Resume">
+<article class="draft-document" aria-label="Resumé">
   {
     hasContactHeader(resume.header) && (
       <header class="doc-contact">
@@ -174,7 +174,7 @@ function hasContactHeader(header: RenderHeader | null | undefined): header is Re
   }
 
   <header class="doc-head">
-    <h2>Resume</h2>
+    <h2>Resumé</h2>
     <p class="doc-target mono">Targeted at: {targetSummaryLine(resume.target)}</p>
   </header>
 

@@ -97,7 +97,7 @@ const {
 } = Astro.props;
 ---
 
-<section class="import-band" aria-label="Import from your resume">
+<section class="import-band" aria-label="Import from your resumé">
   {state === 'done' && receipt && (
     <p class="import-receipt" role="status">
       <span class="import-receipt-label">Imported</span>
@@ -154,7 +154,7 @@ const {
                   accept=".md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 />
                 <span class="import-dropzone-mark" aria-hidden="true">&#8595;</span>
-                <span class="import-dropzone-head">Drop your resume here</span>
+                <span class="import-dropzone-head">Drop your resumé here</span>
                 <span class="import-dropzone-hint">
                   Drag it here, or click to choose. PDF, Word, Markdown, plain text. Up to 4 MB.
                 </span>
@@ -189,7 +189,7 @@ const {
           <summary class="import-paste-summary">Paste text instead</summary>
           <form class="record-form import-paste-form" method="POST" action={parseAction} data-import-form>
             <div class="field">
-              <label class="field-label" for="import-pasted">Pasted resume text</label>
+              <label class="field-label" for="import-pasted">Pasted resumé text</label>
               <textarea class="field-input field-textarea import-paste-area" id="import-pasted" name="pasted" rows="16" />
             </div>
             <button class="field-submit" type="submit">Read the text</button>
@@ -199,8 +199,8 @@ const {
     ) : (
       <div class="import-locked">
         <p class="import-locked-line">
-          Your own model is also what reads the whole resume. The keyless reader matches one strict
-          shape and misses anything written differently, and a half-read resume is worse than one
+          Your own model is also what reads the whole resumé. The keyless reader matches one strict
+          shape and misses anything written differently, and a half-read resumé is worse than one
           you fill in by hand. So connect a key first, then upload and it fills your profile in for
           you.
         </p>

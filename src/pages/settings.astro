@@ -418,9 +418,9 @@ const handleRowOpen = handleUpdated || handleCleared || Boolean(handleError);
                 </form>
               </AccountRow>
 
-              <AccountRow label="Resume email" value={resumeEmailValue} open={resumeEmailRowOpen}>
+              <AccountRow label="Resumé email" value={resumeEmailValue} open={resumeEmailRowOpen}>
                 <p class="settings-panel-line">
-                  The email that shows on your resumes and cover letters. Separate from your login, so you can
+                  The email that shows on your resumés and cover letters. Separate from your login, so you can
                   put a different address on what you send out.
                 </p>
                 {resumeEmailUpdated && <p class="settings-success" role="status">Saved.</p>}
@@ -431,16 +431,16 @@ const handleRowOpen = handleUpdated || handleCleared || Boolean(handleError);
                   <div class="field field-checkbox">
                     <label class="field-checkbox-label" for="settings-resume-email-use-login">
                       <input class="field-checkbox-input" id="settings-resume-email-use-login" type="checkbox" name="resumeEmailUseLogin" checked={resumeEmail.useLogin} />
-                      Use my login email on my resumes
+                      Use my login email on my resumés
                     </label>
                   </div>
                   <div class="field">
-                    <label class="field-label" for="settings-resume-email">Custom resume email</label>
+                    <label class="field-label" for="settings-resume-email">Custom resumé email</label>
                     <input class="field-input" id="settings-resume-email" type="email" name="resumeEmail" maxlength="320" value={resumeEmail.custom ?? ''} />
                     <p class="field-hint">
                       {resumeEmail.custom !== null
                         ? 'Using your custom email again. Edit it or clear it anytime.'
-                        : 'The email that shows on your resumes. Your login stays what it is.'}
+                        : 'The email that shows on your resumés. Your login stays what it is.'}
                     </p>
                   </div>
                   <button class="field-submit" type="submit">Save</button>
@@ -541,7 +541,7 @@ const handleRowOpen = handleUpdated || handleCleared || Boolean(handleError);
                       checked={generateOnApply}
                     />
                     <span class="drafting-copy">
-                      <span class="drafting-copy-main">Draft a resume and cover letter each time I apply.</span>{' '}
+                      <span class="drafting-copy-main">Draft a resumé and cover letter each time I apply.</span>{' '}
                       <span class="drafting-copy-aside">
                         Drafting starts in the background; by the time you are done applying, the draft is
                         waiting.
