@@ -54,8 +54,9 @@
  */
 import type { APIContext } from 'astro';
 import { isOn } from '../../../lib/flags';
-import { PROVIDERS, type Provider } from '../../../lib/keychain';
+import { PROVIDERS, validateKeyShape, type Provider } from '../../../lib/keychain';
 import { InvalidKeyShapeError, putKey, setDesignatedProvider } from '../../../lib/keychain-store';
+import { verifyKey } from '../../../lib/generation-providers';
 import { returnTo } from '../../../lib/return-to';
 import { withBase } from '../../../../site.config.mjs';
 
@@ -120,6 +121,29 @@ export async function POST(context: APIContext): Promise<Response> {
   // same validateKeyShape() message, rather than a separate code path here.
   const plaintext = typeof keyField === 'string' ? keyField : '';
 
+
+  // SHAPE, THEN THE PROVIDER, THEN STORE. The shape check is free and
+  // catches the whole class of paste mistakes, so it runs first and no
+  // request leaves this server for a key that was never going to work.
+  // putKey() runs it again as it stores; that repeat is the backstop for any
+  // other caller, not a cost worth avoiding here.
+  const shape = validateKeyShape(provider, plaintext);
+  if (!shape.ok) {
+    setRelayCookie(context, { provider, message: `That key was not stored: ${shape.reason}.` });
+    return redirect();
+  }
+
+  // Asked once, here, because "connected" should mean somebody checked. A
+  // provider that refuses the key stops the save; a provider that cannot be
+  // reached does not, since that says nothing about the key.
+  const check = await verifyKey(provider, plaintext);
+  if (check.status === 'refused') {
+    setRelayCookie(context, { provider, message: `That key was not stored: ${check.reason}.` });
+    return redirect();
+  }
+  if (check.status === 'unreachable') {
+    console.warn(`settings/keys/save: storing a ${provider} key unchecked for user ${viewer.userId}: ${check.reason}.`);
+  }
 
   try {
     await putKey(viewer.userId, provider, plaintext);

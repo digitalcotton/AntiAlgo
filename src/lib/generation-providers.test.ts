@@ -16,6 +16,7 @@ import {
   registryIsWellFormed,
   runGenerationAttempt,
   runLetterAttempt,
+  verifyKey,
   verifyStyleResult,
   type RawGenerationCall,
   type RawLetterCall
@@ -111,6 +112,68 @@ describe('PROVIDER_REGISTRY: exactly the four providers, the four fixed endpoint
    names a model, so these are the checks that catch a half-finished update to
    it, which is a failure this file has already suffered once.
    --------------------------------------------------------------------------- */
+
+describe('verifyKey(): the check that runs when a key is saved', () => {
+  it.each(['anthropic', 'openai', 'kimi', 'deepseek'] as const)(
+    '%s asks its own verify endpoint with a GET and the provider auth header, and spends nothing',
+    async (id) => {
+      let seenUrl = '';
+      let seenInit: RequestInit | undefined;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string, init: RequestInit) => {
+          seenUrl = url;
+          seenInit = init;
+          return new Response(JSON.stringify({ data: [] }), { status: 200 });
+        })
+      );
+
+      await expect(verifyKey(id, FAKE_KEY)).resolves.toEqual({ status: 'good' });
+      expect(seenUrl).toBe(PROVIDER_REGISTRY[id].verifyEndpoint);
+      expect(seenInit?.method).toBe('GET');
+      // No body at all: a check that cost tokens would not be worth running
+      // on every save, which is the whole reason this endpoint was chosen.
+      expect(seenInit?.body).toBeUndefined();
+      const headers = seenInit?.headers as Record<string, string>;
+      if (id === 'anthropic') expect(headers['x-api-key']).toBe(FAKE_KEY);
+      else expect(headers.authorization).toBe(`Bearer ${FAKE_KEY}`);
+    }
+  );
+
+  it.each([401, 403])('refuses the key when the provider answers %i', async (status) => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('no', { status })));
+    const verdict = await verifyKey('anthropic', FAKE_KEY);
+    expect(verdict.status).toBe('refused');
+  });
+
+  // A provider having a bad minute says nothing about the key, so it must
+  // never cost someone a key that works.
+  it.each([429, 500, 503])('calls the provider unreachable on %i, not the key refused', async (status) => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('later', { status })));
+    const verdict = await verifyKey('openai', FAKE_KEY);
+    expect(verdict.status).toBe('unreachable');
+  });
+
+  it('calls a connection failure unreachable, never refused', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('fetch failed'); }));
+    const verdict = await verifyKey('kimi', FAKE_KEY);
+    expect(verdict.status).toBe('unreachable');
+  });
+
+  it('never names the key in any verdict it returns', async () => {
+    for (const make of [
+      async () => new Response('no', { status: 401 }),
+      async () => new Response('later', { status: 500 }),
+      async () => {
+        throw new TypeError('fetch failed');
+      }
+    ]) {
+      vi.stubGlobal('fetch', vi.fn(make));
+      const verdict = await verifyKey('deepseek', FAKE_KEY);
+      if (verdict.status !== 'good') expect(verdict.reason).not.toContain(FAKE_KEY);
+    }
+  });
+});
 
 describe('PROVIDER_REGISTRY: a copy tier and a writing list, per provider', () => {
   it('is well formed: every provider has a copy tier, a writing list, and a default that is in its own list', () => {

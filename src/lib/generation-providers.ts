@@ -192,6 +192,18 @@ export const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 export const KIMI_ENDPOINT = 'https://api.moonshot.ai/v1/chat/completions';
 export const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/v1/chat/completions';
 
+/** The four addresses a key is CHECKED against, as opposed to the four it
+    is spent at above. Each provider's model list: a GET that carries the key
+    and nothing else, answers in one round trip, and costs no tokens at any
+    of the four, which is what makes checking a key at save time affordable
+    enough to do every time. Named here for the same reason the four
+    endpoints above are: the whole address surface of this file reads in one
+    place. */
+export const ANTHROPIC_VERIFY_ENDPOINT = 'https://api.anthropic.com/v1/models';
+export const OPENAI_VERIFY_ENDPOINT = 'https://api.openai.com/v1/models';
+export const KIMI_VERIFY_ENDPOINT = 'https://api.moonshot.ai/v1/models';
+export const DEEPSEEK_VERIFY_ENDPOINT = 'https://api.deepseek.com/v1/models';
+
 /** The two request shapes this file speaks. Anthropic's Messages API and
     the OpenAI-shaped chat completions API (which OpenAI, Kimi/Moonshot, and
     DeepSeek all three implement, byte-for-byte compatible in the fields
@@ -238,6 +250,11 @@ export interface ProviderDefinition {
   /** What writing uses until a person picks something; always a member of
       writingModels, which registryIsWellFormed() below proves. */
   readonly defaultWritingModel: string;
+  /** Where verifyKey() asks this provider whether a key is real. Its own
+      field rather than a string derived from `endpoint`, because the two
+      are different contracts: one is where work is sent and billed, the
+      other is a free read that proves the credential. */
+  readonly verifyEndpoint: string;
 }
 
 /** Anthropic's own required API version header. A fixed, documented,
@@ -315,6 +332,7 @@ export const PROVIDER_REGISTRY: Readonly<Record<Provider, ProviderDefinition>> =
     id: 'anthropic',
     label: 'Anthropic',
     endpoint: ANTHROPIC_ENDPOINT,
+    verifyEndpoint: ANTHROPIC_VERIFY_ENDPOINT,
     wire: 'anthropic',
     authHeaderShape: 'anthropic-x-api-key',
     copyModel: 'claude-haiku-4-5-20251001',
@@ -346,6 +364,7 @@ export const PROVIDER_REGISTRY: Readonly<Record<Provider, ProviderDefinition>> =
     id: 'openai',
     label: 'OpenAI',
     endpoint: OPENAI_ENDPOINT,
+    verifyEndpoint: OPENAI_VERIFY_ENDPOINT,
     wire: 'openai-chat',
     authHeaderShape: 'bearer',
     copyModel: 'gpt-5.6-luna',
@@ -372,6 +391,7 @@ export const PROVIDER_REGISTRY: Readonly<Record<Provider, ProviderDefinition>> =
     id: 'kimi',
     label: 'Kimi (Moonshot AI)',
     endpoint: KIMI_ENDPOINT,
+    verifyEndpoint: KIMI_VERIFY_ENDPOINT,
     wire: 'openai-chat',
     authHeaderShape: 'bearer',
     copyModel: 'kimi-k2.6',
@@ -393,6 +413,7 @@ export const PROVIDER_REGISTRY: Readonly<Record<Provider, ProviderDefinition>> =
     id: 'deepseek',
     label: 'DeepSeek',
     endpoint: DEEPSEEK_ENDPOINT,
+    verifyEndpoint: DEEPSEEK_VERIFY_ENDPOINT,
     wire: 'openai-chat',
     authHeaderShape: 'bearer',
     copyModel: 'deepseek-v4-flash',
@@ -597,6 +618,70 @@ function buildAuthHeaders(def: ProviderDefinition, apiKey: string): Record<strin
     return { 'x-api-key': apiKey, 'anthropic-version': ANTHROPIC_VERSION };
   }
   return { authorization: `Bearer ${apiKey}` };
+}
+
+/* -------------------------------------------------------------------------
+   Is this key real? Asked once, when a key is saved.
+   ------------------------------------------------------------------------- */
+
+/** How long a key check may take before the answer becomes "could not
+    reach them". A person is watching a form submit, so this is short: the
+    check is worth doing, never worth making someone wait on. */
+const VERIFY_TIMEOUT_MS = 6000;
+
+export type KeyVerdict =
+  /** The provider answered the key. */
+  | { readonly status: 'good' }
+  /** The provider says this key is not one of theirs, or cannot be used. */
+  | { readonly status: 'refused'; readonly reason: string }
+  /** Nobody answered, or the provider had its own trouble. Says nothing
+      about the key. */
+  | { readonly status: 'unreachable'; readonly reason: string };
+
+/**
+ * Asks the provider whether a key is real, before it is stored.
+ *
+ * WHY A MODELS LIST AND NOT A DRAFT. The cheapest question that still
+ * requires the credential: every one of the four answers a GET on its model
+ * list, no body, no tokens, no charge. A generation call would prove the
+ * same thing and bill for it.
+ *
+ * WHAT EACH ANSWER MEANS, AND WHY THE THIRD ONE EXISTS. 401 and 403 are the
+ * provider saying the key is not theirs; that is the case worth refusing,
+ * and it is the one that used to surface only at the first draft. Anything
+ * else (a rate limit, a 500, a timeout, a DNS failure) is the provider
+ * having a bad minute, and refusing a person's perfectly good key over it
+ * would be this site telling a lie in the other direction. Those become
+ * 'unreachable', and the caller stores the key.
+ *
+ * NOTHING HERE CAN CARRY THE KEY. Every message is built from the provider
+ * label and an HTTP status, exactly the rule the file header sets for
+ * GenerationCallError, and generation-providers.test.ts holds it.
+ */
+export async function verifyKey(
+  provider: Provider,
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<KeyVerdict> {
+  const def = PROVIDER_REGISTRY[provider];
+  let response: Response;
+  try {
+    response = await fetch(def.verifyEndpoint, {
+      method: 'GET',
+      signal: signal ?? AbortSignal.timeout(VERIFY_TIMEOUT_MS),
+      headers: buildAuthHeaders(def, apiKey)
+    });
+  } catch {
+    // Same reasoning as the generation wires: node's own TypeError for a DNS
+    // or connection failure is not stable across versions and is never worth
+    // more to a caller than one fixed sentence.
+    return { status: 'unreachable', reason: `could not reach ${def.label}` };
+  }
+  if (response.ok) return { status: 'good' };
+  if (response.status === 401 || response.status === 403) {
+    return { status: 'refused', reason: `${def.label} did not recognise that key` };
+  }
+  return { status: 'unreachable', reason: `${def.label} answered with status ${response.status}` };
 }
 
 /* -------------------------------------------------------------------------

@@ -62,7 +62,7 @@ const returnPath = `${selfPath}&saved=1`;
           <p class="cr-box-meta">added {dayStamp(key.addedAt)} &#183; writes with {key.writesWith} &#183; reads with {key.readsWith}</p>
         </div>
       </div>
-      <p class="cr-note cr-note-gap">Shape checked now. The first draft is the first real test; if the provider refuses the key, the draft says so and nothing is spent.</p>
+      <p class="cr-note cr-note-gap">Your provider answered this key when it was saved.</p>
 
       {/* The way back out: one action, because picking again is also how a
           wrong key is replaced, and the console picker is where that starts. */}
@@ -132,7 +132,7 @@ const returnPath = `${selfPath}&saved=1`;
               required
             />
             <p class="cr-loss" data-cr-key-reason hidden></p>
-            <p class="cr-note cr-note-gap">Shape checked now. The first draft is the first real test; if the provider refuses the key, the draft says so and nothing is spent.</p>
+            <p class="cr-note cr-note-gap">Checked with your provider when you save, by reading their model list, which costs nothing. A key they do not recognise is not stored.</p>
             <div class="cr-actions cr-actions-gap">
               <button type="submit" class="cr-btn">Save key</button>
               <a class="cr-link-quiet" href={withBase(skipPath)}>Skip for now</a>
