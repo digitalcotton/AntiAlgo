@@ -172,7 +172,14 @@ const reportHref = routeFor('report');
 >
   <div class="shell drop">
     <header class="drop-head">
-      <p class="drop-eyebrow mono">SWEPT {stamp}</p>
+      <p class="drop-eyebrow mono">
+        <span>SWEPT {stamp}</span>
+        {/* The data tier, in the Jobs Data page's own chip (ledger-v4-views.js
+            TIER 1): the weekly roll-up is a second-tier read, one sweep's
+            files re-cut by week, not a measured series. Text in --color-muted
+            rather than the chip's --color-line-strong so it clears AA on paper. */}
+        <span class="drop-tier" aria-label="Tier 2 data">TIER 2</span>
+      </p>
       <h1 class="drop-title">The weekly drop.</h1>
       <p class="drop-lede">
         Everything below is read from the same published files every other page on this site reads: what
@@ -361,7 +368,20 @@ const reportHref = routeFor('report');
     gap: var(--space-400);
   }
 
+  .drop-tier {
+    font-family: var(--font-family-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    border: 1px solid var(--color-line);
+    color: var(--color-muted);
+    padding: 2px 6px;
+    white-space: nowrap;
+  }
+
   .drop-eyebrow {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-300);
     color: var(--color-muted);
   }
 
