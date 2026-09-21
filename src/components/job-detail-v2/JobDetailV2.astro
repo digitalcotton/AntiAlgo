@@ -140,6 +140,9 @@ const fitRows = FIT_ROWS.map((r) => {
 const fitTotal = job.fit.total;
 
 const applyUrl = job.apply_url;
+/** Apply is a quiet text control while the paid draft rail owns the primary
+    above it, and becomes the primary itself when that rail is not there. */
+const applyClass = paid ? ['jd-link', 'jd-link-apply'] : ['jd-btn', 'jd-btn-primary'];
 const draftAction = routeFor('desk-job-draft');
 const subtitleParts = [job.company, job.location, `via ${ats}`].filter(Boolean);
 const boardHref = routeFor('board');
@@ -295,7 +298,12 @@ const saveNote = applyTrack
         </>
       )}
 
-      <div class="jd-actions-row">
+      {/* Without the draft rail above, this row is the whole action area, so
+          Apply carries the page's one primary (owner, 2026-09-20): the filled
+          signal button, stacked, with Save beneath it. A paid reader already
+          has a primary in the rail, so Apply stays the text control it was
+          and the row stays a row. */}
+      <div class:list={['jd-actions-row', !paid && 'jd-actions-stacked']}>
         {applyUrl && (applyTrack ? (
           <form class="jd-apply-form" method="POST" action={applyTrack.action} target="_blank" data-apply-url={applyUrl}>
             <input type="hidden" name="intent" value="click" />
@@ -303,10 +311,10 @@ const saveNote = applyTrack
             <input type="hidden" name="then" value="posting" />
             {applyTrack.title && <input type="hidden" name="titleOverride" value={applyTrack.title} />}
             <input type="hidden" name="companyOverride" value={applyTrack.company} />
-            <button type="submit" class="jd-link jd-link-apply">Apply on {ats} &#8599;</button>
+            <button type="submit" class:list={applyClass}>Apply on {ats} &#8599;</button>
           </form>
         ) : (
-          <a class="jd-link jd-link-apply" href={applyUrl} target="_blank" rel="noopener nofollow">Apply on {ats} &#8599;</a>
+          <a class:list={applyClass} href={applyUrl} target="_blank" rel="noopener nofollow">Apply on {ats} &#8599;</a>
         ))}
 
         {!isClosed && (signedIn ? (
@@ -485,6 +493,11 @@ const saveNote = applyTrack
      with an ink rule, Save muted with a line-strong rule that darkens on hover */
   .jd-actions-row { border-top: var(--border-hairline) solid var(--color-line); margin-top: 8px; padding-top: 18px; display: flex; gap: 26px; flex-wrap: wrap; }
   .jd-save-form { margin: 0; }
+  /* The unpaid state: Apply is the primary and owns its own line, Save sits
+     under it rather than beside it. flex-start keeps Save at its text width;
+     the apply form is stretched so the button inside fills the measure. */
+  .jd-actions-stacked { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .jd-actions-stacked .jd-apply-form { width: 100%; margin: 0; }
   .jd-link { display: inline-block; background: none; border: none; border-radius: 0; margin: 0; padding: 0 0 5px; font-family: var(--font-family-sans); font-size: 17px; line-height: 1.2; text-decoration: none; cursor: pointer; white-space: nowrap; }
   .jd-link-apply { color: var(--color-foreground); font-weight: var(--weight-semibold, 600); border-bottom: var(--border-hairline) solid var(--color-foreground); }
   .jd-link-apply:hover, .jd-link-apply:focus-visible { color: var(--color-muted); }
