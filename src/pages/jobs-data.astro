@@ -3,6 +3,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Panel from '../components/Panel.astro';
 import { isPaidViewer } from '../lib/ledger-access';
 import { buildLedgerData } from '../lib/ledger-market';
+import { getBoardStats } from '../lib/job-store';
+import { isConfigured } from '../lib/db';
+import { prospectRows } from '../lib/data';
 import { routeFor } from '../data/nav';
 import { withBase } from '../../site.config.mjs';
 
@@ -40,6 +43,38 @@ if (paid) {
     .replace(cls(0x201c, 0x201d), '"')
     .replace(/</g, '\\u003c');
 }
+
+/* THE TEASE (owner, 2026-09-21). The tiers matrix has always promised a free
+   account a preview of this page, and the page gave it a description instead.
+   Every tile carries its real title, because the structure is the thing worth
+   seeing; three carry a real number and three carry the site's hatch.
+
+   THE THREE NUMBERS ARE ALREADY PUBLIC. They come from board_stats and the
+   prospect list, the same two sources the signed-out board prints over its own
+   table, in one cheap query rather than buildLedgerData(), which assembles
+   every live row, kill and issuer and is the paid payload. No member data is
+   built or shipped for a reader who is not paid.
+
+   THE HATCH IS THE SITE'S OWN DRAWING for a withheld thing (the job detail's
+   verbatim description, the Desk's empty lane): an absence, never a blurred or
+   invented row. Nothing here is a sample. */
+let tease: { boards: number; verified: number; killed: number; prospects: number } | null = null;
+if (!paid) {
+  try {
+    const stats = isConfigured() ? await getBoardStats() : null;
+    if (stats) {
+      tease = {
+        boards: stats.boards_swept ?? 0,
+        verified: stats.verified_live ?? 0,
+        killed: stats.killed_by_rule ?? 0,
+        prospects: prospectRows().length
+      };
+    }
+  } catch (error) {
+    console.error('jobs-data: the tease counts could not be read (the panel still renders).', error);
+  }
+}
+const n = (v: number) => v.toLocaleString();
 
 const cssHref = withBase('/scripts/ledger-v4.css');
 const appJs = withBase('/scripts/ledger-v4-app.js');
@@ -93,6 +128,43 @@ const boardHref = routeFor('board');
           titles you watch. It is part of the paid account.
         </p>
       </header>
+
+      {tease && (
+        <section class="lp-grid" aria-label="Tonight's read, in part">
+          <div class="lp-tile">
+            <p class="lp-tile-title mono-label">Verified live tonight</p>
+            <p class="lp-tile-figure">{n(tease.verified)}</p>
+            <p class="lp-tile-note">Read at {n(tease.boards)} company careers pages, not a job board.</p>
+          </div>
+          <div class="lp-tile">
+            <p class="lp-tile-title mono-label">Came down by rule</p>
+            <p class="lp-tile-figure">{n(tease.killed)}</p>
+            <p class="lp-tile-note">Each one with the rule it tripped on its record.</p>
+          </div>
+          <div class="lp-tile">
+            <p class="lp-tile-title mono-label">About to open</p>
+            <p class="lp-tile-figure">{n(tease.prospects)}</p>
+            <p class="lp-tile-note">Companies funded and in scope with no role posted yet.</p>
+          </div>
+
+          <div class="lp-tile">
+            <p class="lp-tile-title mono-label">What pays</p>
+            <div class="lp-hatch" role="presentation"></div>
+            <p class="lp-tile-note">Pay ladders by title and level, re-cut to the titles you watch.</p>
+          </div>
+          <div class="lp-tile">
+            <p class="lp-tile-title mono-label">Who recycles</p>
+            <div class="lp-hatch" role="presentation"></div>
+            <p class="lp-tile-note">Which companies repost the same role, and how often.</p>
+          </div>
+          <div class="lp-tile">
+            <p class="lp-tile-title mono-label">The issuer table</p>
+            <div class="lp-hatch" role="presentation"></div>
+            <p class="lp-tile-note">Every company as an issuer, with its whole record attached.</p>
+          </div>
+        </section>
+      )}
+
       <Panel title="What the account opens">
         <ul class="lp-list">
           <li>Every view re-cuts to the titles you watch, from pay ladders to the kill archive.</li>
@@ -132,5 +204,58 @@ const boardHref = routeFor('board');
   .lp-link {
     color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px;
     text-decoration-color: var(--color-line-strong); font-size: var(--size-100, 0.85rem);
+  }
+
+  /* The tease: six tiles on the raised surface, three counted and three
+     withheld, so the page shows its structure before it asks for anything. */
+  .lp-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--border-hairline) 0;
+    background: var(--color-line);
+    border: var(--border-hairline) solid var(--color-line-strong);
+  }
+  .lp-tile {
+    background: var(--color-surface-raised);
+    padding: var(--space-500) var(--space-500) var(--space-400);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-200);
+    border-left: var(--border-hairline) solid var(--color-line);
+  }
+  .lp-tile:nth-child(3n + 1) { border-left: 0; }
+  .lp-tile-title { margin: 0; color: var(--color-muted); }
+  .lp-tile-figure {
+    margin: 0;
+    font-family: var(--font-family-sans);
+    font-weight: var(--weight-bold);
+    font-size: clamp(1.9rem, 3.4vw, 2.6rem);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .lp-tile-note { margin: 0; color: var(--color-muted); font-size: 0.82rem; line-height: 1.5; }
+  /* The same hatch the job detail draws over a withheld description: it marks
+     an empty slot and never pretends to be a row. Its height matches the
+     figure beside it so a counted tile and a withheld one sit on one line. */
+  .lp-hatch {
+    height: clamp(1.9rem, 3.4vw, 2.6rem);
+    border: var(--border-hairline) solid var(--color-line);
+    background: repeating-linear-gradient(
+      45deg,
+      var(--color-hatch-a),
+      var(--color-hatch-a) var(--space-200),
+      var(--color-hatch-b) var(--space-200),
+      var(--color-hatch-b) var(--space-400)
+    );
+  }
+  @media (max-width: 60rem) {
+    .lp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .lp-tile:nth-child(3n + 1) { border-left: var(--border-hairline) solid var(--color-line); }
+    .lp-tile:nth-child(2n + 1) { border-left: 0; }
+  }
+  @media (max-width: 38rem) {
+    .lp-grid { grid-template-columns: minmax(0, 1fr); }
+    .lp-tile { border-left: 0; }
   }
 </style>
