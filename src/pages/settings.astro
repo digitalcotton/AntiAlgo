@@ -342,7 +342,6 @@ const keysSaveAction = routeFor('settings-keys-save');
 const keysRemoveAction = routeFor('settings-keys-remove');
 const exportHref = routeFor('settings-export');
 const deleteAction = routeFor('settings-delete');
-const profileHref = routeFor('profile');
 
 /* The collapsed-row values and open states for the Account section. A row
    opens when its own save just happened, so its message and its form are both
@@ -627,9 +626,6 @@ const handleRowOpen = handleUpdated || handleCleared || Boolean(handleError);
               </details>
             </Panel>
 
-            <div class="settings-back">
-              <a class="settings-link" href={profileHref}>View your profile</a>
-            </div>
           </>
         ) : (
           <>
@@ -971,9 +967,6 @@ const handleRowOpen = handleUpdated || handleCleared || Boolean(handleError);
     text-transform: uppercase;
   }
 
-  .settings-back {
-    margin-top: var(--space-300);
-  }
   .settings-link {
     font-family: var(--font-family-sans);
     font-weight: var(--weight-medium);
