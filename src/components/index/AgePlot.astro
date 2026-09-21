@@ -140,6 +140,27 @@ const kept = marks.filter((mark) => mark.days >= lo && mark.days <= hi).reduce((
 const loAt = position(lo);
 const hiAt = position(hi);
 const resetHref = interactive ? hrefFor(null, null) : '';
+
+/** Escape a value into an HTML double-quoted attribute. A tick's title carries
+    a crawled company and role name, so it can never be trusted raw into the
+    set:html string below. */
+const escapeAttr = (s: string): string =>
+  s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** The ticks as one HTML string rather than ~300 Astro spans, so Astro does
+    not stamp its scoping attribute (about 25 bytes) on every one; the .tick
+    rules are globalised under .axis below to reach these unscoped spans. Every
+    attribute the client filter and the tooltip need is kept: data-age,
+    data-rows and the title. tick-out is computed here from the same lo/hi the
+    old class:list used. */
+const ticksHtml = ticks
+  .map((t) => {
+    const cls = `tick${t.past ? ' tick-past' : ''}${t.days < lo || t.days > hi ? ' tick-out' : ''}`;
+    const title =
+      t.rows === 1 ? `${t.company}, ${t.title}: ${t.label}` : `${t.rows.toLocaleString()} roles at ${t.label}`;
+    return `<span class="${cls}" style="left: ${t.at.toFixed(2)}%;" data-age="${t.days}" data-rows="${t.rows}" title="${escapeAttr(title)}"></span>`;
+  })
+  .join('');
 ---
 
 {
@@ -185,19 +206,10 @@ const resetHref = interactive ? hrefFor(null, null) : '';
               <span class="edge" style={`left: ${position(days).toFixed(3)}%;`} aria-hidden="true" />
             ))}
 
-            {ticks.map((tick) => (
-              <span
-                class:list={['tick', tick.past && 'tick-past', (tick.days < lo || tick.days > hi) && 'tick-out']}
-                style={`left: ${tick.at.toFixed(2)}%;`}
-                data-age={tick.days}
-                data-rows={tick.rows}
-                title={
-                  tick.rows === 1
-                    ? `${tick.company}, ${tick.title}: ${tick.label}`
-                    : `${tick.rows.toLocaleString()} roles at ${tick.label}`
-                }
-              />
-            ))}
+            {/* One HTML block, not one Astro span per tick: Astro would stamp
+                a scoping attribute on each of the ~300, which the .axis :global
+                rules below make unnecessary. */}
+            <Fragment set:html={ticksHtml} />
 
             {/* The shade over each filtered-out span, above the ticks: the
                 strip stays a strip end to end, and the part outside the
@@ -348,7 +360,7 @@ const resetHref = interactive ? hrefFor(null, null) : '';
 
   /* A tick is a row. At or under the median life it takes the live mark's hue;
      past it, the sweep's own age-warning hue. Neither is the loss colour. */
-  .tick {
+  .axis :global(.tick) {
     position: absolute;
     inset-block: 0;
     width: var(--border-heavy);
@@ -360,13 +372,13 @@ const resetHref = interactive ? hrefFor(null, null) : '';
 
   /* Over-7d ticks in the signal orange, both themes (owner's call, 2026-09-20;
      they were the amber warning hue, coral in light mode). */
-  .tick-past {
+  .axis :global(.tick-past) {
     background: var(--color-signal);
   }
 
   /* Under the shade a tick still shows, faintly: the shade does most of the
      dimming, so the row is not erased twice. */
-  .tick-out {
+  .axis :global(.tick-out) {
     opacity: 0.35;
   }
 
@@ -469,7 +481,7 @@ const resetHref = interactive ? hrefFor(null, null) : '';
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .tick {
+    .axis :global(.tick) {
       transition: none;
     }
   }
