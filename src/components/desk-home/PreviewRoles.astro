@@ -1,0 +1,93 @@
+---
+/**
+ * PreviewRoles: the handful of live roles a member who is not paying already
+ * has under their own titles, shown above the Desk's upsell panel (owner,
+ * 2026-09-20). A free account names titles in Come ready, so by the time it
+ * reaches this page the lane is real; showing it is the difference between
+ * describing what the account opens and pointing at it.
+ *
+ * READ-ONLY BY NECESSITY, NOT BY TASTE. The paid lane's RoleCard carries a
+ * "Draft Resumé and Cover" form posting to /desk/job-draft, and drafting is
+ * paid: ROUTE_POLICY refuses that path below the paid tier, so reusing the
+ * card here would put a button on the page that answers 403. These rows carry
+ * the facts and a link to the posting's own page, which is public.
+ *
+ * EVERY NUMBER IS THE READER'S OWN: the fit is the measured fit_total, the age
+ * is the role's own first-seen, the count is the lane's. Nothing here is a
+ * sample or a placeholder; with no titles named the page does not render this
+ * component at all rather than inventing a list.
+ */
+import type { DeskRoleVM } from '../../lib/desk-home';
+import { boardDetailPath } from '../../data/nav';
+import { formatDate } from '../../lib/data';
+
+interface Props {
+  /** Already cut to the number shown; this component does not slice. */
+  roles: DeskRoleVM[];
+  /** Every live role under the core titles, for the "see all" line. */
+  coreLiveCount: number;
+  /** The sweep's own stamp, the ISO string desk-home carries. */
+  sweptAt: string | null;
+  boardHref: string;
+}
+const { roles, coreLiveCount, sweptAt, boardHref } = Astro.props;
+/** formatDate answers null for a missing or malformed stamp, and a blank after
+    the word "swept" would read as a broken line, so it falls back to the thing
+    that is true either way. */
+const swept = formatDate(sweptAt) ?? 'nightly';
+---
+
+<section class="dp-roles" aria-labelledby="dp-roles-h">
+  <div class="dp-roles-head">
+    <h2 id="dp-roles-h" class="dp-roles-title">
+      Live under your titles tonight, the {roles.length === 1 ? 'one' : roles.length} that fit you best.
+    </h2>
+    <p class="dp-roles-note mono-label">Ranked by fit &#183; swept {swept}</p>
+  </div>
+
+  <ol class="dp-role-list">
+    {roles.map((r) => (
+      <li class="dp-role">
+        <span class="dp-role-fit mono">{r.fit}</span>
+        <span class="dp-role-main">
+          {r.slug ? (
+            <a class="dp-role-title" href={boardDetailPath(r.slug)}>{r.title}</a>
+          ) : (
+            <span class="dp-role-title">{r.title}</span>
+          )}
+          <span class="dp-role-meta mono">
+            {r.company}
+            {r.pay && <> &#183; {r.pay}</>}
+            {r.ageDays !== null && <> &#183; {r.ageDays === 0 ? 'today' : `${r.ageDays}d old`}</>}
+          </span>
+        </span>
+      </li>
+    ))}
+  </ol>
+
+  {coreLiveCount > roles.length && (
+    <p class="dp-roles-more">
+      <a href={boardHref}>See all {coreLiveCount} on the board</a>, narrowed to your titles.
+    </p>
+  )}
+</section>
+
+<style>
+  /* One raised surface with hairline rows, the same drawing the paid lane's
+     card list uses, so this reads as a slice of that page rather than a
+     different one. */
+  .dp-roles { display: flex; flex-direction: column; gap: var(--space-300); }
+  .dp-roles-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-400); flex-wrap: wrap; }
+  .dp-roles-title { margin: 0; font-size: clamp(1.2rem, 2.2vw, 1.625rem); line-height: 1.15; letter-spacing: -0.02em; }
+  .dp-roles-note { margin: 0; color: var(--color-muted); }
+  .dp-role-list { list-style: none; margin: 0; padding: 0; background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-line-strong); }
+  .dp-role { display: grid; grid-template-columns: 3.5ch minmax(0, 1fr); gap: var(--space-400); align-items: baseline; padding: var(--space-400); border-top: var(--border-hairline) solid var(--color-line); }
+  .dp-role:first-child { border-top: 0; }
+  .dp-role-fit { color: var(--color-mark-live); font-size: var(--size-150); font-weight: var(--weight-medium); }
+  .dp-role-main { display: flex; flex-direction: column; gap: var(--space-100); min-width: 0; }
+  .dp-role-title { font-weight: var(--weight-medium); color: var(--color-foreground); text-decoration: none; overflow-wrap: anywhere; }
+  a.dp-role-title:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .dp-role-meta { color: var(--color-muted); font-size: 0.82rem; }
+  .dp-roles-more { margin: 0; font-size: var(--size-100); color: var(--color-muted); }
+  .dp-roles-more a { color: var(--color-foreground); }
+</style>

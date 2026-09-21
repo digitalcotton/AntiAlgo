@@ -6,6 +6,7 @@ import SweepPanel from '../components/desk-home/SweepPanel.astro';
 import WatchList from '../components/desk-home/WatchList.astro';
 import RoleCard from '../components/desk-home/RoleCard.astro';
 import DiedList from '../components/desk-home/DiedList.astro';
+import PreviewRoles from '../components/desk-home/PreviewRoles.astro';
 import CompactTracker from '../components/come-ready/CompactTracker.astro';
 import '../components/come-ready/come-ready.css';
 import { loadComeReady, type ComeReadyView } from '../lib/come-ready-store';
@@ -48,8 +49,13 @@ export const prerender = false;
 const viewer = Astro.locals.viewer ?? null;
 const paid = isPaidViewer(viewer);
 
+/* A non-paid member names titles too (Come ready's free flow ends there), so
+   the home is built for any signed-in member now: the paid page below reads
+   all of it, and the preview reads the first few core roles to show what the
+   titles already found (owner, 2026-09-20). The clock is NOT advanced for a
+   preview, only for the real page, so a look here does not mark roles seen. */
 let data: DeskHomeData | null = null;
-if (paid && viewer && isConfigured()) {
+if (viewer && isConfigured()) {
   // Retry once. The home reads the whole live board in one pass, and a cold
   // serverless function can hit a transient connection error on the first try
   // that a second attempt clears; without the retry that blip falls through to
@@ -62,7 +68,7 @@ if (paid && viewer && isConfigured()) {
       console.error(`desk: build attempt ${attempt + 1} failed.`, error);
     }
   }
-  if (data) {
+  if (data && paid) {
     try {
       await touchLastSeen(viewer.userId);
     } catch (error) {
@@ -91,6 +97,12 @@ const boardHref = routeFor('board');
 const accountHref = routeFor('account');
 
 const home = data;
+/* The preview's five (owner, 2026-09-20): the same fit-ranked core lane the
+   paid page opens with, cut to five. Real rows or none: with no titles named
+   there is no lane of the reader's own, and the board's freshest five would
+   be a list nobody asked for, so the panel below stands on its own instead. */
+const PREVIEW_SHOW = 5;
+const previewRoles = !paid && home?.hasTitles ? home.core.slice(0, PREVIEW_SHOW) : [];
 const titleOptions = (data?.titleIndex ?? []).slice(0, 200);
 const titleCount = home ? home.coreTitles.length + home.stretchTitles.length : 0;
 const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'not counted');
@@ -229,6 +241,11 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
           sweep down to the handful that are yours, on the board and here. It is part of the paid account.
         </p>
       </header>
+      {/* What the titles already found, above the panel that sells the rest. */}
+      {previewRoles.length > 0 && home && (
+        <PreviewRoles roles={previewRoles} coreLiveCount={home.coreLiveCount} sweptAt={home.sweep.sweptAt} boardHref={boardHref} />
+      )}
+
       <Panel title="What the account opens">
         <ul class="dp-list">
           <li>Name your titles once; the board narrows to them everywhere.</li>
@@ -323,4 +340,5 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
   .dp-cta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-400); margin: var(--space-400) 0 0; }
   .dp-button { display: inline-block; padding: 0.6rem 1rem; border-radius: var(--radius); background: var(--color-surface-inverse); color: var(--color-foreground-inverse); font-family: var(--font-family-mono); font-size: var(--size-100); text-decoration: none; white-space: nowrap; }
   .dp-link { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-line-strong); font-size: var(--size-100); }
+
 </style>
