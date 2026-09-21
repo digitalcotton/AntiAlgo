@@ -69,6 +69,19 @@ const comeReadyHref = routeFor('come-ready');
       <BrandMark />
       <span class="wordmark">anti algo</span>
     </a>
+    {/* The mobile menu is a checkbox and its label, no script: on a phone the
+        label is the hamburger and its checked state (a pure CSS ~ selector,
+        below) drops the same nav as a panel. The nav stays a plain flex child,
+        so the desktop row is unchanged. The checkbox is the control (named
+        Menu, kept focusable and off screen on phones, display:none on desktop);
+        the label is its decorative icon. The script only adds dismissal. */}
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Menu" />
+    <label for="nav-toggle" class="nav-burger" aria-hidden="true">
+      <svg class="nav-burger-icon" width="24" height="24" viewBox="0 0 24 24">
+        <path class="nav-burger-bars" d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+        <path class="nav-burger-x" d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+      </svg>
+    </label>
     <nav class="nav kicker" aria-label="Site">
       {signedIn ? (
         <Fragment>
@@ -120,6 +133,14 @@ const comeReadyHref = routeFor('come-ready');
     gap: var(--space-500);
     padding-block: var(--space-400);
     flex-wrap: wrap;
+    /* The anchor the phone menu drops from; inert on desktop where nothing is
+       absolutely positioned. */
+    position: relative;
+  }
+  /* The mobile-menu control is invisible until the phone breakpoint. */
+  .nav-toggle,
+  .nav-burger {
+    display: none;
   }
   .brand {
     display: flex;
@@ -234,26 +255,114 @@ const comeReadyHref = routeFor('come-ready');
   .account-panel :global(.signout) { margin-top: var(--space-200); }
 
   @media (max-width: 48rem) { /* --breakpoint-phone */
+    /* The checkbox stays in the page, off screen, so it is still focusable and
+       named for a screen reader; the label is the hamburger. */
+    .nav-toggle {
+      display: block;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .nav-burger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--color-foreground);
+      padding: var(--space-300);
+      margin: calc(var(--space-300) * -1);
+    }
+    .nav-burger-x {
+      display: none;
+    }
+    /* Bars to an X while open. */
+    .nav-toggle:checked ~ .nav-burger .nav-burger-bars {
+      display: none;
+    }
+    .nav-toggle:checked ~ .nav-burger .nav-burger-x {
+      display: inline;
+    }
+    /* A focus ring on the icon when the hidden checkbox has focus. */
+    .nav-toggle:focus-visible ~ .nav-burger {
+      outline: var(--border-heavy) solid var(--color-signal);
+      outline-offset: var(--space-100);
+      border-radius: var(--radius);
+    }
+
+    /* Collapsed: the nav is hidden until the checkbox is checked, then it drops
+       from the header's right as one column. */
     .nav {
+      display: none;
+    }
+    .nav-toggle:checked ~ .nav {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
       gap: var(--space-400);
+      position: absolute;
+      top: calc(100% + var(--space-400));
+      right: 0;
+      min-width: 56vw;
+      max-width: 88vw;
+      padding: var(--space-500);
+      background: var(--color-surface);
+      border: var(--border-hairline) solid var(--color-foreground);
+      border-radius: var(--radius);
+      z-index: 200;
+    }
+
+    /* Signed in, the account submenu opens inline inside the panel rather than
+       as a second floating dropdown. */
+    .account {
+      width: 100%;
+    }
+    .account-panel {
+      position: static;
+      border: 0;
+      border-radius: 0;
+      padding: var(--space-200) 0 0 var(--space-300);
+      min-width: 0;
     }
   }
 </style>
 
 <script>
-  // Close the account menu on Escape or an outside click. The native <details>
-  // already toggles on its summary and is keyboard-focusable; this only adds the
-  // dismiss behaviours a menu is expected to have.
+  // Dismissal only; both menus work without this. The account menu is a native
+  // <details>; the mobile nav is a checkbox (#nav-toggle) toggled by its label,
+  // so "close" is unchecking it. Each closes on Escape or a click outside it.
   const menu = document.querySelector<HTMLDetailsElement>('details.account');
-  if (menu) {
-    document.addEventListener('click', (event) => {
-      if (menu.open && !menu.contains(event.target as Node)) menu.open = false;
-    });
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && menu.open) {
-        menu.open = false;
-        menu.querySelector('summary')?.focus();
-      }
-    });
-  }
+  const navToggle = document.querySelector<HTMLInputElement>('#nav-toggle');
+  const nav = document.querySelector<HTMLElement>('header.hdr .nav');
+  const burger = document.querySelector<HTMLElement>('.nav-burger');
+
+  document.addEventListener('click', (event) => {
+    const target = event.target as Node;
+    if (menu?.open && !menu.contains(target)) menu.open = false;
+    if (
+      navToggle?.checked &&
+      target !== navToggle &&
+      !burger?.contains(target) &&
+      !nav?.contains(target)
+    ) {
+      navToggle.checked = false;
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (menu?.open) {
+      menu.open = false;
+      menu.querySelector('summary')?.focus();
+    }
+    if (navToggle?.checked) {
+      navToggle.checked = false;
+      navToggle.focus();
+    }
+  });
 </script>
