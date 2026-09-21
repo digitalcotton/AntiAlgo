@@ -597,33 +597,41 @@ a.cr-row[data-status='waiting']:hover {
 }
 
 /* The compact tracker (the Desk, the Profile). */
-.crc {
-  border-bottom: var(--border-hairline) solid var(--color-line);
-  padding: 10px 0;
+/* The band: the Desk's Come ready row (owner's design "Come ready
+   everywhere", scene desk-3-A). Every value below is the design's own: the
+   panel with a heavy edge rather than the hairline the old row had, the
+   12px rings at 5px apart, and the signal button as the row's one action. */
+.crb {
+  margin-top: 16px;
+  background: var(--color-surface-raised);
+  border: var(--border-hairline) solid var(--color-line-strong);
+  border-radius: var(--radius);
+  padding: 16px 20px;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 20px;
+  gap: 12px 28px;
   align-items: center;
   justify-content: space-between;
 }
-.crc-left {
+.crb-left {
   display: flex;
-  align-items: center;
-  gap: 14px;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  min-width: 0;
 }
-.crc-name {
+.crb-name {
   font-family: var(--font-family-mono);
   font-size: 0.82rem;
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
-.crc-dots {
+.crb-dots {
   display: inline-flex;
   gap: 5px;
 }
-.crc-dot {
+.crb-dot {
   position: relative;
   display: inline-block;
   width: 12px;
@@ -631,41 +639,57 @@ a.cr-row[data-status='waiting']:hover {
   border-radius: 50%;
   border: 2px solid var(--color-line-strong);
 }
-.crc-dot::after {
+.crb-dot::after {
   content: '';
   position: absolute;
   inset: 2px;
   border-radius: 50%;
   background: transparent;
 }
-.crc-dot[data-tone='done'] {
+.crb-dot[data-tone='done'] {
   border-color: var(--color-mark-live);
 }
-.crc-dot[data-tone='done']::after {
+.crb-dot[data-tone='done']::after {
   background: var(--color-mark-live);
 }
-.crc-count {
+.crb-count {
   font-family: var(--font-family-mono);
   font-size: 0.82rem;
   color: var(--color-muted);
 }
-.crc-next {
-  font-size: 0.95rem;
+.crb-next {
+  font-size: 1.0625rem;
+  min-width: 0;
 }
-.crc-continue {
-  font-family: var(--font-family-mono);
-  font-size: 0.82rem;
+.crb-next-name {
   font-weight: 500;
+}
+.crb-next-stake {
+  color: var(--color-muted);
+}
+/* The page's one primary while a run is open: the same signal button the
+   flow's own steps carry, so the band and the step it opens agree. */
+.crb-go {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+  min-height: 44px;
+  padding: 12px 24px;
+  background: var(--color-signal);
+  color: var(--cr-ink-fixed, #0b0b0d);
+  font-family: var(--font-family-mono);
+  font-weight: 700;
+  font-size: 0.82rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  border-bottom: var(--border-hairline) solid var(--color-line-strong);
-  padding-bottom: 1px;
-  white-space: nowrap;
+  border-radius: var(--radius);
   text-decoration: none;
-  color: var(--color-foreground);
 }
-.crc-continue:hover {
-  color: var(--color-muted);
+.crb-go:hover,
+.crb-go:focus-visible {
+  color: var(--cr-ink-fixed, #0b0b0d);
+  filter: brightness(0.94);
 }
 
 /* The narrow pass, 900 and under: one column, the tracker above the step. */

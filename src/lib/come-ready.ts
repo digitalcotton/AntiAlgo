@@ -27,6 +27,11 @@ export interface ComeReadyStep {
   n: number;
   name: string;
   hint: string;
+  /** One clause on what taking this step turns on, for the Desk's band. The
+      hint explains the step; this says what it is worth. */
+  stake: string;
+  /** The band's button label: an imperative shorter than the row's name. */
+  action: string;
   status: StepStatus;
   /** The step's own view, when the page has one (the rows for 1 and 2 have none). */
   href: string | null;
@@ -66,8 +71,14 @@ export interface ComeReady {
   total: number;
   /** The row tagged next, or null when none is. */
   nextStep: ComeReadyStep | null;
-  /** What the compact tracker prints after "Next:". */
+  /** What the band prints after "Next:". */
   nextName: string;
+  /** The clause after the name, and the button beside it. With no step left
+      these carry the run's own ending: the paid door, or the free account's
+      one remaining choice. */
+  nextStake: string;
+  nextAction: string;
+  nextHref: string;
   active: ActiveStep;
   /** Paid: steps 3, 4 and 5 done, so the door shows a role. Free: never. */
   doorOpen: boolean;
@@ -137,20 +148,46 @@ function buildPaid(facts: ComeReadyFacts): ComeReady {
   const letterHint = s6 === 'done' ? 'Cover letter on file.' : 'Recommended, not required. Voice for the letter, links on every draft.';
 
   const steps: ComeReadyStep[] = [
-    { n: 1, name: 'Account created', hint: 'You are in.', status: 'done', href: null },
-    { n: 2, name: 'Membership active', hint: 'Paid. $7.25 a month.', status: 'done', href: null },
+    { n: 1, name: 'Account created', hint: 'You are in.', stake: '', action: '', status: 'done', href: null },
+    { n: 2, name: 'Membership active', hint: 'Paid. $7.25 a month.', stake: '', action: '', status: 'done', href: null },
     {
       n: 3,
       name: 'Name your titles',
+      stake: 'The Desk turns on tonight.',
+      action: 'Name your titles',
       hint: first
         ? `${first.title}. ${first.liveCount !== null ? `${first.liveCount} live tonight. ` : ''}The Desk turns on tonight.`
         : 'Pays back in seconds. The Desk turns on tonight.',
       status: s3,
       href: PAID_STEP_HREFS[3]
     },
-    { n: 4, name: 'Connect your key', hint: keyHint, status: s4, href: PAID_STEP_HREFS[4] },
-    { n: 5, name: 'Bring your resumé', hint: recordHint, status: s5, href: PAID_STEP_HREFS[5] },
-    { n: 6, name: 'Add your cover letter and links', hint: letterHint, status: s6, href: PAID_STEP_HREFS[6] }
+    {
+      n: 4,
+      name: 'Connect your key',
+      hint: keyHint,
+      stake: 'Unlocks the resumé reader and drafting.',
+      action: 'Connect your key',
+      status: s4,
+      href: PAID_STEP_HREFS[4]
+    },
+    {
+      n: 5,
+      name: 'Bring your resumé',
+      hint: recordHint,
+      stake: 'Unlocks drafting.',
+      action: 'Bring your resumé',
+      status: s5,
+      href: PAID_STEP_HREFS[5]
+    },
+    {
+      n: 6,
+      name: 'Add your cover letter and links',
+      hint: letterHint,
+      stake: 'Voice for the letter, links on every draft.',
+      action: 'Add your letter',
+      status: s6,
+      href: PAID_STEP_HREFS[6]
+    }
   ];
 
   const doorOpen = hasTitle && hasKey && hasRecord;
@@ -166,6 +203,11 @@ function buildPaid(facts: ComeReadyFacts): ComeReady {
     total: 6,
     nextStep,
     nextName: nextStep ? nextStep.name : 'draft your first application',
+    // Nothing left to check off but no draft written: the band's action is the
+    // door, which is otherwise only reachable by typing its address.
+    nextStake: nextStep ? nextStep.stake : 'The last thing the run asks for.',
+    nextAction: nextStep ? nextStep.action : 'Draft your first application',
+    nextHref: nextStep?.href ?? '/start?step=door',
     active,
     doorOpen,
     complete,
@@ -194,10 +236,12 @@ function buildFree(facts: ComeReadyFacts): ComeReady {
   const s4 = waitlisted ? 'later' : ordered(hasTitle, null);
 
   const steps: ComeReadyStep[] = [
-    { n: 1, name: 'Place held', hint: 'Joined the waitlist.', status: 'done', href: null },
+    { n: 1, name: 'Place held', hint: 'Joined the waitlist.', stake: '', action: '', status: 'done', href: null },
     {
       n: 2,
       name: 'Admitted',
+      stake: '',
+      action: '',
       hint: s2 === 'done' ? 'Sign-in is open.' : 'By hand, one at a time. We write once, the day it happens.',
       status: s2,
       href: null
@@ -206,6 +250,8 @@ function buildFree(facts: ComeReadyFacts): ComeReady {
       n: 3,
       name: 'Verify your email',
       hint: s3 === 'done' ? 'Verified.' : 'One message, the night something you watch changes.',
+      stake: 'One message, the night something you watch changes.',
+      action: 'Verify your email',
       status: s3,
       href: waitlisted ? null : FREE_STEP_HREFS[3]
     },
@@ -215,6 +261,8 @@ function buildFree(facts: ComeReadyFacts): ComeReady {
       hint: first
         ? `${first.title}. ${first.liveCount !== null ? `${first.liveCount} live tonight, ` : ''}in the board's menu.`
         : "A title menu in the board's search cell. Pays back in seconds.",
+      stake: "The board's search cell learns your titles.",
+      action: 'Name your titles',
       status: s4,
       href: waitlisted ? null : FREE_STEP_HREFS[4]
     }
@@ -230,6 +278,11 @@ function buildFree(facts: ComeReadyFacts): ComeReady {
     total: 4,
     nextStep,
     nextName: nextStep ? nextStep.name : 'what the paid account opens',
+    // The free run's last step is naming titles, so with none left the band
+    // carries the one choice the account has after it (owner, 2026-09-21).
+    nextStake: nextStep ? nextStep.stake : 'One price, and it does not move.',
+    nextAction: nextStep ? nextStep.action : 'What paid opens',
+    nextHref: nextStep?.href ?? '/the-account',
     active,
     doorOpen: false,
     // The free flow has no completion: its door is a choice, not a task, so

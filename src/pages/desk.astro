@@ -77,12 +77,13 @@ if (viewer && isConfigured()) {
   }
 }
 
-// Come ready's compact tracker (owner's design, frame 8): one row above the
-// Desk until the first run is complete, then gone for good. Built beside the
-// Desk's own data so the sweep is read once; a failure here hides the row
-// and never takes the Desk with it.
+// Come ready's band: one weighted row above the Desk until the first run is
+// complete, then gone for good. Built for a free account as well as a paid one
+// (owner, 2026-09-21): a member runs the four-step flow too, and this is the
+// page both tiers land on. Built beside the Desk's own data so the sweep is
+// read once; a failure here hides the band and never takes the Desk with it.
 let comeReady: ComeReadyView | null = null;
-if (paid && viewer && data && isOn('onboarding')) {
+if (viewer && data && isOn('onboarding')) {
   try {
     comeReady = await loadComeReady(viewer, null, { home: data });
   } catch (error) {
@@ -238,6 +239,7 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
     </div>
   ) : (
     <main class="shell desk-preview">
+      {showTracker && comeReady && <CompactTracker model={comeReady.model} />}
       <header class="dp-head">
         <p class="dp-eyebrow mono-label">The Desk</p>
         <h1 class="dp-title">Name the titles you want. See only those.</h1>

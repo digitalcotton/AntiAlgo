@@ -36,6 +36,8 @@ describe('the paid flow', () => {
       n: 3,
       name: 'Name your titles',
       hint: 'Product Designer. 77 live tonight. The Desk turns on tonight.',
+      stake: 'The Desk turns on tonight.',
+      action: 'Name your titles',
       status: 'done',
       href: '/start?step=3'
     });
@@ -155,5 +157,45 @@ describe('editionFor', () => {
     expect(editionFor('waitlisted')).toBe('waitlisted');
     expect(editionFor('member')).toBe('free');
     expect(editionFor('public')).toBe('free');
+  });
+});
+
+describe("the band's next action", () => {
+  // The Desk's band prints the model's own next name, stake and action, so
+  // these three move together and a step can never be advertised with another
+  // step's button.
+  it('carries the next step on the paid flow', () => {
+    const r = buildComeReady(facts({ coreTitles: title }));
+    expect(r.nextName).toBe('Connect your key');
+    expect(r.nextStake).toBe('Unlocks the resumé reader and drafting.');
+    expect(r.nextAction).toBe('Connect your key');
+    expect(r.nextHref).toBe('/start?step=4');
+  });
+
+  it('points at the door when the paid run has nothing left to check off', () => {
+    // Every step done but no draft written: the run is not complete, and the
+    // door is otherwise only reachable by typing its address.
+    const r = buildComeReady(facts({ coreTitles: title, key, entries: 4, letterOnFile: true }));
+    expect(r.nextStep).toBeNull();
+    expect(r.complete).toBe(false);
+    expect(r.nextAction).toBe('Draft your first application');
+    expect(r.nextHref).toBe('/start?step=door');
+  });
+
+  it('carries the next step on the free flow', () => {
+    const r = buildComeReady(facts({ edition: 'free' }));
+    expect(r.nextName).toBe('Name your titles');
+    expect(r.nextStake).toBe("The board's search cell learns your titles.");
+    expect(r.nextHref).toBe('/start?step=4');
+  });
+
+  it('asks a finished free account to upgrade, since that is all it has left', () => {
+    const r = buildComeReady(facts({ edition: 'free', coreTitles: title }));
+    expect(r.nextStep).toBeNull();
+    expect(r.doneCount).toBe(4);
+    expect(r.total).toBe(4);
+    expect(r.nextName).toBe('what the paid account opens');
+    expect(r.nextAction).toBe('What paid opens');
+    expect(r.nextHref).toBe('/the-account');
   });
 });

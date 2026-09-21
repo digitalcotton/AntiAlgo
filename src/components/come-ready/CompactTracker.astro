@@ -1,28 +1,48 @@
 ---
 /**
- * The compact tracker: one row at the top of the Desk (paid) or the Profile
- * (free) until the flow completes. The dots are the steps; the count and the
- * next step's name are the model's; Continue opens /start on that step.
+ * The band: one weighted row at the top of the Desk while a first run is
+ * unfinished, for a paid account and a free one alike (owner, 2026-09-21,
+ * from "Come ready everywhere", scene desk-3-A, the runner-up A variant).
+ *
+ * IT REPLACED A HAIRLINE. The row that stood here carried the same facts with
+ * no weight and a text "Continue" link, on a page that is 3000px tall the
+ * moment titles are named; it read as furniture. This is the same information
+ * given the page's one primary: a panel with an edge, the count, what the next
+ * step is worth, and the action itself on the button.
+ *
+ * WHAT IT SAYS IS THE MODEL'S, NOT ITS OWN. The dots, the count, the name, the
+ * stake and the action all come from come-ready.ts, so the band cannot claim a
+ * step is next that the run does not think is next. With no step left it
+ * carries the run's ending instead: the paid door, or the free account's one
+ * remaining choice.
+ *
+ * WHEN IT LEAVES. The Desk renders it only while the run is unfinished, which
+ * for a paid account means a draft has never been written. Completion is the
+ * dismissal; there is no dismiss button.
  */
 import type { ComeReady } from '../../lib/come-ready';
-import { routeFor } from '../../data/nav';
 import { withBase } from '../../../site.config.mjs';
 
 interface Props {
   model: ComeReady;
 }
 const { model } = Astro.props;
-const continueHref = model.nextStep?.href ? withBase(model.nextStep.href) : routeFor('come-ready');
+/** The model's addresses are base-free; an absolute one (the tiers page) is
+    already whole, so only our own paths are rewritten. */
+const href = model.nextHref.startsWith('/') ? withBase(model.nextHref) : model.nextHref;
 ---
 
-<div class="crc">
-  <div class="crc-left">
-    <span class="crc-name">Come ready</span>
-    <span class="crc-dots" aria-hidden="true">
-      {model.steps.map((s) => <span class="crc-dot" data-tone={s.status === 'done' ? 'done' : undefined}></span>)}
+<div class="crb">
+  <div class="crb-left">
+    <span class="crb-name">Come ready</span>
+    <span class="crb-dots" aria-hidden="true">
+      {model.steps.map((s) => <span class="crb-dot" data-tone={s.status === 'done' ? 'done' : undefined}></span>)}
     </span>
-    <span class="crc-count">{model.doneCount} of {model.total} done</span>
-    <span class="crc-next">Next: {model.nextName}</span>
+    <span class="crb-count">{model.doneCount} of {model.total} done</span>
+    <span class="crb-next">
+      <span class="crb-next-name">Next: {model.nextName}.</span>{' '}
+      <span class="crb-next-stake">{model.nextStake}</span>
+    </span>
   </div>
-  <a class="crc-continue" href={continueHref}>Continue</a>
+  <a class="crb-go" href={href}>{model.nextAction}</a>
 </div>
