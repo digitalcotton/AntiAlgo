@@ -86,7 +86,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
         </form>
       </div>
     ))}
-    <form method="POST" action={watchAction} data-cr-combo>
+    <form method="POST" action={watchAction} data-cr-combo data-cr-have={JSON.stringify(coreTitles.map((t) => t.title))}>
       <input type="hidden" name="intent" value="add" />
       <input type="hidden" name="shelf" value="core" />
       <input type="hidden" name="return" value={selfPath} />
@@ -109,6 +109,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
         />
         <button type="submit" class="cr-btn">Add title</button>
       </div>
+      <p class="cr-add-note" data-cr-combo-note role="status" hidden></p>
       {options.length > 0 && (
         <div class="cr-suggest" id="cr-titles-core" role="listbox" aria-label="Live titles" data-cr-combo-panel hidden={hasTitle}>
           <p class="cr-suggest-head">Most live tonight</p>
@@ -141,7 +142,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
           </form>
         </div>
       ))}
-      <form method="POST" action={watchAction} class="cr-add-stretch" data-cr-combo>
+      <form method="POST" action={watchAction} class="cr-add-stretch" data-cr-combo data-cr-have={JSON.stringify(stretchTitles)}>
         <input type="hidden" name="intent" value="add" />
         <input type="hidden" name="shelf" value="stretch" />
         <input type="hidden" name="return" value={selfPath} />
@@ -163,6 +164,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
           />
           <button type="submit" class="cr-btn">Add title</button>
         </div>
+        <p class="cr-add-note" data-cr-combo-note role="status" hidden></p>
         {options.length > 0 && (
           <div class="cr-suggest" id="cr-titles-stretch" role="listbox" aria-label="Live titles" data-cr-combo-panel hidden>
             <p class="cr-suggest-head">Most live tonight</p>
@@ -246,6 +248,30 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
     if (!input || !panel) return;
     const rows = Array.from(form.querySelectorAll<HTMLButtonElement>('[data-cr-combo-row]'));
 
+    // The titles already on THIS shelf, as the server spelled them. The add is
+    // an upsert on (user_id, title), so posting one of these writes the row it
+    // already wrote and the page comes back identical: the press looks broken
+    // because nothing on the page can have changed. The answer is given here,
+    // before the trip, since the page already knows the list.
+    const note = form.querySelector<HTMLElement>('[data-cr-combo-note]');
+    let have: string[] = [];
+    try {
+      const parsed = JSON.parse(form.dataset.crHave ?? '[]');
+      if (Array.isArray(parsed)) have = parsed.filter((t): t is string => typeof t === 'string');
+    } catch {
+      have = [];
+    }
+    /** The stored spelling of a title already on the shelf, else null. Matched
+        without case, because two rows differing only in case is a worse answer
+        than being told the title is already there. */
+    const already = (value: string): string | null =>
+      have.find((t) => t.toLowerCase() === value.toLowerCase()) ?? null;
+    const say = (message: string | null) => {
+      if (!note) return;
+      note.textContent = message ?? '';
+      note.hidden = message === null;
+    };
+
     // Set by Escape and cleared by the next keystroke, so returning focus to
     // the field after a dismissal does not immediately reopen the list.
     let dismissed = false;
@@ -270,8 +296,29 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
       open(shown > 0);
     }
 
+    // Both ways of adding end here: the Add title button submits, and choosing
+    // a row calls requestSubmit(). So one guard covers both presses.
+    form.addEventListener('submit', (event) => {
+      const value = input.value.trim();
+      if (value.length < 2) {
+        event.preventDefault();
+        open(false);
+        say('Type a title, two letters or more.');
+        input.focus();
+        return;
+      }
+      const onFile = already(value);
+      if (onFile !== null) {
+        event.preventDefault();
+        open(false);
+        say(`${onFile} is already on your list.`);
+        input.focus();
+      }
+    });
+
     input.addEventListener('input', () => {
       dismissed = false;
+      say(null);
       narrow();
     });
     input.addEventListener('focus', () => {
@@ -384,6 +431,22 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
   }
   .cr-add-stretch .cr-add {
     margin-top: 12px;
+  }
+  /* The add's answer, under the field. Muted rather than the loss red of
+     .cr-alert: a title already watched is the list working, not a refusal.
+     It never shows at the same time as the panel, which is closed when this
+     is said, so the panel keeps its flush join to the field. */
+  .cr-add-note {
+    margin: 8px 0 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--color-muted);
+  }
+  /* The rule above deliberately sets no display, so the hidden attribute works
+     on its own. This line is the guard for the next edit: the moment a display
+     lands above, hidden loses to it silently. */
+  .cr-add-note[hidden] {
+    display: none;
   }
   /* The whole list is here, so the panel is a scroller: about six rows tall,
      which is enough to read as a list with more below without pushing the
