@@ -92,6 +92,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { withBase } from '../../site.config.mjs';
 import Panel from '../components/Panel.astro';
 import ImportBand from '../components/profile/ImportBand.astro';
+import { isPaidViewer } from '../lib/ledger-access';
 import RecordView from '../components/profile/RecordView.astro';
 import { KIND_LABELS, CLASSIFICATION_LABELS, MONTH_NAMES, issueMessage } from '../components/profile/entry-presentation';
 import {
@@ -121,6 +122,10 @@ const verdict = Astro.locals.verdict;
 const allowed = verdict?.allow === true;
 const reason = verdict?.reason ?? 'signed-out';
 const viewer = Astro.locals.viewer;
+/* Reading a resume runs on the member's own key and fills the Profile Record,
+   and the tiers matrix marks both paid-only, so the import band is offered to
+   a paid reader alone. */
+const paidViewer = isPaidViewer(viewer);
 
 // A finished read that has not landed in the record yet lands here, before the
 // name, entries and links below are read, so the rows it creates are the rows
@@ -364,11 +369,20 @@ const linkAction = routeFor('profile-link');
             </header>
 
             {/* ---------------------------------------------------------------
-                The import band. One state at a time. Its review state lives in
-                the slot below the band rather than inside it, because the
-                script replaces that slot's contents wholesale with freshly
-                rendered HTML from this same page.
+                The import band, paid only (owner, 2026-09-21). Reading a
+                resume runs on the member's own key, and both the key and the
+                record it fills are paid: the tiers matrix marks "Bring your
+                own key" and "The Profile Record" N, N, Y. Offering the band to
+                a member who is not paying was offering a way into a feature
+                they do not have.
+
+                One state at a time. Its review state lives in the slot below
+                the band rather than inside it, because the script replaces
+                that slot's contents wholesale with freshly rendered HTML from
+                this same page.
                 --------------------------------------------------------------- */}
+            {paidViewer && (
+              <>
             <ImportBand
               state={bandState}
               receipt={receipt}
@@ -388,6 +402,8 @@ const linkAction = routeFor('profile-link');
                 reloads the page and the new rows appear in the record below
                 with a receipt in the band above. */}
             <div data-import-review-slot data-status-url={importStatusAction}></div>
+              </>
+            )}
 
             <div class="profile-two-up">
               <Panel title="Identity" class="profile-panel">
