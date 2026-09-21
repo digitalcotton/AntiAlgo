@@ -163,3 +163,44 @@ describe('drafting is paid', () => {
     expect(requiredTierFor('/desk/drafting-status')).toBe('member');
   });
 });
+
+describe('the Profile Record is paid', () => {
+  // The page stays member: the identity half belongs to every account. Every
+  // route that reads or writes the record half asks for the tier.
+  const RECORD_ROUTES = [
+    '/profile/entry',
+    '/profile/link',
+    '/profile/artifact',
+    '/profile/import',
+    '/profile/import/parse',
+    '/profile/import/cover',
+    '/profile/import/status',
+    '/profile/review'
+  ];
+
+  it('asks paid on every route that touches the record', () => {
+    for (const route of RECORD_ROUTES) expect(requiredTierFor(route)).toBe('paid');
+  });
+
+  it('refuses a verified member on every one of them', () => {
+    for (const route of RECORD_ROUTES) {
+      expect(decide(route, viewer('member'))).toEqual({
+        allow: false,
+        required: 'paid',
+        reason: 'insufficient-tier'
+      });
+    }
+  });
+
+  it('allows paid and internal on every one of them', () => {
+    for (const route of RECORD_ROUTES) {
+      expect(decide(route, viewer('paid')).allow).toBe(true);
+      expect(decide(route, viewer('internal')).allow).toBe(true);
+    }
+  });
+
+  it('leaves the profile page itself at member, so identity still opens', () => {
+    expect(requiredTierFor('/profile')).toBe('member');
+    expect(decide('/profile', viewer('member')).allow).toBe(true);
+  });
+});

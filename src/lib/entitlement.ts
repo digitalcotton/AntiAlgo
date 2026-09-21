@@ -117,7 +117,21 @@ export const ROUTE_POLICY: Record<string, Tier> = {
   '/settings': 'member',
   // Your own profile: identity header and the Profile Record, editable in
   // place. Private-only: unlike /desk and /prelist, no signed-out shop window.
+  // The page stays member because the identity half is every account's; the
+  // Record half is paid and walls itself below.
   '/profile': 'member',
+  // The Profile Record is paid (the tiers matrix marks it, and "Bring your own
+  // key", N, N, Y), so everything that reads or writes a record entry, a link,
+  // an artifact, an import or the review screen asks for the tier. Longest
+  // prefix wins over '/profile' above, and '/profile/import' covers parse,
+  // cover and status by segment. Nothing calls these server to server (the
+  // resume read runs in process, unlike the draft render's HTTP callback), so
+  // no path here needs a middleware exemption.
+  '/profile/entry': 'paid',
+  '/profile/link': 'paid',
+  '/profile/artifact': 'paid',
+  '/profile/import': 'paid',
+  '/profile/review': 'paid',
   // One outbound draft as a gated shop window: the company and opening line
   // are public, the rest sits behind this gate.
   '/drafts': 'member',

@@ -359,10 +359,15 @@ const linkAction = routeFor('profile-link');
                 </p>
               </div>
               <div class="profile-header-stats">
-                <span class="profile-stat">
-                  <strong>{entries.length}</strong> {entries.length === 1 ? 'entry' : 'entries'},{' '}
-                  <strong>{links.length}</strong> {links.length === 1 ? 'link' : 'links'}
-                </span>
+                {/* The counts describe the record and the links, so they are
+                    paid too; the privacy line is true of the identity half and
+                    stays for everyone. */}
+                {paidViewer && (
+                  <span class="profile-stat">
+                    <strong>{entries.length}</strong> {entries.length === 1 ? 'entry' : 'entries'},{' '}
+                    <strong>{links.length}</strong> {links.length === 1 ? 'link' : 'links'}
+                  </span>
+                )}
                 <span class="profile-stat-private">Private, only you can see it</span>
               </div>
             </header>
@@ -415,6 +420,7 @@ const linkAction = routeFor('profile-link');
                 </div>
               </Panel>
 
+              {paidViewer && (
               <Panel title="Links" class="profile-panel">
                 <span slot="aside" class="panel-aside">Top of every resumé and cover letter you draft</span>
                 <div id="links" class="links-anchor" />
@@ -460,12 +466,19 @@ const linkAction = routeFor('profile-link');
                   <button class="field-submit-quiet" type="submit">Add</button>
                 </form>
               </Panel>
+              )}
             </div>
 
             {/* ---------------------------------------------------------------
-                The record. One band, one row per entry, everything else behind
-                a disclosure.
+                The record, paid only (owner, 2026-09-21). The tiers matrix
+                marks the Profile Record N, N, Y, and with the import band
+                already paid a member could not fill one anyway: what was left
+                was an empty record with no way in.
+
+                One band, one row per entry, everything else behind a
+                disclosure.
                 --------------------------------------------------------------- */}
+            {paidViewer && (
             <section class="record-section" aria-label="Record">
               <div class="record-band">
                 <span class="mono-label record-band-title">
@@ -686,6 +699,7 @@ const linkAction = routeFor('profile-link');
                 artifactActionPath={artifactActionPath}
               />
             </section>
+            )}
 
             <p class="profile-visibility-note">
               This profile is private. Public profiles are not live yet, for anyone. What you build is real and
