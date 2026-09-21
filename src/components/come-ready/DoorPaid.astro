@@ -1,9 +1,9 @@
 ---
 /**
  * The door of the paid flow: your first draft. Not a step. One live role
- * under a core title, the Desk's own fit-ranked first row within its 14-day
- * window, with the Draft button posting to the same endpoint the Desk's
- * cards post to. With no such role, the Desk's own words and the board's
+ * under a core title, the freshest the Desk surfaces and then the best fit,
+ * with the Draft button posting to the same endpoint the Desk's cards post
+ * to. With no such role, the Desk's own words and the board's
  * title menu as the other way in. Never an invented role.
  */
 import StepCard from './StepCard.astro';
@@ -20,7 +20,26 @@ interface Props {
   open: boolean;
 }
 const { home, coreTitles, open } = Astro.props;
-const role = home?.core[0] ?? null;
+
+/** The Desk's own words for this age: "inside the first 48 hours". */
+const FRESH_DAYS = 2;
+/**
+ * The freshest role wins, then the best fit.
+ *
+ * The lane arrives fit-ranked inside the Desk's 14 day window, so its first
+ * row could be ten days old while something posted last night sits below it.
+ * A first draft is worth more on a posting nobody has answered yet, so a
+ * role inside the first 48 hours is taken first and the fit ranking breaks
+ * the tie among those. With none that fresh, the lane's own first row
+ * stands.
+ *
+ * This chooses among the six roles the Desk surfaces, not the whole lane:
+ * that slice is what the page is given (desk-home.ts DESK_SHOW), and a
+ * seventh role is one the Desk itself does not show either.
+ */
+const lane = home?.core ?? [];
+const fresh = lane.filter((r) => r.ageDays !== null && r.ageDays >= 0 && r.ageDays <= FRESH_DAYS);
+const role = fresh[0] ?? lane[0] ?? null;
 const draftAction = routeFor('desk-job-draft');
 const boardHref = routeFor('board');
 const allLive = home?.sweep.verifiedLive ?? null;
