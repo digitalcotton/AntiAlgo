@@ -68,7 +68,7 @@ const roleSub = role ? [role.company, role.remote ? 'Remote' : role.location].fi
       </div>
       <form method="POST" action={draftAction}>
         <input type="hidden" name="slug" value={role.slug ?? ''} />
-        <button type="submit" class="cr-btn" disabled={!role.slug || !open}>Draft</button>
+        <button type="submit" class="cr-link cr-door-go" disabled={!role.slug || !open}>Draft this role</button>
       </form>
     </div>
   ) : (
@@ -136,7 +136,12 @@ const roleSub = role ? [role.company, role.remote ? 'Remote' : role.location].fi
   .cr-door-fit {
     color: var(--color-mark-live);
   }
-  .cr-btn[disabled] {
+  /* The door is a fork, not a funnel: both ways on carry the same weight,
+     so neither takes the filled button. */
+  .cr-door-go {
+    white-space: nowrap;
+  }
+  .cr-door-go[disabled] {
     opacity: 0.5;
     cursor: not-allowed;
   }
