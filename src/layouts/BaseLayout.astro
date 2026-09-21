@@ -3,6 +3,26 @@ import '../styles/global.css';
 import SiteHeader from '../components/SiteHeader.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import { SITE } from '../data/site';
+import { publicAsset } from '../data/nav';
+
+/** The Latin woff2 subsets in public/fonts, by a short key. A page names the
+    faces it paints above the fold so they preload with the HTML rather than
+    waiting on a stylesheet to be parsed first. */
+type FontKey =
+  | 'n27-regular'
+  | 'n27-medium'
+  | 'n27-bold'
+  | 'mono-regular'
+  | 'mono-medium'
+  | 'mono-semibold';
+const FONT_FILES: Record<FontKey, string> = {
+  'n27-regular': 'n27-regular-latin.woff2',
+  'n27-medium': 'n27-medium-latin.woff2',
+  'n27-bold': 'n27-bold-latin.woff2',
+  'mono-regular': 'basiersquaremono-regular-latin.woff2',
+  'mono-medium': 'basiersquaremono-medium-latin.woff2',
+  'mono-semibold': 'basiersquaremono-semibold-latin.woff2'
+};
 
 /**
  * The shell every route renders inside: the pre-paint theme resolution, the
@@ -29,6 +49,10 @@ interface Props {
   image?: string;
   ogType?: string;
   noindex?: boolean;
+  /** The faces to preload for this route, above the fold. Defaults to the two
+      N27 faces every route paints; a page with more (the board's mono labels
+      and medium body) names them so they do not wait on a stylesheet. */
+  fonts?: FontKey[];
 }
 
 const {
@@ -37,7 +61,8 @@ const {
   active,
   image = SITE.ogImage,
   ogType = 'website',
-  noindex = false
+  noindex = false,
+  fonts = ['n27-regular', 'n27-bold']
 } = Astro.props;
 void active; // see the Props comment above: accepted, not yet consumed.
 
@@ -126,9 +151,13 @@ const robots = noindex ? 'noindex, follow' : 'index, follow, max-image-preview:l
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
 
-    <!-- Only the two faces above the fold on every route are preloaded. -->
-    <link rel="preload" as="font" type="font/woff2" crossorigin href="/fonts/n27-regular-latin.woff2" />
-    <link rel="preload" as="font" type="font/woff2" crossorigin href="/fonts/n27-bold-latin.woff2" />
+    {/* The faces this route paints above the fold, preloaded so they start
+        with the HTML instead of after a stylesheet is parsed. The default is
+        the two N27 faces every route uses; the board adds its mono labels and
+        medium body. publicAsset() writes the same paths in dev and build. */}
+    {fonts.map((key) => (
+      <link rel="preload" as="font" type="font/woff2" crossorigin href={publicAsset(`/fonts/${FONT_FILES[key]}`)} />
+    ))}
 
     <style is:global>
       /* Custom properties do not resolve inside @font-face, so the numeric

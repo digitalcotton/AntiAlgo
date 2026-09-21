@@ -45,8 +45,8 @@
    is not uniform: it rewrites a public-absolute url() inside a stylesheet it
    bundles, and it does NOT rewrite an href a person typed into markup. So the
    six lines below stay base-free and come out of the build as
-   url(/jobs/fonts/...), while the two <link rel="preload"> tags in
-   BaseLayout.astro have to call publicAsset() to get the same prefix. Writing
+   url(/jobs/fonts/...), while the <link rel="preload"> tags in
+   BaseLayout.astro call publicAsset() to get the same prefix. Writing
    /jobs in here by hand double-prefixes it, and vite says so: six warnings
    reading "didn't resolve at build time" is what that mistake sounds like.
    --------------------------------------------------------------------------- */
