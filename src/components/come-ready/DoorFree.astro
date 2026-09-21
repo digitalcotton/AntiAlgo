@@ -132,5 +132,24 @@ const PAID_OPENS = [
     color: var(--color-muted);
     border: var(--border-hairline) solid var(--color-line-strong);
     cursor: not-allowed;
+    /* WebKit dims a disabled control on its own, on top of the colour set
+       here, which took the label under the contrast floor on ink. These two
+       lines hold the colour that was asked for: muted on the raised surface
+       is 7.6:1 on ink and 5.5:1 on paper, so the label stays readable while
+       still reading as unavailable. */
+    opacity: 1;
+    -webkit-text-fill-color: var(--color-muted);
+  }
+  /* A control that cannot be pressed does not answer a pointer. Without this
+     the shared .cr-btn:hover rule reaches it and repaints the label: that rule
+     sets the fixed dark ink the orange button needs, which is not defined in
+     this scope, so the colour fell back to inherit and the label changed on
+     hover for no reason and with no promise behind it. */
+  .cr-btn-shut:hover,
+  .cr-btn-shut:focus-visible {
+    background: var(--color-surface-raised);
+    color: var(--color-muted);
+    -webkit-text-fill-color: var(--color-muted);
+    filter: none;
   }
 </style>
