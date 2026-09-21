@@ -93,8 +93,6 @@ import { withBase } from '../../site.config.mjs';
 import Panel from '../components/Panel.astro';
 import ImportBand from '../components/profile/ImportBand.astro';
 import RecordView from '../components/profile/RecordView.astro';
-import OnboardingChecklist from '../components/profile/OnboardingChecklist.astro';
-import { buildOnboarding } from '../lib/onboarding';
 import { KIND_LABELS, CLASSIFICATION_LABELS, MONTH_NAMES, issueMessage } from '../components/profile/entry-presentation';
 import {
   RELAY_COOKIE,
@@ -107,7 +105,6 @@ import { routeFor } from '../data/nav';
 import { MEMBER_NAV } from '../data/member-nav';
 import { CEILINGS, CLASSIFICATIONS, ENTRY_KINDS } from '../lib/record';
 import { getCoverLetter, listEntries, listLinks, personName } from '../lib/record-store';
-import { listApplications } from '../lib/desk-store';
 import { linkPlatformLabel } from '../lib/profile-links';
 import PlatformIcon from '../components/profile/PlatformIcon.astro';
 import { getParse } from '../lib/resume-parse-store';
@@ -336,27 +333,6 @@ const coverLetterOnFile = coverLetterRecord
   : null;
 const linkAction = routeFor('profile-link');
 
-/**
- * The guided first run, behind the `onboarding` flag. Every step reads state
- * this page already computed, so the flag adds one component and one small
- * cross-check query (applications), never a second data path. The applications
- * read is skipped entirely when the flag is off. Verification is shown already
- * done because /profile's record only renders to a verified reader (an
- * unverified one gets the resend branch below), so reaching here means it is.
- *
- * The checklist stops rendering once the required steps (history and a first
- * application) are done; the optional key step never blocks completion, so a
- * reader who drafts with the deterministic fallback is not nagged forever.
- */
-const onboarding = isOn('onboarding');
-const applications = onboarding && allowed && viewer ? await listApplications(viewer.userId) : [];
-// The steps, order and completion rules live in one place (src/lib/onboarding.ts)
-// so /profile and /desk render the same checklist. This page already has the
-// three counts, so it hands them in rather than re-querying.
-const { steps: onboardingSteps, complete: onboardingComplete } = onboarding
-  ? buildOnboarding({ keys: keyRows.length, entries: entries.length, applications: applications.length })
-  : { steps: [], complete: true };
-const showOnboarding = onboarding && !onboardingComplete;
 ---
 
 <BaseLayout
@@ -386,15 +362,6 @@ const showOnboarding = onboarding && !onboardingComplete;
                 <span class="profile-stat-private">Private, only you can see it</span>
               </div>
             </header>
-
-            {/* The guided first run, behind the `onboarding` flag, above the
-                import band it points at. Gone the moment the required steps are
-                done (see showOnboarding), so a settled account never sees it. */}
-            {showOnboarding && <OnboardingChecklist steps={onboardingSteps} />}
-
-            {/* The anchor the checklist's "add your work history" step scrolls
-                to: the import band is the fastest way to fill the record. */}
-            <span id="get-started" class="anchor-target"></span>
 
             {/* ---------------------------------------------------------------
                 The import band. One state at a time. Its review state lives in
