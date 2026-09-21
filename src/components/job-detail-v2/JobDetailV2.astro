@@ -494,9 +494,10 @@ const saveNote = applyTrack
   .jd-actions-row { border-top: var(--border-hairline) solid var(--color-line); margin-top: 8px; padding-top: 18px; display: flex; gap: 26px; flex-wrap: wrap; }
   .jd-save-form { margin: 0; }
   /* The unpaid state: Apply is the primary and owns its own line, Save sits
-     under it rather than beside it. flex-start keeps Save at its text width;
-     the apply form is stretched so the button inside fills the measure. */
-  .jd-actions-stacked { flex-direction: column; align-items: flex-start; gap: 16px; }
+     centred under it rather than beside it. Centring is the cross-axis rule,
+     so Save lands on the button's own centre line while the apply form keeps
+     the explicit full width below that fills the measure. */
+  .jd-actions-stacked { flex-direction: column; align-items: center; gap: 16px; }
   .jd-actions-stacked .jd-apply-form { width: 100%; margin: 0; }
   .jd-link { display: inline-block; background: none; border: none; border-radius: 0; margin: 0; padding: 0 0 5px; font-family: var(--font-family-sans); font-size: 17px; line-height: 1.2; text-decoration: none; cursor: pointer; white-space: nowrap; }
   .jd-link-apply { color: var(--color-foreground); font-weight: var(--weight-semibold, 600); border-bottom: var(--border-hairline) solid var(--color-foreground); }
