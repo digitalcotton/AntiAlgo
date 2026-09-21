@@ -87,6 +87,7 @@ import { withBase } from '../../../site.config.mjs';
 import { POSTING_NOTICES, addedApplicationId, addedPostingToJob, hostnameOf, isAddedSlug } from '../../lib/added-posting';
 import { fetchDisplayState, getPostingFetchByApplication, type StoredPostingFetch } from '../../lib/posting-fetch-store';
 import { getApplication, type StoredApplication } from '../../lib/desk-store';
+import { isPaidViewer } from '../../lib/ledger-access';
 
 const slug = decodeURIComponent(Astro.params.slug ?? '');
 const viewer = Astro.locals.viewer;
@@ -216,6 +217,9 @@ const signedIn = Boolean(viewer && viewer.emailVerified);
 const hasKey = Boolean(
   signedIn && viewer && keyStorageIsConfigured() && isOn('byok') && (await keyMeta(viewer.userId)).length > 0
 );
+// Drafting is paid, so JobDetailV2 offers its action rail only to a paid
+// reader (or a signed-out one, whose button is the sign-in funnel).
+const paid = isPaidViewer(viewer);
 // The fit score is a signed-in reading unless fit_public is lit, the same
 // rule the board applies to its Fit column (see flags.config.mjs).
 const showFit = signedIn || isOn('fit_public');
@@ -517,6 +521,7 @@ const applyTrack = showTrack && job?.apply_url ? { action: deskApplicationPath, 
               signedIn={signedIn}
               selfPath={selfPath}
               hasKey={hasKey}
+              paid={paid}
               applyTrack={applyTrack}
             />
           )

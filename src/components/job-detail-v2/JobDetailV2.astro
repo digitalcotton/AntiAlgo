@@ -51,12 +51,17 @@ interface Props {
   /** Where a draft/apply action returns to (this posting's own path). */
   selfPath: string;
   hasKey?: boolean;
+  /** Drafting is a paid feature, so a signed-in reader who is not paid is not
+      offered it. Defaults to false so a caller that forgets to pass it hides
+      the action rather than leaking it. A signed-out reader is a separate
+      case and keeps the sign-in funnel below. */
+  paid?: boolean;
   /** When set, the Apply button posts the outbound click so it lands on the
       reader's Desk (the board_actions track control), instead of a plain link.
       Null for the static /role page and signed-out readers. */
   applyTrack?: { action: string; title: string; company: string } | null;
 }
-const { job, signedIn, selfPath, hasKey = false, applyTrack = null } = Astro.props;
+const { job, signedIn, selfPath, hasKey = false, paid = false, applyTrack = null } = Astro.props;
 
 const isClosed = job.status === 'closed';
 const ats = sourceLabel(job);
@@ -260,7 +265,11 @@ const saveNote = applyTrack
          its anchor. The textarea exists only with the real draft form; a
          signed-out reader or one without a key keeps the link button. -->
     <div class="jd-actions" id="jd-actions">
-      {!isClosed && (
+      {/* Drafting is paid (owner, 2026-09-20), so a signed-in member who is
+          not paid is offered no part of this block. A signed-out reader still
+          gets the button and its sign-in link: this page is public and that
+          is the funnel, not a feature being given away. */}
+      {!isClosed && (!signedIn || paid) && (
         <>
           {signedIn && hasKey ? (
             <form class="jd-draft-form" method="POST" action={draftAction}>
