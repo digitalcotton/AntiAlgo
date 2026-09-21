@@ -27,6 +27,10 @@ const coverAction = routeFor('profile-import-cover');
 const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const linkAction = routeFor('profile-link');
 const statusUrl = routeFor('profile-import-status');
+/** Where the last step's primary goes (owner, 2026-09-20): the Desk, not the
+    door. The run's last act puts the reader in the application rather than on
+    one more page of this flow. */
+const deskHref = routeFor('desk');
 ---
 
 <StepCard n={6} title="Add your cover letter and links" time="Optional, 1 min">
@@ -92,7 +96,7 @@ const statusUrl = routeFor('profile-import-status');
   </div>
 
   <div class="cr-actions cr-next">
-    <a class="cr-btn" href={withBase(doorPath)}>Done. Show my first draft</a>
+    <a class="cr-btn" href={deskHref}>Done. Open the Desk</a>
   </div>
 </StepCard>
 
