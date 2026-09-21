@@ -1,5 +1,5 @@
 ---
-import '../styles/global.css';
+import globalCss from '../styles/global.css?inline';
 import SiteHeader from '../components/SiteHeader.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import { SITE } from '../data/site';
@@ -23,6 +23,27 @@ const FONT_FILES: Record<FontKey, string> = {
   'mono-medium': 'basiersquaremono-medium-latin.woff2',
   'mono-semibold': 'basiersquaremono-semibold-latin.woff2'
 };
+
+/** The six @font-face rules, built here so they can be emitted inline in the
+    head (is:inline, below) rather than extracted into a linked stylesheet the
+    browser reaches only after a round trip. Same families, weights, range and
+    swap as before; publicAsset() writes the same src path in dev and build,
+    which a plain .css file cannot do (see global.css's note). Custom
+    properties do not resolve inside @font-face, so the weights are literal. */
+const FONT_FACES: { family: string; weight: string; key: FontKey }[] = [
+  { family: 'N27', weight: '400', key: 'n27-regular' },
+  { family: 'N27', weight: '500', key: 'n27-medium' },
+  { family: 'N27', weight: '600 700', key: 'n27-bold' },
+  { family: 'Basier Square Mono', weight: '400', key: 'mono-regular' },
+  { family: 'Basier Square Mono', weight: '500', key: 'mono-medium' },
+  { family: 'Basier Square Mono', weight: '600', key: 'mono-semibold' }
+];
+const fontFaceCss = FONT_FACES.map(
+  (f) =>
+    `@font-face{font-family:'${f.family}';font-style:normal;font-weight:${f.weight};font-display:swap;src:url('${publicAsset(
+      `/fonts/${FONT_FILES[f.key]}`
+    )}') format('woff2');}`
+).join('');
 
 /**
  * The shell every route renders inside: the pre-paint theme resolution, the
@@ -159,17 +180,16 @@ const robots = noindex ? 'noindex, follow' : 'index, follow, max-image-preview:l
       <link rel="preload" as="font" type="font/woff2" crossorigin href={publicAsset(`/fonts/${FONT_FILES[key]}`)} />
     ))}
 
-    <style is:global>
-      /* Custom properties do not resolve inside @font-face, so the numeric
-         weights here are literal by necessity. The six files are the index's
-         own Latin subsets. */
-      @font-face { font-family: 'N27'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/n27-regular-latin.woff2') format('woff2'); }
-      @font-face { font-family: 'N27'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/n27-medium-latin.woff2') format('woff2'); }
-      @font-face { font-family: 'N27'; font-style: normal; font-weight: 600 700; font-display: swap; src: url('/fonts/n27-bold-latin.woff2') format('woff2'); }
-      @font-face { font-family: 'Basier Square Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/basiersquaremono-regular-latin.woff2') format('woff2'); }
-      @font-face { font-family: 'Basier Square Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/basiersquaremono-medium-latin.woff2') format('woff2'); }
-      @font-face { font-family: 'Basier Square Mono'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/basiersquaremono-semibold-latin.woff2') format('woff2'); }
-    </style>
+    {/* The faces inline in the head, before every stylesheet link, so the
+        browser knows them from the first bytes. is:inline keeps Astro from
+        extracting this into a bundled sheet reached only after a round trip. */}
+    <style is:inline set:html={fontFaceCss}></style>
+    {/* The critical sheet (tokens, themes, global) inline right after, so the
+        link colour, surface, body font and both theme token sets are known
+        from the first HTML bytes and an early paint is styled, never the
+        browser's blue-link default. ?inline resolves the two @imports and
+        minifies in build; the component sheets stay linked and cached. */}
+    <style is:inline set:html={globalCss}></style>
   </head>
 
   <body>
