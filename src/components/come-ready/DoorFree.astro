@@ -1,12 +1,17 @@
 ---
 /**
  * The door of the free flow: what the paid account opens. Not a step, a
- * choice. The checkout form renders only while the stripe flag is on, the
- * same rule /the-account applies; otherwise the same honest line it prints.
+ * choice, and the one place the free run asks for the upgrade.
+ *
+ * THE BUTTON IS ALWAYS THE BUTTON (owner, 2026-09-20). It posts to checkout
+ * while the stripe flag is on. While the flag is off there is nothing that can
+ * take a card (billing/checkout is 404 behind the flag, see FLAGGED_ROUTES),
+ * so the same button renders disabled with the reason under it rather than
+ * linking somewhere that answers 404 or pretending a press did something. The
+ * day the flag flips it is live with no other change here.
  */
 import StepCard from './StepCard.astro';
 import RingMark from './RingMark.astro';
-import { routeFor } from '../../data/nav';
 import { withBase } from '../../../site.config.mjs';
 
 interface Props {
@@ -14,7 +19,6 @@ interface Props {
 }
 const { billingOpen } = Astro.props;
 const checkoutAction = withBase('/billing/checkout');
-const stayHref = routeFor('profile');
 
 const PAID_OPENS = [
   { name: 'The Desk', def: 'the sweep narrowed to your titles, new and died nightly' },
@@ -43,19 +47,22 @@ const PAID_OPENS = [
     ))}
   </div>
   <p class="cr-note cr-note-gap cr-note-wide">Your titles and the job you added come with you. Your AI runs on your key, so we never pay for it and never charge for it.</p>
-  {billingOpen ? (
-    <div class="cr-actions cr-next">
+  <div class="cr-next">
+    {billingOpen ? (
       <form method="POST" action={checkoutAction}>
         <button type="submit" class="cr-btn">Open the paid account, $7.25 a month</button>
       </form>
-      <span class="cr-note">Card details are entered on Stripe's page, never here.</span>
-    </div>
-  ) : (
-    <div class="cr-actions cr-next">
-      <span class="cr-note">Billing is not open yet. The paid column opens the day billing does. Card details will be entered on Stripe's page, never here.</span>
-    </div>
-  )}
-  <a class="cr-link-quiet cr-stay" href={stayHref}>Stay on the free account</a>
+    ) : (
+      <button type="button" class="cr-btn cr-btn-shut" disabled aria-describedby="cr-billing-note">
+        Open the paid account, $7.25 a month
+      </button>
+    )}
+    <p class="cr-note cr-note-wide" id="cr-billing-note">
+      {billingOpen
+        ? "Card details are entered on Stripe's page, never here."
+        : "Billing is not open yet, so this cannot be pressed. The price does not move when it opens, and card details will be entered on Stripe's page, never here."}
+    </p>
+  </div>
 </StepCard>
 
 <style>
@@ -112,9 +119,18 @@ const PAID_OPENS = [
   }
   .cr-next {
     margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
-  .cr-stay {
-    display: inline-block;
-    margin-top: 14px;
+  /* Billing is shut: the button keeps its shape and place so the reader can
+     see exactly what will open, and gives up the signal fill so it cannot be
+     mistaken for something that will answer a press. */
+  .cr-btn-shut {
+    background: var(--color-surface-raised);
+    color: var(--color-muted);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    cursor: not-allowed;
   }
 </style>
