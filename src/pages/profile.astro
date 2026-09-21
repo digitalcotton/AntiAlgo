@@ -103,7 +103,6 @@ import {
   parseRelay
 } from '../components/profile/record-relay';
 import { routeFor } from '../data/nav';
-import { MEMBER_NAV } from '../data/member-nav';
 import { CEILINGS, CLASSIFICATIONS, ENTRY_KINDS } from '../lib/record';
 import { getCoverLetter, listEntries, listLinks, personName } from '../lib/record-store';
 import { linkPlatformLabel } from '../lib/profile-links';
@@ -693,19 +692,6 @@ const linkAction = routeFor('profile-link');
               saved. Who can ever see it is a later decision, not this one.
             </p>
 
-            <nav class="profile-surfaces" aria-label="Your surfaces">
-              <ul class="profile-surfaces-list">
-                {MEMBER_NAV.map((item) => (
-                  <li>
-                    {item.built ? (
-                      <a class="profile-surfaces-link" href={item.href}>{item.label}</a>
-                    ) : (
-                      <span class="profile-surfaces-text">{item.label}</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </nav>
           </>
         ) : (
           <>
@@ -1353,32 +1339,6 @@ const linkAction = routeFor('profile-link');
     font-family: var(--font-family-mono);
     font-size: var(--size-075);
     line-height: var(--leading-normal);
-    color: var(--color-muted);
-  }
-  .profile-surfaces {
-    padding-top: var(--space-400);
-    border-top: var(--border-hairline) solid var(--color-line);
-  }
-  .profile-surfaces-list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-400);
-  }
-  .profile-surfaces-link {
-    font-family: var(--font-family-sans);
-    font-weight: var(--weight-medium);
-    font-size: var(--size-100);
-    color: var(--color-foreground);
-    border-bottom: 1px solid var(--color-foreground);
-    padding-bottom: 2px;
-  }
-  .profile-surfaces-text {
-    font-family: var(--font-family-sans);
-    font-weight: var(--weight-medium);
-    font-size: var(--size-100);
     color: var(--color-muted);
   }
 
