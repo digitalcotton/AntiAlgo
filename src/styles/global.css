@@ -91,6 +91,19 @@ html {
 /* The body role, measured off the mothership: 17px N27 Regular on 1.7 leading.
    Everything that is prose inherits this and states nothing. */
 body {
+  /* The column the footer has always assumed. SiteFooter carries
+     `margin-top: auto`, which does nothing in a block body, so on a page
+     shorter than the window the footer landed wherever the content ended and
+     the body's own background ran on beneath it: at a 1600 tall window that
+     was 559px of empty surface under a 68px footer, and since the footer draws
+     no background of its own, the whole of it read as footer. With the column
+     and a full-window floor, the auto margin takes up the slack and the footer
+     sits on the bottom edge. A page taller than the window has no slack to
+     take, so nothing about it moves. Safe to set here because no child of body
+     carries a vertical margin, so there is no collapsing to lose. */
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
   background: var(--color-surface);
   color: var(--color-foreground);
   font-family: var(--font-family-sans);
