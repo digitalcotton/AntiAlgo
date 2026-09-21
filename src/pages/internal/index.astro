@@ -89,6 +89,22 @@ const TIERS = ['waitlisted', 'member', 'paid'] as const;
       </form>
     </section>
 
+    <section class="block" aria-labelledby="reset-h">
+      <h2 id="reset-h">Reset an account's first run</h2>
+      <p class="muted">
+        Puts one account back at the start of Come ready: titles, filters, keys, record entries, links,
+        the cover letter, any read in flight, drafts, added postings and applications. The account, its
+        tier and its sign-in are untouched. An internal account is never reset here.
+      </p>
+      <form class="tier-form" method="POST" action={routeFor('internal-reset-onboarding')}>
+        <label class="field">
+          <span class="field-label">Email address</span>
+          <input class="field-input" type="email" name="email" required autocomplete="off" placeholder="you@wherever.com" />
+        </label>
+        <button class="cta" type="submit">Reset the first run</button>
+      </form>
+    </section>
+
     <section class="block" aria-labelledby="accounts-h">
       <h2 id="accounts-h">Accounts</h2>
       {listFailed ? (

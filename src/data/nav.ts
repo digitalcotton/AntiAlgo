@@ -50,6 +50,7 @@ export const ROUTES = [
   { key: 'account', pattern: '/account', kind: 'static', note: 'The signed-in account page, member tier and above.', sitemap: false },
   { key: 'internal', pattern: '/internal', kind: 'static', note: 'Exists so the internal gate is reachable and its denial is provable. Carries the owner control that sets an account tier.', sitemap: false },
   { key: 'internal-tier', pattern: '/internal/tier', kind: 'asset', note: "POST. Sets one account's tier by email. Internal only; an internal account is never changed.", sitemap: false },
+  { key: 'internal-reset-onboarding', pattern: '/internal/reset-onboarding', kind: 'asset', note: 'POST. Clears one account back to the start of Come ready, keeping the account and its tier. Internal only; an internal account is never reset.', sitemap: false },
 
   // --- The board and its surfaces, copied in from the Index ---
   { key: 'board', pattern: '/board', kind: 'static', note: "The board: every tracked and posted role, verified last night, the site's main listing surface.", sitemap: true },
