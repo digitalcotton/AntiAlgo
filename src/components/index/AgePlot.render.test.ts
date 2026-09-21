@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 
 import AgePlot from './AgePlot.astro';
-import { ageHistogramFromJobs, type Job } from '../../lib/data';
+import { ageHistogramFromJobs, agePosition, AGE_TICK_SLOTS, type Job } from '../../lib/data';
 
 /**
  * The age strip says "N roles" and calls itself "Age of every verified role".
@@ -82,7 +82,7 @@ describe('AgePlot at the size the everything board brings', () => {
     const jobs = Array.from({ length: 13_315 }, (_, i) => job(i, (i % 400) + 1));
     const ticks = countTicks(await render(jobs));
     expect(ticks).toBeGreaterThan(50);
-    expect(ticks).toBeLessThan(4_000);
+    expect(ticks).toBeLessThan(2 * (AGE_TICK_SLOTS + 1));
   });
 
   it('a tick standing for many rows says so instead of naming one of them', async () => {
@@ -104,7 +104,31 @@ describe('AgePlot at the size the everything board brings', () => {
     const html = await render(jobs);
     expect(html).toContain('data-total="6002"');
     // The oldest row must be represented; it would be dropped by an arbitrary cap.
-    expect(html).toMatch(/left: 100\.000%/);
+    expect(html).toMatch(/left: 100\.00%/);
+  });
+
+  it('never renders two ticks of the same band in the same slot', async () => {
+    const jobs = Array.from({ length: 13_315 }, (_, i) => job(i, (i % 400) + 1));
+    const html = await render(jobs);
+    const axisMaxMatch = html.match(/data-axis-max="(\d+)"/);
+    const axisMax = Number(axisMaxMatch?.[1]);
+    expect(Number.isNaN(axisMax)).toBe(false);
+    const step = 100 / AGE_TICK_SLOTS;
+    const seen = new Set<string>();
+    // Recompute each tick's slot from its exact age and the true axis position
+    // (not the rendered, rounded `left`), since two adjacent slots can share a
+    // displayed percentage at two decimal places without ever having shared a
+    // bucket.
+    for (const m of html.matchAll(/class="([^"]*\btick\b[^"]*)"[^>]*data-age="(\d+)"/g)) {
+      const past = m[1].includes('tick-past') ? 1 : 0;
+      const days = Number(m[2]);
+      const at = agePosition(days, axisMax);
+      const slot = Math.floor(at / step);
+      const key = `${past}:${slot}`;
+      expect(seen.has(key)).toBe(false);
+      seen.add(key);
+    }
+    expect(seen.size).toBeGreaterThan(0);
   });
 
   it('every tick declares how many rows stand behind it, and they sum to the total', async () => {

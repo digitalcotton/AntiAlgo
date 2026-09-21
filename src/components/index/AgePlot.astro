@@ -1,5 +1,5 @@
 ---
-import { formatAgeLabel, formatDays, type AgeHistogram } from '../../lib/data';
+import { formatAgeLabel, formatDays, ageTicks, type AgeHistogram } from '../../lib/data';
 
 /**
  * Every verified row's age on one axis, and two handles that turn the axis
@@ -96,7 +96,7 @@ const marks: Mark[] = histogram.byDay.map((bucket) => ({
 }));
 
 /*
- * ONE TICK PER RENDERED POSITION, NOT PER ROW.
+ * ONE TICK PER RENDERED SLOT, NOT PER ROW.
  *
  * Every tick is an absolutely positioned span with a title, and the strip is a
  * few hundred pixels wide. At the 1,900 rows this plot was built for, ticks
@@ -105,48 +105,23 @@ const marks: Mark[] = histogram.byDay.map((bucket) => ({
  * percent, the reader sees exactly the same strip, and the page pays for every
  * one of them on every server-rendered request.
  *
- * So ticks are collapsed to the axis's real resolution (TICK_RESOLUTION of a
- * percent, finer than any display can show) within a band. What is NOT
- * collapsed is the counting: marks still holds every row, so the count line,
- * data-total, the aria-label and the kept figure are all over the whole set.
- * The strip is drawn at screen resolution; the numbers are exact.
+ * So ticks are bucketed by rendered slot: the axis is cut into AGE_TICK_SLOTS
+ * even steps, about one per 2px at the widest layout, and a slot's key also
+ * carries which band (live or past 7 days) the tick is in, so a live tick and
+ * a past tick can share a slot without merging. Within a slot the youngest
+ * (first, since byDay is ascending) mark sets the tick's position and label;
+ * what is NOT collapsed is the counting: marks still holds every row, so the
+ * count line, data-total, the aria-label and the kept figure are all over the
+ * whole set. The strip is drawn at screen resolution; the numbers are exact.
  *
  * A collapsed tick that stands for several rows says so in its tooltip rather
  * than naming one of them arbitrarily, because naming one would be the plot
- * quietly claiming something it did not measure.
+ * quietly claiming something it did not measure. Where ticks used to overlap
+ * within a band, the strip now renders at the true 65% opacity of a single
+ * tick instead of compositing several into a darker stack, so the dense
+ * stretch reads slightly lighter than before.
  */
-const TICK_RESOLUTION = 0.05;
-
-interface Tick {
-  at: number;
-  days: number;
-  past: boolean;
-  title: string;
-  rows: number;
-}
-
-const tickBuckets = new Map<string, { at: number; days: number; past: boolean; first: Mark; rows: number }>();
-for (const mark of marks) {
-  const past = mark.days > BAND_DAYS;
-  const key = `${Math.round(mark.at / TICK_RESOLUTION)}:${past ? 1 : 0}`;
-  const seen = tickBuckets.get(key);
-  if (seen) {
-    // Each mark already stands for `rows` roles at one age; a rendered tick can
-    // collapse several ages onto one position, so it sums their counts.
-    seen.rows += mark.rows;
-  } else {
-    tickBuckets.set(key, { at: mark.at, days: mark.days, past, first: mark, rows: mark.rows });
-  }
-}
-const ticks: Tick[] = [...tickBuckets.values()].map((b) => ({
-  at: b.at,
-  days: b.days,
-  past: b.past,
-  rows: b.rows,
-  title: b.rows === 1
-    ? `${b.first.company}, ${b.first.title}: ${b.first.label}`
-    : `${b.rows.toLocaleString()} roles at ${b.first.label}`
-}));
+const ticks = ageTicks(histogram, axisMax);
 
 const youngest = marks.at(0) ?? null;
 const eldest = marks.at(-1) ?? null;
@@ -212,10 +187,14 @@ const resetHref = interactive ? hrefFor(null, null) : '';
             {ticks.map((tick) => (
               <span
                 class:list={['tick', tick.past && 'tick-past', (tick.days < lo || tick.days > hi) && 'tick-out']}
-                style={`left: ${tick.at.toFixed(3)}%;`}
+                style={`left: ${tick.at.toFixed(2)}%;`}
                 data-age={tick.days}
                 data-rows={tick.rows}
-                title={tick.title}
+                title={
+                  tick.rows === 1
+                    ? `${tick.company}, ${tick.title}: ${tick.label}`
+                    : `${tick.rows.toLocaleString()} roles at ${tick.label}`
+                }
               />
             ))}
 

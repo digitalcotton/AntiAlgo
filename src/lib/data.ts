@@ -2431,6 +2431,65 @@ export function ageHistogramFromJobs(jobs: readonly Job[]): AgeHistogram {
   return { byDay, axisMax, total: byDay.reduce((sum, b) => sum + b.rows, 0) };
 }
 
+/** Slots across the axis: one per 2px tick at the widest layout (~1238px),
+    so no two ticks in a band overlap. */
+export const AGE_TICK_SLOTS = 600;
+/** Median posting life; the band boundary (mirrors AgePlot's BAND_DAYS). */
+export const AGE_BAND_DAYS = 7;
+
+/** Square-root axis position, 0..100. The plot and its ticks share this. */
+export function agePosition(days: number, axisMax: number): number {
+  return axisMax <= 0 ? 0 : (Math.sqrt(days) / Math.sqrt(axisMax)) * 100;
+}
+
+export interface AgeTick {
+  at: number;            // the first (youngest) mark's true position
+  days: number;          // the first mark's whole-day age
+  past: boolean;         // days > bandDays
+  rows: number;          // summed over the marks in this slot
+  label: string;         // formatAgeLabel of the first mark
+  company: string | null;  // set only when rows === 1
+  title: string | null;    // set only when rows === 1
+}
+
+/** Collapse the histogram to one tick per rendered slot, never overlapping.
+    Bucketed by floor(position / slotWidth) within a band, so a live and a
+    past tick may share a slot but two same-band ticks never do. First
+    (youngest) mark in a slot sets `at`/`days`/label; rows are summed; the
+    representative name is kept only when the slot holds exactly one row,
+    because naming one of several would be the plot claiming something it did
+    not measure. */
+export function ageTicks(
+  histogram: AgeHistogram,
+  axisMax: number,
+  opts: { slots?: number; bandDays?: number } = {}
+): AgeTick[] {
+  const slots = opts.slots ?? AGE_TICK_SLOTS;
+  const bandDays = opts.bandDays ?? AGE_BAND_DAYS;
+  const step = 100 / slots;
+  const buckets = new Map<string, { at: number; days: number; past: boolean; rows: number; first: AgeBucket }>();
+  for (const b of histogram.byDay) {
+    const at = agePosition(b.days, axisMax);
+    const past = b.days > bandDays;
+    const key = `${Math.floor(at / step)}:${past ? 1 : 0}`;
+    const seen = buckets.get(key);
+    if (seen) {
+      seen.rows += b.rows;
+    } else {
+      buckets.set(key, { at, days: b.days, past, rows: b.rows, first: b });
+    }
+  }
+  return [...buckets.values()].map((s) => ({
+    at: s.at,
+    days: s.days,
+    past: s.past,
+    rows: s.rows,
+    label: formatAgeLabel(s.first.repPublishedAt, s.first.days),
+    company: s.rows === 1 ? s.first.repCompany : null,
+    title: s.rows === 1 ? s.first.repTitle : null
+  }));
+}
+
 /**
  * A comp string cut at its spaces, so a narrow column can wrap it without ever
  * breaking a number in half.
