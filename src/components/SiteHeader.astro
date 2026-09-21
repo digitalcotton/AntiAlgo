@@ -277,6 +277,16 @@ const comeReadyHref = routeFor('come-ready');
       color: var(--color-foreground);
       padding: var(--space-300);
       margin: calc(var(--space-300) * -1);
+      /* Above the open overlay (z 1, below) so the close X keeps its place in
+         the header row and stays tappable while the menu covers the page. */
+      position: relative;
+      z-index: 2;
+    }
+    /* The wordmark rides above the overlay for the same reason: the logo does
+       not move or vanish when the menu opens, it shows through on top. */
+    .brand {
+      position: relative;
+      z-index: 2;
     }
     .nav-burger-x {
       display: none;
@@ -295,8 +305,16 @@ const comeReadyHref = routeFor('come-ready');
       border-radius: var(--radius);
     }
 
-    /* Collapsed: the nav is hidden until the checkbox is checked, then it drops
-       from the header's right as one column. */
+    /* Collapsed: the nav is hidden until the checkbox is checked, then it takes
+       the whole screen. It is fixed to the viewport and painted UNDER the header
+       (z 1, and the header is z 100), so the same surface colour runs seamlessly
+       from behind the logo down over the page, with no divider: the logo and the
+       close X (both z 2) show through on top and stay put. The page beneath is
+       fully covered, so there is nothing to scroll to. Selecting a link is a real
+       navigation, which lands on a fresh page with the menu closed. The top pad
+       clears the ~68px sticky header (space-400 block padding x2 + brand + rule)
+       with room to spare; the side pad matches the shell so items line up under
+       the logo. */
     .nav {
       display: none;
     }
@@ -304,17 +322,14 @@ const comeReadyHref = routeFor('come-ready');
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: var(--space-400);
-      position: absolute;
-      top: calc(100% + var(--space-400));
-      right: 0;
-      min-width: 56vw;
-      max-width: 88vw;
-      padding: var(--space-500);
+      gap: var(--space-500);
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      padding: calc(var(--space-700) * 2) var(--space-400) var(--space-700);
       background: var(--color-surface);
-      border: var(--border-hairline) solid var(--color-foreground);
-      border-radius: var(--radius);
-      z-index: 200;
+      overflow-y: auto;
+      overscroll-behavior: contain;
     }
 
     /* Signed in, the account submenu opens inline inside the panel rather than
