@@ -180,7 +180,15 @@ const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,applicati
       await new Promise((r) => setTimeout(r, POLL_MS));
       wait.textContent = `waiting, ${Math.round((Date.now() - startedAt) / 1000)}s`;
       const body = await readStatus();
-      if (body && body.status === 'ready') {
+      // 'ready' is the read waiting to be reviewed. 'none' is the row already
+      // gone, and that is what a finished read looks like from here almost
+      // every time: the runner completes the parse, lands it in the record and
+      // deletes the row in three consecutive awaits, so 'ready' is on the table
+      // for a few milliseconds and a three second poll lands after the delete.
+      // Waiting on 'ready' alone meant sitting through all forty polls, two
+      // minutes, and then claiming the read was slow, with the entries already
+      // in the record. StepLetter reads the same endpoint the same way.
+      if (body && (body.status === 'ready' || body.status === 'none')) {
         const notes = Array.isArray(body.notes) ? (body.notes as unknown[]) : [];
         for (const n2 of notes) if (typeof n2 === 'string') line(n2, true);
         window.location.assign(returnTo);
