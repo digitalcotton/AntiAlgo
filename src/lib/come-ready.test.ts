@@ -37,7 +37,7 @@ describe('the paid flow', () => {
       name: 'Name your titles',
       hint: 'Product Designer. 77 live tonight. The Desk turns on tonight.',
       stake: 'The Desk turns on tonight.',
-      action: 'Name your titles',
+      action: 'Add a job title',
       status: 'done',
       href: '/start?step=3'
     });
@@ -186,6 +186,9 @@ describe("the band's next action", () => {
     const r = buildComeReady(facts({ edition: 'free' }));
     expect(r.nextName).toBe('Name your titles');
     expect(r.nextStake).toBe("The board's search cell learns your titles.");
+    // The row is named for the step; the button says the act, because "titles"
+    // on its own does not tell a first-time reader what kind.
+    expect(r.nextAction).toBe('Add a job title');
     expect(r.nextHref).toBe('/start?step=4');
   });
 

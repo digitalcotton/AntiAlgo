@@ -154,7 +154,7 @@ function buildPaid(facts: ComeReadyFacts): ComeReady {
       n: 3,
       name: 'Name your titles',
       stake: 'The Desk turns on tonight.',
-      action: 'Name your titles',
+      action: 'Add a job title',
       hint: first
         ? `${first.title}. ${first.liveCount !== null ? `${first.liveCount} live tonight. ` : ''}The Desk turns on tonight.`
         : 'Pays back in seconds. The Desk turns on tonight.',
@@ -262,7 +262,7 @@ function buildFree(facts: ComeReadyFacts): ComeReady {
         ? `${first.title}. ${first.liveCount !== null ? `${first.liveCount} live tonight, ` : ''}in the board's menu.`
         : "A title menu in the board's search cell. Pays back in seconds.",
       stake: "The board's search cell learns your titles.",
-      action: 'Name your titles',
+      action: 'Add a job title',
       status: s4,
       href: waitlisted ? null : FREE_STEP_HREFS[4]
     }
