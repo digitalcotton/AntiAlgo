@@ -42,6 +42,10 @@ const fresh = lane.filter((r) => r.ageDays !== null && r.ageDays >= 0 && r.ageDa
 const role = fresh[0] ?? lane[0] ?? null;
 const draftAction = routeFor('desk-job-draft');
 const boardHref = routeFor('board');
+const deskHref = routeFor('desk');
+/** Real numbers only: the lane's own count and the night it was read. */
+const liveUnderTitles = home?.liveUnderTitles ?? null;
+const sweptLabel = home?.sweep.sweptAt ? formatDate(home.sweep.sweptAt) : null;
 const allLive = home?.sweep.verifiedLive ?? null;
 const roleSub = role ? [role.company, role.remote ? 'Remote' : role.location].filter(Boolean).join(', ') : '';
 ---
@@ -89,10 +93,28 @@ const roleSub = role ? [role.company, role.remote ? 'Remote' : role.location].fi
       </div>
     </div>
   )}
+  {home !== null && (
+    <div class="cr-door-role cr-door-next">
+      <div style="min-width:0;">
+        <p class="cr-door-under">Or start where the work is</p>
+        <p class="cr-door-title"><a href={deskHref}>The Desk</a></p>
+        <p class="cr-door-sub">Everything live under your titles, read again every night.</p>
+        <p class="cr-door-meta">
+          {liveUnderTitles !== null ? <>{liveUnderTitles.toLocaleString()} live under your titles</> : <>narrowed to your titles</>}
+          {sweptLabel && <> &#183; swept {sweptLabel}</>}
+        </p>
+      </div>
+      <a class="cr-link cr-door-go" href={deskHref}>Open the Desk</a>
+    </div>
+  )}
+
   {!open && role && <p class="cr-note cr-note-gap">The door opens when 3, 4 and 5 are done.</p>}
 </StepCard>
 
 <style>
+  .cr-door-next {
+    margin-top: 12px;
+  }
   .cr-door-role {
     margin-top: 18px;
     display: grid;
