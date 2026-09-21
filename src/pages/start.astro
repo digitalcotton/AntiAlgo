@@ -8,7 +8,6 @@ import StepLetter from '../components/come-ready/StepLetter.astro';
 import DoorPaid from '../components/come-ready/DoorPaid.astro';
 import WaitPanel from '../components/come-ready/WaitPanel.astro';
 import StepEmail from '../components/come-ready/StepEmail.astro';
-import StepAddJob from '../components/come-ready/StepAddJob.astro';
 import DoorFree from '../components/come-ready/DoorFree.astro';
 import '../components/come-ready/come-ready.css';
 import { loadComeReady } from '../lib/come-ready-store';
@@ -144,7 +143,6 @@ const lede =
         {edition === 'free' && model.active === 4 && (
           <StepTitles edition="free" n={4} coreTitles={view.coreTitles} stretchTitles={view.stretchTitles} titleIndex={titleIndex} prefs={null} selfPath="/start?step=4" nextPath="/start?step=5" />
         )}
-        {edition === 'free' && model.active === 5 && <StepAddJob added={view.addedJob} enabled={isOn('add_posting')} doorPath="/start?step=door" />}
         {edition === 'free' && model.active === 'door' && <DoorFree billingOpen={isOn('stripe')} />}
       </div>
     </div>

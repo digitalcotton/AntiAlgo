@@ -11,7 +11,6 @@ const defaults: ComeReadyFacts = {
   parsePending: false,
   letterOnFile: false,
   drafts: 0,
-  addedJob: null,
   requested: null
 };
 
@@ -101,10 +100,10 @@ describe('the paid flow', () => {
 });
 
 describe('the free flow', () => {
-  it('arrives at 3 of 5 with titles next when the email is verified', () => {
+  it('arrives at 3 of 4 with titles next when the email is verified', () => {
     const r = buildComeReady(facts({ edition: 'free' }));
-    expect(r.total).toBe(5);
-    expect(statuses(r)).toEqual(['done', 'done', 'done', 'next', 'later']);
+    expect(r.total).toBe(4);
+    expect(statuses(r)).toEqual(['done', 'done', 'done', 'next']);
     expect(r.active).toBe(4);
     expect(r.nextName).toBe('Name your titles');
     expect(r.steps[2].hint).toBe('Verified.');
@@ -116,31 +115,33 @@ describe('the free flow', () => {
     expect(r.active).toBe(3);
   });
 
-  it("names the title with its live count in the board's menu", () => {
+  it("names the title with its live count in the board's menu, and the titles step is the last one", () => {
     const r = buildComeReady(facts({ edition: 'free', coreTitles: title }));
     expect(r.steps[3].hint).toBe("Product Designer. 77 live tonight, in the board's menu.");
-    expect(r.active).toBe(5);
+    expect(r.steps).toHaveLength(4);
+    expect(r.steps[3].status).toBe('done');
   });
 
-  it('checks off the added job and lands on the door', () => {
-    const r = buildComeReady(facts({ edition: 'free', coreTitles: title, addedJob: { title: 'Staff Product Designer', company: 'Linear', fit: null } }));
-    expect(r.steps[4].status).toBe('done');
-    expect(r.steps[4].hint).toBe('Staff Product Designer, Linear.');
+  it('lands on the door once the titles are named, with nothing after them', () => {
+    // 'Add a job by link' was removed as a step (owner, 2026-09-20), so naming
+    // a title is the last thing the free flow asks for.
+    const r = buildComeReady(facts({ edition: 'free', coreTitles: title }));
     expect(r.active).toBe('door');
+    expect(r.nextStep).toBeNull();
     expect(r.nextName).toBe('what the paid account opens');
     expect(r.complete).toBe(false);
   });
 
-  it('prints a fit only when one exists', () => {
-    const r = buildComeReady(facts({ edition: 'free', addedJob: { title: 'Staff Product Designer', company: null, fit: 84 } }));
-    expect(r.steps[4].hint).toBe('Staff Product Designer. Fit 84.');
+  it('refuses a step 5 that no longer exists and falls back to the door', () => {
+    const r = buildComeReady(facts({ edition: 'free', coreTitles: title, requested: '5' }));
+    expect(r.active).toBe('door');
   });
 });
 
 describe('the waitlisted edition', () => {
-  it('holds at 1 of 5 with admission waiting and no step to open', () => {
+  it('holds at 1 of 4 with admission waiting and no step to open', () => {
     const r = buildComeReady(facts({ edition: 'waitlisted', requested: '4' }));
-    expect(statuses(r)).toEqual(['done', 'waiting', 'later', 'later', 'later']);
+    expect(statuses(r)).toEqual(['done', 'waiting', 'later', 'later']);
     expect(r.doneCount).toBe(1);
     expect(r.active).toBe('wait');
     expect(r.steps.every((s) => s.href === null)).toBe(true);

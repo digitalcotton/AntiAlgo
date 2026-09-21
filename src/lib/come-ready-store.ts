@@ -19,7 +19,6 @@ import { getCoverLetter, listEntries, listLinks, personName, type CoverLetterOnF
 import type { StoredLink } from './profile-links';
 import { getParse, type StoredParse } from './resume-parse-store';
 import { landReadyParse, type AppliedProposals } from './resume-parse-apply';
-import { listPostingFetches, type StoredPostingFetch } from './posting-fetch-store';
 import { listWatches } from './ledger-watch-store';
 import { isOn } from './flags';
 
@@ -61,8 +60,6 @@ export interface ComeReadyView {
   parse: StoredParse | null;
   /** A read that landed on this very load, with its counts. */
   landed: AppliedProposals | null;
-  /** The most recent posting the member added by link, or null. */
-  addedJob: StoredPostingFetch | null;
   /** When the account was created (the waitlist's "joined" date). */
   joinedAt: Date | null;
 }
@@ -147,7 +144,6 @@ export async function loadComeReady(viewer: Viewer, requested: string | null, op
       parsePending: false,
       letterOnFile: false,
       drafts: 0,
-      addedJob: null,
       requested
     }),
     home: null,
@@ -161,7 +157,6 @@ export async function loadComeReady(viewer: Viewer, requested: string | null, op
     letter: null,
     parse: null,
     landed: null,
-    addedJob: null,
     joinedAt: null
   };
   if (!configured) return empty;
@@ -174,7 +169,7 @@ export async function loadComeReady(viewer: Viewer, requested: string | null, op
   // counts below include it (the same order /profile uses).
   const landed = edition === 'paid' ? await landReadyParse(userId) : null;
 
-  const [home, watches, key, entries, links, name, letter, parse, drafts, fetches] = await Promise.all([
+  const [home, watches, key, entries, links, name, letter, parse, drafts] = await Promise.all([
     options.home !== undefined ? Promise.resolve(options.home) : deskHome(userId),
     listWatches(userId),
     edition === 'paid' && keysConfigured ? connectedKey(userId) : Promise.resolve(null),
@@ -183,8 +178,7 @@ export async function loadComeReady(viewer: Viewer, requested: string | null, op
     edition === 'paid' ? personName(userId) : Promise.resolve(null),
     edition === 'paid' ? getCoverLetter(userId) : Promise.resolve(null),
     edition === 'paid' ? getParse(userId) : Promise.resolve(null),
-    edition === 'paid' ? hasAnyJobRender(userId) : Promise.resolve(false),
-    edition === 'free' && isOn('add_posting') ? listPostingFetches(userId) : Promise.resolve([] as StoredPostingFetch[])
+    edition === 'paid' ? hasAnyJobRender(userId) : Promise.resolve(false)
   ]);
 
   // Titles: the Desk's measured view when the sweep read, else the watched
@@ -194,7 +188,6 @@ export async function loadComeReady(viewer: Viewer, requested: string | null, op
     : watches.filter((w) => w.shelf === 'core').map((w) => ({ title: w.title, liveCount: null, titlesLive: null, titlesTotal: null }));
   const stretchTitles = home ? home.stretchTitles.map((t) => t.title) : watches.filter((w) => w.shelf === 'stretch').map((w) => w.title);
 
-  const addedJob = fetches[0] ?? null;
   const nameSet = Boolean(name && (name.firstName || name.lastName));
 
   const model = buildComeReady({
@@ -207,9 +200,6 @@ export async function loadComeReady(viewer: Viewer, requested: string | null, op
     parsePending: parse?.status === 'pending',
     letterOnFile: letter !== null,
     drafts: drafts ? 1 : 0,
-    addedJob: addedJob
-      ? { title: addedJob.title ?? `A posting from ${hostOf(addedJob.url)}`, company: addedJob.company, fit: null }
-      : null,
     requested
   });
 
@@ -227,17 +217,6 @@ export async function loadComeReady(viewer: Viewer, requested: string | null, op
     letter,
     parse,
     landed,
-    addedJob,
     joinedAt: null
   };
-}
-
-/** The hostname a member-added posting came from, the way its own page
-    names it (added-posting.ts hostnameOf, without the www). */
-export function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '') || 'the company site';
-  } catch {
-    return 'the company site';
-  }
 }

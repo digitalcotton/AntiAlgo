@@ -33,7 +33,7 @@ export interface ComeReadyStep {
 }
 
 /** The step the right column shows: a paid step 3 to 6 or the door; a free
-    step 3 to 5, the door, or the waitlisted panel. */
+    step 3 or 4, the door, or the waitlisted panel. */
 export type ActiveStep = 3 | 4 | 5 | 6 | 'door' | 'wait';
 
 export interface ComeReadyFacts {
@@ -53,8 +53,6 @@ export interface ComeReadyFacts {
   letterOnFile: boolean;
   /** Job drafts ever written (the paid door has been walked through). */
   drafts: number;
-  /** The free account's added posting, most recent, or null. */
-  addedJob: { title: string; company: string | null; fit: number | null } | null;
   /** The ?step= the reader asked for, raw. */
   requested: string | null;
 }
@@ -64,7 +62,7 @@ export interface ComeReady {
   steps: ComeReadyStep[];
   /** How many rows read done, the "N of M done" numerator. */
   doneCount: number;
-  /** M: six on the paid account, five on the free one. */
+  /** M: six on the paid account, four on the free one. */
   total: number;
   /** The row tagged next, or null when none is. */
   nextStep: ComeReadyStep | null;
@@ -80,7 +78,7 @@ export interface ComeReady {
 }
 
 const PAID_STEP_HREFS: Record<number, string> = { 3: '/start?step=3', 4: '/start?step=4', 5: '/start?step=5', 6: '/start?step=6' };
-const FREE_STEP_HREFS: Record<number, string> = { 3: '/start?step=3', 4: '/start?step=4', 5: '/start?step=5' };
+const FREE_STEP_HREFS: Record<number, string> = { 3: '/start?step=3', 4: '/start?step=4' };
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
@@ -177,9 +175,8 @@ function buildPaid(facts: ComeReadyFacts): ComeReady {
 
 function buildFree(facts: ComeReadyFacts): ComeReady {
   const waitlisted = facts.edition === 'waitlisted';
-  const requested = waitlisted ? null : requestedStep(facts.requested, [3, 4, 5, 'door']);
+  const requested = waitlisted ? null : requestedStep(facts.requested, [3, 4, 'door']);
   const hasTitle = facts.coreTitles.length > 0;
-  const hasJob = facts.addedJob !== null;
   const first = facts.coreTitles[0] ?? null;
 
   let nextAssigned = false;
@@ -195,12 +192,6 @@ function buildFree(facts: ComeReadyFacts): ComeReady {
   const s2 = ordered(!waitlisted, waitlisted ? 'waiting' : null);
   const s3 = waitlisted ? 'later' : ordered(facts.emailVerified, null);
   const s4 = waitlisted ? 'later' : ordered(hasTitle, null);
-  const s5 = waitlisted ? 'later' : ordered(hasJob, null);
-
-  const job = facts.addedJob;
-  const jobHint = job
-    ? `${job.title}${job.company ? `, ${job.company}` : ''}.${job.fit !== null ? ` Fit ${job.fit}.` : ''}`
-    : "Ours or anyone's. A job page with the fit score and a nightly check.";
 
   const steps: ComeReadyStep[] = [
     { n: 1, name: 'Place held', hint: 'Joined the waitlist.', status: 'done', href: null },
@@ -226,18 +217,17 @@ function buildFree(facts: ComeReadyFacts): ComeReady {
         : "A title menu in the board's search cell. Pays back in seconds.",
       status: s4,
       href: waitlisted ? null : FREE_STEP_HREFS[4]
-    },
-    { n: 5, name: 'Add a job by link', hint: jobHint, status: s5, href: waitlisted ? null : FREE_STEP_HREFS[5] }
+    }
   ];
 
-  const active: ActiveStep = waitlisted ? 'wait' : (requested ?? (!facts.emailVerified ? 3 : !hasTitle ? 4 : !hasJob ? 5 : 'door'));
+  const active: ActiveStep = waitlisted ? 'wait' : (requested ?? (!facts.emailVerified ? 3 : !hasTitle ? 4 : 'door'));
   const nextStep = steps.find((s) => s.status === 'next') ?? null;
 
   return {
     edition: facts.edition,
     steps,
     doneCount: steps.filter((s) => s.status === 'done').length,
-    total: 5,
+    total: 4,
     nextStep,
     nextName: nextStep ? nextStep.name : 'what the paid account opens',
     active,
