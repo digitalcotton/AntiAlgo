@@ -92,6 +92,21 @@ export const ROUTE_POLICY: Record<string, Tier> = {
   // with isPaidViewer (a non-paid member sees the upsell), the same split
   // /ledger uses.
   '/desk': 'member',
+  // Drafting is paid, with no partial state (owner, 2026-09-20): a member who
+  // is not paying does not get the button and is refused the feature. These
+  // two lines are the wall. Longest prefix wins, so they override '/desk'
+  // above for every route that creates, renders, restores, downloads or polls
+  // a draft, on every method, before any handler runs. Middleware answers an
+  // insufficient tier with a flat 403, so hiding the control is the courtesy
+  // and this is the enforcement.
+  //
+  // '/desk/draft' does NOT swallow '/desk/drafting-status': the match is
+  // `path === key || path.startsWith(key + '/')`, so it is segment-aware.
+  // The background render callback, POST /desk/job-draft/<slug>/run, carries
+  // no session by design and is exempted from the gate ahead of this policy
+  // by isDraftRunPath in src/middleware.ts, so the pipeline still runs.
+  '/desk/job-draft': 'paid',
+  '/desk/draft': 'paid',
   // The Opportunities tracker (formerly The Desk, MASTER-SPEC 3.5, F4). Same
   // member wall the tracker always had; its action endpoints still live under
   // /desk above.

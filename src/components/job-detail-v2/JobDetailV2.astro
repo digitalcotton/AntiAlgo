@@ -51,10 +51,10 @@ interface Props {
   /** Where a draft/apply action returns to (this posting's own path). */
   selfPath: string;
   hasKey?: boolean;
-  /** Drafting is a paid feature, so a signed-in reader who is not paid is not
-      offered it. Defaults to false so a caller that forgets to pass it hides
-      the action rather than leaking it. A signed-out reader is a separate
-      case and keeps the sign-in funnel below. */
+  /** Drafting is paid, with no partial state (owner, 2026-09-20), so nobody
+      but a paid reader is offered it: not a member who is not paying, and not
+      a signed-out reader either. Defaults to false so a caller that forgets to
+      pass it hides the action rather than leaking it. */
   paid?: boolean;
   /** When set, the Apply button posts the outbound click so it lands on the
       reader's Desk (the board_actions track control), instead of a plain link.
@@ -265,11 +265,12 @@ const saveNote = applyTrack
          its anchor. The textarea exists only with the real draft form; a
          signed-out reader or one without a key keeps the link button. -->
     <div class="jd-actions" id="jd-actions">
-      {/* Drafting is paid (owner, 2026-09-20), so a signed-in member who is
-          not paid is offered no part of this block. A signed-out reader still
-          gets the button and its sign-in link: this page is public and that
-          is the funnel, not a feature being given away. */}
-      {!isClosed && (!signedIn || paid) && (
+      {/* Drafting is paid, period (owner, 2026-09-20), so this block belongs
+          to a paid reader alone. A member who is not paying does not get it,
+          and neither does a signed-out reader: the sign-in link that used to
+          stand here advertised a feature the account it leads to does not
+          carry. The entitlement policy refuses every draft route besides. */}
+      {!isClosed && paid && (
         <>
           {signedIn && hasKey ? (
             <form class="jd-draft-form" method="POST" action={draftAction}>

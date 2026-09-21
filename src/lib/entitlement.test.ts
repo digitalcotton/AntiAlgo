@@ -117,3 +117,49 @@ describe('admission', () => {
     expect(admittedTier('public')).toBe('public');
   });
 });
+
+describe('drafting is paid', () => {
+  // The owner's rule, 2026-09-20: a member who is not paying does not get the
+  // draft button and is refused the feature. The button is the courtesy; these
+  // are the wall, so they are held here rather than trusted to a component.
+  const DRAFT_ROUTES = [
+    '/desk/job-draft',
+    '/desk/job-draft/acme-staff-product-designer',
+    '/desk/job-draft/acme-staff-product-designer/status',
+    '/desk/job-draft/acme-staff-product-designer/restore',
+    '/desk/job-draft/acme-staff-product-designer/resume',
+    '/desk/draft/12'
+  ];
+
+  it('asks paid on every route that touches a draft', () => {
+    for (const route of DRAFT_ROUTES) expect(requiredTierFor(route)).toBe('paid');
+  });
+
+  it('refuses a verified member on every one of them', () => {
+    for (const route of DRAFT_ROUTES) {
+      expect(decide(route, viewer('member'))).toEqual({
+        allow: false,
+        required: 'paid',
+        reason: 'insufficient-tier'
+      });
+    }
+  });
+
+  it('allows paid and internal on every one of them', () => {
+    for (const route of DRAFT_ROUTES) {
+      expect(decide(route, viewer('paid')).allow).toBe(true);
+      expect(decide(route, viewer('internal')).allow).toBe(true);
+    }
+  });
+
+  it('leaves the Desk itself at member, so the upsell still renders', () => {
+    expect(requiredTierFor('/desk')).toBe('member');
+    expect(decide('/desk', viewer('member')).allow).toBe(true);
+  });
+
+  it('does not let /desk/draft swallow /desk/drafting-status', () => {
+    // The match is segment-aware, so the status reader keeps the Desk's own
+    // rank rather than inheriting the draft wall by a string prefix.
+    expect(requiredTierFor('/desk/drafting-status')).toBe('member');
+  });
+});

@@ -354,7 +354,7 @@ const applyTrack = showTrack && job?.apply_url ? { action: deskApplicationPath, 
 
             <aside class="detail-aside" aria-label="The machine's account and your documents">
               <PostingProgress row={fetchRow} nowMs={nowMs} action={postingAction} statusUrl={statusUrl} />
-              <DraftRail job={job} returnTo={selfPath} signedIn={signedIn} hasKey={hasKey} />
+              {paid && <DraftRail job={job} returnTo={selfPath} signedIn={signedIn} hasKey={hasKey} />}
               <div class="added-actions">
                 {canConfirmApplied && (
                   /* The Desk's own confirm answer, posted from here. A click is
@@ -460,7 +460,7 @@ const applyTrack = showTrack && job?.apply_url ? { action: deskApplicationPath, 
               {/* The documents, directly above the way to apply, so the reader
                   drafts and then applies without leaving the record. Not on a
                   closed record: there is nothing to apply to. */}
-              {!isClosed && <DraftRail job={job} returnTo={selfPath} signedIn={signedIn} hasKey={hasKey} />}
+              {!isClosed && paid && <DraftRail job={job} returnTo={selfPath} signedIn={signedIn} hasKey={hasKey} />}
 
               {isClosed ? (
                 <ClosureRecord job={job} />
