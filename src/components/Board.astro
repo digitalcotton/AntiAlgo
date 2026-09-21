@@ -44,7 +44,7 @@ interface Props {
   groups?: FilterGroup[];
   /** Server mode: the age distribution over the whole set, from the store's
       GROUP BY (never one page's rows). Client mode builds it from `jobs`. */
-  ageHistogram?: AgeHistogram;
+  ageHistogram?: AgeHistogram | Promise<AgeHistogram>;
   /** Server mode: the board's own path, the forms' and links' target. */
   boardPath?: string;
   /** Server mode, signed in: the member's own Desk titles, by shelf, for the

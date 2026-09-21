@@ -95,13 +95,28 @@ if (signedIn && isConfigured()) {
 
 const EMPTY_COUNTS: FacetCounts = { total: 0, location: {}, comp: {}, freshness: {} };
 const EMPTY_PAGE: BoardFilteredResult = { rows: [], total: 0, counts: EMPTY_COUNTS };
+// The age plot is a fact about the whole set, never about one page: the store
+// returns its distribution (one row per age), not the rows themselves. Its
+// read starts here, ahead of the rows/stats read below, and its degrade is
+// attached at creation so the unresolved promise can be handed to a body
+// component (Board -> AgePlot) without ever rejecting unhandled: the head can
+// stream before this settles.
+const ageHistogramP: Promise<AgeHistogram> = isConfigured()
+  ? listBoardAgeHistogram(sweepDate()).catch((error) => {
+      console.error('board: the age plot could not read the store; rendering without it.', error);
+      return EMPTY_AGE_HISTOGRAM;
+    })
+  : Promise.resolve(EMPTY_AGE_HISTOGRAM);
+
 // A store that will not answer is an empty board with the error in the log,
 // never a 500 on the site's main surface: the header and the tiles still
-// render, and the table says nothing matched.
+// render, and the table says nothing matched. The rows and the board's own
+// stats row are independent reads, so they run concurrently.
 let served = EMPTY_PAGE;
+let boardStats: Awaited<ReturnType<typeof getBoardStats>> = null;
 if (isConfigured()) {
-  try {
-    served = await listBoardFiltered({
+  [served, boardStats] = await Promise.all([
+    listBoardFiltered({
       q: query.q,
       location: query.location,
       comp: query.comp,
@@ -113,10 +128,15 @@ if (isConfigured()) {
       perPage: query.per,
       sweepDate: sweepDate(),
       titles: pickedTitles.length > 0 ? pickedTitles : undefined
-    });
-  } catch (error) {
-    console.error('board: the job store did not answer; rendering an empty board.', error);
-  }
+    }).catch((error) => {
+      console.error('board: the job store did not answer; rendering an empty board.', error);
+      return EMPTY_PAGE;
+    }),
+    getBoardStats().catch((error) => {
+      console.error('board: the stats row could not be read.', error);
+      return null;
+    })
+  ]);
 }
 
 const { page, pages } = clampPage(query.page, served.total, query.per);
@@ -126,27 +146,9 @@ if (page !== query.page) {
 
 const jobs = served.rows.map(boardRowToJob);
 const groups = facetGroupsFromCounts(served.counts, query);
-// The age plot is a fact about the whole set, never about one page: the store
-// returns its distribution (one row per age), not the rows themselves.
-let ageHistogram: AgeHistogram = EMPTY_AGE_HISTOGRAM;
-if (isConfigured()) {
-  try {
-    ageHistogram = await listBoardAgeHistogram(sweepDate());
-  } catch (error) {
-    console.error('board: the age plot could not read the store; rendering without it.', error);
-  }
-}
 
 // The board's own counts, from the sweep. verified-live is the table's real
 // size, so it always matches what a reader can count.
-let boardStats: Awaited<ReturnType<typeof getBoardStats>> = null;
-if (isConfigured()) {
-  try {
-    boardStats = await getBoardStats();
-  } catch (error) {
-    console.error('board: the stats row could not be read.', error);
-  }
-}
 const verifiedCount = boardStats?.verified_live ?? served.total;
 
 const sweepLabel = sweptStamp();
@@ -178,7 +180,7 @@ const prospectCount = prospectRows().length;
       page={{ total: served.total, page, pages, per: query.per }}
       query={query}
       groups={groups}
-      ageHistogram={ageHistogram}
+      ageHistogram={ageHistogramP}
       boardPath={boardPath}
       titleChoices={titleChoices}
       active="board"
