@@ -37,29 +37,29 @@ const statusUrl = routeFor('profile-import-status');
       <span>Cover letter on file</span>
       <span class="cr-tag" data-tone={letter ? 'live' : undefined}>{letter ? 'Added' : 'Optional'}</span>
     </label>
+    {/* The band is here in both states. A letter already on file is not a
+        reason to take the way of putting a different one up: dropping a file
+        replaces what is stored, which is the only way to change it from this
+        step. Its own form, because a file and a pasted body are two
+        different requests to the same endpoint. */}
+    <form method="POST" action={coverAction} enctype="multipart/form-data" class="cr-drop cr-dropzone" data-cr-letter-drop>
+      <input type="hidden" name="return" value={selfPath} />
+      <label class="cr-drop-label" for="cr-letter-file">
+        <span class="cr-drop-line">{letter ? 'Drop a different letter here, or choose a file.' : 'Drop your letter here, or choose a file.'}</span>
+        <span class="cr-drop-hint">PDF, Word (.docx), Markdown or plain text. {letter ? 'It replaces the one on file.' : 'Or paste it below.'}</span>
+      </label>
+      <input id="cr-letter-file" class="cr-file visually-hidden" type="file" name="file" accept={ACCEPT} required data-cr-letter-file />
+      <label class="cr-link cr-letter-choose" for="cr-letter-file">Choose a file</label>
+      <button type="submit" class="cr-link cr-letter-choose cr-nojs" data-cr-letter-nojs>Save that file</button>
+    </form>
     {letter ? (
-      <textarea id="cr-letter" class="cr-textarea" rows="7" readonly aria-label="Cover letter">{letter.text}</textarea>
+      <textarea id="cr-letter" class="cr-textarea cr-letter-paste" rows="7" readonly aria-label="Cover letter">{letter.text}</textarea>
     ) : (
-      <>
-        {/* The same band the resumé step draws, on the same endpoint's file
-            half. Its own form, because a file and a pasted body are two
-            different requests. */}
-        <form method="POST" action={coverAction} enctype="multipart/form-data" class="cr-drop cr-dropzone" data-cr-letter-drop>
-          <input type="hidden" name="return" value={selfPath} />
-          <label class="cr-drop-label" for="cr-letter-file">
-            <span class="cr-drop-line">Drop your letter here, or choose a file.</span>
-            <span class="cr-drop-hint">PDF, Word (.docx), Markdown or plain text. Or paste it below.</span>
-          </label>
-          <input id="cr-letter-file" class="cr-file visually-hidden" type="file" name="file" accept={ACCEPT} required data-cr-letter-file />
-          <label class="cr-link cr-letter-choose" for="cr-letter-file">Choose a file</label>
-          <button type="submit" class="cr-link cr-letter-choose cr-nojs" data-cr-letter-nojs>Save that file</button>
-        </form>
-        <form method="POST" action={coverAction} class="cr-letter-form">
-          <input type="hidden" name="return" value={selfPath} />
-          <textarea id="cr-letter" class="cr-textarea cr-letter-paste" name="pasted" rows="7" placeholder="Or paste the cover letter you reuse." aria-label="Cover letter" required></textarea>
-          <button type="submit" class="cr-link cr-letter-save">Save cover letter</button>
-        </form>
-      </>
+      <form method="POST" action={coverAction} class="cr-letter-form">
+        <input type="hidden" name="return" value={selfPath} />
+        <textarea id="cr-letter" class="cr-textarea cr-letter-paste" name="pasted" rows="7" placeholder="Or paste the cover letter you reuse." aria-label="Cover letter" required></textarea>
+        <button type="submit" class="cr-link cr-letter-save">Save cover letter</button>
+      </form>
     )}
     {parsePending && (
       <div class="cr-reading-line" data-cr-letter-reading data-status-url={statusUrl} data-return={withBase(selfPath)} role="status" aria-live="polite">
