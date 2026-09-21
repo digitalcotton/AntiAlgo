@@ -59,6 +59,7 @@ import { InvalidKeyShapeError, putKey, setDesignatedProvider } from '../../../li
 import { verifyKey } from '../../../lib/generation-providers';
 import { returnTo } from '../../../lib/return-to';
 import { withBase } from '../../../../site.config.mjs';
+import { isPaidViewer } from '../../../lib/ledger-access';
 
 export const prerender = false;
 
@@ -128,6 +129,13 @@ export async function POST(context: APIContext): Promise<Response> {
 
   if (!viewer || verdict?.allow !== true) {
     return new Response('Not signed in.', { status: 401 });
+  }
+
+  // Bring-your-own-key is paid, and /settings only asks for member, so the
+  // tier is checked here as well as on the page. Hiding the panel without this
+  // would leave a member able to attach a key by hand.
+  if (!isPaidViewer(viewer)) {
+    return new Response('Not available on your account.', { status: 403 });
   }
 
   if (!isOn('byok')) {

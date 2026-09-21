@@ -125,6 +125,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Panel from '../components/Panel.astro';
 import ProviderRows from '../components/settings/ProviderRows.astro';
+import { isPaidViewer } from '../lib/ledger-access';
 import AccountRow from '../components/settings/AccountRow.astro';
 import { routeFor } from '../data/nav';
 import { withBase } from '../../site.config.mjs';
@@ -175,6 +176,11 @@ const resumeEmail = allowed && viewer ? await getResumeEmailSettings(viewer.user
 // The two key-panel refusal states that still matter once a reader has
 // already cleared the page-level gate above; see this file's own header for
 // why "not signed in" is no longer a third state checked here.
+/* Bring-your-own-key is paid (the tiers matrix marks it N, N, Y), and the key
+   exists to draft, which is paid too. A member who is not paying was able to
+   connect one here and be billed by their provider for a feature the account
+   does not carry, so the whole panel needs the tier (owner, 2026-09-21). */
+const paidViewer = isPaidViewer(viewer);
 const byokOn = isOn('byok');
 const keysReady = allowed && byokOn;
 const keysConfigured = keysReady ? keyStorageIsConfigured() : false;
@@ -481,6 +487,7 @@ const handleRowOpen = handleUpdated || handleCleared || Boolean(handleError);
               </AccountRow>
             </Panel>
 
+            {paidViewer && (
             <Panel title="Models and keys" class="settings-panel">
               <span slot="aside" class="models-aside">
                 Your key, your bill · encrypted for you alone, read only at drafting time
@@ -557,6 +564,7 @@ const handleRowOpen = handleUpdated || handleCleared || Boolean(handleError);
                 </form>
               </div>
             </Panel>
+            )}
 
             <Panel title="Your data" class="settings-panel">
               <p class="settings-panel-line">
