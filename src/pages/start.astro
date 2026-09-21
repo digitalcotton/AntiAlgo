@@ -141,7 +141,7 @@ const lede =
 
         {edition === 'free' && model.active === 3 && <StepEmail verified={viewer.emailVerified} email={email} nextPath="/start?step=4" skipPath="/start?step=4" />}
         {edition === 'free' && model.active === 4 && (
-          <StepTitles edition="free" n={4} coreTitles={view.coreTitles} stretchTitles={view.stretchTitles} titleIndex={titleIndex} prefs={null} selfPath="/start?step=4" nextPath="/start?step=5" />
+          <StepTitles edition="free" n={4} coreTitles={view.coreTitles} stretchTitles={view.stretchTitles} titleIndex={titleIndex} prefs={null} selfPath="/start?step=4" nextPath="/start?step=door" />
         )}
         {edition === 'free' && model.active === 'door' && <DoorFree billingOpen={isOn('stripe')} />}
       </div>

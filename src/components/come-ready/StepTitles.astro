@@ -25,6 +25,8 @@ interface Props {
   prefs: LedgerSelection | null;
   /** This step's own address, base-free (the forms return here). */
   selfPath: string;
+  /** The paid flow's next step. The free flow has none: naming titles is the
+      last thing it asks for, so its action opens the Desk instead. */
   nextPath: string;
   /** Whether the reader had the controls open when they pressed one, so the
       reload lands with them open rather than collapsing under the press. */
@@ -36,6 +38,8 @@ const controlsPath = `${selfPath}&controls=1`;
 
 const watchAction = routeFor('ledger-watch');
 const prefsAction = routeFor('ledger-prefs');
+/** The free flow's last act: into the application, not on to another step. */
+const deskHref = routeFor('desk');
 const hasTitle = coreTitles.length > 0;
 /** The rows the dropdown holds, most live first. Rendered whole and narrowed
     in place, so the panel needs no request of its own and the top of the list
@@ -227,7 +231,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
         <a class="cr-btn" href={withBase(nextPath)}>Next: connect your key</a>
       ) : (
         <>
-          <a class="cr-btn" href={withBase(nextPath)}>Next: add a job by link</a>
+          <a class="cr-btn" href={deskHref}>Done. Open the Desk</a>
           <span class="cr-ok">Your titles are in the board's menu now.</span>
         </>
       )}
