@@ -94,7 +94,13 @@ const showTracker = comeReady !== null && !comeReady.model.complete;
 const watchAction = routeFor('ledger-watch');
 const prefsAction = routeFor('ledger-prefs');
 const boardHref = routeFor('board');
-const accountHref = routeFor('account');
+/* The pitch points at the tiers page, not /account: that page carries the
+   price, the whole matrix, and the honest state of billing for a member. */
+const theAccountHref = routeFor('the-account');
+/* Stripe is dark, so nothing can take a card yet. The note under the CTA says
+   so and removes itself the day the flag turns on, rather than sending a
+   reader to a checkout that is 404 behind a flag. */
+const billingOpen = isOn('stripe');
 
 const home = data;
 /* The preview's five (owner, 2026-09-20): the same fit-ranked core lane the
@@ -246,16 +252,25 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
         <PreviewRoles roles={previewRoles} coreLiveCount={home.coreLiveCount} sweptAt={home.sweep.sweptAt} boardHref={boardHref} />
       )}
 
-      <Panel title="What the account opens">
+      {/* The pitch, and it only claims what the tiers matrix marks paid-only
+          (the-account.astro's own rows). Naming titles and the board's title
+          menu are not on this list: the reader already has both on the free
+          account, and selling somebody something they own is the fastest way
+          to lose them. */}
+      <Panel title="What the paid account opens">
         <ul class="dp-list">
-          <li>Name your titles once; the board narrows to them everywhere.</li>
-          <li>The live roles under your titles, ranked by fit, new arrivals tagged.</li>
-          <li>What died on your list, so you do not chase a role that is already gone.</li>
+          <li>This page, every night: the sweep narrowed to your titles, what is new and what died under them.</li>
+          <li>A tailored resumé and cover letter for any posting, one of each, written in your voice on your own key.</li>
+          <li>Kill records: what died and the rule it tripped, so you do not chase a role that is already gone.</li>
+          <li>Jobs Data in full, re-cut to your titles, and Opportunities, the Pre-List and the Drop.</li>
         </ul>
         <p class="dp-cta">
-          <a class="dp-button" href={accountHref}>Your account</a>
+          <a class="dp-button" href={theAccountHref}>What paid opens, $7.25 a month</a>
           <a class="dp-link" href={boardHref}>Browse the board</a>
         </p>
+        {!billingOpen && (
+          <p class="dp-billing">Billing is not open yet. The price does not move when it is.</p>
+        )}
       </Panel>
     </main>
   )}
@@ -338,7 +353,12 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
   .dp-lede { margin: 0; color: var(--color-muted); max-width: 62ch; line-height: 1.55; }
   .dp-list { margin: 0; padding-left: 1.1rem; color: var(--color-muted); display: flex; flex-direction: column; gap: var(--space-100); }
   .dp-cta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-400); margin: var(--space-400) 0 0; }
-  .dp-button { display: inline-block; padding: 0.6rem 1rem; border-radius: var(--radius); background: var(--color-surface-inverse); color: var(--color-foreground-inverse); font-family: var(--font-family-mono); font-size: var(--size-100); text-decoration: none; white-space: nowrap; }
+  /* The page's one primary now that it is the pitch: the house signal fill on
+     dark ink, the same button The account page and Come ready use, rather than
+     the inverse surface it wore as a plain "your account" link. */
+  .dp-button { display: inline-flex; align-items: center; min-height: 44px; padding: 12px 24px; border-radius: var(--radius); background: var(--color-signal); color: var(--gray-950); font-family: var(--font-family-mono); font-weight: 700; font-size: 0.82rem; letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; white-space: nowrap; }
+  .dp-button:hover, .dp-button:focus-visible { color: var(--gray-950); filter: brightness(0.94); }
+  .dp-billing { margin: var(--space-300) 0 0; color: var(--color-muted); font-size: 0.82rem; }
   .dp-link { color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--color-line-strong); font-size: var(--size-100); }
 
 </style>
