@@ -553,8 +553,13 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
   .dr-restore { background: transparent; border: 0; border-bottom: var(--border-hairline) solid var(--color-line-strong); padding: 4px 0; cursor: pointer; font-family: inherit; font-size: 0.84rem; color: var(--color-foreground); }
 
   .dr-send form { margin: 0; }
-  .dr-send-apply { width: 100%; margin: 0; padding: 15px 20px; min-height: 52px; font-weight: var(--weight-semibold, 600); font-size: 1rem; background: var(--color-foreground); color: var(--color-foreground-inverse); border-color: var(--color-foreground); }
-  .dr-send-apply:hover { opacity: 0.86; color: var(--color-foreground-inverse); }
+  /* The one thing this page is for. It takes the site's primary: the signal
+     fill with dark ink in BOTH themes, the same rule global.css's .cta
+     states, because the signal is the same warm orange on paper and on ink.
+     It keeps its own size; a full-width 52px target is this rail's shape,
+     not the header button's. */
+  .dr-send-apply { width: 100%; margin: 0; padding: 15px 20px; min-height: 52px; font-weight: var(--weight-semibold, 600); font-size: 1rem; background: var(--color-signal); color: var(--gray-950); border-color: var(--color-signal); }
+  .dr-send-apply:hover { filter: brightness(0.94); color: var(--gray-950); }
   .dr-send-note { margin: 0; color: var(--color-muted); font-size: 0.82rem; line-height: 1.5; }
 
   .dr-changed-title { margin: 0; font-weight: var(--weight-semibold, 600); font-size: 0.95rem; }
