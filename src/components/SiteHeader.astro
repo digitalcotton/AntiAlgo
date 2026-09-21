@@ -275,12 +275,23 @@ const comeReadyHref = routeFor('come-ready');
       justify-content: center;
       cursor: pointer;
       color: var(--color-foreground);
-      padding: var(--space-300);
-      margin: calc(var(--space-300) * -1);
+      /* Apple HIG: a control is at least 44x44pt. The icon is 32px and the pad
+         carries the box past 44; the negative margin cancels the pad so the
+         icon still sits flush with the shell edge. */
+      min-width: 44px;
+      min-height: 44px;
+      padding: var(--space-200);
+      margin: calc(var(--space-200) * -1);
       /* Above the open overlay (z 1, below) so the close X keeps its place in
          the header row and stays tappable while the menu covers the page. */
       position: relative;
       z-index: 2;
+    }
+    /* The bars/X icon, larger than its 24px markup default so the control reads
+       at a glance. */
+    .nav-burger-icon {
+      width: 2rem;
+      height: 2rem;
     }
     /* The wordmark rides above the overlay for the same reason: the logo does
        not move or vanish when the menu opens, it shows through on top. */
@@ -322,7 +333,7 @@ const comeReadyHref = routeFor('come-ready');
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: var(--space-500);
+      gap: var(--space-300);
       position: fixed;
       inset: 0;
       z-index: 1;
@@ -331,11 +342,44 @@ const comeReadyHref = routeFor('come-ready');
       overflow-y: auto;
       overscroll-behavior: contain;
     }
+    /* In the takeover the items ARE the page, so they read large. Every row is
+       a full-width, 44pt-tall hit target (Apple HIG); the top-level items and
+       the account name grow the most, the nested account links a step down for
+       hierarchy. The closed nav and every desktop size are untouched. */
+    .nav-toggle:checked ~ .nav > .nav-link,
+    .nav-toggle:checked ~ .nav .account-trigger,
+    .nav-toggle:checked ~ .nav .account-item {
+      display: flex;
+      align-items: center;
+      min-height: 44px;
+      width: 100%;
+    }
+    .nav-toggle:checked ~ .nav > .nav-link,
+    .nav-toggle:checked ~ .nav .account-trigger {
+      font-size: var(--size-400);
+    }
+    .nav-toggle:checked ~ .nav .account-item {
+      font-size: var(--size-300);
+    }
+    /* The current page reads by colour here (the foreground weight the link
+       already switches to), not the hairline underline, which would run the
+       full row width now that the rows are full-width. */
+    .nav-toggle:checked ~ .nav > .nav-link {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
 
-    /* Signed in, the account submenu opens inline inside the panel rather than
-       as a second floating dropdown. */
+    /* Signed in, the account is not a dropdown on a phone: it sits open inside
+       the full-screen menu so Profile, Settings and Sign out are on the screen
+       with no second tap. The script forces the disclosure open at this width
+       and keeps a tap on the name from collapsing it; the caret would imply a
+       toggle that is not there, so it goes. (With no JS the native <details>
+       still opens on a tap of the name, so the items are never unreachable.) */
     .account {
       width: 100%;
+    }
+    .account-caret {
+      display: none;
     }
     .account-panel {
       position: static;
@@ -348,7 +392,7 @@ const comeReadyHref = routeFor('come-ready');
 </style>
 
 <script>
-  // Dismissal only; both menus work without this. The account menu is a native
+  // Dismissal, plus the phone account behaviour. The account menu is a native
   // <details>; the mobile nav is a checkbox (#nav-toggle) toggled by its label,
   // so "close" is unchecking it. Each closes on Escape or a click outside it.
   const menu = document.querySelector<HTMLDetailsElement>('details.account');
@@ -356,9 +400,25 @@ const comeReadyHref = routeFor('come-ready');
   const nav = document.querySelector<HTMLElement>('header.hdr .nav');
   const burger = document.querySelector<HTMLElement>('.nav-burger');
 
+  // On a phone the account is not a dropdown: it sits open in the full-screen
+  // menu so Profile, Settings and Sign out are on the screen with no extra tap.
+  // Force it open at that width and keep a tap on the name from collapsing it.
+  // (With no JS the native <details> still opens on a tap, so nothing is lost.)
+  const phone = window.matchMedia('(max-width: 48rem)');
+  const openAccountOnPhone = () => {
+    if (menu && phone.matches) menu.open = true;
+  };
+  openAccountOnPhone();
+  phone.addEventListener('change', openAccountOnPhone);
+  menu?.querySelector('summary')?.addEventListener('click', (event) => {
+    if (phone.matches) event.preventDefault();
+  });
+
   document.addEventListener('click', (event) => {
     const target = event.target as Node;
-    if (menu?.open && !menu.contains(target)) menu.open = false;
+    // The account only collapses on outside-click where it IS a dropdown, i.e.
+    // on desktop; on a phone it stays open as part of the flat menu.
+    if (!phone.matches && menu?.open && !menu.contains(target)) menu.open = false;
     if (
       navToggle?.checked &&
       target !== navToggle &&
@@ -371,7 +431,9 @@ const comeReadyHref = routeFor('come-ready');
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
-    if (menu?.open) {
+    // Desktop: Escape closes the account dropdown. Phone: it closes the whole
+    // menu (below) and the account stays open for next time.
+    if (!phone.matches && menu?.open) {
       menu.open = false;
       menu.querySelector('summary')?.focus();
     }
