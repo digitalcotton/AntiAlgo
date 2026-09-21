@@ -7,6 +7,7 @@ import { isConfigured } from '../lib/db';
 import { getBoardStats, listBoardAgeHistogram, listBoardFiltered, type BoardFilteredResult, type FacetCounts } from '../lib/job-store';
 import { boardRowToJob } from '../lib/board-jobs';
 import { listWatches } from '../lib/ledger-watch-store';
+import { isPaidViewer } from '../lib/ledger-access';
 import { boardHref, clampPage, parseBoardQuery } from '../lib/board-query';
 import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
 import { isOn } from '../lib/flags';
@@ -58,6 +59,10 @@ const parsed = parseBoardQuery(Astro.url.searchParams);
 // SESSION_IF_COOKIE), which is the one fact this page needs.
 const viewer = Astro.locals.viewer;
 const signedIn = Boolean(viewer && viewer.emailVerified);
+/* The Board / Newly funded switch advertises the Pre-List, which is paid, so
+   only a paid reader is offered it (owner, 2026-09-20). Anyone else was being
+   shown a tab and a count for a wall they would land on. */
+const paidViewer = isPaidViewer(viewer);
 const showFit = signedIn || isOn('fit_public');
 const query = parsed;
 // The address keeps its default (`fit`, unwritten) so every link stays bare;
@@ -182,7 +187,7 @@ const prospectCount = prospectRows().length;
       verifiedLive={boardStats ? verifiedCount : undefined}
       hrefFor={(job: Job) => withBase(`/board/${job.slug}`)}
       fit={showFit}
-      tabs={signedIn || isOn('prelist_tab_public')}
+      tabs={paidViewer || isOn('prelist_tab_public')}
       ariaLabel="This sweep"
     >
       {/* The sweep stamp sits right of the board tabs (Board.astro's stamp

@@ -7,6 +7,7 @@ import { isOn } from '../lib/flags';
 import { boardHref, clampPage, parseBoardQuery } from '../lib/board-query';
 import { listProspectsFiltered, type ProspectPage } from '../lib/prospect-board';
 import { routeFor } from '../data/nav';
+import { isPaidViewer } from '../lib/ledger-access';
 import { withBase } from '../../site.config.mjs';
 
 /**
@@ -19,7 +20,7 @@ import { withBase } from '../../site.config.mjs';
  * Both are Jobs, so the one component renders them without knowing which tab it
  * is on.
  *
- * GATED, WITH A REAL SHOP WINDOW. A signed-out or unverified reader sees what the
+ * GATED, WITH A REAL SHOP WINDOW. Anyone short of the paid tier sees what the
  * Pre-List is and the count on it, not the rows, the same wall /desk uses.
  * Astro.locals.verdict is set by middleware (src/lib/entitlement.ts) before this
  * runs. prerender = false because the wall is decided per request.
@@ -39,7 +40,14 @@ import { withBase } from '../../site.config.mjs';
 export const prerender = false;
 
 const verdict = Astro.locals.verdict;
-const allowed = verdict?.allow === true;
+/* The Pre-List is paid (the tiers matrix in the-account.astro marks it N, N,
+   Y), so the rows need the paid tier and not merely the member the route
+   policy asks for. The wall below is unchanged and still stands for everyone
+   short of that, which keeps the page a real, indexable shop window rather
+   than a redirect: a signed-out reader and a member who is not paying see
+   what the Pre-List is and how many companies are on it, and neither sees a
+   row (owner, 2026-09-20). */
+const allowed = verdict?.allow === true && isPaidViewer(Astro.locals.viewer ?? null);
 const reason = verdict?.reason ?? 'signed-out';
 
 const prelistPaidLive = isOn('prelist_paid');

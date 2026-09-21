@@ -44,6 +44,7 @@
 import type { APIContext } from 'astro';
 import { prospectRows } from '../../lib/data';
 import { followProspect, unfollowProspect } from '../../lib/watchlist-store';
+import { isPaidViewer } from '../../lib/ledger-access';
 import { withBase } from '../../../site.config.mjs';
 
 export const prerender = false;
@@ -74,6 +75,12 @@ export async function POST(context: APIContext): Promise<Response> {
 
   if (!viewer || verdict?.allow !== true) {
     return new Response('Not signed in.', { status: 401 });
+  }
+  // The Pre-List is paid, and the route policy only asks for member, so the
+  // tier is checked here too. Hiding the rows would otherwise leave the one
+  // action on them open to a member who crafted the post by hand.
+  if (!isPaidViewer(viewer)) {
+    return new Response('Not available on your account.', { status: 403 });
   }
 
   const userId = viewer.userId;
