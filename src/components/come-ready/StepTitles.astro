@@ -365,6 +365,20 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
       });
     }
 
+    // A press on a row must not take focus off the field. Chromium focuses a
+    // button on mousedown, so the focusout below arrives with the row as its
+    // relatedTarget and the panel survives the press. Safari and Firefox on
+    // macOS do not focus a button, so focusout arrives with no relatedTarget,
+    // the panel hides, and the row is gone before mouseup can complete the
+    // click: the press produces no click event at all and choosing a title
+    // does nothing. Refusing the default on the press keeps focus in the field
+    // in every browser, so the click always lands. Scoped to the rows, so the
+    // panel's own scrollbar still drags.
+    panel.addEventListener('mousedown', (event) => {
+      const target = event.target as Element | null;
+      if (target?.closest('[data-cr-combo-row]')) event.preventDefault();
+    });
+
     // Leaving the field and the list together closes it; moving between them
     // does not.
     form.addEventListener('focusout', (event) => {
