@@ -7,6 +7,7 @@ import { getBoardStats } from '../lib/job-store';
 import { isConfigured } from '../lib/db';
 import { prospectRows } from '../lib/data';
 import { routeFor } from '../data/nav';
+import { isOn } from '../lib/flags';
 import { withBase } from '../../site.config.mjs';
 
 /**
@@ -79,9 +80,16 @@ const n = (v: number) => v.toLocaleString();
 const cssHref = withBase('/scripts/ledger-v4.css');
 const appJs = withBase('/scripts/ledger-v4-app.js');
 const viewsJs = withBase('/scripts/ledger-v4-views.js');
-const accountHref = routeFor('account');
+/* The pitch points at the tiers page, which carries the price, the matrix and
+   the honest state of billing, the same as the Desk's (owner, 2026-09-21).
+   /account is the signed-in account page and was never the pitch. A signed-out
+   reader still gets the waitlist: there is no account for them to upgrade. */
+const theAccountHref = routeFor('the-account');
 const signUpHref = routeFor('sign-up');
 const boardHref = routeFor('board');
+/* Stripe is dark, so nothing can take a card. The note removes itself the day
+   the flag turns on. */
+const billingOpen = isOn('stripe');
 ---
 
 <BaseLayout title="Jobs Data" description="Read the design job market like a data scientist: what pays, what is fresh, who recycles, and where roles are about to open, counted from last night's sweep.">
@@ -165,7 +173,7 @@ const boardHref = routeFor('board');
         </section>
       )}
 
-      <Panel title="What the account opens">
+      <Panel title="What the paid account opens">
         <ul class="lp-list">
           <li>Every view re-cuts to the titles you watch, from pay ladders to the kill archive.</li>
           <li>The issuer table: every company as an issuer, with its record attached.</li>
@@ -173,10 +181,13 @@ const boardHref = routeFor('board');
         </ul>
         <p class="lp-cta">
           {viewer
-            ? (<a class="lp-button" href={accountHref}>See your account</a>)
+            ? (<a class="lp-button" href={theAccountHref}>What paid opens, $7.25 a month</a>)
             : (<a class="lp-button" href={signUpHref}>Save my spot</a>)}
           <a class="lp-link" href={boardHref}>Browse the free board</a>
         </p>
+        {viewer && !billingOpen && (
+          <p class="lp-billing">Billing is not open yet. The price does not move when it is.</p>
+        )}
       </Panel>
     </main>
   )}
@@ -195,12 +206,17 @@ const boardHref = routeFor('board');
   .lp-lede { margin: 0; color: var(--color-muted); max-width: 62ch; line-height: 1.55; }
   .lp-list { margin: 0; padding-left: 1.1rem; color: var(--color-muted); display: flex; flex-direction: column; gap: var(--space-100, 0.25rem); }
   .lp-cta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-400, 1rem); margin: var(--space-400, 1rem) 0 0; }
+  /* The page's one primary, the same button the Desk's pitch carries. */
   .lp-button {
-    display: inline-block; padding: 0.6rem 1rem; border-radius: var(--radius, 2px);
-    background: var(--color-surface-inverse); color: var(--color-foreground-inverse);
-    font-family: var(--font-family-mono, monospace); font-size: var(--size-100, 0.85rem);
+    display: inline-flex; align-items: center; min-height: 44px; padding: 12px 24px;
+    border-radius: var(--radius, 2px);
+    background: var(--color-signal); color: var(--gray-950);
+    font-family: var(--font-family-mono, monospace); font-weight: 700;
+    font-size: 0.82rem; letter-spacing: 0.14em; text-transform: uppercase;
     text-decoration: none; white-space: nowrap;
   }
+  .lp-button:hover, .lp-button:focus-visible { color: var(--gray-950); filter: brightness(0.94); }
+  .lp-billing { margin: var(--space-300) 0 0; color: var(--color-muted); font-size: 0.82rem; }
   .lp-link {
     color: var(--color-foreground); text-decoration: underline; text-underline-offset: 3px;
     text-decoration-color: var(--color-line-strong); font-size: var(--size-100, 0.85rem);
