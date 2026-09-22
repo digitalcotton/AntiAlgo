@@ -505,12 +505,21 @@ const widest = (group: FilterGroup): string =>
     if (!selection || typeof selection !== 'object') return;
     const source = selection as Record<string, unknown>;
     if (serverMode) {
-      // ONE NAVIGATION, AND ONLY FROM A BARE ADDRESS. A saved selection means
-      // "start me where I left off", so it applies only when the reader has
-      // stated nothing in the address. Any search string at all, including an
-      // explicit location=all, is the reader's own word and wins. The forms
-      // always submit every facet, so a restore can never loop.
+      // ONE NAVIGATION, AND ONLY FROM THE BOARD'S OWN BARE ADDRESS. A saved
+      // selection means "start me where I left off", so it applies only when
+      // the reader has stated nothing in the address. Any search string at
+      // all, including an explicit location=all, is the reader's own word and
+      // wins. The forms always submit every facet, so a restore can never loop.
+      //
+      // And only on the board page itself. This component is also embedded in
+      // the home page's board section, where a restore sent every visitor with
+      // a saved filter from / to /board?..., so the home page "flipped" and its
+      // sections vanished (reported twice; the second time on 2026-09-22). A
+      // page that is not the board keeps its own address; the saved selection
+      // waits for the reader to open the board.
       if (window.location.search !== '' || !boardPath) return;
+      const here = window.location.pathname.replace(/\/$/, '');
+      if (here !== boardPath.replace(/\/$/, '')) return;
       const params = new URLSearchParams();
       let any = false;
       for (const select of selects) {
