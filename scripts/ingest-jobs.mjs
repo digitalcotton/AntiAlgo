@@ -43,6 +43,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { assertBatchFits, upsertSql } from '../src/lib/upsert-sql.mjs';
+import { derivedFor, tierFromTitle } from '../src/lib/jobs-derived.mjs';
 
 const { Client } = pg;
 const here = dirname(fileURLToPath(import.meta.url));
@@ -231,11 +232,18 @@ function normalise(raw) {
 }
 
 function values(j) {
+  // The Jobs Data page's derived dimensions are computed HERE, once per row per
+  // crawl, by the one definition in src/lib/jobs-derived.mjs. They used to be
+  // recomputed in the browser on every render, which is what forced the whole
+  // board into the page as JSON. Nothing downstream re-derives them.
+  const d = derivedFor(j);
   return [
     j.id, j.company, j.title, j.url, j.location, j.country, j.remote, j.published,
     j.ats, j.posting_id, j.department, j.comp_posted, j.days_up, j.ghost,
     j.first_seen, j.last_seen, j.slug, j.fit_total, JSON.stringify(j.fit_components), j.source,
-    j.comp_range ? JSON.stringify(j.comp_range) : null, j.description ?? null
+    j.comp_range ? JSON.stringify(j.comp_range) : null, j.description ?? null,
+    d.derived_tier, d.derived_fam, d.derived_region, d.derived_friction,
+    d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k
   ];
 }
 
@@ -380,12 +388,12 @@ try {
   const KILL_UPSERT = `
     INSERT INTO board_kills (id, slug, url, company, title, ats, kill_rule, reason, evidence, killed_on,
                              first_killed_at_utc, last_fired_on, times_fired, first_published, pipeline,
-                             vacated_at, updated_at)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, NULL, now())
+                             derived_tier, vacated_at, updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16, NULL, now())
     ON CONFLICT (id) DO UPDATE SET
       slug=$2, url=$3, company=$4, title=$5, ats=$6, kill_rule=$7, reason=$8, evidence=$9, killed_on=$10,
       first_killed_at_utc=$11, last_fired_on=$12, times_fired=$13, first_published=$14, pipeline=$15,
-      vacated_at=NULL, updated_at=now()`;
+      derived_tier=$16, vacated_at=NULL, updated_at=now()`;
   const killIds = [];
   for (const k of killRows) {
     if (!k.id || !k.url || !k.company || !k.title || !k.kill_rule || !k.reason) continue;
@@ -394,7 +402,10 @@ try {
       k.id, k.slug ?? null, k.url, cleanText(k.company), cleanText(k.title), k.ats ?? null, k.kill_rule,
       cleanText(k.reason), k.evidence ? JSON.stringify(k.evidence) : null, k.killed_on ?? null,
       k.first_killed_at_utc ?? null, k.last_fired_on ?? k.killed_on ?? null,
-      Number.isFinite(k.times_fired) ? k.times_fired : 1, k.first_published ?? null, k.pipeline || 'sweep'
+      Number.isFinite(k.times_fired) ? k.times_fired : 1, k.first_published ?? null, k.pipeline || 'sweep',
+      // Same definition as the live rows use, so a kill and a posting with the
+      // same title are read at the same seniority.
+      tierFromTitle(cleanText(k.title))
     ]);
   }
   const vacated = await client.query(

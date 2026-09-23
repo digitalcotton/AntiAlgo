@@ -199,52 +199,10 @@
           </div>
         </div>` : ''}
   
-        <div style="margin-top:18px;border:1px solid var(--color-line-strong);background:var(--color-surface-raised);">
-          <div style="padding:11px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between;">
-            <div style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;min-width:0;">
-              <span style="font-family:var(--font-family-mono);font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-muted);">The rows in this cut</span>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
-              <button data-act="copy-cut" style="min-height:34px;padding:7px 12px;cursor:pointer;border:1px solid var(--color-line-strong);background:transparent;color:${vm.copyInk};font-family:var(--font-family-mono);font-size:0.72rem;border-radius:var(--radius);white-space:nowrap;" data-hover="border-color:var(--color-foreground);">${vm.copyLabel}</button>
-              <button data-act="toggle-rows" aria-expanded="${vm.rowsOpenStr}" aria-controls="row-table" style="min-height:34px;padding:7px 12px;cursor:pointer;border:1px solid var(--color-foreground);background:transparent;color:var(--color-foreground);font-family:var(--font-family-mono);font-size:0.72rem;border-radius:var(--radius);white-space:nowrap;display:inline-flex;gap:8px;align-items:center;" data-hover="background:var(--color-hover);"><span aria-hidden="true" style="color:var(--color-signal);">${vm.rowsToggleGlyph}</span><span>${vm.rowsToggleLabel}</span></button>
-            </div>
-          </div>
-          ${vm.rowsOpen ? `
-          <div id="row-table" style="border-top:1px solid var(--color-line);">
-            <div style="padding:10px 16px;border-bottom:1px solid var(--color-line);display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;">
-              <span style="font-family:var(--font-family-mono);font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-muted);">sort</span>
-              ${vm.rowSortChips.map(c => `
-              <button data-act="${c.act}" data-val="${c.val}" aria-pressed="${c.onStr}" style="min-height:32px;padding:6px 11px;cursor:pointer;border-radius:var(--radius);border:1px solid ${c.border};background:${c.bg};color:${c.ink};font-family:var(--font-family-mono);font-size:0.72rem;white-space:nowrap;">${c.label}</button>`).join('')}
-            </div>
-            <div style="overflow:auto;max-height:460px;">
-              <table style="width:100%;min-width:1060px;">
-                <thead>
-                  <tr>
-                    ${vm.rowCols.map(c => `
-                    <th style="position:sticky;top:0;z-index:2;background:var(--color-surface);border-bottom:1px solid var(--color-line-strong);padding:9px 12px;text-align:left;font-family:var(--font-family-mono);font-size:0.66rem;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--color-muted);white-space:nowrap;">${c}</th>`).join('')}
-                  </tr>
-                </thead>
-                <tbody>
-                  ${vm.rowTable.map(r => `
-                  <tr>
-                    <td style="border-bottom:1px solid var(--color-line);padding:9px 12px;font-size:0.84rem;white-space:nowrap;">${r.title}</td>
-                    <td style="border-bottom:1px solid var(--color-line);padding:9px 12px;font-family:${r.issuerFont};font-size:0.8rem;white-space:nowrap;">${r.issuer}</td>
-                    <td style="border-bottom:1px solid var(--color-line);padding:9px 12px;font-family:var(--font-family-mono);font-size:0.78rem;white-space:nowrap;">${r.level}</td>
-                    <td style="border-bottom:1px solid var(--color-line);padding:9px 12px;font-family:var(--font-family-mono);font-size:0.76rem;color:${r.placeInk};white-space:nowrap;">${r.place}</td>
-                    <td style="border-bottom:1px solid var(--color-line);padding:9px 12px;white-space:nowrap;">${r.hasRange ? `<span style="font-family:var(--font-family-mono);font-size:0.78rem;">${r.range}</span>` : ''}${r.noRange ? `<span style="font-size:0.8rem;color:var(--color-muted);">no range posted</span>` : ''}</td>
-                    <td style="border-bottom:1px solid var(--color-line);padding:9px 12px;font-family:var(--font-family-mono);font-size:0.76rem;color:var(--color-muted);white-space:nowrap;">${r.published}</td>
-                    <td style="border-bottom:1px solid var(--color-line);padding:9px 12px;font-family:var(--font-family-mono);font-size:0.78rem;color:${r.ageInk};white-space:nowrap;">${r.age}</td>
-                    <td style="border-bottom:1px solid var(--color-line);padding:9px 12px;font-family:var(--font-family-mono);font-size:0.78rem;white-space:nowrap;">${r.fit}</td>
-                    <td style="border-bottom:1px solid var(--color-line);padding:9px 12px;font-family:var(--font-family-mono);font-size:0.76rem;color:var(--color-muted);white-space:nowrap;">${r.ats}</td>
-                    <td style="border-bottom:1px solid var(--color-line);padding:9px 12px;font-family:var(--font-family-mono);font-size:0.76rem;color:var(--color-muted);white-space:nowrap;">${r.friction}</td>
-                    <td style="border-bottom:1px solid var(--color-line);padding:9px 12px;font-family:var(--font-family-mono);font-size:0.76rem;color:${r.riskInk};white-space:nowrap;">${r.risk}</td>
-                    <td style="border-bottom:1px solid var(--color-line);padding:9px 12px;font-family:var(--font-family-mono);font-size:0.76rem;color:${r.recordInk};white-space:nowrap;">${r.recordNote}</td>
-                  </tr>`).join('')}
-                </tbody>
-              </table>
-            </div>
-            <p style="margin:0;padding:11px 16px;border-top:1px solid var(--color-line-strong);font-size:0.84rem;line-height:1.5;color:var(--color-muted);">Every row is one posting read at its own careers page on the night stamped above. Age is computed against that clock, not against the time you are reading this. The copy action carries the same rows, the cut that produced them, and the stamp.</p>
-          </div>` : ''}
+        <!-- The row table and the TSV export were removed on 2026-09-23.
+             This page is a wall of charts and readings, not a data tool: no
+             endpoint behind it returns individual postings, so there is
+             nothing here to list or to export. Filters move the numbers. -->
         </div>
       </div>
     </div>`;

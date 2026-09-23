@@ -2,7 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Panel from '../components/Panel.astro';
 import { isPaidViewer } from '../lib/ledger-access';
-import { buildLedgerData } from '../lib/ledger-market';
+import { buildJobsDataPayload } from '../lib/jobs-data-page';
 import { getBoardStats } from '../lib/job-store';
 import { isConfigured } from '../lib/db';
 import { prospectRows } from '../lib/data';
@@ -14,11 +14,16 @@ import { withBase } from '../../site.config.mjs';
  * /jobs-data: Jobs Data (The Ledger until 2026-09-19; /ledger now redirects
  * here), the data-scientist market page (v4). A paid, behind-login
  * surface. The whole interactive app is a client island: this page resolves the
- * viewer, and for a paid reader builds the DATA object server-side from the real
- * sweep (src/lib/ledger-market.ts) and injects it as one JSON script tag; the
- * client runtime (public/scripts/ledger-v4-app.js) reads it, and the view bundle
- * (ledger-v4-views.js) renders and re-cuts every view live. A reader who is not
- * paid gets a preview and an upsell, and no member data is built or shipped.
+ * viewer, and for a paid reader embeds the NUMBERS behind the first screen
+ * (src/lib/jobs-data-page.ts) as one JSON script tag; the client runtime
+ * (public/scripts/ledger-v4-app.js) draws from those, and every later cut comes
+ * from /jobs-data/summary. A reader who is not paid gets a preview and an
+ * upsell, and no member data is built or shipped.
+ *
+ * NO ROWS ARE EMBEDDED (2026-09-23). This page used to inject the whole live
+ * board, every posting as an object, and let the browser filter it. At 31,310
+ * live rows that payload reached 12.0 MB and the page rendered blank. It is a
+ * wall of charts, and a chart is an aggregate, so only aggregates travel.
  *
  * GATED IN THIS PAGE, NOT BY MIDDLEWARE, so a non-paid reader still gets the
  * preview instead of a redirect. See src/lib/ledger-access.ts.
@@ -34,7 +39,7 @@ const paid = isPaidViewer(viewer);
 
 let dataJson = '';
 if (paid) {
-  const raw = JSON.stringify(await buildLedgerData());
+  const raw = JSON.stringify(await buildJobsDataPayload());
   // Char classes built from codes so this source holds no dash/curly byte itself.
   const cc = String.fromCharCode;
   const cls = (a: number, b: number) => new RegExp('[' + cc(a, b) + ']', 'g');
@@ -97,7 +102,7 @@ const billingOpen = isOn('stripe');
 
   {paid ? (
     <>
-      <div id="ledger-app" data-ledger-mount>
+      <div id="ledger-app" data-ledger-mount data-named="true" data-summary={withBase('/jobs-data/summary')}>
         <noscript>
           <div style="max-width:60ch;margin:48px auto;padding:0 24px;font-size:0.95rem;line-height:1.6;color:var(--color-muted);">
             The Ledger reads and re-cuts the market live in your browser, so it needs JavaScript on.

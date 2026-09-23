@@ -28,7 +28,7 @@
  */
 
 /** Columns bound per row. Must match values() in scripts/ingest-jobs.mjs. */
-export const COLUMNS_PER_ROW = 22;
+export const COLUMNS_PER_ROW = 30;
 
 /** Postgres refuses a statement carrying more bound parameters than this. */
 export const MAX_PARAMETERS = 65535;
@@ -40,7 +40,10 @@ const HEAD = `
   INSERT INTO jobs (id, company, title, url, location, country, remote, published,
                     ats, posting_id, department, comp_posted, days_up, ghost,
                     first_seen, last_seen, slug, fit_total, fit_components, source,
-                    comp_range, description, status, kill_id, ingested_at)
+                    comp_range, description,
+                    derived_tier, derived_fam, derived_region, derived_friction,
+                    priced, comp_min_k, comp_max_k, comp_mid_k,
+                    status, kill_id, ingested_at)
   VALUES `;
 
 const TAIL = `
@@ -52,6 +55,10 @@ const TAIL = `
     first_seen=EXCLUDED.first_seen, last_seen=EXCLUDED.last_seen, slug=EXCLUDED.slug,
     fit_total=EXCLUDED.fit_total, fit_components=EXCLUDED.fit_components,
     source=EXCLUDED.source, comp_range=EXCLUDED.comp_range, description=EXCLUDED.description,
+    derived_tier=EXCLUDED.derived_tier, derived_fam=EXCLUDED.derived_fam,
+    derived_region=EXCLUDED.derived_region, derived_friction=EXCLUDED.derived_friction,
+    priced=EXCLUDED.priced, comp_min_k=EXCLUDED.comp_min_k,
+    comp_max_k=EXCLUDED.comp_max_k, comp_mid_k=EXCLUDED.comp_mid_k,
     status='live', kill_id=NULL, ingested_at=now()`;
 
 /**

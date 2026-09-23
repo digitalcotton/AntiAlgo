@@ -16,10 +16,15 @@ import {
  */
 
 describe('upsertSql', () => {
-  it('binds 22 placeholders for a single row, starting at $1', () => {
+  // 30 since 2026-09-23: db/207 added the eight derived columns the Jobs Data
+  // page filters on, written at ingest by src/lib/jobs-derived.mjs.
+  it('binds 30 placeholders for a single row, starting at $1', () => {
     const sql = upsertSql(1);
-    expect(sql).toContain('($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22');
-    expect(sql).not.toContain('$23');
+    expect(sql).toContain(
+      '($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,' +
+      '$21,$22,$23,$24,$25,$26,$27,$28,$29,$30'
+    );
+    expect(sql).not.toContain('$31');
   });
 
   it('numbers each row consecutively with no gaps or repeats', () => {
@@ -55,13 +60,13 @@ describe('upsertSql', () => {
     const cols = upsertSql(1).slice(0, upsertSql(1).indexOf('VALUES'))
       .replace(/[\s\S]*INSERT INTO jobs \(/, '').replace(/\)[\s\S]*/, '')
       .split(',').map((c) => c.trim());
-    // 22 bound columns plus the three written literally.
+    // The bound columns plus the three written literally.
     expect(cols).toHaveLength(COLUMNS_PER_ROW + 3);
     expect(cols.slice(-3)).toEqual(['status', 'kill_id', 'ingested_at']);
   });
 
   it('refuses a batch Postgres would reject, before anything is sent', () => {
-    expect(MAX_ROWS_PER_STATEMENT).toBe(2978);
+    expect(MAX_ROWS_PER_STATEMENT).toBe(2184);
     expect(() => upsertSql(MAX_ROWS_PER_STATEMENT)).not.toThrow();
     expect(() => upsertSql(MAX_ROWS_PER_STATEMENT + 1)).toThrow(/65535/);
     expect(() => assertBatchFits(10_000)).toThrow(/Lower --batch/);
