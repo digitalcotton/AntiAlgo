@@ -1,0 +1,205 @@
+# conform: the deterministic tier, on a clean checkout.
+#
+# WHAT RUNS HERE AND WHY ONLY THIS
+# `npm run conform` is six gates — types, unit, invariants, dom-contracts,
+# tokens, routes — and every one of them needs nothing but this repository:
+# no database, no browser, no network, no secret. That is exactly the set of
+# things a clean GitHub-hosted runner can measure honestly, so it is exactly
+# the set of things this job asserts. See docs/regression-strategy.md, Part
+# Two, "What is green" and the build-order table's last row, which held this
+# job back on purpose until the local gate had been trusted for a week.
+#
+# WHAT DOES NOT RUN HERE, ON PURPOSE
+# `npm run conform -- --deep` adds a seventh gate, `browser` — Playwright
+# driving five signed-in audiences plus two pixel baselines. That gate needs
+# a running dev server and a seeded `antialgo_test` Postgres
+# (scripts/test-db.mjs), and CI has neither today: there is no Postgres
+# service wired into this workflow and no seed step. Running it anyway would
+# not test the site, it would test whether the gate fails closed against a
+# missing database — which it already does, loudly, as CANNOT_RUN (see
+# below) — and every run would report that same non-answer. A job that always
+# says "unknown" trains a reader to stop reading it, which is the exact
+# disease Part One of the regression strategy diagnoses in the pre-existing
+# Index CI (docs below).
+#
+# So this stays ONE job, not two. A second job with `continue-on-error: true`
+# was considered and rejected: a step that is *allowed* to fail and *always*
+# fails (no DB, ever, in this environment) is a permanently green checkmark
+# next to permanently red output, which is worse than not running it — it
+# looks like coverage on the pull request page and it is not. When a seeded
+# Postgres is wired into this workflow (a services: block, a
+# scripts/test-db.mjs reset step, and the four Preview env vars this repo is
+# still missing — see regression-strategy.md section 6, items 1-2), add
+# `--deep` here as a real, unconditional gate, not an advisory one.
+#
+# WHAT WAS READ BEFORE WRITING THIS, AND WHAT IT COST
+# tokenstoagent/site-index/.github/workflows/ci.yml, in full, per the
+# instruction that sent this file. Two things from it apply directly and one
+# does not:
+#   - It moved off `macos-latest` after that runner's cost (10x Ubuntu) was
+#     the proximate cause of GitHub disabling billing on the account on
+#     2026-09-07 ("recent account payments have failed or your spending
+#     limit needs to be increased"). This job has no reason to need macOS
+#     either — nothing here touches a darwin-only pixel baseline — so it
+#     runs on ubuntu-latest from the start.
+#   - Its own concurrency group (`ci-${{ github.ref }}`) is undermined by a
+#     mechanism specific to that repo: `scripts/ingest-on-build.mjs` is
+#     loaded by that repo's own `ingest.yml`, triggered by the mini's nightly
+#     push, which lands commits on the same ref in quick succession and
+#     cancels its own in-progress run each time — so a run that would have
+#     told somebody something never gets the chance to finish. AntiAlgo has
+#     the identical shape (this repo's `scripts/ingest-on-build.mjs` runs
+#     inside `npm run build`, fed by the same kind of automated push), so the
+#     concurrency group below is scoped by commit SHA on `push`, not by
+#     ref — see the block itself for why that specifically defeats the
+#     failure mode instead of just moving it.
+#   - What it does NOT recommend copying, and this job does not: that
+#     workflow's own timeout is 60 minutes, its runs have taken 46-60 minutes
+#     each, and it has not gone green since 2026-09-15 — 22 successes in 200
+#     runs. That is a 60-minute job answering a question nobody trusts
+#     anymore. This job's six gates run in under 25 seconds on a laptop
+#     (docs/regression-strategy.md Part Two: "24.9s" the run before this file
+#     was written), so its timeout says 10 minutes, not 60, and if it ever
+#     needs more than a fraction of that, the honest fix is to find out why
+#     the fast tier stopped being fast, not to raise the number.
+#
+# HOW TO READ A RED RUN, AND THE ONE THING NOT TO DO WITH IT
+# scripts/conform.mjs distinguishes three outcomes on purpose, and GitHub
+# Actions' pass/fail model has no third box to put the middle one in — so
+# read the "Run npm run conform" step's own log line before reading the red
+# X on the pull request:
+#   exit 0   GREEN. Every gate ran and found nothing new. (This job then has
+#            nothing further to report; there is no upload step.)
+#   exit 1   RED. At least one gate ran to completion and found a real
+#            regression not already recorded in test/conform/accepted.json.
+#            Fix the code, or run `npm run conform:accept` locally if the
+#            change was intended and re-push.
+#   exit 2   COULD NOT RUN. At least one gate never got to measure anything —
+#            a missing binary, a launch failure, an environment problem that
+#            has nothing to do with whether the site works. This is not a
+#            pass and it must never be read as one; it is also not the same
+#            failure as exit 1, and treating "could not measure" as "the code
+#            is broken" sends whoever is on call chasing a regression that
+#            was never actually observed. This job's own step prints which
+#            case fired, in words, above the raw gate output, specifically so
+#            nobody has to infer it from an exit code alone.
+# docs/ci.md has the one-paragraph version of this, plus the answer to "why
+# doesn't CI run my browser tests."
+
+name: conform
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# Cancel a stale answer, without cancelling a nightly data commit's own run.
+#
+# The naive group — one bucket per branch (`${{ github.ref }}`, as the Index
+# does it) — means every push to the same branch cancels the run before it,
+# including a push that is not a person iterating but an automated commit
+# from the mini's nightly ingest landing on top of another one seconds later.
+# Two real answers about two different commits, and the group only ever lets
+# the last one finish.
+#
+# So the group is not the ref. It is the PR number for a pull_request event
+# (where "a newer push supersedes the one before it" is actually true — the
+# diff being reviewed just changed) and the commit SHA for a push event
+# (where it is not — a push to main is a distinct, permanent commit, nightly
+# ingest or not, and its run should stand on its own). Keying push events by
+# SHA means cancel-in-progress has nothing to cancel between two different
+# commits; it only ever fires within the one case it is safe for, a PR
+# branch being force-pushed or re-pushed while its own previous run is still
+# going.
+concurrency:
+  group: conform-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('push-{0}', github.sha) }}
+  cancel-in-progress: true
+
+jobs:
+  # Named "conform (fast tier: types, unit, invariants, dom-contracts,
+  # tokens, routes)" rather than just "conform" so the check listed on a pull
+  # request already says what it covers without anyone having to open this
+  # file — the same argument the Index's own header makes for naming its job
+  # "conformance" instead of "ci".
+  conform-fast-tier:
+    name: "conform (fast tier: types, unit, invariants, dom-contracts, tokens, routes)"
+    runs-on: ubuntu-latest
+    # Measured locally at 24.9s for all six gates (docs/regression-strategy.md,
+    # Part Two). 10 minutes leaves headroom for a cold npm cache and a slower
+    # shared runner without coming anywhere near treating a genuine hang as
+    # normal.
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # package.json pins engines.node to 24.x and Vercel builds this
+          # site on 24 — matching it here is what makes a green run here mean
+          # anything about the build that ships.
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        # ci, never install: it installs exactly what package-lock.json
+        # pins and fails outright if the lockfile disagrees with
+        # package.json, instead of quietly resolving something new.
+        run: npm ci
+
+      - name: Run npm run conform
+        id: conform
+        run: |
+          set +e
+          npm run conform
+          code=$?
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+          case "$code" in
+            0)
+              echo "conform: GREEN. All six gates ran and found nothing new."
+              ;;
+            2)
+              echo "::error::conform exited 2 — COULD NOT RUN. At least one gate never got to measure anything (a missing binary, a launch failure, an environment problem). This is NOT a pass and it is NOT the same as a failing gate — read the gate output above this line to see which one, and fix the instrument before drawing any conclusion about the code."
+              ;;
+            1)
+              echo "::error::conform exited 1 — RED. At least one gate ran to completion and found something not already recorded in test/conform/accepted.json. Read the gate output above this line."
+              ;;
+            *)
+              echo "::error::conform exited $code — unrecognised. scripts/conform.mjs only ever exits 0, 1 or 2; something outside the runner's own contract went wrong."
+              ;;
+          esac
+
+          exit "$code"
+
+      # Neither of these exists on a green run, and .sweep/routes.json also
+      # will not exist if the job died before the `routes` gate got to write
+      # it — if-no-files-found: ignore is deliberate, not a hedge to be
+      # tightened later.
+      - name: Upload the route manifest
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sweep-routes
+          # scripts/route-census.mjs (the 'routes' gate) writes this. Useful
+          # on any red run, not only a 'routes' failure, because it is the
+          # ground truth the dom-contracts and invariants gates are checked
+          # against too.
+          path: .sweep/routes.json
+          if-no-files-found: ignore
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          # This job never runs `--deep`, so today this step almost always
+          # finds nothing to upload — see the header comment for why the
+          # browser tier isn't here yet. The step stays so that the day
+          # `--deep` (or a real second job) is added, failure artifacts work
+          # without a second pull request to remember this.
+          path: playwright-report/
+          if-no-files-found: ignore

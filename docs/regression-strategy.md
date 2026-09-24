@@ -451,7 +451,7 @@ Five things I cannot do for you. Three of them block part of the plan.
    Billing is flag-dark, so it cannot break a visitor today; I will build the journey and leave it
    skipped with a one-line reason until you paste test keys.
 4. **Firefox.** Your dropdown bug was Safari **and** Firefox. Chromium and WebKit are installed;
-   Firefox is not. `npx playwright install firefox` if you want that covered.
+   Firefox was not, and now is — installed 2026-09-24, with a `firefox-interactions` project.
 5. **`/colophon` is publishing a claim this repo cannot support.** It renders 11 gates from
    `test/gates.config.mjs` and tells the reader to *"Run npm run conform"* — a script that does not
    exist here. `src/data/conformance-run.ts` calls a report like that *"the worst file in the
@@ -520,7 +520,7 @@ verification pass after a first agent got them wrong.
   `is:inline` blocks not type-checked ✎
 - 10 twin route pairs ✎ · 11 routes absent from `nav.ts` ✎
 - `blast-radius.mjs` on `Filters.astro`: **88 ms**, correct answer
-- `playwright@1.62.1` bundles the runner · Chromium + WebKit installed · **Firefox not installed**
+- `playwright@1.62.1` bundles the runner · Chromium, WebKit **and Firefox** installed (Firefox added 2026-09-24)
 - Index CI: last green **2026-09-15** · 22 successes in 200 runs · 46–60 min per run
 - Argos free tier 5,000 shots/month, Pro $100/mo · Chromatic free 5,000, Starter $179/mo ✎ (Percy no
   longer publishes pricing)
@@ -638,8 +638,10 @@ assertion is the most important line in the sweep.
    deploy.** Nothing signed-in can be tested there until they exist.
 3. **Stripe test keys.** No `STRIPE_*` in `.env.local`. Billing is flag-dark, so it
    cannot break a visitor today; the journey is built and skipped with a stated reason.
-4. **`npx playwright install firefox`.** Your dropdown bug was Safari *and* Firefox.
-   WebKit is installed; Firefox is not.
+4. ~~`npx playwright install firefox`~~ **Done 2026-09-24.** `firefox-interactions` now
+   runs the interaction specs. Measured caveat: Playwright's Firefox automation would not
+   reproduce the focus race even with the guard removed by hand, so a green Firefox run is
+   not evidence about *that* bug — WebKit is. The Firefox half wants one human check.
 5. **The `/colophon` ruling.** Port the gates so the page is true, or change the page
    to describe what this repo measures.
 

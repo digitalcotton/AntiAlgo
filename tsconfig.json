@@ -1,5 +1,6 @@
 {
   "extends": "astro/tsconfigs/strict",
   "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist"]
+  "//": "Build and tool OUTPUT, never source. `include` is '**/*', so anything a tool writes into the working tree gets type-checked unless it is named here — and on 2026-09-24 that turned `npm run conform`'s types gate red with warnings from playwright-report/trace/sw.bundle.js, a minified bundle Playwright generates for its own HTML report. A gate that goes red because a previous gate produced output is a gate that cannot be run twice.",
+  "exclude": ["dist", "dist-review", "playwright-report", "test-results", ".sweep", ".vercel"]
 }

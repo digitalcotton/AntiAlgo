@@ -84,6 +84,24 @@
       "why": "test/gates.config.mjs declares 10 non-retired gates (copy, truth, pii, provenance, fabrication, population, parse-proof, a11y, motion, perf) and this repository has no test/gates/ directory, so not one of them can run. src/pages/colophon.astro imports that registry and publishes a PASS/FAIL verdict per gate to every visitor, and tells the reader to 'Run npm run conform' \u2014 a script that did not exist until today and still runs none of those ten.",
       "owner_question": "Two honest ways out, and only you can choose. Either port the gates from the Index so the page's claim becomes true, or change the page to describe what THIS repository measures. src/data/conformance-run.ts already calls the third option by its name: 'the worst file in the repository: a conformance report that conforms to nothing.'",
       "review": "2026-10-01"
+    },
+    {
+      "id": "responsive:src/components/DurationBar.astro:label-inside-overflow",
+      "gate": "layout.responsive",
+      "verdict": "real-defect-deferred",
+      "accepted": "2026-09-24",
+      "why": "On an iPhone 14 viewport the 'Open Nd' label rendered inside a duration bar paints about 2.45px BELOW the bottom edge of the coloured bar it is meant to sit in. The bar is .fill with a fixed height of var(--space-500) = 24px and display:flex; the label's own line box measures about 28.9px. Caught live on /evidence by the new spillover assertion in test/sweep/layout.responsive.spec.ts \u2014 the first mobile-geometry check this repo has ever had.",
+      "owner_question": "Which gives: the bar's fixed 24px height, or the label's line-height? Raising the bar changes the chart's proportions on every viewport; shrinking the label's line-height changes type on a figure. Either is a design decision on a published figure, not a repair, and the label is legible today \u2014 it just escapes its bar.",
+      "review": "2026-10-08"
+    },
+    {
+      "id": "print:src/pages/report.astro:dead-chrome-selectors",
+      "gate": "layout.responsive",
+      "verdict": "real-defect-deferred",
+      "accepted": "2026-09-24",
+      "why": "report.astro's <style is:global> print block hides '.site-header, .site-footer, .skip-link' under @media print, and NO element in the codebase carries site-header or site-footer: SiteHeader.astro renders <header class=\"hdr\"> and SiteFooter.astro renders <footer class=\"ftr\">. That rule has never matched anything. The chrome does get hidden on paper, by rules elsewhere, so the printed report is not broken \u2014 but three selectors in a print block are dead, and print is the one rendering mode nothing watched until today.",
+      "owner_question": "Delete the three dead selectors, or correct them to .hdr/.ftr? Deleting is safe because other rules already hide the chrome. Correcting them would be belt-and-braces on a printed deliverable. Either way it is a two-line edit on a page you have opinions about.",
+      "review": "2026-10-08"
     }
   ]
 }

@@ -1,0 +1,4 @@
+Senior Widget Engineer
+Acme Robotics | Remote
+Jan 2019 - Dec 2022
+Shipped the sweep regression harness end to end, three roles, one browser.

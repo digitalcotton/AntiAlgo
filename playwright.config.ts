@@ -13,8 +13,8 @@ import { SWEEP_ENV, SWEEP_ORIGIN } from './test/sweep/env';
  * Zero new dependencies was a hard constraint and it is met.
  *
  * WHY astro dev AND NOT astro preview. `astro preview` does not work with
- * @astrojs/vercel — the adapter has no preview server. 75 of this app's ~91
- * routes are `prerender = false`, so a sweep that reads a built directory of
+ * @astrojs/vercel — the adapter has no preview server. 74 of this app's 91
+ * routes are `prerender = false` (measured by scripts/route-census.mjs), so a sweep that reads a built directory of
  * .html files would cover about a tenth of the app and would never once load the
  * board, the desk, drafting, profile, billing or /internal. That structural
  * blindness is what killed the Index's gate 5. So the sweep drives a real server.
@@ -135,12 +135,33 @@ export default defineConfig({
       testMatch: /\.signedin\.spec\.ts$/
     },
     {
-      // The owner's dropdown bug was Safari AND Firefox. WebKit is installed;
-      // Firefox is not (`npx playwright install firefox` when it is wanted).
-      // Kept to the interaction specs only: running the whole sweep twice buys
-      // little and doubles the wait.
+      // The owner's dropdown bug was Safari AND Firefox, so both engines run the
+      // interaction specs — and only those. Running the whole sweep twice more
+      // would double the wait to re-prove what Chromium already proved.
+      //
+      // storageState because the Come-ready title dropdown sits behind /start's
+      // rank gate: without a real member session these specs would assert against
+      // a sign-in page and pass for the wrong reason.
       name: 'webkit-interactions',
-      use: { ...devices['Desktop Safari'] },
+      use: { ...devices['Desktop Safari'], storageState: '.sweep/auth/member.json' },
+      dependencies: ['setup'],
+      testMatch: /\.interaction\.spec\.ts$/
+    },
+    {
+      // Firefox 1538 IS installed (this config's header said otherwise until
+      // 2026-09-24; so did .claude/rules/dropdown-focus.md — both now corrected).
+      //
+      // AN HONEST LIMIT, measured rather than assumed: Playwright's Firefox
+      // automation did NOT reproduce the focus-loss race even with the guard in
+      // StepTitles.astro removed by hand — its synthetic input does not order
+      // mousedown/focusout the way a real trackpad press does. So this project is
+      // real coverage for the saved-filter and waitlist specs, and is NOT a
+      // backstop for the dropdown one; that leans on WebKit. The dropdown in real
+      // macOS Firefox still wants a human check, which is worth writing down
+      // rather than implying a green run has covered it.
+      name: 'firefox-interactions',
+      use: { ...devices['Desktop Firefox'], storageState: '.sweep/auth/member.json' },
+      dependencies: ['setup'],
       testMatch: /\.interaction\.spec\.ts$/
     },
     {

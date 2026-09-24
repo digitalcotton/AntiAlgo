@@ -103,7 +103,17 @@ const DEEP = [
   {
     id: 'browser',
     what: 'every route as five audiences, plus the authored galleries in both themes',
-    argv: ['npx', 'playwright', 'test'],
+    // --workers=1 deliberately. With 4 workers the deep tier ran in 52s and the
+    // draft journey failed intermittently: several signed-in specs mutate the same
+    // antialgo_test rows as the same `paid` account, so they raced each other. The
+    // spec was correct — it passed alone every time. A gate that is fast and flaky
+    // is worse than one that is slow and true, because a flake teaches you to
+    // re-run rather than to read. 2 minutes, deterministic.
+    //
+    // The honest fix is data isolation (a distinct account and job rows per spec)
+    // rather than a lock; that is worth doing and is written down in
+    // docs/regression-strategy.md rather than pretended away here.
+    argv: ['npx', 'playwright', 'test', '--workers=1'],
     note: 'Loads every public route and every gated route as signed-out, waitlisted, member, paid and internal — asserting both that what should open, opens, and that what should refuse, refuses. Pixels only on the two authored galleries; never on a page whose content comes from the nightly sweep, which is the mistake that killed the last visual gate.'
   }
 ];
