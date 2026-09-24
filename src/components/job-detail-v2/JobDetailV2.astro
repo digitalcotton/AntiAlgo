@@ -59,7 +59,10 @@ interface Props {
   /** When set, the Apply button posts the outbound click so it lands on the
       reader's Desk (the board_actions track control), instead of a plain link.
       Null for the static /role page and signed-out readers. */
-  applyTrack?: { action: string; title: string; company: string } | null;
+  /** `title` is nullable because an added posting reaches this component before
+      its title is resolved (addedPostingToJob). The Apply form already omits the
+      titleOverride field when it is absent; the type says so now. */
+  applyTrack?: { action: string; title: string | null; company: string } | null;
 }
 const { job, signedIn, selfPath, hasKey = false, paid = false, applyTrack = null } = Astro.props;
 

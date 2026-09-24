@@ -26,7 +26,10 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
     in UTC. Falls back to the plain date if the stamp does not parse. */
 function finishedStamp(iso: string): string {
   const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) return formatDate(iso);
+  // formatDate answers null for a stamp it cannot read either. Printing the raw
+  // value is the honest fallback: it shows what the sweep actually recorded
+  // rather than an empty space that reads as "no sweep".
+  if (Number.isNaN(ms)) return formatDate(iso) ?? iso;
   const d = new Date(ms);
   const two = (v: number) => String(v).padStart(2, '0');
   return `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}:${two(d.getUTCSeconds())}, ${d.getUTCFullYear()}-${two(d.getUTCMonth() + 1)}-${two(d.getUTCDate())}`;

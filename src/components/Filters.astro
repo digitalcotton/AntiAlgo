@@ -93,8 +93,8 @@ const {
 } = Astro.props;
 const titleShelves: { key: 'core' | 'stretch'; label: string; titles: readonly string[] }[] = titleChoices
   ? [
-      { key: 'core', label: 'Core', titles: titleChoices.core },
-      { key: 'stretch', label: 'Stretch', titles: titleChoices.stretch }
+      { key: 'core' as const, label: 'Core', titles: titleChoices.core },
+      { key: 'stretch' as const, label: 'Stretch', titles: titleChoices.stretch }
     ].filter((shelf) => shelf.titles.length > 0)
   : [];
 const hasTitleMenu = serverModeOf(mode) && titleShelves.length > 0;
