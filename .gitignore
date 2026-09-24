@@ -24,3 +24,9 @@ dist-review/
 # like, reviewed in a diff like any other change.
 playwright-report/
 test-results/
+
+# The hook's edit marker and the gate's receipt. Local state about THIS working
+# tree, never shared: a receipt committed from one machine would tell another
+# machine's Stop hook that a sweep it never ran had passed.
+.claude/.last-edit
+.claude/.sweep-receipt.json

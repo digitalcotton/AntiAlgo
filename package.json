@@ -19,7 +19,17 @@
     "conform:accept": "playwright test --update-snapshots=changed",
     "conform:report": "playwright show-report",
     "db:migrate": "node db/migrate.mjs",
-    "admit": "node scripts/admit.mjs"
+    "admit": "node scripts/admit.mjs",
+    "conform": "node scripts/conform.mjs",
+    "conform:deep": "node scripts/conform.mjs --deep",
+    "conform:list": "node scripts/conform.mjs --list",
+    "gate:invariants": "node scripts/gate-invariants.mjs",
+    "gate:dom": "node scripts/check-dom-contracts.mjs",
+    "gate:tokens": "node scripts/check-tokens.mjs",
+    "routes:census": "node scripts/route-census.mjs",
+    "db:test:reset": "node scripts/test-db.mjs reset",
+    "db:test:seed": "node scripts/test-db.mjs seed",
+    "db:test:url": "node scripts/test-db.mjs url"
   },
   "dependencies": {
     "@astrojs/vercel": "^9.0.5",

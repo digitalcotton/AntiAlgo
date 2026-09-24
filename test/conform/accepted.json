@@ -1,0 +1,98 @@
+{
+  "$comment": [
+    "THE RATCHET. Every finding a gate has already shown the owner, with a decision recorded against it.",
+    "",
+    "WHY THIS FILE EXISTS. A gate introduced into a codebase that already has debt is red on its first run,",
+    "and a gate that is red on its first run gets bypassed. That is not a guess: this project has already",
+    "lost two instruments that way. The Index's visual gate sat red from 2026-08-19 until it was deleted on",
+    "2026-09-06, hiding five real failures behind its own noise. And `npm run check` was waved past in five",
+    "consecutive commit messages as 'clean but for the pre-existing ProviderRow error' — a prose baseline",
+    "nobody re-measured, which by 2026-09-23 had drifted to three completely different errors.",
+    "",
+    "SO: a gate fails on findings that are NOT in this file, and reports findings that are. The list only",
+    "ever shrinks by someone fixing something. Adding a line is a deliberate act with a name and a date on",
+    "it, and `not-a-defect` entries are the only ones without a review date.",
+    "",
+    "AND THE OTHER HALF, which is what stops this from becoming a place defects go to die: a gate must also",
+    "report a finding here that NO LONGER REPRODUCES. A stale accepted entry is how a ratchet rots into an",
+    "excuse. See scripts/conform.mjs."
+  ],
+  "findings": [
+    {
+      "id": "dom-contract:src/components/NewHereStrip.astro:data-new-here-dismiss",
+      "gate": "check-dom-contracts",
+      "verdict": "not-a-defect",
+      "accepted": "2026-09-24",
+      "why": "The dismiss control was removed on 2026-08-20 by the owner's own decision, and the script's `if (!button) continue;` at NewHereStrip.astro:165 is the deliberate guard for its absence — so a reader who dismissed the strip before it was removed keeps that state instead of having it reappear. The component says all of this in a comment at line 134. The gate is right that the selector resolves to nothing and wrong that it is a fault.",
+      "review": "never"
+    },
+    {
+      "id": "dom-contract:src/components/Board.astro:data-count-rows",
+      "gate": "check-dom-contracts",
+      "verdict": "real-defect-deferred",
+      "accepted": "2026-09-24",
+      "why": "Board.astro:288 reads [data-count-rows] and :289 reads [data-count-page]; neither attribute exists anywhere in the repo. They arrived with e81f651, the wholesale copy of the board app into this repo, and the markup that provided them did not come with it. Both reads are guarded (`if (rowsLabel)`, Board.astro:325/334), so the row-count and page-count labels have simply never updated on /, /board or /prelist, silently, since the first import.",
+      "owner_question": "Where should those two counts appear, and what should they say? 'Showing 24 of 812' and 'Page 2 of 34' are the obvious readings, but the markup to hold them does not exist and inventing a place for them is a design decision, not a repair.",
+      "review": "2026-10-08"
+    },
+    {
+      "id": "dom-contract:src/components/Board.astro:data-count-page",
+      "gate": "check-dom-contracts",
+      "verdict": "real-defect-deferred",
+      "accepted": "2026-09-24",
+      "why": "The second half of the finding above; see data-count-rows.",
+      "review": "2026-10-08"
+    },
+    {
+      "id": "token:src/components/prelist/ProspectCard.astro:176:--space-150",
+      "gate": "check-tokens",
+      "verdict": "real-defect-deferred",
+      "accepted": "2026-09-24",
+      "why": "The space ramp is --space-100 through --space-1000 with no 050 and no 150 step, so this gap has always resolved to nothing and rendered as 0. The author wrote a gap and the reader has never seen one.",
+      "owner_question": "Every fix here CHANGES A LAYOUT you have been looking at. --space-150 wants a step between 100 and 200 that does not exist. Three options: pick the nearest real step, add 150 and 050 to the ramp in tokens/, or accept 0 and delete the declaration. The pixel gate now photographs DraftDocuments, so whichever you pick, the diff will show you exactly what moves.",
+      "review": "2026-10-08"
+    },
+    {
+      "id": "token:src/components/prelist/ProspectCard.astro:215:--space-050",
+      "gate": "check-tokens",
+      "verdict": "real-defect-deferred",
+      "accepted": "2026-09-24",
+      "why": "Same class as the entry above: no --space-050 on the ramp, no fallback, renders as 0.",
+      "review": "2026-10-08"
+    },
+    {
+      "id": "token:src/components/tailor/DraftDocuments.astro:438:--space-150",
+      "gate": "check-tokens",
+      "verdict": "real-defect-deferred",
+      "accepted": "2026-09-24",
+      "why": "Same class. This one is on a surface the pixel gate photographs (states.astro's draft-states group), so a fix here is immediately visible as a baseline diff.",
+      "review": "2026-10-08"
+    },
+    {
+      "id": "token:src/pages/desk/job-draft/[slug].astro:467:--space-150",
+      "gate": "check-tokens",
+      "verdict": "real-defect-deferred",
+      "accepted": "2026-09-24",
+      "why": "Same class, on the draft room page.",
+      "review": "2026-10-08"
+    },
+    {
+      "id": "invariants:check-3:gates-without-runners",
+      "gate": "gate-invariants",
+      "verdict": "owner-decision-pending",
+      "accepted": "2026-09-24",
+      "why": "test/gates.config.mjs declares 10 non-retired gates (copy, truth, pii, provenance, fabrication, population, parse-proof, a11y, motion, perf) and this repository has no test/gates/ directory, so not one of them can run. src/pages/colophon.astro imports that registry and publishes a PASS/FAIL verdict per gate to every visitor, and tells the reader to 'Run npm run conform' — a script that did not exist until today and still runs none of those ten.",
+      "owner_question": "Two honest ways out, and only you can choose. Either port the gates from the Index so the page's claim becomes true, or change the page to describe what THIS repository measures. src/data/conformance-run.ts already calls the third option by its name: 'the worst file in the repository: a conformance report that conforms to nothing.'",
+      "review": "2026-10-01"
+    },
+    {
+      "id": "invariants:check-5:paths-not-in-nav",
+      "gate": "gate-invariants",
+      "verdict": "real-defect-deferred",
+      "accepted": "2026-09-24",
+      "why": "Four route files are absent from src/data/nav.ts and have their paths hand-typed elsewhere instead: /jobs-data/summary (typed at jobs-data.astro:105 AND public/scripts/ledger-v4-app.js:77), /billing/checkout (typed in DoorFree.astro and the-account.astro), /desk/job-draft/[slug]/restore (built as a template string in DraftRoomV2.astro:110), and /upgrade (typed in billing/checkout.ts:60 as a Stripe cancel_url). nav.ts's own header warns against exactly this.",
+      "owner_question": "/jobs-data/summary is the dangerous one: its path is written by hand in an .astro file AND in an untyped browser script, which is the precise string-boundary shape that has already cost this repo two outages. Registering the four in nav.ts is a small, safe change — worth doing, but it edits four call sites, so it is its own ticket rather than a side effect of building the gate.",
+      "review": "2026-10-01"
+    }
+  ]
+}
