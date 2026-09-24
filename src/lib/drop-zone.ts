@@ -19,7 +19,32 @@
     same colour and neither can drift. */
 const DRAGGING = 'is-dragging';
 
+/** Whether the page-wide miss guard is already installed. */
+let missGuarded = false;
+
+/** A file dropped NEXT TO a band, rather than on it, is still a navigation: the
+ *  browser leaves for the file and takes whatever the reader was doing with it,
+ *  including a half-filled record form. The bands are small targets — a dashed
+ *  box a couple of hundred pixels wide — so a miss is the common case, not the
+ *  rare one, and the reader cannot tell the difference between "I missed" and
+ *  "the upload is broken".
+ *
+ *  So once any band is wired, the rest of the document swallows drops. A drop on
+ *  a band is handled by the band's own listener first and this only sees it on
+ *  the way up, where preventDefault has already been called and calling it again
+ *  costs nothing.
+ *
+ *  Installed from wireDropZone rather than at module load, so a page that wires
+ *  no band keeps the browser's own behaviour. */
+function guardMisses(): void {
+  if (missGuarded) return;
+  missGuarded = true;
+  document.addEventListener('dragover', (event) => event.preventDefault());
+  document.addEventListener('drop', (event) => event.preventDefault());
+}
+
 export function wireDropZone(band: HTMLElement, input: HTMLInputElement): void {
+  guardMisses();
   // Dragging over a child fires dragleave on the parent, so the depth is
   // counted rather than toggled; toggling makes the wash flicker as the
   // pointer crosses a label or a button inside the band.

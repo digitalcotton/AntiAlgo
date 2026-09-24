@@ -91,7 +91,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { withBase } from '../../site.config.mjs';
 import Panel from '../components/Panel.astro';
-import ImportBand from '../components/profile/ImportBand.astro';
+import ImportBand, { type ImportBandState } from '../components/profile/ImportBand.astro';
 import { isPaidViewer } from '../lib/ledger-access';
 import RecordView from '../components/profile/RecordView.astro';
 import { KIND_LABELS, CLASSIFICATION_LABELS, MONTH_NAMES, issueMessage } from '../components/profile/entry-presentation';
@@ -257,9 +257,24 @@ const receipt: ImportRelay | null = landed
     }
   : importRelay;
 
-/** Which of the three import states is on screen. Exactly one, always. */
-type BandState = 'idle' | 'reading' | 'done';
-const bandState: BandState = parse?.status === 'pending' ? 'reading' : receipt ? 'done' : 'idle';
+/** Which import state is on screen. Exactly one, always.
+ *
+ *  THE TYPE IS ImportBand'S OWN, not a second copy. This page declared its own
+ *  three-member union while the band renders four, so 'review' — the state that
+ *  says a finished read is waiting below — was unreachable from here. That
+ *  mattered in one real case: landReadyParse applies a waiting read on load and
+ *  clears it, but when the apply throws again it returns null and leaves the row
+ *  at 'ready'. Falling through to 'idle' then showed a fresh empty upload box
+ *  while a finished read sat in the row with nothing on the page mentioning it.
+ *  Importing the band's union means the two cannot drift again. */
+const bandState: ImportBandState =
+  parse?.status === 'pending'
+    ? 'reading'
+    : parse?.status === 'ready'
+      ? 'review'
+      : receipt
+        ? 'done'
+        : 'idle';
 
 // Whether this person can have their resume read at all: a bring-your-own-key
 // application reads a resume only with the person's OWN provider key. No key,
@@ -735,6 +750,7 @@ const linkAction = routeFor('profile-link');
 </BaseLayout>
 
 <script>
+  import { wireDropZone } from '../lib/drop-zone';
   import {
     pollEnds,
     readLanded,
@@ -833,25 +849,15 @@ const linkAction = routeFor('profile-link');
   /* ---- the dropzone ------------------------------------------------------ */
 
   if (dropzone && fileInput) {
-    const paint = (on: boolean) => dropzone.classList.toggle('is-dragging', on);
-
-    dropzone.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      paint(true);
-    });
-    dropzone.addEventListener('dragleave', () => paint(false));
-    dropzone.addEventListener('drop', (event) => {
-      event.preventDefault();
-      paint(false);
-      const dropped = event.dataTransfer?.files?.[0];
-      if (!dropped) return;
-      // Hand the drop to the real input, so the form posts exactly what it
-      // would have posted had the file been chosen through the picker.
-      const carrier = new DataTransfer();
-      carrier.items.add(dropped);
-      fileInput.files = carrier.files;
-      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    // THE SHARED HELPER, not a fourth hand-rolled copy. This page had its own
+    // 20 lines of drag handling, and it differed from Come ready's in a way a
+    // reader feels: it toggled the wash off on dragleave, and dragging over any
+    // child of the box — the arrow, the heading, the hint line, the chip — fires
+    // dragleave on the parent. So the box went dark while the file was still
+    // over it, which reads as "this is not accepting the file". drop-zone.ts
+    // counts depth instead, and now also swallows a drop that misses the box
+    // rather than letting the browser navigate away to the file.
+    wireDropZone(dropzone, fileInput);
 
     fileInput.addEventListener('change', () => {
       if (!chips) return;
