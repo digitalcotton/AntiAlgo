@@ -1,0 +1,34 @@
+[
+  {
+    "path": "src/pages/index.astro",
+    "note": "OWNER-CHOSEN CONTENT. Three things here are decisions, not defects, and each has been 'fixed' by an agent before. (1) The hero countdown, the in-line count and the price are deliberate; the day count is derived and the in-line figure is a real count plus a baseline. Do not remove them as a covenant or honesty fix. (2) The 'stack between you and a job' comparison section is deliberately ABSENT. It was added and removed four times, most recently removed in 8e05097 hours after 1da3f59 restored it. Do not restore it unprompted. (3) This is the highest-churn page in the repo (20 commits in ten days) and it redefines .cta in its own scoped style, which outranks the global one in src/styles/global.css:487 — editing the global button does nothing here."
+  },
+  {
+    "path": "src/pages/covenant.astro",
+    "note": "A PUBLIC PROMISE, not editable prose. Every sentence on this page is a commitment the product is making to a reader. Rewording it for tone, tightening it, or making it consistent with other copy changes what the site has promised. Change it only when the owner asks for that specific change."
+  },
+  {
+    "path": "src/pages/colophon.astro",
+    "note": "PUBLISHES A CONFORMANCE VERDICT to the public, built from test/gates.config.mjs and src/data/conformance-run.ts, and it throws at build time if the registry and its own GUARANTEES copy disagree. It currently describes gates that do not run in this repository. Do not make the page agree with reality by deleting the claim, and do not make it claim more than the repo measures — that is the owner's ruling to make. src/data/conformance-run.ts calls a report like that 'the worst file in the repository: a conformance report that conforms to nothing.'"
+  },
+  {
+    "path": "src/lib/entitlement.ts",
+    "note": "ROUTE_POLICY is the only written record of who may reach what. A route added to it, removed from it, or given a lower tier changes who can see paid content. It self-validates at import (assertEveryGatedPrefixHasAPolicy), so a mistake here fails the build rather than leaking — do not weaken that assertion to get a build green."
+  },
+  {
+    "path": "src/middleware.ts",
+    "note": "THE ORIGIN GATE IS LOAD-BEARING AND WAS DEBUGGED IN PRODUCTION. Astro's own security.checkOrigin is off on purpose: on Vercel it compares the browser Origin to the internal deploy host, not the public www.antialgo.ai, so it 403'd every legitimate form POST (proven in production 2026-09-18). isAllowedOrigin replaces it. Do not re-enable checkOrigin, and do not 'simplify' the forwarded-host handling. The draft-run exemption is equally deliberate."
+  },
+  {
+    "path": "src/styles/tokens.css",
+    "note": "BUILD OUTPUT. style-dictionary generates this from tokens/*.json and `npm run dev` regenerates it, so a hand-edit here is silently reverted the next time the server starts — which reads as 'I fixed it and it came back'. Change tokens/*.json instead."
+  },
+  {
+    "path": "src/styles/themes.css",
+    "note": "BUILD OUTPUT, same as tokens.css. Generated from tokens/*.json by style-dictionary and overwritten by `npm run dev`. Edit the source JSON."
+  },
+  {
+    "path": "api/subscribe.ts",
+    "note": "THE ROOT api/ DIRECTORY IS A LANDMINE, NOT A MISTAKE TO TIDY. On Vercel this directory is a Functions directory that claims every /api/* path BEFORE Astro is consulted. It silently killed the waitlist form from 2026-09-13 to 2026-09-20; src/pages/waitlist/join.ts carries the scar in its own header ('lived at /api/waitlist until 2026-09-20, where it was never reached'). Do not add anything under src/pages/api, and do not delete these files as dead code without checking what still calls them — scripts/gate-invariants.mjs asserts the invariant."
+  }
+]
