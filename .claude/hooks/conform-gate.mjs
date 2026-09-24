@@ -34,7 +34,9 @@ if (ok) process.exit(0);
 process.stdout.write(JSON.stringify({
   decision: 'block',
   reason:
-    `Files under src/ changed and ${why}. Run /ship-sweep (or \`npm run sweep\`) and ` +
-    `report its result before ending the turn. If the sweep is genuinely not wanted ` +
-    `for this change, say so explicitly and delete .claude/.last-edit.`
+    `Files under src/ changed and ${why}. Run /conform (or \`npm run conform\`) and report ` +
+    `its result before ending the turn — including if it is RED; a red result honestly ` +
+    `reported is the point, a turn that ends without measuring is not. If the gate ` +
+    `genuinely should not run for this change, say so explicitly and delete ` +
+    `.claude/.last-edit.`
 }) + '\n');

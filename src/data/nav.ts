@@ -149,7 +149,8 @@ export const ROUTES = [
   { key: 'upgrade', pattern: '/upgrade', kind: 'static', note: 'The paid-tier upgrade page. Dark behind the stripe flag; billing/checkout.ts uses it as the Stripe cancel_url.', sitemap: false },
   { key: 'billing-checkout', pattern: '/billing/checkout', kind: 'asset', note: 'POST. Opens a Stripe Checkout session for the membership. Dark behind the stripe flag.', sitemap: false },
   { key: 'billing-webhook', pattern: '/billing/webhook', kind: 'asset', note: 'POST from Stripe only, signature-verified. The only writer of app_user_profile.tier = paid. Dark behind the stripe flag.', sitemap: false },
-  { key: 'job-draft-restore', pattern: '/desk/job-draft/[slug]/restore', kind: 'dynamic', note: 'POST. Restores one job draft to an earlier version. Build it with jobDraftRestorePath(slug); routeFor() refuses a dynamic route on purpose so the parameter cannot be forgotten.', sitemap: false }
+  { key: 'job-draft-restore', pattern: '/desk/job-draft/[slug]/restore', kind: 'dynamic', note: 'POST. Restores one job draft to an earlier version. Build it with jobDraftRestorePath(slug); routeFor() refuses a dynamic route on purpose so the parameter cannot be forgotten.', sitemap: false },
+  { key: 'health', pattern: '/health', kind: 'asset', note: 'GET. Checks its own invariants — database reachable, migrations applied, the board has rows, the sweep is not stale — and answers 200 only when every one holds, 503 naming the failure otherwise. Public but thin: no row contents, no population counts, no env values. Built after the Neon compute cap took the site down on 2026-09-20 with nothing watching.', sitemap: false }
 ] as const satisfies readonly RouteEntry[];
 
 export type RouteKey = (typeof ROUTES)[number]['key'];
