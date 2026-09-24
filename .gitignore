@@ -8,3 +8,19 @@ dist/
 .DS_Store
 .vercel
 .env*
+
+# The gated build: production plus /_specimen and /_states, emitted by
+# `npm run build:gated` for the sweep to read. A build artifact like dist/.
+dist-review/
+
+# What the sweep generates as it runs: the route manifest, the captured styles,
+# the minted sessions. Never committed — a session file is a live credential, and
+# a generated manifest that got committed would start disagreeing with the
+# filesystem the moment a route was added.
+.sweep/
+
+# Playwright's own output. The baselines under test/sweep/**-snapshots/ ARE
+# committed on purpose: they are the record of what the site is meant to look
+# like, reviewed in a diff like any other change.
+playwright-report/
+test-results/

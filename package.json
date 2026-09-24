@@ -11,6 +11,7 @@
     "tokens": "style-dictionary build --config style-dictionary.config.js",
     "dev": "npm run tokens && astro dev",
     "build": "npm run tokens && astro build && node scripts/ingest-on-build.mjs",
+    "build:gated": "npm run tokens && SPECIMEN=1 astro build --outDir dist-review",
     "preview": "astro preview",
     "check": "npm run tokens && astro check",
     "test": "vitest run",
