@@ -31,6 +31,7 @@ import { isOn } from '../../lib/flags';
 import { viewerFrom } from '../../lib/viewer';
 import { createCheckoutSession } from '../../lib/billing';
 import { SITE_URL, withBase } from '../../../site.config.mjs';
+import { routeFor } from '../../data/nav';
 
 export const prerender = false;
 
@@ -57,7 +58,7 @@ export async function POST(context: APIContext): Promise<Response> {
       // Absolute URLs: Stripe redirects the browser here directly, not
       // through this app, so a base-relative path is not enough.
       successUrl: `${SITE_URL}${withBase('/account')}?upgraded=1`,
-      cancelUrl: `${SITE_URL}${withBase('/upgrade')}?canceled=1`
+      cancelUrl: `${SITE_URL}${routeFor('upgrade')}?canceled=1`
     });
 
     if (!session.url) {

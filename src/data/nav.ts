@@ -136,7 +136,20 @@ export const ROUTES = [
   { key: 'settings-handle', pattern: '/settings/handle', kind: 'asset', note: 'POST. Claims, changes, or releases the signed-in account handle.', sitemap: false },
   { key: 'settings-generation', pattern: '/settings/generation', kind: 'asset', note: 'POST. Toggles whether applying drafts a tailored resume and cover in the background.', sitemap: false },
   { key: 'settings-model', pattern: '/settings/model', kind: 'asset', note: "POST. Records which of a connected provider's models drafts.", sitemap: false },
-  { key: 'settings-filters', pattern: '/settings/filters', kind: 'asset', note: "GET and POST. The signed-in account's saved index filter selection.", sitemap: false }
+  { key: 'settings-filters', pattern: '/settings/filters', kind: 'asset', note: "GET and POST. The signed-in account's saved index filter selection.", sitemap: false },
+
+  // --- Registered 2026-09-24, because scripts/gate-invariants.mjs found them
+  // serving paths that nothing in this registry knew about. Each was being
+  // hand-typed at its call sites, which is the one thing this file's own header
+  // forbids: "Never type a path in a page." /jobs-data/summary was the sharp
+  // one — its literal appeared in an .astro file AND in 1,741 lines of untyped
+  // browser JavaScript, which is the exact string-boundary shape that has
+  // already cost this site two week-long outages. ---
+  { key: 'jobs-data-summary', pattern: '/jobs-data/summary', kind: 'asset', note: 'GET. The aggregate cut behind every Jobs Data filter press. The page hands this path to public/scripts/ledger-v4-app.js on the mount element, so the path is decided here and nowhere else.', sitemap: false },
+  { key: 'upgrade', pattern: '/upgrade', kind: 'static', note: 'The paid-tier upgrade page. Dark behind the stripe flag; billing/checkout.ts uses it as the Stripe cancel_url.', sitemap: false },
+  { key: 'billing-checkout', pattern: '/billing/checkout', kind: 'asset', note: 'POST. Opens a Stripe Checkout session for the membership. Dark behind the stripe flag.', sitemap: false },
+  { key: 'billing-webhook', pattern: '/billing/webhook', kind: 'asset', note: 'POST from Stripe only, signature-verified. The only writer of app_user_profile.tier = paid. Dark behind the stripe flag.', sitemap: false },
+  { key: 'job-draft-restore', pattern: '/desk/job-draft/[slug]/restore', kind: 'dynamic', note: 'POST. Restores one job draft to an earlier version. Build it with jobDraftRestorePath(slug); routeFor() refuses a dynamic route on purpose so the parameter cannot be forgotten.', sitemap: false }
 ] as const satisfies readonly RouteEntry[];
 
 export type RouteKey = (typeof ROUTES)[number]['key'];
@@ -184,6 +197,13 @@ export const jobDraftPdfPath = (slug: string, doc: 'resume' | 'cover'): string =
   withBase(`/desk/job-draft/${slug}/${doc}`);
 /** The per-document render hand-off for one job draft (server-to-server). */
 export const jobDraftRunPath = (slug: string): string => withBase(`/desk/job-draft/${slug}/run`);
+/** Restores one job draft to an earlier version.
+ *
+ *  Added 2026-09-24. Its three siblings (run, status, the document download) each
+ *  had a builder and this one did not, so DraftRoomV2.astro:110 was assembling it
+ *  as `${jobDraftPath(slug)}/restore` — half-derived, half-typed, and invisible to
+ *  the route census either way. */
+export const jobDraftRestorePath = (slug: string): string => withBase(`/desk/job-draft/${slug}/restore`);
 /** A file that ships from public/ rather than from a route (the font cuts). */
 export const publicAsset = (path: string): string => withBase(path);
 

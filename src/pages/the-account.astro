@@ -76,7 +76,7 @@ const faqs = [
   { q: 'How does admission work while the waitlist is on?', a: 'Save your spot with an email. The account is created waitlisted and admitted by hand, one at a time. Sign-in opens with the first admissions.' }
 ];
 const signUpHref = `${routeFor('sign-up')}?from=the-account`;
-const checkoutAction = withBase('/billing/checkout');
+const checkoutAction = routeFor('billing-checkout');
 ---
 
 <BaseLayout title="The account" description="What the account opens: no account, account, paid. One price, $7.25 a month, and it does not move.">

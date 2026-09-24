@@ -6,7 +6,7 @@
     "and a gate that is red on its first run gets bypassed. That is not a guess: this project has already",
     "lost two instruments that way. The Index's visual gate sat red from 2026-08-19 until it was deleted on",
     "2026-09-06, hiding five real failures behind its own noise. And `npm run check` was waved past in five",
-    "consecutive commit messages as 'clean but for the pre-existing ProviderRow error' — a prose baseline",
+    "consecutive commit messages as 'clean but for the pre-existing ProviderRow error' \u2014 a prose baseline",
     "nobody re-measured, which by 2026-09-23 had drifted to three completely different errors.",
     "",
     "SO: a gate fails on findings that are NOT in this file, and reports findings that are. The list only",
@@ -23,7 +23,7 @@
       "gate": "check-dom-contracts",
       "verdict": "not-a-defect",
       "accepted": "2026-09-24",
-      "why": "The dismiss control was removed on 2026-08-20 by the owner's own decision, and the script's `if (!button) continue;` at NewHereStrip.astro:165 is the deliberate guard for its absence — so a reader who dismissed the strip before it was removed keeps that state instead of having it reappear. The component says all of this in a comment at line 134. The gate is right that the selector resolves to nothing and wrong that it is a fault.",
+      "why": "The dismiss control was removed on 2026-08-20 by the owner's own decision, and the script's `if (!button) continue;` at NewHereStrip.astro:165 is the deliberate guard for its absence \u2014 so a reader who dismissed the strip before it was removed keeps that state instead of having it reappear. The component says all of this in a comment at line 134. The gate is right that the selector resolves to nothing and wrong that it is a fault.",
       "review": "never"
     },
     {
@@ -81,17 +81,8 @@
       "gate": "gate-invariants",
       "verdict": "owner-decision-pending",
       "accepted": "2026-09-24",
-      "why": "test/gates.config.mjs declares 10 non-retired gates (copy, truth, pii, provenance, fabrication, population, parse-proof, a11y, motion, perf) and this repository has no test/gates/ directory, so not one of them can run. src/pages/colophon.astro imports that registry and publishes a PASS/FAIL verdict per gate to every visitor, and tells the reader to 'Run npm run conform' — a script that did not exist until today and still runs none of those ten.",
+      "why": "test/gates.config.mjs declares 10 non-retired gates (copy, truth, pii, provenance, fabrication, population, parse-proof, a11y, motion, perf) and this repository has no test/gates/ directory, so not one of them can run. src/pages/colophon.astro imports that registry and publishes a PASS/FAIL verdict per gate to every visitor, and tells the reader to 'Run npm run conform' \u2014 a script that did not exist until today and still runs none of those ten.",
       "owner_question": "Two honest ways out, and only you can choose. Either port the gates from the Index so the page's claim becomes true, or change the page to describe what THIS repository measures. src/data/conformance-run.ts already calls the third option by its name: 'the worst file in the repository: a conformance report that conforms to nothing.'",
-      "review": "2026-10-01"
-    },
-    {
-      "id": "invariants:check-5:paths-not-in-nav",
-      "gate": "gate-invariants",
-      "verdict": "real-defect-deferred",
-      "accepted": "2026-09-24",
-      "why": "Four route files are absent from src/data/nav.ts and have their paths hand-typed elsewhere instead: /jobs-data/summary (typed at jobs-data.astro:105 AND public/scripts/ledger-v4-app.js:77), /billing/checkout (typed in DoorFree.astro and the-account.astro), /desk/job-draft/[slug]/restore (built as a template string in DraftRoomV2.astro:110), and /upgrade (typed in billing/checkout.ts:60 as a Stripe cancel_url). nav.ts's own header warns against exactly this.",
-      "owner_question": "/jobs-data/summary is the dangerous one: its path is written by hand in an .astro file AND in an untyped browser script, which is the precise string-boundary shape that has already cost this repo two outages. Registering the four in nav.ts is a small, safe change — worth doing, but it edits four call sites, so it is its own ticket rather than a side effect of building the gate.",
       "review": "2026-10-01"
     }
   ]

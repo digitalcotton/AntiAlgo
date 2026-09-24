@@ -13,12 +13,13 @@
 import StepCard from './StepCard.astro';
 import RingMark from './RingMark.astro';
 import { withBase } from '../../../site.config.mjs';
+import { routeFor } from '../../data/nav';
 
 interface Props {
   billingOpen: boolean;
 }
 const { billingOpen } = Astro.props;
-const checkoutAction = withBase('/billing/checkout');
+const checkoutAction = routeFor('billing-checkout');
 
 const PAID_OPENS = [
   { name: 'The Desk', def: 'the sweep narrowed to your titles, new and died nightly' },
