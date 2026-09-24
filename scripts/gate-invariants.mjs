@@ -101,7 +101,7 @@
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { basename, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { EXIT } from '../test/gates.config.mjs';
 import { partition, report } from '../test/conform/accepted.mjs';
@@ -542,6 +542,71 @@ async function checkNavAgreesWithRealFiles() {
 }
 
 // ---------------------------------------------------------------------------
+// Check 6 — no test file lives under src/pages, because Astro would build it
+// ---------------------------------------------------------------------------
+
+/**
+ * Astro's file router builds EVERY file under src/pages as a route. A *.test.ts
+ * there becomes a real, servable page, and `astro build` — the exact command
+ * Vercel runs — then crashes trying to prerender it:
+ *
+ *   Vitest mocker was not initialized in this environment.
+ *   vi.queueMock() is forbidden.
+ *
+ * THE BUILD. NOT A TEST. NOT A WARNING. The deploy.
+ *
+ * This repo has met it twice. Commit 7ae30de is titled "Move the prelist render
+ * test out of src/pages so Astro stops building it as a route", and
+ * test/desk-job-draft-post.test.ts carries the same warning in its own header —
+ * which is to say the knowledge existed, in prose, in two places, and was
+ * rediscovered anyway on 2026-09-24 when three new endpoint tests were written
+ * beside the endpoints they test. That is exactly what a comment cannot do and a
+ * check can.
+ *
+ * The underscore convention does not save you: Astro excludes a leading `_`, so
+ * `_tier.test.ts` would not be routed, but nobody writing a test thinks to do
+ * that, and the fix is to put the file in test/ where its neighbours already are.
+ */
+function checkNoTestFilesUnderPages() {
+  const lines = [];
+  const violations = [];
+
+  const PAGES_DIR = join(REPO, 'src', 'pages');
+  const all = walk(PAGES_DIR);
+  const tests = all.filter((f) => /\.(test|spec)\.[cm]?[jt]sx?$/i.test(basename(f)));
+
+  for (const f of tests) {
+    const rel = relative(REPO, f);
+    // A leading underscore genuinely is excluded by Astro's router, so it is not
+    // a build break — but it is still the wrong home for a test, so say so
+    // without failing.
+    if (basename(f).startsWith('_')) {
+      lines.push(`${rel} is underscore-prefixed so Astro will not route it, but a test still belongs in test/.`);
+      continue;
+    }
+    violations.push(
+      `${rel} sits under src/pages, so Astro's file router will build it as a route and ` +
+        `\`npm run build\` will crash prerendering it ("Vitest mocker was not initialized in this ` +
+        `environment"). Move it to test/ — its neighbours are already there, and both ` +
+        `test/desk-job-draft-post.test.ts's header and commit 7ae30de record why.`
+    );
+  }
+
+  if (violations.length === 0) {
+    lines.push(`${all.length} files under src/pages, none of them a test file.`);
+  }
+
+  return {
+    id: 6,
+    name: 'no test file sits under src/pages, where Astro would build it as a route',
+    status: violations.length === 0 ? EXIT.PASS : EXIT.FAIL,
+    measured: all.length,
+    lines,
+    violations
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Run every check, print the summary block, decide the exit code
 // ---------------------------------------------------------------------------
 
@@ -564,7 +629,8 @@ async function main() {
     await checkEveryGatedFileHasAPolicy(),
     await checkEveryGateHasARunner(),
     checkNoOrphanPartials(),
-    await checkNavAgreesWithRealFiles()
+    await checkNavAgreesWithRealFiles(),
+    checkNoTestFilesUnderPages()
   ];
 
   console.log('gate-invariants: filesystem and source checks, no browser, no database, no network.\n');

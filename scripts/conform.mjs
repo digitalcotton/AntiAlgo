@@ -68,7 +68,7 @@ const FAST = [
   },
   {
     id: 'invariants',
-    what: 'the five structural invariants, including that nothing under src/pages can be shadowed by the root api/ directory',
+    what: 'the six structural invariants: the root api/ shadow, route policies, gate runners, orphan partials, the registry, and no test file Astro would build as a route',
     argv: ['node', 'scripts/gate-invariants.mjs']
   },
   {
