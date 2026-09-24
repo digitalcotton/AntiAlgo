@@ -1,24 +1,24 @@
 {
   "_meta": {
-    "purpose": "Every kill still standing, from every sweep this machine has run, rebuilt whole from the append-only archive on 2026-09-22T07:30:03Z.",
-    "contents": "400 record(s), one per posting per rule. A rule that fires on the same posting on several nights is one record here with times_fired counting the nights, because that is one finding observed repeatedly and not several findings.",
+    "purpose": "Every kill still standing, from every sweep this machine has run, rebuilt whole from the append-only archive on 2026-09-23T07:30:00Z.",
+    "contents": "460 record(s), one per posting per rule. A rule that fires on the same posting on several nights is one record here with times_fired counting the nights, because that is one finding observed repeatedly and not several findings.",
     "why_this_file_exists": "kills.json holds THIS sweep and nothing else, because stats.killed counts it and the site holds the two to the same number. A kill that only lived in that file disappeared the next night, which made the kill list a claim the site could not keep. This file is the record; that one is the news.",
     "identity": "id is a digest of the posting URL and the rule that fired, so the same posting killed by the same rule is one record no matter which pipeline found it or how many times it has been rebuilt.",
     "excluded": "105 event(s) fired a rule that has since been retired and are not published here: they stay in the archive because it records what the machine did. 0 record(s) have been explicitly vacated.",
     "vacated": "A kill is a dated observation and stays true when a posting reappears, so nothing is withdrawn automatically. A row leaves this file only when a kill_vacated event names it, which is a deliberate act with a reason attached."
   },
-  "swept_at_utc": "2026-09-22T07:30:03Z",
+  "swept_at_utc": "2026-09-23T07:30:00Z",
   "archive_since": "2026-08-18",
-  "total": 400,
+  "total": 460,
   "by_rule": {
-    "repost_churn": 325,
+    "repost_churn": 365,
     "misrepresented": 2,
-    "zombie": 2,
-    "phantom": 0,
-    "touched_not_refreshed": 71
+    "zombie": 4,
+    "phantom": 3,
+    "touched_not_refreshed": 86
   },
   "by_pipeline": {
-    "crawl": 397,
+    "crawl": 457,
     "sweep": 3
   },
   "retired_skipped": 105,
@@ -92,7 +92,7 @@
       "ats": "usajobs",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "veterans-health-administration-vocational-nurse"
     },
@@ -118,9 +118,32 @@
       "ats": "usajobs",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "veterans-health-administration-social-worker"
+    },
+    {
+      "company": "U.S. Military Entrance Processing Command",
+      "title": "Test Administrator",
+      "reason": "touched-not-refreshed: the published date moved from 2026-09-04 to 2026-09-09 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-09-04",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-09-04",
+        "published_now": "2026-09-09",
+        "days_moved": 5
+      },
+      "id": "2cee01c9a1c2",
+      "url": "https://www.usajobs.gov:443/job/883569900",
+      "ats": "usajobs",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "u-s-military-entrance-processing-command-test-administrator"
     },
     {
       "company": "Transportation Security Administration",
@@ -169,6 +192,179 @@
       "slug": "transportation-security-administration-transportation-security-officer-584fa6"
     },
     {
+      "company": "Transportation Security Administration",
+      "title": "Transportation Security Officer",
+      "reason": "touched-not-refreshed: the published date moved from 2026-07-28 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-07-28",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-07-28",
+        "published_now": "2026-09-22",
+        "days_moved": 56
+      },
+      "id": "d47b8b0cccd0",
+      "url": "https://www.usajobs.gov:443/job/853933300",
+      "ats": "usajobs",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "transportation-security-administration-transportation-security-officer-14edad"
+    },
+    {
+      "company": "Transportation Security Administration",
+      "title": "Transportation Security Officer",
+      "reason": "touched-not-refreshed: the published date moved from 2026-06-22 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-06-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-06-22",
+        "published_now": "2026-09-22",
+        "days_moved": 92
+      },
+      "id": "7f95096d9bd3",
+      "url": "https://www.usajobs.gov:443/job/873786300",
+      "ats": "usajobs",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "transportation-security-administration-transportation-security-officer-51ed84"
+    },
+    {
+      "company": "Transportation Security Administration",
+      "title": "Transportation Security Officer",
+      "reason": "touched-not-refreshed: the published date moved from 2026-06-22 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-06-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-06-22",
+        "published_now": "2026-09-22",
+        "days_moved": 91
+      },
+      "id": "6da96fe70778",
+      "url": "https://www.usajobs.gov:443/job/873787900",
+      "ats": "usajobs",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "transportation-security-administration-transportation-security-officer-dfaee7"
+    },
+    {
+      "company": "Synthesia",
+      "title": "Product Manager, Interactive Avatars (Staff/Principal-level) ",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-18, dated 2026-08-10, and left them 4 day(s) before this one reappeared at the same URL",
+      "first_published": "2026-08-10",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-10",
+        "current_published": "2026-09-22",
+        "gap_days": 4,
+        "identifier": "reused",
+        "previous_url": "https://jobs.ashbyhq.com/synthesia/e934a7ac-b668-46c0-9953-eed4504658b7",
+        "current_url": "https://jobs.ashbyhq.com/synthesia/e934a7ac-b668-46c0-9953-eed4504658b7"
+      },
+      "id": "359a6c78e319",
+      "url": "https://jobs.ashbyhq.com/synthesia/e934a7ac-b668-46c0-9953-eed4504658b7",
+      "ats": "ashby",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "synthesia-product-manager-interactive-avatars-staff-principal-level"
+    },
+    {
+      "company": "Rogo",
+      "title": "Software Engineer: Backend",
+      "reason": "repost-churn: this posting is dated 2026-09-21 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-21, dated 2026-09-02, and left them 1 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-21",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-09-02",
+        "current_published": "2026-09-21",
+        "gap_days": 1,
+        "identifier": "new",
+        "previous_url": "https://jobs.ashbyhq.com/rogo/a6ceeb19-aa28-4e22-a103-dcc4a0de175c",
+        "current_url": "https://jobs.ashbyhq.com/rogo/ac4e74a3-4f95-4a5b-843c-d28591c82da8"
+      },
+      "id": "2b5522c7b544",
+      "url": "https://jobs.ashbyhq.com/rogo/ac4e74a3-4f95-4a5b-843c-d28591c82da8",
+      "ats": "ashby",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "rogo-software-engineer-backend"
+    },
+    {
+      "company": "Rogo",
+      "title": "Software Engineer: Financial Data",
+      "reason": "repost-churn: this posting is dated 2026-09-21 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-21, dated 2026-03-13, and left them 1 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-21",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-03-13",
+        "current_published": "2026-09-21",
+        "gap_days": 1,
+        "identifier": "new",
+        "previous_url": "https://jobs.ashbyhq.com/rogo/6654074c-6400-4648-bd76-512d7a961f3a",
+        "current_url": "https://jobs.ashbyhq.com/rogo/fd7cecdb-5ae4-494f-a2e1-fd310398efaf"
+      },
+      "id": "29eb6ba1bad5",
+      "url": "https://jobs.ashbyhq.com/rogo/fd7cecdb-5ae4-494f-a2e1-fd310398efaf",
+      "ats": "ashby",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "rogo-software-engineer-financial-data"
+    },
+    {
+      "company": "Pigment",
+      "title": "Product Support Specialist",
+      "reason": "repost-churn: this posting is dated 2026-09-21 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-21, dated 2026-01-13, and left them 1 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-21",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-01-13",
+        "current_published": "2026-09-21",
+        "gap_days": 1,
+        "identifier": "new",
+        "previous_url": "https://jobs.lever.co/pigment/4102ea30-6a1e-425f-9516-899285e98414",
+        "current_url": "https://jobs.lever.co/pigment/caafdfb5-b08d-4241-aa65-a67e8904960e"
+      },
+      "id": "9c16e1b2b7fd",
+      "url": "https://jobs.lever.co/pigment/caafdfb5-b08d-4241-aa65-a67e8904960e",
+      "ats": "lever",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "pigment-product-support-specialist"
+    },
+    {
       "company": "Pennylane",
       "title": "SEO & AI Content Specialist",
       "reason": "touched-not-refreshed: the published date moved from 2026-09-18 to 2026-09-21 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
@@ -213,6 +409,55 @@
       "times_fired": 1,
       "pipeline": "crawl",
       "slug": "openai-account-director-insurance"
+    },
+    {
+      "company": "OpenAI",
+      "title": "Internal Communications, Enterprise & Growth",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-07-10, and left them 23 day(s) before this one reappeared at the same URL",
+      "first_published": "2026-07-10",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-07-10",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "reused",
+        "previous_url": "https://jobs.ashbyhq.com/openai/dcbb011b-bc0f-41e6-b3c6-34068d177e54",
+        "current_url": "https://jobs.ashbyhq.com/openai/dcbb011b-bc0f-41e6-b3c6-34068d177e54"
+      },
+      "id": "571c5938a0e6",
+      "url": "https://jobs.ashbyhq.com/openai/dcbb011b-bc0f-41e6-b3c6-34068d177e54",
+      "ats": "ashby",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "openai-internal-communications-enterprise-growth"
+    },
+    {
+      "company": "OpenAI",
+      "title": "Program Manager, Strategic Futures",
+      "reason": "touched-not-refreshed: the published date moved from 2026-09-08 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-09-08",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-09-08",
+        "published_now": "2026-09-22",
+        "days_moved": 14
+      },
+      "id": "c2a465ccd4ab",
+      "url": "https://jobs.ashbyhq.com/openai/8f9693d9-73c8-48c1-b1cf-b0cd92a1c3c2",
+      "ats": "ashby",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "openai-program-manager-strategic-futures"
     },
     {
       "company": "National Institutes of Health",
@@ -356,6 +601,77 @@
       "slug": "legora-solutions-engineer-london"
     },
     {
+      "company": "Legora",
+      "title": "Senior Product Manager ",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-18, dated 2026-07-24, and left them 4 day(s) before this one reappeared at the same URL",
+      "first_published": "2026-07-24",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-07-24",
+        "current_published": "2026-09-22",
+        "gap_days": 4,
+        "identifier": "reused",
+        "previous_url": "https://jobs.ashbyhq.com/legora/53ae82a6-d5d6-4565-88aa-c6a2feccc736",
+        "current_url": "https://jobs.ashbyhq.com/legora/53ae82a6-d5d6-4565-88aa-c6a2feccc736"
+      },
+      "id": "a9be2ee36fc4",
+      "url": "https://jobs.ashbyhq.com/legora/53ae82a6-d5d6-4565-88aa-c6a2feccc736",
+      "ats": "ashby",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "legora-senior-product-manager"
+    },
+    {
+      "company": "Indian Health Service",
+      "title": "Medical Support Assistant (PRC)",
+      "reason": "touched-not-refreshed: the published date moved from 2026-09-02 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-09-02",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-09-02",
+        "published_now": "2026-09-22",
+        "days_moved": 20
+      },
+      "id": "4df947364a08",
+      "url": "https://www.usajobs.gov:443/job/879015000",
+      "ats": "usajobs",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "indian-health-service-medical-support-assistant-prc"
+    },
+    {
+      "company": "Glean",
+      "title": "AI Success Manager, West",
+      "reason": "phantom: the posting no longer exists at source. Its URL now redirects to https://job-boards.greenhouse.io/gleanwork?error=true, which does not carry this posting's id, confirmed on a second request",
+      "first_published": "2026-05-15",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "phantom",
+      "evidence": {
+        "http_status": 200,
+        "confirmed_status": 200
+      },
+      "id": "118645bfa113",
+      "url": "https://job-boards.greenhouse.io/gleanwork/jobs/4694339005",
+      "ats": "greenhouse",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "glean-ai-success-manager-west"
+    },
+    {
       "company": "Decagon",
       "title": "Senior Agent Product Manager",
       "reason": "touched-not-refreshed: the published date moved from 2026-08-27 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
@@ -379,6 +695,50 @@
       "slug": "decagon-senior-agent-product-manager-0a9f36"
     },
     {
+      "company": "Celonis",
+      "title": "Intern Technology Consultant - Data & AI",
+      "reason": "phantom: the posting no longer exists at source. Its URL now redirects to https://careers.celonis.com/, which does not carry this posting's id, confirmed on a second request",
+      "first_published": "2026-09-10",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "phantom",
+      "evidence": {
+        "http_status": 200,
+        "confirmed_status": 200
+      },
+      "id": "c336d3642b1d",
+      "url": "https://job-boards.greenhouse.io/celonis/jobs/7977924003?gh_jid=7977924003",
+      "ats": "greenhouse",
+      "first_killed_at_utc": "2026-09-22T07:33:05Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "celonis-intern-technology-consultant-data-ai"
+    },
+    {
+      "company": "Celonis",
+      "title": "Intern Deployment Engineer - Data & AI",
+      "reason": "phantom: the posting no longer exists at source. Its URL now redirects to https://careers.celonis.com/, which does not carry this posting's id, confirmed on a second request",
+      "first_published": "2026-09-10",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "phantom",
+      "evidence": {
+        "http_status": 200,
+        "confirmed_status": 200
+      },
+      "id": "03ce908e61a6",
+      "url": "https://job-boards.greenhouse.io/celonis/jobs/7990983003?gh_jid=7990983003",
+      "ats": "greenhouse",
+      "first_killed_at_utc": "2026-09-22T07:33:05Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "celonis-intern-deployment-engineer-data-ai"
+    },
+    {
       "company": "Brex",
       "title": "Outbound Sales Development Representative",
       "reason": "repost-churn: this posting is dated 2026-09-16 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-16, dated 2026-07-30, and left them 6 day(s) before this one appeared at a new URL",
@@ -400,7 +760,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "brex-outbound-sales-development-representative-8968d2"
     },
@@ -426,9 +786,54 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "brex-outbound-sales-development-representative-84c5e7"
+    },
+    {
+      "company": "Bettershelter 1743577795",
+      "title": "Partnership Manager - Interim",
+      "reason": "zombie: the deadline this posting printed itself (2026-09-16) passed 6 days ago and it is still listed",
+      "first_published": "2026-09-12",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "zombie",
+      "evidence": {
+        "deadline": "2026-09-16",
+        "days_past": 6
+      },
+      "id": "44ccea19eb69",
+      "url": "https://bettershelter-1743577795.teamtailor.com/jobs/8369146-partnership-manager-interim",
+      "ats": "teamtailor",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "bettershelter-1743577795-partnership-manager-interim"
+    },
+    {
+      "company": "Army National Guard Units",
+      "title": "ACCOUNTING OFFICER (Title 5) (ACCELERATED HIRE)",
+      "reason": "touched-not-refreshed: the published date moved from 2026-08-20 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-08-20",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-08-20",
+        "published_now": "2026-09-22",
+        "days_moved": 33
+      },
+      "id": "1495340c7b0f",
+      "url": "https://www.usajobs.gov:443/job/881205500",
+      "ats": "usajobs",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "army-national-guard-units-accounting-officer-title-5-accelerated-hire"
     },
     {
       "company": "Amazon",
@@ -452,7 +857,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-ai-sales-specialist-aws-global-sales"
     },
@@ -478,7 +883,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-startup-account-manager-south-aws-startups"
     },
@@ -530,7 +935,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-network-deploy-technician-dcc-communities"
     },
@@ -556,7 +961,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-development-engineer-3p-measurement-tech"
     },
@@ -582,7 +987,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-associate-ii-ml-data-operations-go-ai-operations"
     },
@@ -608,7 +1013,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-technician-d18067"
     },
@@ -634,7 +1039,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-technician-6b6ff2"
     },
@@ -660,7 +1065,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-technician-9106ba"
     },
@@ -686,7 +1091,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-development-engineer-aws-opensearch-service"
     },
@@ -712,7 +1117,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-prime-air-maintenance-technician-corporate-operations-prime-air-65a45f"
     },
@@ -738,7 +1143,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-prime-air-ground-handler-amazon-prime-air-4d935b"
     },
@@ -764,7 +1169,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-prime-air-maintenance-technician-corporate-operations-prime-air-c3e0c6"
     },
@@ -790,7 +1195,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-prime-air-maintenance-technician-corporate-operations-prime-air-c4bc4b"
     },
@@ -816,7 +1221,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-prime-air-maintenance-technician-corporate-operations-prime-air-5fa0e3"
     },
@@ -842,7 +1247,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-flight-monitor-amazon-prime-air"
     },
@@ -868,7 +1273,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-prin-acct-exec-100-adtech-amz9970913"
     },
@@ -894,7 +1299,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-creative-director-prime-video-shopping"
     },
@@ -920,7 +1325,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-systems-development-engineer-ii-amazon-robotics-infrastructure-engineering"
     },
@@ -946,7 +1351,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-associate-ml-data-operations-go-ai-operations-8a304a"
     },
@@ -972,7 +1377,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-associate-ml-data-operations-go-ai-operations-de56c0"
     },
@@ -998,7 +1403,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-operations-manager-52e2e3"
     },
@@ -1024,7 +1429,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-whs-specialist-5df351"
     },
@@ -1050,7 +1455,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-machine-learning-compiler-engineer-aws-neuron-annapurna-labs"
     },
@@ -1076,7 +1481,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-sr-sde-leo-secure-communications-team"
     },
@@ -1102,7 +1507,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-security-engineer-forward-deployed-engineering-forward-deployed-engineering-d47f0f"
     },
@@ -1128,7 +1533,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-senior-development-manager-global-realty-na-re"
     },
@@ -1154,7 +1559,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-security-engineer-forward-deployed-engineering-forward-deployed-engineering-a251a1"
     },
@@ -1180,7 +1585,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-engineering-operation-technician-dcc-communities"
     },
@@ -1206,7 +1611,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-security-engineer-forward-deployed-engineering-forward-deployed-engineering-4083f4"
     },
@@ -1232,7 +1637,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-gerente-de-sa-de-e-seguran-a-do-trabalho-br-ops-whs-fcs"
     },
@@ -1258,7 +1663,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-engineering-operations-technician-dceo-engr-3-e485bd"
     },
@@ -1284,7 +1689,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-engineering-operations-technician-dceo-engr-3-278bd6"
     },
@@ -1310,7 +1715,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-tier-2-technical-care-associate-german-speaker-amazon-leo-4b46b4"
     },
@@ -1336,7 +1741,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-in-stock-associate-a-now-mena-stores"
     },
@@ -1362,7 +1767,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-ehs-specialist-d5be6d"
     },
@@ -1388,7 +1793,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-chief-engineer-data-centre-engineering-operations-data-centre-engineering-operations"
     },
@@ -1414,7 +1819,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-tier-2-technical-care-associate-german-speaker-amazon-leo-b8272d"
     },
@@ -1440,7 +1845,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-solutions-architect-aws-denmark-iceland"
     },
@@ -1466,7 +1871,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-engineering-operations-technician-rno101-16e5e3"
     },
@@ -1492,7 +1897,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-engineering-operations-technician-rno101-1939ca"
     },
@@ -1518,7 +1923,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-dev-engineer-affs-ars-amortization-runtime-subledger"
     },
@@ -1544,7 +1949,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-sr-product-manager-technical-digital-acceleration"
     },
@@ -1570,7 +1975,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "amazon-mechanical-design-engineer-data-centre-engineering"
     },
@@ -1622,7 +2027,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-mechatronics-robotics-tech-7ef052"
     },
@@ -1648,7 +2053,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-transportation-associate"
     },
@@ -1674,7 +2079,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-program-manager-sales-operations-fauna"
     },
@@ -1700,7 +2105,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-senior-technical-infrastructure-program-manager-network-engineering"
     },
@@ -1726,7 +2131,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-senior-financial-analyst-aws-sales-finance"
     },
@@ -1752,7 +2157,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-fulfillment-center-supervisor"
     },
@@ -1778,7 +2183,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-reliability-maintenance-engineering-technician"
     },
@@ -1804,7 +2209,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-sr-delivery-consultant-application-modernization-ai-transformation"
     },
@@ -1830,7 +2235,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-transaction-manager-global-realty"
     },
@@ -1856,7 +2261,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-operations-supervisor-hub-delivery"
     },
@@ -1882,7 +2287,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-development-engineer-gcna-d"
     },
@@ -1908,7 +2313,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-delivery-station-customer-service-associate-dsl"
     },
@@ -1934,7 +2339,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-logistics-specialist-adc-infraops-logistics"
     },
@@ -1960,7 +2365,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-operations-manager-573635"
     },
@@ -1986,7 +2391,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-operations-manager-5ca50e"
     },
@@ -2012,7 +2417,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-operations-manager-013074"
     },
@@ -2038,7 +2443,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-operations-manager-f4dd6f"
     },
@@ -2064,7 +2469,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-network-deploy-technician-global-network-delivery"
     },
@@ -2090,7 +2495,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-sr-electrical-engineer-data-center-engineering"
     },
@@ -2116,7 +2521,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-process-assistant-rsr"
     },
@@ -2142,7 +2547,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-nw-deployment-planner-i-gnd-planning-implementation-coordination-pic-team"
     },
@@ -2168,7 +2573,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-head-of-business-affairs-latam-amazon-mgm-studios-business-affairs"
     },
@@ -2194,7 +2599,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-technician-dcc-communities-1c52d0"
     },
@@ -2220,7 +2625,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-technician-dcc-communities-e46a03"
     },
@@ -2246,7 +2651,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-technician-dcc-communities-02ddd3"
     },
@@ -2272,7 +2677,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-technician-dcc-communities-599783"
     },
@@ -2298,7 +2703,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-structural-bim-designer-dc-design-engineering-052b9c"
     },
@@ -2324,7 +2729,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-senior-customer-success-manager-strategic-account-services"
     },
@@ -2350,7 +2755,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-engineer-ii-dsp-analytics"
     },
@@ -2376,7 +2781,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-dev-engineer-ii-aws-discounts"
     },
@@ -2402,9 +2807,9 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
-      "slug": "amazon-investigation-associate-middle-mile-product-technology"
+      "slug": "amazon-investigation-associate-middle-mile-product-technology-1197ff"
     },
     {
       "company": "Amazon",
@@ -2428,7 +2833,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-financial-analyst-intern-accounting-de61b9"
     },
@@ -2454,7 +2859,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-financial-analyst-intern-accounting-3de8b5"
     },
@@ -2480,7 +2885,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-onsite-medical-representative"
     },
@@ -2506,7 +2911,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-financial-analyst-intern-accounting-93373b"
     },
@@ -2532,7 +2937,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-emea-scheduling-manager"
     },
@@ -2558,7 +2963,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "amazon-whs-specialist-d5cbc2"
     },
@@ -2584,7 +2989,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-id-rack-lifecycle-tech-rack-lifecycle-team-41d017"
     },
@@ -2610,7 +3015,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-id-rack-lifecycle-tech-rack-lifecycle-team-34fa85"
     },
@@ -2636,7 +3041,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-associate-solutions-architect-benelux"
     },
@@ -2662,7 +3067,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-security-engineer-corporate-services-security"
     },
@@ -2688,7 +3093,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-ehs-specialist-e1d2f1"
     },
@@ -2714,7 +3119,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-prime-air-ground-handler-amazon-prime-air-82c91f"
     },
@@ -2740,7 +3145,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-prime-air-ground-handler-amazon-prime-air-b61bd6"
     },
@@ -2766,7 +3171,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-structural-bim-designer-dc-design-engineering-7f6d45"
     },
@@ -2792,7 +3197,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-id-rack-lifecycle-tech-rack-lifecycle-team-d2a7e6"
     },
@@ -2818,7 +3223,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-customer-service-team-manager-customer-service"
     },
@@ -2844,7 +3249,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-id-rack-lifecycle-tech-rack-lifecycle-team-443e61"
     },
@@ -2870,7 +3275,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-associate-account-executive-smb-engaged"
     },
@@ -2896,7 +3301,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-technical-infrastructure-program-manager-i-data-center-power-utilization-management-planning-pump-soapstone-b75a12"
     },
@@ -2922,7 +3327,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-systems-engineer-amazon-foundational-security-services"
     },
@@ -2948,7 +3353,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-senior-bdm-law-enforcement-global-government-business-development"
     },
@@ -2974,7 +3379,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-id-rack-lifecycle-tech-rack-lifecycle-team-d7d561"
     },
@@ -3000,7 +3405,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon"
     },
@@ -3026,7 +3431,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-startup-support-manager-startup-ace-activate"
     },
@@ -3052,7 +3457,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-development-engineer-ai-studios-engineering"
     },
@@ -3078,7 +3483,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-sr-operations-manager-ssd"
     },
@@ -3104,7 +3509,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-project-engineer-dccd-construction-ohio-21f427"
     },
@@ -3130,7 +3535,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-project-engineer-dccd-construction-ohio-23ad40"
     },
@@ -3156,7 +3561,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-development-engineer-amazon-optics"
     },
@@ -3182,7 +3587,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-project-engineer-dccd-construction-ohio-f8aae4"
     },
@@ -3208,7 +3613,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-project-engineer-dccd-construction-ohio-48c569"
     },
@@ -3234,7 +3639,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-project-engineer-dccd-construction-ohio-673ef8"
     },
@@ -3260,7 +3665,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-project-engineer-dccd-construction-ohio-526551"
     },
@@ -3286,7 +3691,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-project-engineer-dccd-construction-ohio-ddcbc5"
     },
@@ -3312,7 +3717,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-construction-manager-dccd-construction-ohio"
     },
@@ -3338,7 +3743,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-associate-ml-data-operations-go-ai-operations-8d8613"
     },
@@ -3364,7 +3769,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-associate-ml-data-operations-go-ai-operations-812f29"
     },
@@ -3390,7 +3795,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-associate-ml-data-operations-go-ai-operations-59c5e1"
     },
@@ -3416,7 +3821,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-associate-ml-data-operations-go-ai-operations-eb873d"
     },
@@ -3442,7 +3847,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-senior-supply-chain-manager-amazon-logistics-strategic-planning"
     },
@@ -3468,7 +3873,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-development-engineer-agentic-workspaces-watchtower"
     },
@@ -3494,7 +3899,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-shift-area-manager-amazon-logistics"
     },
@@ -3520,7 +3925,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-s-op-analyst-supply-chain"
     },
@@ -3546,7 +3951,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-technician-dcc-communities-7d1700"
     },
@@ -3572,7 +3977,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-infra-delivery-install-technician-flex"
     },
@@ -3598,7 +4003,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-team-lead"
     },
@@ -3624,7 +4029,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-associate-ml-data-operations-go-ai-operations-57602c"
     },
@@ -3650,7 +4055,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-associate-ml-data-operations-go-ai-operations-61c0dc"
     },
@@ -3676,7 +4081,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-associate-ml-data-operations-go-ai-operations-455b2b"
     },
@@ -3702,7 +4107,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-sr-solutions-architect-product-acceleration-wwps"
     },
@@ -3728,7 +4133,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-id-rack-lifecycle-tech-rack-lifecycle-team-baa35b"
     },
@@ -3754,7 +4159,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-id-rack-lifecycle-tech-rack-lifecycle-team-1e0580"
     },
@@ -3780,7 +4185,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-engineering-operations-technician"
     },
@@ -3806,7 +4211,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-id-rack-lifecycle-tech-rack-lifecycle-team-227d91"
     },
@@ -3832,7 +4237,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-controls-engineer-kul-aws-control-deployment-and-service-team"
     },
@@ -3858,7 +4263,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-touch-engineer-display-and-touch-team"
     },
@@ -3884,7 +4289,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-embedded-software-engineer-srd-annapurna-labs"
     },
@@ -3910,7 +4315,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-dev-engineer-2"
     },
@@ -3936,7 +4341,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-id-rack-lifecycle-tech-rack-lifecycle-team-c0f641"
     },
@@ -3962,7 +4367,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-technical-infrastructure-program-manager-i-data-center-power-utilization-management-planning-pump-soapstone-0d3482"
     },
@@ -3988,7 +4393,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-sr-account-executive-hardlines"
     },
@@ -4014,7 +4419,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-senior-supply-chain-manager-capacity-planning-r2l-supply-chain"
     },
@@ -4040,7 +4445,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-sr-operations-manager-ars"
     },
@@ -4066,7 +4471,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-sr-mech-product-manager-tech-data-center-engineering"
     },
@@ -4118,7 +4523,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-ehs-specialist-919844"
     },
@@ -4144,7 +4549,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-id-flex-technician"
     },
@@ -4170,7 +4575,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-development-engineer-ii-aws-activate"
     },
@@ -4196,7 +4601,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-senior-maintenance-manager"
     },
@@ -4222,7 +4627,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-structural-engineer-amer-design-engineering-east-regional-team"
     },
@@ -4248,7 +4653,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-development-engineer-ii-f04801"
     },
@@ -4274,7 +4679,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-development-engineer-ii-0334e6"
     },
@@ -4300,7 +4705,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-development-engineer-rbks-dso-eu"
     },
@@ -4326,7 +4731,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-business-analyst-global-solutions-risk-compliance-gsrc-663518"
     },
@@ -4352,7 +4757,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-business-analyst-global-solutions-risk-compliance-gsrc-1ed220"
     },
@@ -4378,7 +4783,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-business-analyst-global-solutions-risk-compliance-gsrc-b960c6"
     },
@@ -4404,7 +4809,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-business-analyst-global-solutions-risk-compliance-gsrc-83da38"
     },
@@ -4430,7 +4835,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-id-rack-lifecycle-tech-rack-lifecycle-team-84aff7"
     },
@@ -4456,7 +4861,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-business-analyst-global-solutions-risk-compliance-gsrc-de8ce3"
     },
@@ -4482,7 +4887,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-public-policy-manager-intern-q3-2027-eu-public-policy-team"
     },
@@ -4508,7 +4913,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-operations-executive-amazon-now-amazon-now-egypt"
     },
@@ -4534,7 +4939,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-operations-manager-aa879a"
     },
@@ -4560,7 +4965,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-area-manager-ii-6d4018"
     },
@@ -4586,7 +4991,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-area-manager-ii-794ea0"
     },
@@ -4612,7 +5017,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-area-manager-ii-9ebce3"
     },
@@ -4638,7 +5043,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-sort-center-operations-manager-worldwide-operations"
     },
@@ -4664,7 +5069,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-b3caa8"
     },
@@ -4690,7 +5095,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-c46b85"
     },
@@ -4716,7 +5121,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-ff2468"
     },
@@ -4742,7 +5147,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-9b79a3"
     },
@@ -4768,7 +5173,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-ae89bb"
     },
@@ -4794,7 +5199,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-9299b4"
     },
@@ -4820,7 +5225,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-23766b"
     },
@@ -4846,7 +5251,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-development-engineer-aws-opensearch"
     },
@@ -4872,7 +5277,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-ed8abe"
     },
@@ -4898,7 +5303,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-sales-account-manager-cpg-amazon-ads"
     },
@@ -4924,7 +5329,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-fd0057"
     },
@@ -4950,7 +5355,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-35fb50"
     },
@@ -4976,7 +5381,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-df09ba"
     },
@@ -5002,7 +5407,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-2d6efe"
     },
@@ -5028,7 +5433,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-2f6277"
     },
@@ -5054,7 +5459,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-31f802"
     },
@@ -5080,7 +5485,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-d9348d"
     },
@@ -5106,7 +5511,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-378a62"
     },
@@ -5132,7 +5537,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-sw-automation-student-annapurna-labs"
     },
@@ -5158,7 +5563,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-business-analyst-amzl-utr-ppt"
     },
@@ -5184,7 +5589,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-responsable-d-quipe-logistique-op-rations-h-f-amazon-fulfillment-center"
     },
@@ -5210,7 +5615,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-business-intelligence-engineer-lmaq"
     },
@@ -5236,7 +5641,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-solutions-architect-technology-cs-apj-csc-tech"
     },
@@ -5262,7 +5667,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-industrial-designer-fauna"
     },
@@ -5288,7 +5693,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-software-development-engineer-ii-ordering"
     },
@@ -5314,7 +5719,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 3,
       "pipeline": "crawl",
       "slug": "amazon-operations-manager-f3eac3"
     },
@@ -5340,7 +5745,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "amazon-ad-sales-manager-amazon-ads-amazon-ads"
     },
@@ -5392,7 +5797,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "amazon-rme-coordinator-iii-rme-coordinator-iii"
     },
@@ -5418,7 +5823,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "amazon-data-center-operation-engineer-dco-data-center-operations"
     },
@@ -5444,7 +5849,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "amazon-sr-technical-program-manager-prime-video-personalization-and-discovery"
     },
@@ -5470,7 +5875,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "amazon-ehs-specialist-ede2d3"
     },
@@ -5496,7 +5901,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-0646fc"
     },
@@ -5522,7 +5927,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "amazon-mechatronics-robotics-tech-3f3679"
     },
@@ -5548,7 +5953,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "amazon-data-center-logistics-specialist-dcc-communities-29249a"
     },
@@ -5574,7 +5979,7 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "amazon-prime-air-ground-handler-amazon-prime-air-be7504"
     },
@@ -5600,9 +6005,711 @@
       "ats": "amazon",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "amazon-strategic-customer-engagements-amer-gdsp"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Middle Mile Product & Technology",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-20, dated 2026-09-18, and left them 2 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-09-18",
+        "current_published": "2026-09-22",
+        "gap_days": 2,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10553619/investigation-associate-middle-mile-product-technology",
+        "current_url": "https://www.amazon.jobs/en/jobs/10555782/investigation-associate-middle-mile-product-technology"
+      },
+      "id": "94d0375a4cad",
+      "url": "https://www.amazon.jobs/en/jobs/10555782/investigation-associate-middle-mile-product-technology",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T07:33:05Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 2,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-middle-mile-product-technology-8619c2"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Middle Mile Product & Technology",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-20, dated 2026-09-18, and left them 2 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-09-18",
+        "current_published": "2026-09-22",
+        "gap_days": 2,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10553619/investigation-associate-middle-mile-product-technology",
+        "current_url": "https://www.amazon.jobs/en/jobs/10555783/investigation-associate-middle-mile-product-technology"
+      },
+      "id": "59714e370f9e",
+      "url": "https://www.amazon.jobs/en/jobs/10555783/investigation-associate-middle-mile-product-technology",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T07:33:05Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 2,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-middle-mile-product-technology-2551f0"
+    },
+    {
+      "company": "Amazon",
+      "title": "Sr. Technical Account Manager, TAM ",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-06, dated 2026-08-20, and left them 16 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-20",
+        "current_published": "2026-09-22",
+        "gap_days": 16,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10508026/sr-technical-account-manager-tam",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556808/sr-technical-account-manager-tam"
+      },
+      "id": "63c4c3838175",
+      "url": "https://www.amazon.jobs/en/jobs/10556808/sr-technical-account-manager-tam",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-sr-technical-account-manager-tam-015d14"
+    },
+    {
+      "company": "Amazon",
+      "title": "Sr. Technical Account Manager, TAM ",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-06, dated 2026-08-20, and left them 16 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-20",
+        "current_published": "2026-09-22",
+        "gap_days": 16,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10508026/sr-technical-account-manager-tam",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556809/sr-technical-account-manager-tam"
+      },
+      "id": "de9f1bf6e6a6",
+      "url": "https://www.amazon.jobs/en/jobs/10556809/sr-technical-account-manager-tam",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-sr-technical-account-manager-tam-f783af"
+    },
+    {
+      "company": "Amazon",
+      "title": "Network Infrastructure Engineer I, Amazon Dedicated Cloud (NIDD)",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-14, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-14",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10502184/network-infrastructure-engineer-i-amazon-dedicated-cloud-nidd",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556680/network-infrastructure-engineer-i-amazon-dedicated-cloud-nidd"
+      },
+      "id": "759609ff2e1c",
+      "url": "https://www.amazon.jobs/en/jobs/10556680/network-infrastructure-engineer-i-amazon-dedicated-cloud-nidd",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-network-infrastructure-engineer-i-amazon-dedicated-cloud-nidd"
+    },
+    {
+      "company": "Amazon",
+      "title": "Especialista de Capacitaci\u00f3n de Drivers, ACES L&D MX",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-28, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-28",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10519389/especialista-de-capacitacion-de-drivers-aces-l-d-mx",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556370/especialista-de-capacitacion-de-drivers-aces-l-d-mx"
+      },
+      "id": "1c0d6e5d31b1",
+      "url": "https://www.amazon.jobs/en/jobs/10556370/especialista-de-capacitacion-de-drivers-aces-l-d-mx",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-especialista-de-capacitaci-n-de-drivers-aces-l-d-mx"
+    },
+    {
+      "company": "Amazon",
+      "title": "Member of Technical Staff, Exp, Bee",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-17, dated 2026-09-15, and left them 5 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-09-15",
+        "current_published": "2026-09-22",
+        "gap_days": 5,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10542786/member-of-technical-staff-exp-bee",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556799/member-of-technical-staff-exp-bee"
+      },
+      "id": "da04c2dcfd53",
+      "url": "https://www.amazon.jobs/en/jobs/10556799/member-of-technical-staff-exp-bee",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-member-of-technical-staff-exp-bee"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Middle Mile Product & Technology",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-20, dated 2026-09-18, and left them 2 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-09-18",
+        "current_published": "2026-09-22",
+        "gap_days": 2,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10553619/investigation-associate-middle-mile-product-technology",
+        "current_url": "https://www.amazon.jobs/en/jobs/10555898/investigation-associate-middle-mile-product-technology"
+      },
+      "id": "1ad9f4af1d09",
+      "url": "https://www.amazon.jobs/en/jobs/10555898/investigation-associate-middle-mile-product-technology",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-middle-mile-product-technology-c78948"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Relay Product Excellence",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-23, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-23",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10511626/investigation-associate-relay-product-excellence",
+        "current_url": "https://www.amazon.jobs/en/jobs/10555895/investigation-associate-relay-product-excellence"
+      },
+      "id": "8cb89ed32d7c",
+      "url": "https://www.amazon.jobs/en/jobs/10555895/investigation-associate-relay-product-excellence",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-relay-product-excellence-8374bb"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Relay Product Excellence",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-23, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-23",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10511626/investigation-associate-relay-product-excellence",
+        "current_url": "https://www.amazon.jobs/en/jobs/10555894/investigation-associate-relay-product-excellence"
+      },
+      "id": "d374af9f6946",
+      "url": "https://www.amazon.jobs/en/jobs/10555894/investigation-associate-relay-product-excellence",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-relay-product-excellence-11f89a"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Relay Product Excellence",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-23, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-23",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10511626/investigation-associate-relay-product-excellence",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556197/investigation-associate-relay-product-excellence"
+      },
+      "id": "06f151b8dc1d",
+      "url": "https://www.amazon.jobs/en/jobs/10556197/investigation-associate-relay-product-excellence",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-relay-product-excellence-46c576"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Relay Product Excellence",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-23, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-23",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10511626/investigation-associate-relay-product-excellence",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556289/investigation-associate-relay-product-excellence"
+      },
+      "id": "69c2687e3036",
+      "url": "https://www.amazon.jobs/en/jobs/10556289/investigation-associate-relay-product-excellence",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-relay-product-excellence-d12c9d"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Relay Product Excellence",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-23, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-23",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10511626/investigation-associate-relay-product-excellence",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556290/investigation-associate-relay-product-excellence"
+      },
+      "id": "9f3957f24da1",
+      "url": "https://www.amazon.jobs/en/jobs/10556290/investigation-associate-relay-product-excellence",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-relay-product-excellence-be80bf"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Relay Product Excellence",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-23, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-23",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10511626/investigation-associate-relay-product-excellence",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556292/investigation-associate-relay-product-excellence"
+      },
+      "id": "eb29a5e9fa42",
+      "url": "https://www.amazon.jobs/en/jobs/10556292/investigation-associate-relay-product-excellence",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-relay-product-excellence-28fb36"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Relay Product Excellence",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-23, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-23",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10511626/investigation-associate-relay-product-excellence",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556293/investigation-associate-relay-product-excellence"
+      },
+      "id": "3163d7e43121",
+      "url": "https://www.amazon.jobs/en/jobs/10556293/investigation-associate-relay-product-excellence",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-relay-product-excellence-f1fa18"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Relay Product Excellence",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-23, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-23",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10511626/investigation-associate-relay-product-excellence",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556294/investigation-associate-relay-product-excellence"
+      },
+      "id": "756896854981",
+      "url": "https://www.amazon.jobs/en/jobs/10556294/investigation-associate-relay-product-excellence",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-relay-product-excellence-b63ac2"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Relay Product Excellence",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-23, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-23",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10511626/investigation-associate-relay-product-excellence",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556196/investigation-associate-relay-product-excellence"
+      },
+      "id": "d37e75e9640a",
+      "url": "https://www.amazon.jobs/en/jobs/10556196/investigation-associate-relay-product-excellence",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-relay-product-excellence-d733a0"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Relay Product Excellence",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-23, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-23",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10511626/investigation-associate-relay-product-excellence",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556194/investigation-associate-relay-product-excellence"
+      },
+      "id": "7aefe3fe5005",
+      "url": "https://www.amazon.jobs/en/jobs/10556194/investigation-associate-relay-product-excellence",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-relay-product-excellence-d8f9a3"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Relay Product Excellence",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-23, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-23",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10511626/investigation-associate-relay-product-excellence",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556193/investigation-associate-relay-product-excellence"
+      },
+      "id": "2420be79b42b",
+      "url": "https://www.amazon.jobs/en/jobs/10556193/investigation-associate-relay-product-excellence",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-relay-product-excellence-ae7fcf"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Relay Product Excellence",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-23, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-23",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10511626/investigation-associate-relay-product-excellence",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556423/investigation-associate-relay-product-excellence"
+      },
+      "id": "140b7f1fc1ec",
+      "url": "https://www.amazon.jobs/en/jobs/10556423/investigation-associate-relay-product-excellence",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-relay-product-excellence-e928e6"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Relay Product Excellence",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-23, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-23",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10511626/investigation-associate-relay-product-excellence",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556202/investigation-associate-relay-product-excellence"
+      },
+      "id": "da0a4d7914fa",
+      "url": "https://www.amazon.jobs/en/jobs/10556202/investigation-associate-relay-product-excellence",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-relay-product-excellence-00cacc"
+    },
+    {
+      "company": "Amazon",
+      "title": "Investigation Associate, Relay Product Excellence",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-23, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-23",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10511626/investigation-associate-relay-product-excellence",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556198/investigation-associate-relay-product-excellence"
+      },
+      "id": "ca849b76c03f",
+      "url": "https://www.amazon.jobs/en/jobs/10556198/investigation-associate-relay-product-excellence",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-investigation-associate-relay-product-excellence-08ca92"
+    },
+    {
+      "company": "Amazon",
+      "title": "Software Development Engineer II, Amazon Fulfillment Technologies (AFT) - Workforce Optimization",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-18, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-18",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10506049/software-development-engineer-ii-amazon-fulfillment-technologies-aft-workforce-optimization",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556741/software-development-engineer-ii-amazon-fulfillment-technologies-aft-workforce-optimization"
+      },
+      "id": "d94e17f1e4dc",
+      "url": "https://www.amazon.jobs/en/jobs/10556741/software-development-engineer-ii-amazon-fulfillment-technologies-aft-workforce-optimization",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-software-development-engineer-ii-amazon-fulfillment-technologies-aft-workforce-optimization"
+    },
+    {
+      "company": "Amazon",
+      "title": "Finance Manager, NA Customer Fulfillment FP&A",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-16, dated 2026-09-10, and left them 6 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-09-10",
+        "current_published": "2026-09-22",
+        "gap_days": 6,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10536767/finance-manager-na-customer-fulfillment-fp-a",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556341/finance-manager-na-customer-fulfillment-fp-a"
+      },
+      "id": "10758acc76ba",
+      "url": "https://www.amazon.jobs/en/jobs/10556341/finance-manager-na-customer-fulfillment-fp-a",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-finance-manager-na-customer-fulfillment-fp-a"
+    },
+    {
+      "company": "Amazon",
+      "title": "Principal Partner Marketing Manager, Global Consulting Partner Marketing",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-08-30, dated 2026-08-26, and left them 23 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-26",
+        "current_published": "2026-09-22",
+        "gap_days": 23,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10515635/principal-partner-marketing-manager-global-consulting-partner-marketing",
+        "current_url": "https://www.amazon.jobs/en/jobs/10555901/principal-partner-marketing-manager-global-consulting-partner-marketing"
+      },
+      "id": "c864764ff312",
+      "url": "https://www.amazon.jobs/en/jobs/10555901/principal-partner-marketing-manager-global-consulting-partner-marketing",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-principal-partner-marketing-manager-global-consulting-partner-marketing"
+    },
+    {
+      "company": "Amazon",
+      "title": "lastmile operations AMZL, East Cairo AMZL",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-17, dated 2026-09-09, and left them 5 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-09-09",
+        "current_published": "2026-09-22",
+        "gap_days": 5,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10534063/lastmile-operations-amzl-east-cairo-amzl",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556195/lastmile-operations-amzl-east-cairo-amzl"
+      },
+      "id": "355a76eeb412",
+      "url": "https://www.amazon.jobs/en/jobs/10556195/lastmile-operations-amzl-east-cairo-amzl",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-lastmile-operations-amzl-east-cairo-amzl"
+    },
+    {
+      "company": "Amazon",
+      "title": "Software Development Engineer II, AFX",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-09, dated 2026-09-08, and left them 13 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-09-08",
+        "current_published": "2026-09-22",
+        "gap_days": 13,
+        "identifier": "new",
+        "previous_url": "https://www.amazon.jobs/en/jobs/10531673/software-development-engineer-ii-afx",
+        "current_url": "https://www.amazon.jobs/en/jobs/10556205/software-development-engineer-ii-afx"
+      },
+      "id": "665bc87b34d0",
+      "url": "https://www.amazon.jobs/en/jobs/10556205/software-development-engineer-ii-afx",
+      "ats": "amazon",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "amazon-software-development-engineer-ii-afx"
     },
     {
       "company": "Alan",
@@ -5626,7 +6733,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "alan-care-expert-france-e3c6a8"
     },
@@ -5652,7 +6759,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "alan-bilingual-member-support-expert-en-fr-canada-b83084"
     },
@@ -5678,7 +6785,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "alan-account-executive-small-businesses-c03542"
     },
@@ -5704,7 +6811,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "alan-account-executive-small-businesses-b4d0bd"
     },
@@ -5730,7 +6837,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "alan-account-executive-mid-market-51b777"
     },
@@ -5756,7 +6863,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "alan-business-segment-lead-762582"
     },
@@ -5782,7 +6889,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "alan-business-segment-lead-6a185e"
     },
@@ -5808,7 +6915,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "alan-key-account-manager-6b5155"
     },
@@ -5834,9 +6941,397 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-22T05:16:59Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 1,
+      "times_fired": 2,
       "pipeline": "crawl",
       "slug": "alan-key-account-manager-d36a76"
+    },
+    {
+      "company": "Alan",
+      "title": "M\u00e9decin du travail",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-14, dated 2026-08-24, and left them 8 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-08-24",
+        "current_published": "2026-09-22",
+        "gap_days": 8,
+        "identifier": "new",
+        "previous_url": "https://jobs.ashbyhq.com/alan/8b73b509-d44b-4ab4-9df8-441aa1f30644",
+        "current_url": "https://jobs.ashbyhq.com/alan/28840d7f-1fee-4dfa-a478-80b9dd91d011"
+      },
+      "id": "0428cb815754",
+      "url": "https://jobs.ashbyhq.com/alan/28840d7f-1fee-4dfa-a478-80b9dd91d011",
+      "ats": "ashby",
+      "first_killed_at_utc": "2026-09-22T07:33:05Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 2,
+      "pipeline": "crawl",
+      "slug": "alan-m-decin-du-travail"
+    },
+    {
+      "company": "Alan",
+      "title": "Sales Planning & Strategy",
+      "reason": "repost-churn: this posting is dated 2026-09-21 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-21, dated 2026-09-17, and left them 1 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-21",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-09-17",
+        "current_published": "2026-09-21",
+        "gap_days": 1,
+        "identifier": "new",
+        "previous_url": "https://jobs.ashbyhq.com/alan/80e5879d-932b-4f13-bb8a-95e281cb919e",
+        "current_url": "https://jobs.ashbyhq.com/alan/b94d3365-df7c-42ba-9fd8-b3258caf7baa"
+      },
+      "id": "28249a71d63e",
+      "url": "https://jobs.ashbyhq.com/alan/b94d3365-df7c-42ba-9fd8-b3258caf7baa",
+      "ats": "ashby",
+      "first_killed_at_utc": "2026-09-22T07:33:05Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "alan-sales-planning-strategy-ad6864"
+    },
+    {
+      "company": "Alan",
+      "title": "Senior Revenue Ops",
+      "reason": "repost-churn: this posting is dated 2026-09-21 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-21, dated 2026-09-14, and left them 1 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-21",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-09-14",
+        "current_published": "2026-09-21",
+        "gap_days": 1,
+        "identifier": "new",
+        "previous_url": "https://jobs.ashbyhq.com/alan/be2de432-6601-41aa-a692-d3f2984d0715",
+        "current_url": "https://jobs.ashbyhq.com/alan/0b5715d6-478e-4169-8101-6e46b7f897e1"
+      },
+      "id": "17d648d05717",
+      "url": "https://jobs.ashbyhq.com/alan/0b5715d6-478e-4169-8101-6e46b7f897e1",
+      "ats": "ashby",
+      "first_killed_at_utc": "2026-09-22T07:33:05Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "alan-senior-revenue-ops-602358"
+    },
+    {
+      "company": "Alan",
+      "title": "Senior Revenue Ops",
+      "reason": "repost-churn: this posting is dated 2026-09-21 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-21, dated 2026-09-14, and left them 1 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-21",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-09-14",
+        "current_published": "2026-09-21",
+        "gap_days": 1,
+        "identifier": "new",
+        "previous_url": "https://jobs.ashbyhq.com/alan/a46d2b05-dcae-4749-b796-fe76eb48f6be",
+        "current_url": "https://jobs.ashbyhq.com/alan/242aeba4-ca55-40f2-9208-9d10b5b20eca"
+      },
+      "id": "55ac9d5ded77",
+      "url": "https://jobs.ashbyhq.com/alan/242aeba4-ca55-40f2-9208-9d10b5b20eca",
+      "ats": "ashby",
+      "first_killed_at_utc": "2026-09-22T07:33:05Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "alan-senior-revenue-ops-f3012e"
+    },
+    {
+      "company": "Alan",
+      "title": "Sales Planning & Strategy",
+      "reason": "repost-churn: this posting is dated 2026-09-21 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-21, dated 2026-09-18, and left them 1 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-21",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-09-18",
+        "current_published": "2026-09-21",
+        "gap_days": 1,
+        "identifier": "new",
+        "previous_url": "https://jobs.ashbyhq.com/alan/e3275173-2bcf-47fb-85bc-681ef6a671df",
+        "current_url": "https://jobs.ashbyhq.com/alan/d8d6bc20-09e1-4623-a067-25c4659a6010"
+      },
+      "id": "b21f773a2d7d",
+      "url": "https://jobs.ashbyhq.com/alan/d8d6bc20-09e1-4623-a067-25c4659a6010",
+      "ats": "ashby",
+      "first_killed_at_utc": "2026-09-22T07:33:05Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "alan-sales-planning-strategy-b938cf"
+    },
+    {
+      "company": "Alan",
+      "title": "Union Relations Lead / Directeur(rice) du Paritarisme",
+      "reason": "repost-churn: this posting is dated 2026-09-21 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-21, dated 2026-09-14, and left them 1 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-21",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-09-14",
+        "current_published": "2026-09-21",
+        "gap_days": 1,
+        "identifier": "new",
+        "previous_url": "https://jobs.ashbyhq.com/alan/31bac98d-c00d-43db-8e61-0eb2da8c9214",
+        "current_url": "https://jobs.ashbyhq.com/alan/d44c47e0-e7c7-43ee-9a05-cc147700ef4d"
+      },
+      "id": "e3b6723bf00e",
+      "url": "https://jobs.ashbyhq.com/alan/d44c47e0-e7c7-43ee-9a05-cc147700ef4d",
+      "ats": "ashby",
+      "first_killed_at_utc": "2026-09-22T07:33:05Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "alan-union-relations-lead-directeur-rice-du-paritarisme-5d14ad"
+    },
+    {
+      "company": "Aimpoint Digital",
+      "title": "Sales Director 2026 - UK",
+      "reason": "touched-not-refreshed: the published date moved from 2026-09-02 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-09-02",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-09-02",
+        "published_now": "2026-09-22",
+        "days_moved": 20
+      },
+      "id": "0b3f33f6dbdb",
+      "url": "https://aimpoint-digital.breezy.hr/p/cee386a2be07-sales-director-2026-uk",
+      "ats": "breezy",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "aimpoint-digital-sales-director-2026-uk"
+    },
+    {
+      "company": "Advantagemedicalstaffing",
+      "title": "Community Nurse / CQC Registered Manager \u2013 London, UK",
+      "reason": "zombie: the deadline this posting printed itself (2026-06-10) passed 104 days ago and it is still listed",
+      "first_published": "2025-07-06",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "zombie",
+      "evidence": {
+        "deadline": "2026-06-10",
+        "days_past": 104
+      },
+      "id": "43bff66b13bd",
+      "url": "https://advantagemedicalstaffing.teamtailor.com/jobs/6139572-community-nurse-cqc-registered-manager-london-uk",
+      "ats": "teamtailor",
+      "first_killed_at_utc": "2026-09-22T07:33:05Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 2,
+      "pipeline": "crawl",
+      "slug": "advantagemedicalstaffing-community-nurse-cqc-registered-manager-london-uk"
+    },
+    {
+      "company": "Adolescent Wellness Academy",
+      "title": "Lead Mental Health Technician \u2013 Adolescents (Bilingual)",
+      "reason": "touched-not-refreshed: the published date moved from 2026-09-21 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-09-21",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-09-21",
+        "published_now": "2026-09-22",
+        "days_moved": 0
+      },
+      "id": "260986312aec",
+      "url": "https://adolescent-wellness-academy.breezy.hr/p/d9fe0ac1513b-lead-mental-health-technician-adolescents-bilingual",
+      "ats": "breezy",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "adolescent-wellness-academy-lead-mental-health-technician-adolescents-bilingual"
+    },
+    {
+      "company": "Adoc Tm",
+      "title": "Research Engineer \u2013 AI Agents & LLM Systems F/M",
+      "reason": "touched-not-refreshed: the published date moved from 2026-09-10 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-09-10",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-09-10",
+        "published_now": "2026-09-22",
+        "days_moved": 11
+      },
+      "id": "1b3735656ff0",
+      "url": "https://adoc-tm.breezy.hr/p/eb6321b6a24201-research-engineer-ai-agents-llm-systems-f-m",
+      "ats": "breezy",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "adoc-tm-research-engineer-ai-agents-llm-systems-f-m"
+    },
+    {
+      "company": "Absolute Pets",
+      "title": "Retail Sales Assistant",
+      "reason": "touched-not-refreshed: the published date moved from 2026-09-11 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-09-11",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-09-11",
+        "published_now": "2026-09-22",
+        "days_moved": 10
+      },
+      "id": "2f350a09dc54",
+      "url": "https://absolute-pets.breezy.hr/p/04e289043a1601-retail-sales-assistant",
+      "ats": "breezy",
+      "first_killed_at_utc": "2026-09-22T07:33:05Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "absolute-pets-retail-sales-assistant"
+    },
+    {
+      "company": "AFS Energy B.V.",
+      "title": "Risk Officer",
+      "reason": "repost-churn: this posting is dated 2026-09-22 and its title, location, remote flag, employment type, posted pay and description are byte for byte identical to a posting at this company that was last seen on our boards on 2026-09-22, dated 2026-09-17, and left them 0 day(s) before this one appeared at a new URL",
+      "first_published": "2026-09-22",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "repost_churn",
+      "evidence": {
+        "previous_published": "2026-09-17",
+        "current_published": "2026-09-22",
+        "gap_days": 0,
+        "identifier": "new",
+        "previous_url": "https://afsenergy.recruitee.com/o/risk-officer",
+        "current_url": "https://afsenergy.recruitee.com/o/risk-officer-1"
+      },
+      "id": "8817bbf93f18",
+      "url": "https://afsenergy.recruitee.com/o/risk-officer-1",
+      "ats": "recruitee",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "afs-energy-b-v-risk-officer"
+    },
+    {
+      "company": "A2H",
+      "title": "Civil Engineer",
+      "reason": "touched-not-refreshed: the published date moved from 2026-05-20 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-05-20",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-05-20",
+        "published_now": "2026-09-22",
+        "days_moved": 124
+      },
+      "id": "2be6987ed8c6",
+      "url": "https://a2h.breezy.hr/p/56e9cc7eee1c-civil-engineer",
+      "ats": "breezy",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "a2h-civil-engineer"
+    },
+    {
+      "company": "20Four7Va",
+      "title": "CPT-11531 Sales Development & Sales Operations Virtual Assistant",
+      "reason": "touched-not-refreshed: the published date moved from 2026-09-21 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-09-21",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-09-21",
+        "published_now": "2026-09-22",
+        "days_moved": 0
+      },
+      "id": "5ab068e2992a",
+      "url": "https://20four7va.breezy.hr/p/8a70174210ca-cpt-11531-sales-development-sales-operations-virtual-assistant",
+      "ats": "breezy",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "20four7va-cpt-11531-sales-development-sales-operations-virtual-assistant"
+    },
+    {
+      "company": "20Four7Va",
+      "title": "DSP-CPT-11333 Amazon DSP Recruiting & Operations Assistant",
+      "reason": "touched-not-refreshed: the published date moved from 2026-08-18 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-08-18",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-08-18",
+        "published_now": "2026-09-22",
+        "days_moved": 34
+      },
+      "id": "501f4d2bfac3",
+      "url": "https://20four7va.breezy.hr/p/f9ad4664860c-dsp-cpt-11333-amazon-dsp-recruiting-operations-assistant",
+      "ats": "breezy",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "20four7va-dsp-cpt-11333-amazon-dsp-recruiting-operations-assistant"
+    },
+    {
+      "company": "20Four7Va",
+      "title": "DSP-CPT-11512 Recruiting & Candidate Coordination Virtual Assistant",
+      "reason": "touched-not-refreshed: the published date moved from 2026-09-14 to 2026-09-22 while the title, location, remote flag, employment type, posted pay and description all stayed byte for byte identical",
+      "first_published": "2026-09-14",
+      "killed_on": "2026-09-22",
+      "duration_open_days": null,
+      "duration_provenance": "observed_by_us",
+      "kill_rule": "touched_not_refreshed",
+      "evidence": {
+        "published_was": "2026-09-14",
+        "published_now": "2026-09-22",
+        "days_moved": 7
+      },
+      "id": "100e80a2e0f8",
+      "url": "https://20four7va.breezy.hr/p/af6d7b39e8a3-dsp-cpt-11512-recruiting-candidate-coordination-virtual-assistant",
+      "ats": "breezy",
+      "first_killed_at_utc": "2026-09-22T18:52:22Z",
+      "last_fired_on": "2026-09-22",
+      "times_fired": 1,
+      "pipeline": "crawl",
+      "slug": "20four7va-dsp-cpt-11512-recruiting-candidate-coordination-virtual-assistant"
     },
     {
       "company": "Salesforce",
@@ -5860,7 +7355,7 @@
       "ats": "workday",
       "first_killed_at_utc": "2026-09-20T07:33:06Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 4,
+      "times_fired": 6,
       "pipeline": "crawl",
       "slug": "salesforce-named-account-executive-water-utilities"
     },
@@ -5932,7 +7427,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-19T07:33:11Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 5,
+      "times_fired": 7,
       "pipeline": "crawl",
       "slug": "sierra-strategist-agent-development-brazilian-portuguese-speaking-95075f"
     },
@@ -6056,7 +7551,7 @@
       "ats": "usajobs",
       "first_killed_at_utc": "2026-09-19T07:33:11Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 5,
+      "times_fired": 7,
       "pipeline": "crawl",
       "slug": "headquarters-air-force-reserve-command-management-analyst"
     },
@@ -6108,7 +7603,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-19T07:33:11Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 5,
+      "times_fired": 7,
       "pipeline": "crawl",
       "slug": "glean-commercial-account-executive-central"
     },
@@ -6229,7 +7724,7 @@
       "ats": "usajobs",
       "first_killed_at_utc": "2026-09-19T07:33:11Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 5,
+      "times_fired": 7,
       "pipeline": "crawl",
       "slug": "air-education-and-training-command-unit-program-coordinator"
     },
@@ -6609,7 +8104,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-18T07:32:57Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 6,
+      "times_fired": 8,
       "pipeline": "crawl",
       "slug": "brex-senior-software-engineer-accounting-engineering"
     },
@@ -6635,7 +8130,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-18T07:32:57Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 6,
+      "times_fired": 8,
       "pipeline": "crawl",
       "slug": "brex-senior-software-engineer-backend"
     },
@@ -6661,7 +8156,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-18T07:32:57Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 6,
+      "times_fired": 8,
       "pipeline": "crawl",
       "slug": "brex-senior-software-engineer-backend-product-engineering"
     },
@@ -6687,7 +8182,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-18T07:32:57Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 6,
+      "times_fired": 8,
       "pipeline": "crawl",
       "slug": "brex-software-engineer-ii-backend-53d1b7"
     },
@@ -6713,7 +8208,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-18T07:32:57Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 6,
+      "times_fired": 8,
       "pipeline": "crawl",
       "slug": "brex-software-engineer-ii-backend-41edc6"
     },
@@ -6739,7 +8234,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-18T07:32:57Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 6,
+      "times_fired": 8,
       "pipeline": "crawl",
       "slug": "brex-support-specialist-i"
     },
@@ -6787,7 +8282,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-18T07:32:57Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 6,
+      "times_fired": 7,
       "pipeline": "crawl",
       "slug": "alan-founding-sales-e159d8"
     },
@@ -6813,7 +8308,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-18T07:32:57Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 6,
+      "times_fired": 7,
       "pipeline": "crawl",
       "slug": "alan-account-executive-canada"
     },
@@ -7122,7 +8617,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-15T19:32:52Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 9,
+      "times_fired": 11,
       "pipeline": "crawl",
       "slug": "webflow-it-support-specialist"
     },
@@ -7148,7 +8643,7 @@
       "ats": "workday",
       "first_killed_at_utc": "2026-09-15T19:32:52Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 9,
+      "times_fired": 11,
       "pipeline": "crawl",
       "slug": "salesforce-named-account-executive-media-ae-2"
     },
@@ -7197,7 +8692,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 11,
+      "times_fired": 13,
       "pipeline": "crawl",
       "slug": "perplexity-engineering-manager-tlm-agents"
     },
@@ -7223,7 +8718,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 11,
+      "times_fired": 13,
       "pipeline": "crawl",
       "slug": "perplexity-member-of-technical-staff-ai-software-engineer-agents"
     },
@@ -7376,7 +8871,7 @@
       "ats": "workday",
       "first_killed_at_utc": "2026-09-15T16:18:18Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 9,
+      "times_fired": 11,
       "pipeline": "crawl",
       "slug": "nvidia-senior-chip-design-engineer"
     },
@@ -7428,7 +8923,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 11,
+      "times_fired": 13,
       "pipeline": "crawl",
       "slug": "n26-senior-legal-counsel-banking-law-e15d59"
     },
@@ -7621,7 +9116,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-15T07:32:58Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 11,
+      "times_fired": 13,
       "pipeline": "crawl",
       "slug": "faire-staff-product-engineer-brand-e3b59a"
     },
@@ -7647,7 +9142,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-15T16:18:18Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 10,
+      "times_fired": 12,
       "pipeline": "crawl",
       "slug": "basis-customer-experience-associate"
     },
@@ -8086,7 +9581,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-14T07:32:55Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 12,
+      "times_fired": 14,
       "pipeline": "crawl",
       "slug": "n26-senior-legal-counsel-banking-law-4cc2b4"
     },
@@ -8186,7 +9681,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-12T07:32:50Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 14,
+      "times_fired": 16,
       "pipeline": "crawl",
       "slug": "remote-payroll-specialist-lead-japan-individual-contributor"
     },
@@ -8768,7 +10263,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-11T18:29:05Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 15,
+      "times_fired": 17,
       "pipeline": "crawl",
       "slug": "mercury-sales-development-representative"
     },
@@ -8909,7 +10404,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-11T18:29:05Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 15,
+      "times_fired": 17,
       "pipeline": "crawl",
       "slug": "celonis-associate-ai-solution-consultant-benelux-orbit-program"
     },
@@ -9154,7 +10649,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "writer-infrastructure-engineer-uk"
     },
@@ -9180,7 +10675,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "writer-infrastructure-engineer"
     },
@@ -9206,7 +10701,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "writer-security-engineer-detection-and-response-uk"
     },
@@ -9232,7 +10727,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "writer-security-engineer-detection-and-response"
     },
@@ -9258,7 +10753,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "writer-security-engineer-application-security-uk"
     },
@@ -9284,7 +10779,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "writer-security-engineer-application-security"
     },
@@ -9310,7 +10805,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "writer-software-quality-engineer-uk"
     },
@@ -9336,7 +10831,7 @@
       "ats": "ashby",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "writer-software-engineer-connectors-mcp"
     },
@@ -9414,7 +10909,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "remote-sales-development-representative-australia-new-zealand-5afc21"
     },
@@ -9440,7 +10935,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "remote-sales-development-representative-australia-new-zealand-f6c900"
     },
@@ -9466,7 +10961,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "remote-senior-employee-relations-specialist-employee-relations-apac"
     },
@@ -9492,7 +10987,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "remote-senior-hr-specialist-employee-relations-and-transitions-emea"
     },
@@ -9518,7 +11013,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "remote-senior-hr-specialist-employee-relations-apac"
     },
@@ -9596,7 +11091,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "remote-senior-specialist-employee-relations-apac"
     },
@@ -9622,7 +11117,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "remote-senior-specialist-employee-relations-emea-17ef7c"
     },
@@ -9648,7 +11143,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "remote-senior-specialist-employee-relations-emea-eb9bb7"
     },
@@ -9674,7 +11169,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "remote-senior-specialist-employee-relations-emea-c2d64f"
     },
@@ -9773,7 +11268,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-09T01:42:56Z",
       "last_fired_on": "2026-09-22",
-      "times_fired": 18,
+      "times_fired": 20,
       "pipeline": "crawl",
       "slug": "brex-senior-brand-designer"
     },
@@ -10136,8 +11631,8 @@
       "url": "https://www.brex.com/careers/8782403002?gh_jid=8782403002",
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-08T16:37:26Z",
-      "last_fired_on": "2026-09-22",
-      "times_fired": 41,
+      "last_fired_on": "2026-09-23",
+      "times_fired": 44,
       "pipeline": "sweep",
       "slug": "brex-staff-brand-designer"
     },
@@ -10162,8 +11657,8 @@
       "url": "https://www.brex.com/careers/8782404002?gh_jid=8782404002",
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-08T16:37:26Z",
-      "last_fired_on": "2026-09-22",
-      "times_fired": 41,
+      "last_fired_on": "2026-09-23",
+      "times_fired": 44,
       "pipeline": "sweep",
       "slug": "brex-staff-brand-designer-interactive"
     },
@@ -10188,8 +11683,8 @@
       "url": "https://www.brex.com/careers/8777949002?gh_jid=8777949002",
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-04T07:30:01Z",
-      "last_fired_on": "2026-09-22",
-      "times_fired": 42,
+      "last_fired_on": "2026-09-23",
+      "times_fired": 45,
       "pipeline": "sweep",
       "slug": "brex-staff-product-designer"
     }
