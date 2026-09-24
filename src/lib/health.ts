@@ -1,51 +1,32 @@
 /**
- * /health: a status endpoint that checks its own claims rather than making them.
+ * health.ts: the site's own invariants, checked live.
  *
- * WHY THIS EXISTS. The Neon Free compute cap took the whole site down on
- * 2026-09-20 (see docs/regression-strategy.md, "Neon Launch plan" in memory) and
- * nothing was watching for it: the first anyone knew was the site itself being
- * down. A health endpoint that just answers 200 because the process is running
- * would not have caught that outage either — the process was fine, the database
- * behind it was not. So every field below is a live check against the thing
- * that actually failed last time, not a hardcoded "ok".
+ * WHY THIS IS A LIBRARY AND NOT A ROUTE. It began as a public /health endpoint,
+ * the ordinary shape for a thing a monitor polls. The owner's call on 2026-09-24
+ * was no: the site is being stabilised, and a new public surface — however thin —
+ * is the wrong thing to add in the middle of that. It also, in its first version,
+ * published the flag roster on a justification that turned out to be false.
  *
- * THE CONTRACT, taken from src/data/conformance-run.ts's own rule for a
- * self-checking claim: a verdict is 'pass', 'fail', or 'could-not-run', and
- * 'could-not-run' is never treated as a pass. A check that depends on the
- * database and finds the database unreachable reports itself as
- * could-not-run, not as a silent pass — the same reasoning
- * src/lib/data-contract.ts's assertDataContract applies to a missing key
- * versus an empty array: two different findings, never conflated.
+ * So the checks live here and are rendered on /internal, behind the internal tier
+ * gate, beside the account controls the owner already opens. One page, everything
+ * on it. The day an external monitor is actually wanted, this module is what that
+ * route would call — the logic does not have to be written again.
  *
- * ANSWERS 200 ONLY WHEN EVERY INVARIANT HOLDS. Anything else is 503, and the
- * body names which invariant(s) failed and how, so this is a page a monitor can
- * page a human from rather than one that only says "something, somewhere".
+ * WHY THESE FOUR CHECKS. Each is a thing that has actually failed, not a thing
+ * that might. Neon's compute cap took the whole site down on 2026-09-20 and the
+ * first anyone knew was the site being down; a check that answers "the process is
+ * running" would have said everything was fine, because the process WAS fine.
  *
- * PUBLIC, AND DELIBERATELY THIN ON WHAT IT SAYS. No row contents, no counts
- * that describe a person (no account, session or waitlist numbers — those are
- * a population size a stranger has no reason to learn from this repository,
- * even though some of them are printed elsewhere on the site by owner choice).
- * No env values, and no raw driver error text: a Postgres connection error can
- * carry a hostname or a port in its message, and that is infrastructure detail
- * a public endpoint should not repeat. Every failure below is logged in full
- * server-side (console.error) and reported publicly as a fixed, generic
- * sentence.
- *
- * MIGRATION FILE COUNT VIA import.meta.glob, NOT fs.readdirSync. A Vercel
- * function only ships the files its build can prove it needs; a runtime
- * fs.readdirSync('db/') has no such proof and can end up reading an empty
- * directory in production even though it works locally. import.meta.glob is
- * resolved by Vite at build time (the same mechanism src/pages/colophon.astro
- * already uses to census its own pages directory), so the count baked into the
- * bundle is the count that shipped with it.
+ * THE CONTRACT, from src/data/conformance-run.ts's rule for a self-checking claim:
+ * a verdict is 'pass', 'fail' or 'could-not-run', and 'could-not-run' is never
+ * treated as a pass. A check that needs the database and cannot reach it has
+ * measured nothing, which is a different fact from measuring a failure.
  */
-import type { APIRoute } from 'astro';
-import { db, isConfigured } from '../lib/db';
-import { getBoardStats } from '../lib/job-store';
-import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
-import { FLAGS, isOn, type FlagName } from '../lib/flags';
+import { db, isConfigured } from './db';
+import { getBoardStats } from './job-store';
+import { FRESH_WINDOW_HOURS } from './data-contract';
+import { FLAGS, isOn, type FlagName } from './flags';
 
-export const prerender = false;
 
 /** Every db/*.sql file this build was made from, counted at build time. See the
  *  header above for why this is not a runtime directory read. */
@@ -57,9 +38,9 @@ const MIGRATION_FILE_COUNT = Object.keys(import.meta.glob('../../db/*.sql')).len
  *  against (src/lib/stats.ts's own TIMEOUT_MS). */
 const CHECK_TIMEOUT_MS = 5_000;
 
-type Verdict = 'pass' | 'fail' | 'could-not-run';
+export type Verdict = 'pass' | 'fail' | 'could-not-run';
 
-interface Invariant {
+export interface Invariant {
   id: string;
   verdict: Verdict;
   /** What was checked, in its own numbers or a fixed sentence. Never an env
@@ -211,26 +192,18 @@ function flagsOnCount(): number {
   return (Object.keys(FLAGS) as FlagName[]).filter((flag) => isOn(flag)).length;
 }
 
-export const GET: APIRoute = async () => {
-  const checkedAtUtc = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
-
+/**
+ * Every invariant, checked now. Returns the list and whether all of them hold.
+ *
+ * Called from src/pages/internal/index.astro, which is behind the internal gate.
+ * NOT a route: see this file's header for why it stopped being one.
+ */
+export async function healthNow(): Promise<{ allPass: boolean; invariants: Invariant[] }> {
   const database = await checkDatabase();
   const invariants: Invariant[] =
     database.verdict === 'pass'
       ? [database, await checkMigrations(), ...(await checkBoard())]
       : [database, SKIPPED('migrations_applied'), SKIPPED('board_has_rows'), SKIPPED('board_sweep_fresh')];
 
-  const allPass = invariants.every((invariant) => invariant.verdict === 'pass');
-
-  const body = {
-    status: allPass ? 'ok' : 'degraded',
-    checked_at_utc: checkedAtUtc,
-    invariants,
-    flags_on_count: flagsOnCount()
-  };
-
-  return new Response(JSON.stringify(body, null, 2), {
-    status: allPass ? 200 : 503,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
-  });
-};
+  return { allPass: invariants.every((invariant) => invariant.verdict === 'pass'), invariants };
+}
