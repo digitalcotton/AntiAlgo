@@ -8,7 +8,7 @@ worktree or a fresh clone, which is exactly where an unwired guard goes unnotice
 |---|---|---|---|
 | `blast-radius.mjs` | `PostToolUse` | After an edit, names every route that renders the changed file and every test that covers it. | 75 ms measured |
 | `owner-chosen.mjs` | `PreToolUse` | Turns an edit to a file on `.claude/owner-chosen.json` into a permission prompt that quotes why. | ~10 ms |
-| `conform-gate.mjs` | `Stop` | Refuses to end a turn while `src/` has edits newer than the last green sweep. | ~10 ms |
+| `conform-gate.mjs` | `Stop` | Refuses to end a turn while `src/` has changes newer than the last green gate run. | ~40 ms |
 
 ## What each one is actually for
 
@@ -46,11 +46,19 @@ every tool and discovers what changed from `git status` instead (`--from-git`). 
 goes silent when more than twelve files are dirty, because mid-task that is the
 normal state and a twelve-line report every tool call is noise.
 
-**Failing open.** Every hook exits 0 and says nothing when it cannot do its job —
-no marker file, no git, unreadable manifest. A guard that blocks an edit because
-it could not read its own config is worse than no guard. The one place this costs
-something is that a missing `.claude/.last-edit` reads as "nothing was edited", so
-the Stop gate lets the turn end. That is a known hole, not an oversight.
+**Failing open.** Every hook exits 0 and says nothing when it cannot do its job — no
+git, unreadable manifest, unreadable receipt. A guard that blocks an edit because it
+could not read its own config is worse than no guard.
+
+**No marker file, deliberately.** The Stop gate used to compare a receipt against
+`.claude/.last-edit`, which `blast-radius.mjs` stamped with `Date.now()`. A
+PostToolUse hook runs AFTER its tool call, so a single Bash call of
+`sed -i … && npm run conform` wrote the green receipt and *then* stamped the marker —
+the marker was always newer, and the gate blocked a turn whose work had been measured.
+It cried wolf, and a guard that cries wolf gets disabled. The gate now reads the
+newest mtime under the watched paths directly: nothing writes it, so nothing can write
+it in the wrong order. One second of slack absorbs a formatter touching a file within
+the same second as the run.
 
 ## Debugging one that does nothing
 

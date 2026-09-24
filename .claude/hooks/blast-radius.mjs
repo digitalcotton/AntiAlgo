@@ -4,7 +4,7 @@
  * reaches. Reads the hook JSON on stdin, prints hookSpecificOutput JSON.
  * Silent (exit 0, no output) when the edit touches nothing under src/.
  */
-import { readFileSync, readdirSync, statSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, dirname, resolve, relative, extname } from 'node:path';
 
 const ROOT = resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd());
@@ -93,19 +93,11 @@ if (process.argv.includes('--from-git')) {
   // the change set is small enough to be about one thing.
   if (touched.length === 0 || touched.length > 12) process.exit(0);
 }
-/** The marker the Stop gate reads: "src/ was edited at this time". Written for
- *  any touched file the gate should care about, before the graph walk, so an
- *  edit still counts even if this hook finds nothing to say about it. */
-function markEdited() {
-  try {
-    mkdirSync(join(ROOT, '.claude'), { recursive: true });
-    writeFileSync(join(ROOT, '.claude', '.last-edit'), String(Date.now()));
-  } catch {
-    /* A hook that cannot write its marker must not block the edit. The Stop gate
-       treats a missing marker as "nothing was edited", which fails open — noted
-       here because that is a deliberate choice, not an oversight. */
-  }
-}
+/* This hook used to stamp .claude/.last-edit for the Stop gate to compare against a
+   receipt. It no longer does: a PostToolUse hook runs AFTER its tool call, so a
+   single `sed -i … && npm run conform` wrote the receipt and THEN the marker, making
+   an already-measured turn look unmeasured. conform-gate.mjs reads file mtimes
+   directly now, which nothing can write in the wrong order. */
 
 const relTouched = touched.map(p => relative(ROOT, p));
 
@@ -118,7 +110,6 @@ const wideHits = WIDE.flatMap(([prefix, why]) =>
 const inSrc = touched.filter(p => p.startsWith(SRC + '/') && CODE.includes(extname(p)));
 
 if (inSrc.length === 0 && wideHits.length === 0) process.exit(0);
-markEdited();
 
 if (inSrc.length === 0) {
   // Outside src/, so there is no module graph to walk — but there is something
