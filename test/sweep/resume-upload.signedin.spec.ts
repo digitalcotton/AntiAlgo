@@ -3,6 +3,12 @@ import { expect, test } from 'playwright/test';
 import { SWEEP_DATABASE_URL, SWEEP_KEY_ENCRYPTION_SECRET } from './env';
 import type { Provider } from '../../src/lib/keychain';
 
+/** ITS OWN PAID ACCOUNT, not the shared one.
+ *  the upload journey seeds a provider key and writes record entries, so sharing the `paid` fixture with the other journey made the two
+ *  race whenever the suite ran in parallel. A separate account costs one row and
+ *  lets the gate run at 4 workers again. auth.setup.ts mints it. */
+test.use({ storageState: '.sweep/auth/paid-upload.json' });
+
 /**
  * The journey for the bug that started this whole harness, driven end to end
  * in a real browser against the real server.
@@ -129,7 +135,12 @@ const FIXTURE_EMPLOYER = 'Acme Robotics';
 /** Same address auth.setup.ts mints for the paid role
  *  (`sweep-${role}@antialgo.test`); not imported from there because that
  *  file exports no constant for it, only mints against it. */
-const PAID_EMAIL = 'sweep-paid@antialgo.test';
+// The ISOLATED paid account this spec owns, matching the test.use() above. It
+// used to be sweep-paid@antialgo.test, shared with the other journey, which is
+// what made the two race. Seeding and asserting must name the SAME account the
+// browser session belongs to, or the fixture lands on one account and the page
+// reads another — which is a failure that looks like a product bug.
+const PAID_EMAIL = 'sweep-paid-upload@antialgo.test';
 
 /** Shaped, never real. validateKeyShape() (src/lib/keychain.ts) requires the
  *  'sk-ant-' prefix for the anthropic provider, 20-512 characters, no

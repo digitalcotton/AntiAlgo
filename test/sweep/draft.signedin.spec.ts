@@ -3,6 +3,12 @@ import { test, expect } from 'playwright/test';
 import { SWEEP_DATABASE_URL, SWEEP_ENV } from './env';
 import { FUNCTION_MAX_DURATION_S } from '../../site.config.mjs';
 
+/** ITS OWN PAID ACCOUNT, not the shared one.
+ *  the draft journey claims renders and completes them, so sharing the `paid` fixture with the other journey made the two
+ *  race whenever the suite ran in parallel. A separate account costs one row and
+ *  lets the gate run at 4 workers again. auth.setup.ts mints it. */
+test.use({ storageState: '.sweep/auth/paid-draft.json' });
+
 /**
  * draft.signedin.spec.ts: the money path, board -> job detail -> draft -> DOCX.
  *
@@ -61,7 +67,12 @@ function paidOnly(): void {
 
 /** auth.setup.ts's own EMAIL('paid'); not exported from that file, so pinned
  *  here to the one email that account is minted under. */
-const PAID_EMAIL = 'sweep-paid@antialgo.test';
+// The ISOLATED paid account this spec owns, matching the test.use() above. It
+// used to be sweep-paid@antialgo.test, shared with the other journey, which is
+// what made the two race. Seeding and asserting must name the SAME account the
+// browser session belongs to, or the fixture lands on one account and the page
+// reads another — which is a failure that looks like a product bug.
+const PAID_EMAIL = 'sweep-paid-draft@antialgo.test';
 const MEMBER_STORAGE_STATE = '.sweep/auth/member.json';
 
 /** company-title fixtures from scripts/test-db.mjs's JOB_RAWS, one job per

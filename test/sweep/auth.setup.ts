@@ -46,7 +46,22 @@ const ROLES = [
   { name: 'waitlisted', tier: 'waitlisted' },
   { name: 'member', tier: 'member' },
   { name: 'paid', tier: 'paid' },
-  { name: 'internal', tier: 'internal' }
+  { name: 'internal', tier: 'internal' },
+
+  // TWO MORE PAID ACCOUNTS, AND THE REASON IS WALL CLOCK.
+  //
+  // The journey specs mutate rows: the upload journey seeds a provider key and
+  // writes record entries, the draft journey claims and completes renders. Both
+  // ran as the SAME `paid` account, so with 4 workers they raced each other and
+  // the draft journey failed intermittently — it passed every time it ran alone.
+  // The gate was pinned to --workers=1 to make it honest, which cost 52s -> 146s.
+  //
+  // A lock would have been the wrong fix. The specs are not contending for a
+  // resource, they are contending for a FIXTURE, and fixtures are cheap: one more
+  // account each and there is nothing to contend over. Parallelism comes back for
+  // free and no spec has to know another exists.
+  { name: 'paid-upload', tier: 'paid' },
+  { name: 'paid-draft', tier: 'paid' }
 ] as const;
 
 /** Fixed addresses and ids, so two runs produce the same accounts and a stray row

@@ -22,7 +22,7 @@ three of them are already instrumented by tools you own and do not run.
 
 ```bash
 npm run conform          # measured: 35s. Before every commit.
-npm run conform:deep     # measured: 63s, browser included. Before a push.
+npm run conform:deep     # measured: 78s, browser included. Before a push.
 npm run conform:accept   # After an intended change. Re-records what you meant to change.
 ```
 
@@ -568,9 +568,9 @@ changed, what it reaches, and which routes in that blast radius nothing covers.
 | `dom-contracts` | 0.2s | every selector a client script queries is still provided by the markup that must provide it |
 | `tokens` | 0.4s | every `var(--x)` resolves; `tokens.css` matches a fresh `style-dictionary` build |
 | `routes` | 0.2s | the manifest, regenerated from the filesystem, audience matrix included |
-| `browser` | 28.7s | 209 assertions: every route as 5 audiences, both directions, + 14 pixel baselines |
+| `browser` | 53.2s | 290 assertions: every route as 5 audiences, both directions, + 14 pixel baselines, WebKit + Firefox interactions, mobile geometry, print, and the upload and draft journeys |
 
-**63.5 seconds for all of it.** The budget was 90.
+**78 seconds for all of it**, 24 for the fast tier. The budget was 90.
 
 ## The four defects the gates found on their first run
 
