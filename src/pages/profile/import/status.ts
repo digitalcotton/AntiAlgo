@@ -23,10 +23,14 @@
  */
 import type { APIContext } from 'astro';
 import { getParse } from '../../../lib/resume-parse-store';
+import type { ImportWireStatus } from '../../../lib/resume-parse-wire';
 
 export const prerender = false;
 
-function json(body: unknown, status = 200): Response {
+/** Typed by the vocabulary the pollers read this with
+ *  (src/lib/resume-parse-wire.ts), so a new status cannot be introduced here
+ *  without the predicates every consumer shares deciding what it means. */
+function json(body: { status: ImportWireStatus } & Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' }

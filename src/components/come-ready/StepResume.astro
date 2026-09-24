@@ -129,6 +129,7 @@ const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,applicati
 
 <script>
   import { wireDropZone } from '../../lib/drop-zone';
+  import { readLanded, wireStatusOf } from '../../lib/resume-parse-wire';
 
   // The read, enhanced: a chosen file submits itself, the submit goes by
   // fetch so this page keeps its place, and the status endpoint is polled
@@ -188,8 +189,9 @@ const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,applicati
       // Waiting on 'ready' alone meant sitting through all forty polls, two
       // minutes, and then claiming the read was slow, with the entries already
       // in the record. StepLetter reads the same endpoint the same way.
-      if (body && (body.status === 'ready' || body.status === 'none')) {
-        const notes = Array.isArray(body.notes) ? (body.notes as unknown[]) : [];
+      const waited = wireStatusOf(body);
+      if (waited && readLanded(waited)) {
+        const notes = Array.isArray(body?.notes) ? (body.notes as unknown[]) : [];
         for (const n2 of notes) if (typeof n2 === 'string') line(n2, true);
         window.location.assign(returnTo);
         return;
@@ -254,7 +256,8 @@ const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,applicati
           }
           return;
         }
-        if (body && body.status === 'ready') {
+        const posted = wireStatusOf(body);
+        if (posted && readLanded(posted)) {
           // Finished at once: a refused file or an empty paste hands its message back.
           panel.hidden = true;
           if (typeof body.note === 'string' && note) {
