@@ -15,6 +15,9 @@
     "preview": "astro preview",
     "check": "npm run tokens && astro check",
     "test": "vitest run",
+    "conform:visual": "playwright test gallery --project=signed-out",
+    "conform:accept": "playwright test --update-snapshots=changed",
+    "conform:report": "playwright show-report",
     "db:migrate": "node db/migrate.mjs",
     "admit": "node scripts/admit.mjs"
   },
