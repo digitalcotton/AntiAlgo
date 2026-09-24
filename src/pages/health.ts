@@ -193,14 +193,22 @@ async function checkBoard(): Promise<Invariant[]> {
   }
 }
 
-/** Which flags are on, right now, for this deployment's edition. Not an
- *  invariant — both states are legal for a flag — so this never affects the
- *  status code. Flag names are already public (flags.config.mjs ships in the
- *  built bundle and gates entire routes visibly), so naming which are on
- *  leaks nothing that a determined visitor could not already infer by
- *  requesting the routes those flags gate. */
-function flagsOn(): string[] {
-  return (Object.keys(FLAGS) as FlagName[]).filter((flag) => isOn(flag));
+/** How MANY flags are on, and nothing more.
+ *
+ *  THE NAMES USED TO BE HERE, on the reasoning that flags.config.mjs "ships in the
+ *  built bundle" and so the roster was already public. That reasoning was checked
+ *  on 2026-09-24 and is false: grepping the served HTML for sponsor_slot,
+ *  digest_personal, add_posting and analytics returns nothing, and nothing in
+ *  dist/client carries them either. flags.config.mjs is read server-side only.
+ *
+ *  So listing them here would have made this endpoint the FIRST thing to publish
+ *  the roster — that a 'stripe' flag exists and is dark, that a 'sponsor_slot'
+ *  exists at all. That is unshipped product, and a monitoring endpoint has no
+ *  business being where it leaks from. This file's own header says "PUBLIC, AND
+ *  DELIBERATELY THIN ON WHAT IT SAYS"; a count honours that and a monitor loses
+ *  nothing, because no flag state is an invariant anyway — both states are legal. */
+function flagsOnCount(): number {
+  return (Object.keys(FLAGS) as FlagName[]).filter((flag) => isOn(flag)).length;
 }
 
 export const GET: APIRoute = async () => {
@@ -218,7 +226,7 @@ export const GET: APIRoute = async () => {
     status: allPass ? 'ok' : 'degraded',
     checked_at_utc: checkedAtUtc,
     invariants,
-    flags_on: flagsOn()
+    flags_on_count: flagsOnCount()
   };
 
   return new Response(JSON.stringify(body, null, 2), {
