@@ -149,6 +149,8 @@ export const ROUTES = [
   { key: 'upgrade', pattern: '/upgrade', kind: 'static', note: 'The paid-tier upgrade page. Dark behind the stripe flag; billing/checkout.ts uses it as the Stripe cancel_url.', sitemap: false },
   { key: 'billing-checkout', pattern: '/billing/checkout', kind: 'asset', note: 'POST. Opens a Stripe Checkout session for the membership. Dark behind the stripe flag.', sitemap: false },
   { key: 'billing-webhook', pattern: '/billing/webhook', kind: 'asset', note: 'POST from Stripe only, signature-verified. The only writer of app_user_profile.tier = paid. Dark behind the stripe flag.', sitemap: false },
+  { key: 'sitemap', pattern: '/sitemap.xml', kind: 'asset', note: 'The sitemap, built from this registry: every entry whose sitemap flag is true and whose flag is lit.', sitemap: false },
+  { key: 'robots', pattern: '/robots.txt', kind: 'asset', note: 'Points a crawler at the sitemap. Everything is crawlable on purpose — the real gates are middleware, entitlement.ts and the flags, and listing private paths here would publish a map of them.', sitemap: false },
   { key: 'job-draft-restore', pattern: '/desk/job-draft/[slug]/restore', kind: 'dynamic', note: 'POST. Restores one job draft to an earlier version. Build it with jobDraftRestorePath(slug); routeFor() refuses a dynamic route on purpose so the parameter cannot be forgotten.', sitemap: false }
 ] as const satisfies readonly RouteEntry[];
 
