@@ -1,4 +1,5 @@
 import { defineConfig, devices } from 'playwright/test';
+import { SWEEP_ENV, SWEEP_ORIGIN } from './test/sweep/env';
 
 /**
  * The browser half of `npm run conform`.
@@ -102,7 +103,18 @@ export default defineConfig({
     {
       name: 'signed-out',
       use: { ...devices['Desktop Chrome'] },
-      testMatch: /\.spec\.ts$/
+      // Explicit, not /\.spec\.ts$/ — that would also match *.signedin.spec.ts,
+      // and this project has no storageState, so those specs would have run
+      // signed-OUT while their names claimed otherwise. Every route they assert
+      // as reachable would have been a redirect to sign-in, and the failures
+      // would have looked like gate bugs.
+      testMatch: [/gallery\.spec\.ts$/, /\.public\.spec\.ts$/]
+    },
+    {
+      name: 'waitlisted',
+      use: { ...devices['Desktop Chrome'], storageState: '.sweep/auth/waitlisted.json' },
+      dependencies: ['setup'],
+      testMatch: /\.signedin\.spec\.ts$/
     },
     {
       name: 'member',
@@ -152,8 +164,11 @@ export default defineConfig({
           stdout: 'ignore',
           stderr: 'pipe',
           env: {
-            DATABASE_URL: TEST_DATABASE_URL,
-            DATABASE_URL_UNPOOLED: TEST_DATABASE_URL,
+            // From test/sweep/env.ts, the SAME object auth.setup.ts uses. The two
+            // must agree on BETTER_AUTH_SECRET or every minted session is rejected
+            // as a bad signature, which reads as "not signed in" and makes every
+            // denial assertion pass for the wrong reason.
+            ...SWEEP_ENV,
             // The gated build's review routes are served under `astro dev`
             // unconditionally (astro.config.mjs), so /_states and /_specimen are
             // reachable here without SPECIMEN=1.

@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { test as setup, expect } from 'playwright/test';
+import { SWEEP_DATABASE_URL, SWEEP_ENV } from './env';
 
 /**
  * One signed-in session per role, minted server-side, written as a storageState
@@ -53,8 +54,31 @@ const ROLES = [
  *  RFC 2606 and can never be a real domain. */
 const EMAIL = (role: string) => `sweep-${role}@antialgo.test`;
 
-const TEST_DATABASE_URL =
-  process.env.E2E_DATABASE_URL ?? 'postgres://localhost:5432/antialgo_test';
+const TEST_DATABASE_URL = SWEEP_DATABASE_URL;
+
+/** Playwright wants an expiry in SECONDS since the epoch; better-auth's TestCookie
+ *  does not document its unit, and the two libraries disagreeing silently is how
+ *  the first version of this file produced an empty state. So: decide by
+ *  magnitude rather than by assumption, and refuse to write a past expiry at all.
+ *  -1 means a session cookie, which is what we actually want — the sweep's
+ *  sessions should not outlive the run. */
+function expiresInSeconds(raw: number | undefined): number {
+  if (!raw || !Number.isFinite(raw)) return -1;
+  // Anything past the year 5138 in seconds is really milliseconds.
+  const seconds = raw > 1e11 ? Math.floor(raw / 1000) : Math.floor(raw);
+  const now = Math.floor(Date.now() / 1000);
+  return seconds > now ? seconds : -1;
+}
+
+/** better-auth spells these capitalised; Playwright accepts either case but is
+ *  typed on the capitalised set. Anything unrecognised becomes 'Lax', which is
+ *  what auth.ts configures. */
+function normaliseSameSite(raw: string | undefined): 'Lax' | 'Strict' | 'None' {
+  const value = String(raw ?? '').toLowerCase();
+  if (value === 'strict') return 'Strict';
+  if (value === 'none') return 'None';
+  return 'Lax';
+}
 
 setup.describe.configure({ mode: 'serial' });
 
@@ -72,12 +96,13 @@ setup('mint a session for every role', async ({ browser }) => {
       'named antialgo_test. Run `node scripts/test-db.mjs reset` first.'
   ).toBe(true);
 
-  process.env.DATABASE_URL = TEST_DATABASE_URL;
-  process.env.DATABASE_URL_UNPOOLED = TEST_DATABASE_URL;
-  // better-auth signs the session cookie with this. Any stable value works for a
-  // disposable database; a missing one throws inside authOptions().
-  process.env.BETTER_AUTH_SECRET ??= 'sweep-only-secret-not-a-real-one';
-  process.env.BETTER_AUTH_URL ??= 'http://localhost:4321';
+  // FORCED, not ??=. The whole point of test/sweep/env.ts is that this process and
+  // the dev server sign with the same key; deferring to whatever .env.local holds
+  // is precisely the bug that made every signed-in assertion meaningless. These
+  // assignments must also happen BEFORE the dynamic imports below, because
+  // src/lib/db.ts reads DATABASE_URL at first use and load-local-env.mjs (pulled in
+  // by site.config.mjs) fills any key that is still empty.
+  for (const [key, value] of Object.entries(SWEEP_ENV)) process.env[key] = value;
 
   // Dynamic, so the guard above runs first.
   const { betterAuth } = await import('better-auth');
@@ -139,12 +164,32 @@ setup('mint a session for every role', async ({ browser }) => {
         domain: cookie.domain,
         path: cookie.path,
         httpOnly: cookie.httpOnly,
-        secure: cookie.secure,
-        sameSite: (cookie.sameSite ?? 'Lax') as 'Lax' | 'Strict' | 'None',
-        expires: cookie.expires ? Math.floor(cookie.expires / 1000) : -1
+        // Not `secure: cookie.secure`. better-auth sets that from its own
+        // environment, and a secure cookie is never sent over the http:// the
+        // local dev server speaks — the session would simply not arrive, and the
+        // page would render signed-out with nothing failing.
+        secure: false,
+        sameSite: (normaliseSameSite(cookie.sameSite)),
+        expires: expiresInSeconds(cookie.expires)
       }))
     );
-    await context.storageState({ path: `.sweep/auth/${role.name}.json` });
+
+    // ASSERT THE STATE IS NOT EMPTY. The first version of this file wrote
+    // {"cookies":[],"origins":[]} — 36 bytes — and passed: getCookies returned
+    // cookies, addCookies accepted them, and every one was dropped for being
+    // expired, because the expiry was converted twice. Nothing failed. The
+    // signed-in projects would then have loaded gated pages as a signed-OUT
+    // visitor and compared them against baselines recorded the same way, and the
+    // whole harness would have agreed with itself about a lie. This is the single
+    // most important assertion in the sweep.
+    const state = await context.storageState({ path: `.sweep/auth/${role.name}.json` });
+    expect(
+      state.cookies.length,
+      `.sweep/auth/${role.name}.json came back with no cookies, so this role would ` +
+        'browse signed-out while claiming to be ' + role.tier + '. The cookies were ' +
+        'minted (there were ' + cookies.length + ') and then dropped by the browser ' +
+        'context — check the expiry conversion and the secure flag.'
+    ).toBeGreaterThan(0);
     await context.close();
   }
 
