@@ -440,10 +440,10 @@ repo yet.
 
 Five things I cannot do for you. Three of them block part of the plan.
 
-1. **Neon preview branching — BLOCKING for preview tests.** `vercel env ls` shows **one**
-   `DATABASE_URL` covering *Production, Preview*. Unless Neon's per-preview branching is on, a test
-   that writes against a preview URL **writes to your live database**. One checkbox in the Neon
-   integration; I cannot read it from the CLI. Until it is confirmed, journeys run **local only**.
+1. ~~**Neon preview branching.**~~ **Confirmed on, 2026-09-24.** Vercel creates a
+   `preview/<git-branch>` Neon branch per pushed branch; previews never touch production data.
+   Write-path tests against a preview are safe. (A preview branch is a *copy* of main, so it does
+   contain real rows — isolated, but not synthetic.)
 2. **Four missing Preview env vars — BLOCKING for signed-in preview tests.**
    `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `SITE_ORIGIN`, `KEY_ENCRYPTION_SECRET` are
    Production-only. Sign-in is dead on every preview deploy today.
@@ -630,9 +630,15 @@ assertion is the most important line in the sweep.
 
 ### Yours to decide (three of these block real coverage)
 
-1. **Neon preview branching.** `vercel env ls` shows one `DATABASE_URL` covering
-   Production *and* Preview. Unless per-preview branching is on, a write-path test
-   against a preview writes to your live database. One checkbox; I cannot read it.
+1. ~~**Neon preview branching.**~~ **Already on — verified 2026-09-24, nothing to do.**
+   The Neon console shows a `preview/<git-branch>` branch created by Vercel for every
+   pushed branch, including `preview/safety-net`. The `vercel env ls` row spanning
+   "Production, Preview" is only the template; the integration overrides it
+   per-deployment with the branch's own connection string. I raised this as a hazard
+   on that CLI output alone and should have said "I cannot tell" instead.
+   One thing that IS true: a preview branch is a copy of `main`, so it holds real user
+   rows. Writes are isolated; the data is not synthetic. Worth remembering before
+   sharing a preview URL.
 2. **Four Preview env vars.** `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `SITE_ORIGIN`,
    `KEY_ENCRYPTION_SECRET` are Production-only, so **sign-in is dead on every preview
    deploy.** Nothing signed-in can be tested there until they exist.
