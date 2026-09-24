@@ -102,6 +102,7 @@ const deskHref = routeFor('desk');
 
 <script>
   import { wireDropZone } from '../../lib/drop-zone';
+  import { readLanded, wireStatusOf } from '../../lib/resume-parse-wire';
 
   // A saved letter is read in the background on the member's key, and the
   // links and roles it names only reach this page once that read lands. The
@@ -128,8 +129,8 @@ const deskHref = routeFor('desk');
             window.location.assign(back);
             return;
           }
-          const body = (await response.json()) as { status?: string };
-          if (body.status === 'ready' || body.status === 'none') {
+          const waited = wireStatusOf(await response.json());
+          if (waited && readLanded(waited)) {
             window.location.assign(back);
             return;
           }

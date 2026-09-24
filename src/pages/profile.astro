@@ -91,7 +91,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { withBase } from '../../site.config.mjs';
 import Panel from '../components/Panel.astro';
-import ImportBand from '../components/profile/ImportBand.astro';
+import ImportBand, { type ImportBandState } from '../components/profile/ImportBand.astro';
 import { isPaidViewer } from '../lib/ledger-access';
 import RecordView from '../components/profile/RecordView.astro';
 import { KIND_LABELS, CLASSIFICATION_LABELS, MONTH_NAMES, issueMessage } from '../components/profile/entry-presentation';
@@ -257,9 +257,24 @@ const receipt: ImportRelay | null = landed
     }
   : importRelay;
 
-/** Which of the three import states is on screen. Exactly one, always. */
-type BandState = 'idle' | 'reading' | 'done';
-const bandState: BandState = parse?.status === 'pending' ? 'reading' : receipt ? 'done' : 'idle';
+/** Which import state is on screen. Exactly one, always.
+ *
+ *  THE TYPE IS ImportBand'S OWN, not a second copy. This page declared its own
+ *  three-member union while the band renders four, so 'review' — the state that
+ *  says a finished read is waiting below — was unreachable from here. That
+ *  mattered in one real case: landReadyParse applies a waiting read on load and
+ *  clears it, but when the apply throws again it returns null and leaves the row
+ *  at 'ready'. Falling through to 'idle' then showed a fresh empty upload box
+ *  while a finished read sat in the row with nothing on the page mentioning it.
+ *  Importing the band's union means the two cannot drift again. */
+const bandState: ImportBandState =
+  parse?.status === 'pending'
+    ? 'reading'
+    : parse?.status === 'ready'
+      ? 'review'
+      : receipt
+        ? 'done'
+        : 'idle';
 
 // Whether this person can have their resume read at all: a bring-your-own-key
 // application reads a resume only with the person's OWN provider key. No key,
@@ -735,6 +750,14 @@ const linkAction = routeFor('profile-link');
 </BaseLayout>
 
 <script>
+  import { wireDropZone } from '../lib/drop-zone';
+  import {
+    pollEnds,
+    readLanded,
+    wireStatusOf,
+    type ImportWireStatus
+  } from '../lib/resume-parse-wire';
+
   /**
    * The upload band's enhancement: drop a file, and read it without leaving
    * this page.
@@ -826,25 +849,15 @@ const linkAction = routeFor('profile-link');
   /* ---- the dropzone ------------------------------------------------------ */
 
   if (dropzone && fileInput) {
-    const paint = (on: boolean) => dropzone.classList.toggle('is-dragging', on);
-
-    dropzone.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      paint(true);
-    });
-    dropzone.addEventListener('dragleave', () => paint(false));
-    dropzone.addEventListener('drop', (event) => {
-      event.preventDefault();
-      paint(false);
-      const dropped = event.dataTransfer?.files?.[0];
-      if (!dropped) return;
-      // Hand the drop to the real input, so the form posts exactly what it
-      // would have posted had the file been chosen through the picker.
-      const carrier = new DataTransfer();
-      carrier.items.add(dropped);
-      fileInput.files = carrier.files;
-      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    // THE SHARED HELPER, not a fourth hand-rolled copy. This page had its own
+    // 20 lines of drag handling, and it differed from Come ready's in a way a
+    // reader feels: it toggled the wash off on dragleave, and dragging over any
+    // child of the box — the arrow, the heading, the hint line, the chip — fires
+    // dragleave on the parent. So the box went dark while the file was still
+    // over it, which reads as "this is not accepting the file". drop-zone.ts
+    // counts depth instead, and now also swallows a drop that misses the box
+    // rather than letting the browser navigate away to the file.
+    wireDropZone(dropzone, fileInput);
 
     fileInput.addEventListener('change', () => {
       if (!chips) return;
@@ -860,16 +873,38 @@ const linkAction = routeFor('profile-link');
 
   /* ---- the read ---------------------------------------------------------- */
 
-  async function readStatus(): Promise<Record<string, unknown> | null> {
+  /** One poll's answer. Three outcomes, because they need three different
+      responses and the old code had one:
+
+        wire         the endpoint answered in the vocabulary we share with it.
+        not-ours     a 200 that is not our JSON. fetch() follows redirects, so
+                     the gate's 302 to /sign-in or /waitlist arrives here as an
+                     HTML page with response.ok true. This used to reach the
+                     catch below and be reported as "check your connection",
+                     which is how an expired session was described as a network
+                     fault.
+        unreachable  the fetch itself failed. Transient; keep polling. */
+  type StatusRead =
+    | { kind: 'wire'; status: ImportWireStatus; body: Record<string, unknown> }
+    | { kind: 'not-ours' }
+    | { kind: 'unreachable' };
+
+  async function readStatus(): Promise<StatusRead> {
     try {
       const response = await fetch(statusUrl, {
         credentials: 'same-origin',
         headers: { Accept: 'application/json' }
       });
-      if (!response.ok) return null;
-      return (await response.json()) as Record<string, unknown>;
+      // Not `response.ok`: a 401 carrying {status:'signed-out'} is a real answer
+      // in our vocabulary and the poller needs to act on it.
+      const contentType = response.headers.get('content-type') ?? '';
+      if (response.redirected || !contentType.includes('application/json')) return { kind: 'not-ours' };
+      const body = (await response.json()) as Record<string, unknown>;
+      const status = wireStatusOf(body);
+      if (!status) return { kind: 'not-ours' };
+      return { kind: 'wire', status, body };
     } catch {
-      return null;
+      return { kind: 'unreachable' };
     }
   }
 
@@ -886,17 +921,34 @@ const linkAction = routeFor('profile-link');
       if (waitLine) {
         waitLine.textContent = `waiting, ${Math.round((Date.now() - startedAt) / 1000)}s`;
       }
-      const state = await readStatus();
-      if (state && state.status === 'ready') {
-        // The read's own account of itself, verbatim, before the review
-        // replaces the log.
-        if (Array.isArray(state.notes)) {
-          for (const line of state.notes) if (typeof line === 'string') logLine(line);
-        }
+      const read = await readStatus();
+
+      if (read.kind === 'not-ours') {
         setBusy(false);
-        showLandedRead();
+        say('Your session ended while the read was running. Sign in again; anything the read found is in your record.');
         return;
       }
+
+      if (read.kind === 'wire') {
+        if (readLanded(read.status)) {
+          // The read's own account of itself, verbatim, before the review
+          // replaces the log.
+          if (Array.isArray(read.body.notes)) {
+            for (const line of read.body.notes) if (typeof line === 'string') logLine(line);
+          }
+          setBusy(false);
+          showLandedRead();
+          return;
+        }
+        if (pollEnds(read.status)) {
+          // Ends the wait without landing: 'signed-out' is the only one today.
+          setBusy(false);
+          say('Your session ended while the read was running. Sign in again; anything the read found is in your record.');
+          return;
+        }
+      }
+      // 'unreachable' falls through and polls again: a dropped connection is
+      // not evidence about the read.
     }
     setBusy(false);
     say('The read is taking longer than it should. Reload this page to check on it, or try the upload again.');
@@ -917,6 +969,7 @@ const linkAction = routeFor('profile-link');
         setBusy(true);
 
         let body: Record<string, unknown> | null = null;
+        let posted: ImportWireStatus | null = null;
         try {
           const response = await fetch(form.action, {
             method: 'POST',
@@ -924,14 +977,18 @@ const linkAction = routeFor('profile-link');
             headers: { Accept: 'application/json' },
             body: new FormData(form)
           });
-          body = response.ok ? ((await response.json()) as Record<string, unknown>) : null;
-          if (!response.ok) {
-            // Signed out mid-session or walled: the plain navigation knows
-            // where to send them, so hand the submit back to the browser.
+          const contentType = response.headers.get('content-type') ?? '';
+          if (!response.ok || response.redirected || !contentType.includes('application/json')) {
+            // Signed out mid-session, walled, or answered with a page rather
+            // than JSON: the plain navigation knows where to send them, so hand
+            // the submit back to the browser. Checking the content type is what
+            // stops a gate's redirect being reported as a connection problem.
             setBusy(false);
             form.submit();
             return;
           }
+          body = (await response.json()) as Record<string, unknown>;
+          posted = wireStatusOf(body);
         } catch {
           setBusy(false);
           say('The upload could not be sent. Check your connection and try again.');
@@ -940,9 +997,9 @@ const linkAction = routeFor('profile-link');
 
         // A read that finished immediately (a bad file, an empty paste) hands
         // its message back; show it in place, no navigation, no polling.
-        if (body && body.status === 'ready') {
+        if (posted && readLanded(posted)) {
           setBusy(false);
-          if (typeof body.note === 'string') say(body.note);
+          if (typeof body?.note === 'string') say(body.note);
           else showLandedRead();
           return;
         }

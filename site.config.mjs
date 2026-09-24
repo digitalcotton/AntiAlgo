@@ -16,6 +16,32 @@ import './load-local-env.mjs';
 
 function fromEnv() {
   if (process.env.SITE_ORIGIN) return process.env.SITE_ORIGIN.replace(/\/$/, '');
+
+  // A PREVIEW MUST NOT CALL ITSELF PRODUCTION. Vercel injects
+  // VERCEL_PROJECT_PRODUCTION_URL on EVERY environment, including previews, so
+  // the production branch below used to win on a preview deploy and this origin
+  // resolved to www.antialgo.ai while serving from a branch URL. Three things
+  // went wrong at once and all of them silently:
+  //
+  //   - src/lib/auth.ts's baseURL() is this value, so Better Auth signed its
+  //     cookies for an origin the browser was not on. Sign-in simply did not work
+  //     on a preview, with nothing in any log saying why.
+  //   - every canonical URL, OG image and sitemap entry on the preview pointed at
+  //     production, so a preview could never be checked for those at all.
+  //   - src/lib/stats.ts and src/lib/kills.ts fetch this origin while rendering.
+  //     A preview was reading PRODUCTION's numbers and showing them as its own,
+  //     which makes a preview useless as a test of a data change.
+  //
+  // VERCEL_ENV is 'production' only on a production deploy, so a preview now
+  // resolves to its own host. VERCEL_BRANCH_URL first because it is stable per
+  // branch, which is what an auth callback and a bookmarked preview both need;
+  // VERCEL_URL changes with every deployment.
+  const production = process.env.VERCEL_ENV === 'production';
+  if (!production) {
+    if (process.env.VERCEL_BRANCH_URL) return `https://${process.env.VERCEL_BRANCH_URL}`;
+    if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  }
+
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return 'http://localhost:4321';

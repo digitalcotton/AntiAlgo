@@ -24,6 +24,7 @@ import type { APIContext } from 'astro';
 import { extractResumeText } from '../../../lib/resume-extract';
 import { startResumeParse } from '../../../lib/resume-parse-runner';
 import { beginParse, completeParse } from '../../../lib/resume-parse-store';
+import type { ImportWireStatus } from '../../../lib/resume-parse-wire';
 import { keyStorageIsConfigured } from '../../../lib/keychain';
 import { keyMeta } from '../../../lib/keychain-store';
 import { isOn } from '../../../lib/flags';
@@ -66,7 +67,14 @@ function wantsJson(context: APIContext): boolean {
   return (context.request.headers?.get('accept') ?? '').includes('application/json');
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
+/** Every JSON answer this endpoint gives, typed by the vocabulary the browser
+ *  reads it with (src/lib/resume-parse-wire.ts). The `status` field is not a free
+ *  string: inventing a sixth value here is a compile error, which is what stops
+ *  a server change from silently stranding a poller the way ab7b03c did. */
+function jsonResponse(
+  body: { status: ImportWireStatus } & Record<string, unknown>,
+  status = 200
+): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' }

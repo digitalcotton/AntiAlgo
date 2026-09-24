@@ -1,0 +1,47 @@
+/**
+ * Injected by Playwright immediately before a screenshot is taken
+ * (expect.toHaveScreenshot's stylePath), never shipped and never imported by the
+ * site.
+ *
+ * Everything here exists because of a specific way a pixel baseline lies. The
+ * Index's gate 5 was retired after 384 shots against 60 baselines went
+ * permanently red; the post-mortem named rotating data as the killer, and these
+ * rules are the rest of the list — the things that change between two runs of the
+ * same unchanged code.
+ *
+ * Nothing here hides content. A rule that made an element invisible to keep a
+ * baseline stable would be a gate that passes while the thing it is watching is
+ * broken.
+ */
+
+/* An animation or transition caught mid-flight is a different image every run.
+   Sent to the end state rather than removed, so what is photographed is where
+   the animation was going — which is what the design intends to be seen. */
+*,
+*::before,
+*::after {
+  animation-delay: -1ms !important;
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-delay: 0s !important;
+  transition-duration: 0s !important;
+}
+
+/* A blinking caret lands in about half of all screenshots. */
+* {
+  caret-color: transparent !important;
+}
+
+/* Scrollbar width differs with pointer type and OS settings and shifts the whole
+   layout by its own width. */
+::-webkit-scrollbar {
+  display: none !important;
+}
+html {
+  scrollbar-width: none !important;
+}
+
+/* Smooth scrolling means a shot can be taken while the page is still moving. */
+html {
+  scroll-behavior: auto !important;
+}

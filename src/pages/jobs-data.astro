@@ -102,7 +102,7 @@ const billingOpen = isOn('stripe');
 
   {paid ? (
     <>
-      <div id="ledger-app" data-ledger-mount data-named="true" data-summary={withBase('/jobs-data/summary')}>
+      <div id="ledger-app" data-ledger-mount data-named="true" data-summary={routeFor('jobs-data-summary')}>
         <noscript>
           <div style="max-width:60ch;margin:48px auto;padding:0 24px;font-size:0.95rem;line-height:1.6;color:var(--color-muted);">
             The Ledger reads and re-cuts the market live in your browser, so it needs JavaScript on.

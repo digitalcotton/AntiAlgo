@@ -25,7 +25,7 @@ import type { EntryDate } from '../../lib/record';
 import { DESCRIPTION_KINDS, SUMMARY_LINE_ID } from '../../lib/tailor';
 import type { ResumeRender, CoverRender, RenderEntry, RenderHeader } from '../../lib/tailor';
 import type { RenderVersionRow } from '../../lib/generated-render-store';
-import { jobDraftPath, jobDraftPdfPath, routeFor } from '../../data/nav';
+import { jobDraftPath, jobDraftPdfPath, jobDraftRestorePath, routeFor } from '../../data/nav';
 
 interface Props {
   slug: string;
@@ -107,7 +107,7 @@ function costLine(c: DraftCost | null): string | null {
 const targetLine = jobTitle ? `${jobTitle} at ${company}` : company;
 const bothReady = Boolean(resume) && Boolean(cover);
 const readyCount = (resume ? 1 : 0) + (cover ? 1 : 0);
-const restoreAction = `${jobDraftPath(slug)}/restore`;
+const restoreAction = jobDraftRestorePath(slug);
 const profilePath = routeFor('profile');
 const PROVIDER_LABELS: Record<string, string> = { anthropic: 'Anthropic', openai: 'OpenAI', kimi: 'Kimi', deepseek: 'DeepSeek' };
 const providerLabel = provider ? PROVIDER_LABELS[provider] ?? provider : null;

@@ -5,6 +5,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import { db, isConfigured } from '../../lib/db';
 import { dayStamp } from '../../lib/stats';
 import { routeFor } from '../../data/nav';
+import { healthNow } from '../../lib/health';
 
 /*
  * Exists so the `internal` gate is reachable and its server-side denial is
@@ -18,6 +19,14 @@ import { routeFor } from '../../data/nav';
  * beside it, because "which address did I actually type" was the other half
  * of that problem.
  */
+/* The site's own invariants, checked on every load of this page. This was briefly
+   a public /health endpoint; the owner's call on 2026-09-24 was that a new public
+   surface is the wrong thing to add while the site is being stabilised, and that
+   it belongs here — on the page they already open — rather than somewhere separate.
+   src/lib/health.ts holds the checks and can still feed a route the day an external
+   monitor is actually wanted. */
+const health = await healthNow();
+
 const RELAY_COOKIE = 'internal_tier_relay';
 const raw = Astro.cookies.get(RELAY_COOKIE)?.value ?? null;
 Astro.cookies.delete(RELAY_COOKIE, { path: '/internal' });
@@ -63,6 +72,30 @@ const TIERS = ['waitlisted', 'member', 'paid'] as const;
     <span class="kicker">Internal</span>
     <h1>The gate is real.</h1>
     <p class="muted">You are reading this because your account is internal tier. Nobody else reaches this line.</p>
+
+    <section class="block" aria-labelledby="health-h">
+      <h2 id="health-h">Health</h2>
+      <p class="muted">
+        Checked just now, on this page load. Every line is something that has actually
+        failed before, not something that might: the Neon compute cap took the whole
+        site down on 2026-09-20 and the first anyone knew was the site being down.
+        A check that could not run is its own answer, never a pass.
+      </p>
+
+      <p class="health-verdict mono-label" data-ok={health.allPass} role="status">
+        {health.allPass ? 'All invariants hold' : 'Something is not right'}
+      </p>
+
+      <ul class="health">
+        {health.invariants.map((inv) => (
+          <li class="health-row">
+            <span class="health-verdict-dot mono-label" data-verdict={inv.verdict}>{inv.verdict}</span>
+            <span class="health-id mono">{inv.id}</span>
+            <span class="health-detail muted">{inv.detail}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
 
     <section class="block" aria-labelledby="tier-h">
       <h2 id="tier-h">Set an account's tier</h2>
@@ -206,6 +239,53 @@ const TIERS = ['waitlisted', 'member', 'paid'] as const;
   .acct-email {
     overflow-wrap: anywhere;
   }
+  /* Health. Same chip vocabulary as the account rows below, so the page reads as
+     one surface rather than two bolted together. The colours are the existing
+     semantic tokens — mark-live for a thing that holds, stat-loss for one that
+     does not — never a new literal. */
+  .health-verdict {
+    display: inline-block;
+    margin: var(--space-200) 0 var(--space-300);
+    color: var(--color-mark-live);
+  }
+  .health-verdict[data-ok='false'] {
+    color: var(--color-stat-loss);
+  }
+  .health {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-200);
+  }
+  .health-row {
+    display: grid;
+    grid-template-columns: 7rem 14rem 1fr;
+    gap: var(--space-300);
+    align-items: baseline;
+  }
+  .health-verdict-dot[data-verdict='pass'] {
+    color: var(--color-mark-live);
+  }
+  .health-verdict-dot[data-verdict='fail'] {
+    color: var(--color-stat-loss);
+  }
+  /* 'could-not-run' is deliberately neither colour: it is not a pass and it is
+     not a failure, it is the absence of a measurement, and colouring it as either
+     would be the exact conflation src/lib/health.ts's header refuses. */
+  .health-verdict-dot[data-verdict='could-not-run'] {
+    color: var(--color-muted);
+  }
+  .health-detail {
+    font-size: var(--size-075);
+  }
+  @media (max-width: 40rem) {
+    .health-row {
+      grid-template-columns: 1fr;
+      gap: var(--space-100);
+    }
+  }
+
   .acct-tier[data-tier='paid'],
   .acct-tier[data-tier='internal'] {
     color: var(--color-mark-live);

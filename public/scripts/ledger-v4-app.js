@@ -74,7 +74,15 @@
   // Where a filter press goes for its numbers. The mount carries it so the path
   // is decided once, server side, rather than guessed from location.
   var SUMMARY_PATH = (document.getElementById('ledger-app') &&
-    document.getElementById('ledger-app').dataset.summary) || '/jobs-data/summary';
+    document.getElementById('ledger-app').dataset.summary) || '';
+  if (!SUMMARY_PATH) {
+    // The mount carries this path from src/data/nav.ts so it is written in one
+    // place. A silent literal fallback used to live here, and a silent fallback is
+    // how the board filter script survived losing its own endpoint attribute in
+    // edfc2ec while every load threw. If the attribute is gone, say so out loud
+    // rather than guessing a path that may since have moved.
+    console.error('ledger-v4-app: #ledger-app has no data-summary attribute. jobs-data.astro must set it from routeFor(\'jobs-data-summary\'). Filter presses cannot fetch.');
+  }
 
   // -------------------------------------------------------------------------
   // Mount + state.
