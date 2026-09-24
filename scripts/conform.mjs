@@ -59,7 +59,11 @@ const FAST = [
   },
   {
     id: 'unit',
-    what: '1,248 tests: the libs, the components, the endpoints, the wire contracts',
+    // No count in this description on purpose. test/gates.config.mjs states the
+    // rule this repo already learned: 'a number worth trusting is derived, never
+    // typed.' It had a line announcing six gates while seven ran. vitest prints the
+    // real number; this only has to say what is being measured.
+    what: 'the libs, the components, the endpoints, the wire contracts',
     argv: ['npx', 'vitest', 'run']
   },
   {
@@ -98,7 +102,7 @@ const FAST = [
 const DEEP = [
   {
     id: 'browser',
-    what: '209 assertions: every route as five audiences, plus 14 pixel baselines',
+    what: 'every route as five audiences, plus the authored galleries in both themes',
     argv: ['npx', 'playwright', 'test'],
     note: 'Loads every public route and every gated route as signed-out, waitlisted, member, paid and internal — asserting both that what should open, opens, and that what should refuse, refuses. Pixels only on the two authored galleries; never on a page whose content comes from the nightly sweep, which is the mistake that killed the last visual gate.'
   }

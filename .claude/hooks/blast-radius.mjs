@@ -64,7 +64,12 @@ for (const p of [ti.file_path, ...(Array.isArray(ti.edits) ? ti.edits.map(e => e
 // edits most likely to be careless, so the settings entry registers this hook a
 // second time with no matcher and this flag, and it discovers the change from the
 // working tree instead of from the tool call.
-if (process.argv.includes('--from-git') && touched.length === 0) {
+if (process.argv.includes('--from-git')) {
+  // The matched Edit|Write entry already reported this edit. Saying it twice is
+  // noise, and noise in a hook that fires after every tool call is how the hook
+  // stops being read.
+  if (touched.length > 0) process.exit(0);
+
   const { execFileSync } = await import('node:child_process');
   try {
     const out = execFileSync('git', ['status', '--porcelain', '--no-renames'], {
