@@ -1,7 +1,11 @@
 # Stop breaking page B
 
 **A regression-safety strategy for antialgo.ai.** Written 2026-09-23, on branch `safety-net`.
-Nothing in here is built yet. This is the plan, the evidence behind it, and the order to build it in.
+
+**Part One is the plan and the evidence behind it, as written before building.** It is left unedited
+except for two measurements the build itself corrected, each marked where it stands. **Part Two, at the
+end, is what was actually built** — including four live defects the gates found on their first run, one
+false positive that changed the design, and three bugs in the harness itself.
 
 ---
 
@@ -17,10 +21,12 @@ three of them are already instrumented by tools you own and do not run.
 **What you will run, when it is built:**
 
 ```bash
-npm run conform          # ~90 seconds. Before every commit. Blocks on red.
-npm run conform:deep     # ~6 minutes. Before a push. Visual + cross-browser + journeys.
+npm run conform          # measured: 35s. Before every commit.
+npm run conform:deep     # measured: 63s, browser included. Before a push.
 npm run conform:accept   # After an intended change. Re-records what you meant to change.
 ```
+
+*(Those were estimates of ~90s and ~6min when written. The real numbers came in better; see Part Two.)*
 
 and inside Claude Code, `/conform`, which runs the same thing and reports *what you changed, what it
 reaches, and what has no test*.
@@ -506,7 +512,7 @@ verification pass after a first agent got them wrong.
 - 97 test files ✎ · 1,235 tests ✎ · 15,954 lines
 - 3 test files / 17 tests failing · cause: `db/207_jobs_derived.sql` unapplied (46 of 47 applied)
 - `npm run check`: 3 errors ✎ (not the "pre-existing ProviderRow error" five commits claimed)
-- 91 route files · 75 with `prerender = false` ✎ · 17 prerendered → 110 `.html`, 100 of them `/role/` ✎
+- 91 route files · **74** with `prerender = false` (I wrote 75; the census counted the real directive rather than comment mentions) · 17 prerendered → 110 `.html`, 100 of them `/role/`
 - 1,472 class names · 241 styled in more than one file
 - `BaseLayout` → 41 routes · `SiteHeader` → 83 of 91 · `src/lib/data.ts` → 30
 - 185 DOM query sites / 32 files / 168 static selectors / 2 dynamic
@@ -532,3 +538,129 @@ loudly when it cannot run, never skip quietly. The Index learned this and wrote 
 looking green when it measured nothing."*
 
 That sentence is the whole strategy in one line.
+
+---
+
+# PART TWO: WHAT WAS BUILT
+
+Written 2026-09-24, after building it. Everything below is measured on this machine,
+on branch `safety-net`, and every claim is something a command will reproduce.
+
+## The one command
+
+```bash
+npm run conform          # 6 gates, 35s. Before every commit.
+npm run conform:deep     # 7 gates, 63s. Adds the browser. Before every push.
+npm run conform:accept   # re-record the pixel baselines you meant to change
+npm run conform:list     # what each gate is and why
+```
+
+Plus `/conform` inside Claude Code, which runs the same thing and reports what
+changed, what it reaches, and which routes in that blast radius nothing covers.
+
+## What is green
+
+| Gate | Time | What it proves |
+|---|---|---|
+| `types` | 25.4s | `astro check`, 0 errors — including the `<script>` blocks inside `.astro` files |
+| `unit` | 8.6s | 1,248 tests |
+| `invariants` | 0.1s | 5 structural checks: nothing under `src/pages` can be shadowed by the root `api/`; every gated route has a `ROUTE_POLICY`; no orphan partials; `nav.ts` and the filesystem agree |
+| `dom-contracts` | 0.2s | every selector a client script queries is still provided by the markup that must provide it |
+| `tokens` | 0.4s | every `var(--x)` resolves; `tokens.css` matches a fresh `style-dictionary` build |
+| `routes` | 0.2s | the manifest, regenerated from the filesystem, audience matrix included |
+| `browser` | 28.7s | 209 assertions: every route as 5 audiences, both directions, + 14 pixel baselines |
+
+**63.5 seconds for all of it.** The budget was 90.
+
+## The four defects the gates found on their first run
+
+None of these were introduced by this work. All four were already live.
+
+1. **`Board.astro:288-289`** reads `[data-count-rows]` and `[data-count-page]`.
+   Neither attribute exists anywhere in the repo. They arrived with `e81f651` and the
+   markup that provided them did not. The row-count and page-count labels on `/`,
+   `/board` and `/prelist` **have never updated, once, since the first import** —
+   guarded by an `if`, so silently.
+2. **Four `var(--space-150)` / `var(--space-050)` references** resolve to nothing and
+   render as `gap: 0`. The ramp has no 050 or 150 step. Someone wrote a gap; no
+   reader has ever seen one.
+3. **`/colophon` publishes a PASS/FAIL verdict to every visitor for 10 gates** and
+   `test/gates/` does not exist in this repository.
+4. **`vercel.json` declares no `crons` key**, while `tasks/nudge.ts` and
+   `api/rebuild.ts` both document a daily cron against themselves. Those crons have
+   never run.
+
+Plus four routes hand-typing their own paths instead of using `nav.ts` — and
+`/jobs-data/summary` is typed by hand in an `.astro` file *and* in an untyped browser
+script, which is the exact string-boundary shape that has already cost two outages.
+
+## And one false positive, which is why the ratchet exists
+
+The DOM gate flagged `NewHereStrip`'s missing `[data-new-here-dismiss]`. It is not a
+defect: the control was removed on 2026-08-20 by your own decision and the script's
+`if (!button) continue;` is the deliberate guard. The component says so in a comment.
+
+**A gate that cries wolf is a gate you stop reading.** So
+`test/conform/accepted.json` records every finding already seen, with a verdict, a
+date, and for the real ones an explicit question for you. A gate fails on findings
+**not** in it — and also fails on an accepted finding that **no longer reproduces**,
+because a stale entry is how a ratchet rots into an excuse. Both behaviours were
+adversarially verified, not assumed.
+
+## Three bugs in the harness itself
+
+Worth recording, because each one would have made the suite agree with itself about a
+lie — the single worst thing a test harness can do.
+
+1. The signed-out project's `testMatch` also matched `*.signedin.spec.ts`. Those
+   specs would have run **signed out** while their names claimed otherwise.
+2. `auth.setup.ts` minted cookies with better-auth's own `secure` flag. A secure
+   cookie is never sent over the dev server's http, so the storageState file was 36
+   bytes of `{"cookies":[]}` — **and the setup passed.**
+3. The minting process and the dev server signed with **different**
+   `BETTER_AUTH_SECRET`s. A signature mismatch reads exactly like "not signed in", so
+   every *allowed* assertion failed and **every *denied* assertion passed.** The suite
+   would have reported 29 green and called the gates proven.
+
+All three were caught by one assertion that exists for precisely this: each role
+proves it is really signed in before asserting anything about what it can see. That
+assertion is the most important line in the sweep.
+
+## What is still open
+
+### Yours to decide (three of these block real coverage)
+
+1. **Neon preview branching.** `vercel env ls` shows one `DATABASE_URL` covering
+   Production *and* Preview. Unless per-preview branching is on, a write-path test
+   against a preview writes to your live database. One checkbox; I cannot read it.
+2. **Four Preview env vars.** `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `SITE_ORIGIN`,
+   `KEY_ENCRYPTION_SECRET` are Production-only, so **sign-in is dead on every preview
+   deploy.** Nothing signed-in can be tested there until they exist.
+3. **Stripe test keys.** No `STRIPE_*` in `.env.local`. Billing is flag-dark, so it
+   cannot break a visitor today; the journey is built and skipped with a stated reason.
+4. **`npx playwright install firefox`.** Your dropdown bug was Safari *and* Firefox.
+   WebKit is installed; Firefox is not.
+5. **The `/colophon` ruling.** Port the gates so the page is true, or change the page
+   to describe what this repo measures.
+
+### Still to build
+
+- **Journey tests for the money paths**: sign-up → Come ready → upload → board → job
+  detail → draft → DOCX. The upload journey needs a seeded provider key, which needs
+  `KEY_ENCRYPTION_SECRET` and the keychain's encryption — plumbing, not archaeology.
+- **The interaction specs under WebKit** (3 of them: the Come-ready dropdown, a saved
+  filter, the waitlist form). This is where the Safari focusout bug lives.
+- **Mobile and print.** Nothing in the plan had a viewport dimension until the critic
+  pointed it out: `prove-styles.mjs` never calls `setViewportSize`, and `/report` has
+  `@media print` rules that a `global.css` edit could destroy with no on-screen effect.
+- **`emails/` is excluded from vitest entirely** — `vitest.config.ts` includes only
+  `{src,test}/**`, so the two email tests that exist have never run. One line.
+- **Stripe's webhook has no test and is the only writer of `app_user_profile.tier`**,
+  which every gate in the app keys off. Three tests, no Stripe account needed.
+- **`/internal` — the privilege-escalation surface — has no negative test.**
+  `internal/tier.ts` grants paid and internal via `ON CONFLICT UPDATE`. Nothing asserts
+  a member cannot call it.
+- **Degraded third parties.** Nothing tests the failure branch of Resend, Anthropic,
+  OpenAI or Neon. The one that already took the site down was Neon.
+- **`.github/workflows`** running the deterministic tier on a clean checkout. Held
+  until the local gate has been trusted for a week, deliberately.
