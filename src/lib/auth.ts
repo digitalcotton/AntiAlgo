@@ -18,7 +18,7 @@
  * BETTER_AUTH_SECRET. A static page that imports this module through the
  * layout must not crash a build for lack of a secret it never uses.
  */
-import { betterAuth } from 'better-auth';
+import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { SITE_ORIGIN } from '../../site.config.mjs';
 import { db } from './db';
 import { signupTier } from './entitlement';
@@ -47,8 +47,26 @@ export function trustedOrigins(): string[] {
   return [...origins];
 }
 
-function build() {
-  return betterAuth({
+/**
+ * Every option this app configures Better Auth with, as a value.
+ *
+ * WHY IT IS EXTRACTED. The sweep needs to mint a real session without an email
+ * flow, which better-auth does through its own `testUtils` plugin — and that
+ * plugin's documentation is explicit that it must go on a SEPARATE auth
+ * instance, never on the production config, because it exposes privileged
+ * helpers for creating sessions and mutating data.
+ *
+ * A separate instance is only worth having if it is the same instance in every
+ * respect that matters. In particular it has to run the databaseHooks below:
+ * an account created without them has no app_user_profile row, and every gated
+ * route then answers 403 for a reason that has nothing to do with the code under
+ * test. So the options live here, once, and both instances read them.
+ *
+ * This is a value, not a shared object: called per instance, so neither can
+ * mutate what the other is holding.
+ */
+export function authOptions(): BetterAuthOptions {
+  return {
     database: db(),
     baseURL: baseURL(),
     basePath: '/auth',
@@ -113,7 +131,11 @@ function build() {
         }
       }
     }
-  });
+  };
+}
+
+function build() {
+  return betterAuth(authOptions());
 }
 
 let instance: ReturnType<typeof build> | null = null;
