@@ -408,3 +408,99 @@ export async function settlePostingFetch(id: string, input: SettleInput): Promis
   const row = rows[0];
   return row ? { ...rowToStoredPostingFetch(row), userId: row.user_id } : null;
 }
+
+/* -------------------------------------------------------------------------
+   THE LEARNING LANE.
+
+   Reading a posting and learning the board it lives on are two different
+   jobs, and until the site started reading postings itself they happened to
+   be done by the same machine in the same pass: the mini read a page, and
+   learn_board() in postfetch_agent.py noticed the board that page sat on and
+   added it to the nightly crawl if it was new and answered. That is the half
+   of "Add a job" that grows the corpus for everybody rather than for the one
+   person who pasted the link.
+
+   The site reading most postings itself quietly broke that. A posting read
+   here is a board the mini never hears about, so member adds would stop
+   feeding the crawl list entirely -- a silent regression in the feature's
+   whole point, traded for the latency win.
+
+   WHY THIS IS NOT A NEW TABLE. Every added URL is already a row here, and
+   the board verdict already has a home on that row (machine_notes.board,
+   which the posting page already renders). So the lane is not a queue of its
+   own, it is a second view over rows this table already holds: the ones the
+   site read (reader = 'site') that no board verdict has landed on yet. A
+   table would have to be kept in step with this one and would answer no
+   question this one cannot.
+
+   WHY NOT PUT THE URL ON THE WAKE. postfetch_agent.py's own header states
+   the rule: "The wake line carries hints (an id, or 'look'), never work."
+   The ntfy topic is a secret but not an authenticated channel, and a message
+   that carried a URL would let anyone who guessed the topic choose what the
+   mini fetches. The mini asks us what to learn, over the same authenticated
+   claim/result shape it already uses for reads.
+   ------------------------------------------------------------------------- */
+
+/** A learn claim this old is a mini that died mid-learn; the row is claimable
+    again. Learning runs a whole board adapter, so it is allowed longer than a
+    single posting read. */
+export const LEARN_STALE_MS = 20 * 60 * 1000;
+
+export interface LearnableBoard {
+  id: string;
+  url: string;
+}
+
+/**
+ * Hands out the next URL whose board nobody has looked at, and marks it taken.
+ *
+ * Claimable means: the site did the reading (so the mini never saw this URL),
+ * no board verdict has landed yet, and either nothing has claimed it for
+ * learning or the claim is stale. One atomic UPDATE with SKIP LOCKED, the same
+ * shape claimPostingFetch() uses, so two drains never get the same row.
+ */
+export async function claimBoardLearn(): Promise<LearnableBoard | null> {
+  const { rows } = await db().query<LearnableBoard>(
+    `WITH pick AS (
+       SELECT id FROM desk_posting_fetch
+        WHERE status = 'ready'
+          AND machine_notes ->> 'reader' = 'site'
+          AND machine_notes -> 'board' IS NULL
+          AND (
+            machine_notes ->> 'learnClaimedAt' IS NULL
+            OR (machine_notes ->> 'learnClaimedAt')::timestamptz < now() - ($1::bigint * interval '1 millisecond')
+          )
+        ORDER BY created_at
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+     )
+     UPDATE desk_posting_fetch f
+        SET machine_notes = jsonb_set(
+              coalesce(f.machine_notes, '{}'::jsonb), '{learnClaimedAt}', to_jsonb(now()), true)
+       FROM pick
+      WHERE f.id = pick.id
+      RETURNING f.id, coalesce(f.final_url, f.url) AS url`,
+    [LEARN_STALE_MS]
+  );
+  return rows[0] ?? null;
+}
+
+/**
+ * Records what the mini made of that row's board, and releases the claim.
+ *
+ * Returns false when the row is gone or already carries a verdict, which the
+ * route answers as accepted-but-not-applied so a retry stops rather than
+ * looping. The note goes through boardNoteFrom() at the route, the same
+ * allowlist every other board note passes.
+ */
+export async function settleBoardLearn(id: string, note: BoardNote): Promise<boolean> {
+  const { rowCount } = await db().query(
+    `UPDATE desk_posting_fetch
+        SET machine_notes = jsonb_set(
+              coalesce(machine_notes, '{}'::jsonb), '{board}', $2::jsonb, true) - 'learnClaimedAt'
+      WHERE id = $1
+        AND machine_notes -> 'board' IS NULL`,
+    [id, JSON.stringify(note)]
+  );
+  return (rowCount ?? 0) > 0;
+}

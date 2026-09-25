@@ -106,6 +106,8 @@ export const ROUTES = [
   // --- The machine (server-to-server, Mac mini) ---
   { key: 'machine-posting-fetch-claim', pattern: '/machine/posting-fetch/claim', kind: 'asset', note: 'GET. The machine claims the next queued posting to read.', sitemap: false },
   { key: 'machine-posting-fetch-result', pattern: '/machine/posting-fetch/result', kind: 'asset', note: 'POST. The machine returns a posting it read.', sitemap: false },
+  { key: 'machine-board-learn-claim', pattern: '/machine/board-learn/claim', kind: 'asset', note: 'GET. The machine claims the next board to look at, from a posting the site read itself.', sitemap: false },
+  { key: 'machine-board-learn-result', pattern: '/machine/board-learn/result', kind: 'asset', note: 'POST. The machine returns its verdict on that board.', sitemap: false },
 
   // --- The Pre-List ---
   { key: 'prelist', pattern: '/prelist', kind: 'static', note: 'Companies the machine scored before they posted a role. Behind sign-in.', sitemap: true },
