@@ -1,16 +1,21 @@
 /**
  * desk-home.ts: the read side of The Desk, the titles-driven member home. Given
- * one member's userId, it reads the whole live crawl once and cuts it to the
- * titles that member named, so the page renders their own handful of roles
- * instead of the whole sweep. Pure-ish: one Promise.all of store reads, then all
- * derivation in TypeScript, no clock of its own beyond data.ts's sweepDate().
+ * one member's userId, it asks the database for the roles under the titles that
+ * member named, so the page renders their own handful of roles instead of the
+ * whole sweep. No clock of its own beyond data.ts's sweepDate().
  *
- * WHY THE CUT LIVES HERE AND NOT IN SQL. The board's own narrowing (job-store.ts
- * listBoardFiltered titles param) is for the paginated board; The Desk needs the
- * whole matched set at once to count titles, split core from stretch, rank by
- * fit and read "new since you last looked", so it reads listBoardAll and cuts
- * with ledger-titles.laneFor, the same deterministic matcher the board's SQL
- * clause mirrors. The two agree by construction: both are matchesTitle.
+ * THE CUT IS IN SQL (2026-09-25). This used to call listBoardAll({ liveOnly:
+ * true }), the unbounded "every live row" read, and cut the result in
+ * TypeScript: 31,310 rows / 27.05 MB in about 970 ms on every request, measured
+ * on production 2026-09-23, for a page that draws at most twelve roles. The
+ * queries now live in desk-agg.ts, keyed on the member's watches, and the
+ * numbers come back as numbers. See that file's header for what it replaced and
+ * how the SQL mirrors the matcher.
+ *
+ * TWO WAVES, NOT ONE. The watch list and the filters decide what the lane query
+ * asks, so they have to come back first: the reads that need nothing are one
+ * Promise.all, the three that need the watches are a second. That is one extra
+ * round trip in exchange for the 27 MB.
  *
  * HONESTY. role_family and tier are still absent upstream, so "Core" and
  * "Stretch" are the member's own shelving of a title (target vs reach), never a
@@ -18,12 +23,16 @@
  * per-requirement "distance" here, because measured fit components do not exist
  * yet. Company names are held on kill rows, as everywhere else on a paid surface.
  */
-import { listBoardAll, listAllKills, getBoardStats, type BoardKillRow } from './job-store';
+import { listAllKills, getBoardStats, type BoardKillRow } from './job-store';
 import type { BoardRow } from './board-jobs';
 import { boardRowToJob } from './board-jobs';
+import {
+  deskLaneCounts, deskLaneRows, deskTitleCounts, deskTitleIndex,
+  type DeskLaneRow, type DeskWatch, type DeskWhen
+} from './desk-agg';
 import { listWatches, type Shelf } from './ledger-watch-store';
 import { getPrefs, type LedgerSelection } from './ledger-prefs-store';
-import { buildTitleIndex, laneFor, matchesTitle, type TitleCount } from './ledger-titles';
+import { matchesTitle, type TitleCount } from './ledger-titles';
 import { atsLabel, compShort, daysBetween, sweepDate, type KillRule } from './data';
 import { ruleLabel } from './readings';
 
@@ -142,8 +151,13 @@ export interface DeskHomeData {
         null until the sweep logs them; the panel shows no time column then. */
     stages: Record<string, string> | null;
   };
-  /** Every live board title, most common first: the add-a-title autocomplete. */
+  /** The HEAD of the live board's title index, most common first: the
+      add-a-title autocomplete. DESK_TITLE_HEAD rows at most, not the whole
+      index, which is one title per row at this size. */
   titleIndex: TitleCount[];
+  /** How many distinct live titles the board carries in total, so a panel
+      showing the head can say what it is not showing. */
+  titleCount: number;
   /** When this reader last loaded The Desk, for the "new since" clock. */
   lastSeenAt: string | null;
 }
@@ -162,6 +176,15 @@ export function inDeskWindow(ageDays: number | null): boolean {
 }
 /** How many matched kills the died lane renders at most. */
 const DIED_CAP = 20;
+/**
+ * How much of the title index the autocomplete is given. The deepest consumer
+ * is the Come-ready title step (StepTitles.astro, which imports this rather
+ * than restating it); /desk takes the first 200 of the same list. It is a HEAD,
+ * not the index: the board carries about one distinct title per live row, so the
+ * whole thing is hundreds of kilobytes and was most of what the old full-board
+ * read was paying for.
+ */
+export const DESK_TITLE_HEAD = 1500;
 /** On a first visit (no last_seen), "new" falls back to this many days. */
 const FIRST_VISIT_WINDOW_DAYS = 7;
 
@@ -179,36 +202,19 @@ function isoDay(value: Date | string | null | undefined): string | null {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-/** A live row passes the member's own filters: remote when asked, and a pay
-    floor read off comp_range.min the same way the board's comp facet reads it. */
-function passesPrefs(row: BoardRow, prefs: LedgerSelection): boolean {
-  if (prefs.remoteOnly && !row.remote) return false;
-  if (typeof prefs.compFloor === 'number' && prefs.compFloor > 0) {
-    const min = row.comp_range && typeof row.comp_range.min === 'number' ? row.comp_range.min : null;
-    if (min === null || min < prefs.compFloor) return false;
-  }
-  return true;
-}
-
 /**
- * True when a role first appeared on or after the reader last looked, compared
- * at DATE granularity on purpose. first_seen is a DATE (db/117), so it has no
- * time of day; last_seen_at is a precise timestamp. Comparing the raw instants
- * (a midnight date against an afternoon visit) would silently drop a role first
- * seen later on the same calendar day as a prior visit, and it would stay hidden
- * forever. So both sides collapse to their calendar day and the test is "on or
- * after" (>=): the safe direction, which may re-show a role from the last visit
- * day but never hides a genuinely new one. On a first visit (no last_seen) "new"
- * falls back to the last FIRST_VISIT_WINDOW_DAYS.
+ * WHERE "NEW SINCE YOU LAST LOOKED" IS DECIDED, AND WHY AT DATE GRANULARITY.
+ * desk-agg.ts's lane CTE makes this call in SQL. first_seen is a DATE (db/117),
+ * so it has no time of day; last_seen_at is a precise timestamp. Comparing the
+ * raw instants (a midnight date against an afternoon visit) would silently drop
+ * a role first seen later on the same calendar day as a prior visit, and it
+ * would stay hidden forever. So both sides collapse to their calendar day and
+ * the test is "on or after" (>=): the safe direction, which may re-show a role
+ * from the last visit day but never hides a genuinely new one. On a first visit
+ * (no last_seen) "new" falls back to the last FIRST_VISIT_WINDOW_DAYS. The
+ * verbatim old TypeScript is kept in desk-agg.test.ts, which asserts the query
+ * agrees with it row for row.
  */
-function isNew(firstSeen: Date | string | null, lastSeenDay: string | null, sweepIso: string): boolean {
-  const firstDay = isoDay(firstSeen);
-  if (firstDay === null) return false;
-  // ISO calendar days compare correctly as plain strings.
-  if (lastSeenDay !== null) return firstDay >= lastSeenDay;
-  const age = daysBetween(firstDay, sweepIso);
-  return age !== null && age >= 0 && age <= FIRST_VISIT_WINDOW_DAYS;
-}
 
 /** The arrival-curve reading for a role's age. See HeadStart. */
 function headStartFor(ageDays: number | null): HeadStart | null {
@@ -267,12 +273,13 @@ function killVM(kill: BoardKillRow, matched: string[]): DeskKillVM {
  * cuts and ranks it all to those titles.
  */
 export async function buildDeskHome(userId: string): Promise<DeskHomeData> {
-  const [liveRows, kills, stats, watches, prefsRow] = await Promise.all([
-    listBoardAll({ liveOnly: true }),
+  // Wave one: everything that does not depend on the member's own watch list.
+  const [kills, stats, watches, prefsRow, titleIndex] = await Promise.all([
     listAllKills(),
     getBoardStats(),
     listWatches(userId),
-    getPrefs(userId)
+    getPrefs(userId),
+    deskTitleIndex(DESK_TITLE_HEAD)
   ]);
 
   const prefs: LedgerSelection = prefsRow?.selection ?? {};
@@ -282,67 +289,57 @@ export async function buildDeskHome(userId: string): Promise<DeskHomeData> {
   const sweepIso = sweepDate();
 
   const allTitles = watches.map((w) => w.title);
-  const coreSet = new Set(watches.filter((w) => w.shelf === 'core').map((w) => w.title));
+  const deskWatches: DeskWatch[] = watches.map((w) => ({ title: w.title, shelf: w.shelf }));
+  // Every window and cap the queries read, passed in: desk-agg.ts has no clock
+  // and no policy of its own, so the rules stay in this file beside their
+  // reasons and the SQL stays a mirror of them.
+  const when: DeskWhen = {
+    sweepDate: sweepIso,
+    lastSeenDay,
+    windowDays: DESK_WINDOW_DAYS,
+    firstVisitDays: FIRST_VISIT_WINDOW_DAYS,
+    show: DESK_SHOW
+  };
 
-  // The member's own filters narrow the live set before anything is counted.
-  const filtered = liveRows.filter((row) => passesPrefs(row, prefs));
+  // Wave two: the three reads keyed on the watches. Each returns nothing but
+  // counts and the ranked head of each lane, and each short-circuits without a
+  // query when the member has named no title yet.
+  const [counts, laneRows, titleCounts] = await Promise.all([
+    deskLaneCounts(deskWatches, prefs, when),
+    deskLaneRows(deskWatches, prefs, when),
+    deskTitleCounts(deskWatches)
+  ]);
 
-  // Per-title counts: liveCount and titlesLive over the whole LIVE set (the
-  // title's real market, before the member's remote/pay filters, which narrow
-  // the lanes below, not this total), and titlesTotal folding in killed titles
-  // so "N of M" counts an alias that only appears on dead roles.
-  const killTitles = kills.map((k) => k.title);
-  const titleVMs: DeskTitleVM[] = watches.map((w) => {
-    const liveMatching = liveRows.filter((row) => matchesTitle(w.title, row.title));
-    const liveTitleSet = new Set(liveMatching.map((row) => row.title));
-    const allTitleSet = new Set(liveTitleSet);
-    for (const t of killTitles) if (matchesTitle(w.title, t)) allTitleSet.add(t);
+  // Per-title counts, in the watch list's own order: liveCount and titlesLive
+  // over the whole LIVE set (the title's real market, before the member's
+  // remote/pay filters, which narrow the lanes below, not this total), and
+  // titlesTotal folding in killed titles so "N of M" counts an alias that only
+  // appears on dead roles. An uncovered title is one the board carries in
+  // neither set.
+  const titleVMs: DeskTitleVM[] = watches.map((w, i) => {
+    const c = titleCounts[i] ?? { liveCount: 0, titlesLive: 0, titlesTotal: 0 };
     return {
       title: w.title,
       shelf: w.shelf,
-      liveCount: liveMatching.length,
-      titlesLive: liveTitleSet.size,
-      titlesTotal: allTitleSet.size,
-      covered: allTitleSet.size > 0
+      liveCount: c.liveCount,
+      titlesLive: c.titlesLive,
+      titlesTotal: c.titlesTotal,
+      covered: c.titlesTotal > 0
     };
   });
   const coreTitles = titleVMs.filter((t) => t.shelf === 'core');
   const stretchTitles = titleVMs.filter((t) => t.shelf === 'stretch');
   const uncovered = titleVMs.filter((t) => !t.covered).map((t) => t.title);
 
-  // The lane: every filtered role under any watched title, tagged with which
-  // titles caught it, then ranked by fit (newest breaking a tie).
-  const lane = laneFor(filtered, allTitles);
-  const liveUnderTitles = lane.length;
-
-  const laneRanked = [...lane].sort(
-    (a, b) =>
-      (b.role.fit_total ?? 0) - (a.role.fit_total ?? 0) ||
-      (toMs(b.role.first_seen) ?? 0) - (toMs(a.role.first_seen) ?? 0)
-  );
-
-  // Split the whole matched live set into core and stretch (a role a core title
-  // caught is core, even if a stretch title also caught it). The Desk shows a
-  // fit-ranked top slice of each, NOT only what arrived since the last visit: a
-  // member with live matches has to see them, or the page is a wall of zeros
-  // sitting on top of real roles. New arrivals are tagged, and the full set is
-  // one click away on the board, which narrows to these same titles.
-  const coreLane: { role: BoardRow; matched: string[] }[] = [];
-  const stretchLane: { role: BoardRow; matched: string[] }[] = [];
-  for (const item of laneRanked) {
-    // Only a role first seen inside the window makes a lane (DESK_WINDOW_DAYS).
-    if (!inDeskWindow(daysBetween(isoDay(item.role.first_seen), sweepIso))) continue;
-    (item.matched.some((title) => coreSet.has(title)) ? coreLane : stretchLane).push(item);
-  }
-  const flagNew = (role: BoardRow): boolean => isNew(role.first_seen, lastSeenDay, sweepIso);
-  const toShown = (items: { role: BoardRow; matched: string[] }[]): DeskRoleVM[] =>
-    items.slice(0, DESK_SHOW).map(({ role, matched }) => roleVM(role, matched, sweepIso, flagNew(role)));
-  const core = toShown(coreLane);
-  const stretch = toShown(stretchLane);
-  const coreLiveCount = coreLane.length;
-  const stretchLiveCount = stretchLane.length;
-  const newCoreCount = coreLane.reduce((count, x) => count + (flagNew(x.role) ? 1 : 0), 0);
-  const newStretchCount = stretchLane.reduce((count, x) => count + (flagNew(x.role) ? 1 : 0), 0);
+  // The lanes: the fit-ranked head of each, NOT only what arrived since the last
+  // visit. A member with live matches has to see them, or the page is a wall of
+  // zeros sitting on top of real roles. New arrivals are tagged, and the full
+  // set is one click away on the board, which narrows to these same titles.
+  // Which lane a role is in, and what "new" means, were both decided in SQL.
+  const toShown = (items: DeskLaneRow[]): DeskRoleVM[] =>
+    items.map(({ row, matched, isNew: isNewFlag }) => roleVM(row, matched, sweepIso, isNewFlag));
+  const core = toShown(laneRows.filter((r) => r.isCore));
+  const stretch = toShown(laneRows.filter((r) => !r.isCore));
 
   // Kills matched to the watched titles, most recent first (sorted on the raw
   // timestamp, before it is formatted for display). Company held.
@@ -358,14 +355,14 @@ export async function buildDeskHome(userId: string): Promise<DeskHomeData> {
     stretchTitles,
     uncovered,
     prefs,
-    liveUnderTitles,
+    liveUnderTitles: counts.liveUnderTitles,
     core,
     stretch,
     died: laneKills.slice(0, DIED_CAP),
-    coreLiveCount,
-    stretchLiveCount,
-    newCoreCount,
-    newStretchCount,
+    coreLiveCount: counts.coreLiveCount,
+    stretchLiveCount: counts.stretchLiveCount,
+    newCoreCount: counts.newCoreCount,
+    newStretchCount: counts.newStretchCount,
     diedCount: laneKills.length,
     sweep: {
       boardsSwept: stats?.boards_swept ?? null,
@@ -380,7 +377,8 @@ export async function buildDeskHome(userId: string): Promise<DeskHomeData> {
       })(),
       stages: stats?.stage_log ?? null
     },
-    titleIndex: buildTitleIndex(liveRows),
+    titleIndex: titleIndex.head,
+    titleCount: titleIndex.total,
     lastSeenAt: isoDay(lastSeenAt)
   };
 }

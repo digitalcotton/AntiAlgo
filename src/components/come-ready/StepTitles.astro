@@ -12,6 +12,7 @@ import StepCard from './StepCard.astro';
 import type { ComeReadyTitle } from '../../lib/come-ready-store';
 import type { LedgerSelection } from '../../lib/ledger-prefs-store';
 import type { TitleCount } from '../../lib/ledger-titles';
+import { DESK_TITLE_HEAD } from '../../lib/desk-home';
 import { routeFor } from '../../data/nav';
 import { withBase } from '../../../site.config.mjs';
 
@@ -20,8 +21,12 @@ interface Props {
   n: number;
   coreTitles: ComeReadyTitle[];
   stretchTitles: string[];
-  /** The live title index, most common first; empty when the sweep could not be read. */
+  /** The HEAD of the live title index, most common first (desk-home.ts's
+      DESK_TITLE_HEAD rows at most); empty when the sweep could not be read. */
   titleIndex: TitleCount[];
+  /** How many distinct live titles the board carries in all, so the panel can
+      say how much of the index is behind the rows. */
+  titleCount: number;
   prefs: LedgerSelection | null;
   /** This step's own address, base-free (the forms return here). */
   selfPath: string;
@@ -32,7 +37,7 @@ interface Props {
       reload lands with them open rather than collapsing under the press. */
   controlsOpen?: boolean;
 }
-const { edition, n, coreTitles, stretchTitles, titleIndex, prefs, selfPath, nextPath, controlsOpen = false } = Astro.props;
+const { edition, n, coreTitles, stretchTitles, titleIndex, titleCount, prefs, selfPath, nextPath, controlsOpen = false } = Astro.props;
 /** Where a control returns: this step, with the controls still open. */
 const controlsPath = `${selfPath}&controls=1`;
 
@@ -53,12 +58,15 @@ const hasTitle = coreTitles.length > 0;
     the head was also narrower than it needed to be. 1,500 rows of markup is
     tens of kilobytes over the wire, which this page can carry; the whole index
     is not, and the honest fix for the tail is a search that asks the server.
-    THE LIST IS STILL A HEAD, NOT THE WHOLE INDEX. */
-const TITLE_ROWS = 1500;
+    THE LIST IS STILL A HEAD, NOT THE WHOLE INDEX.
+    The number is DESK_TITLE_HEAD, imported rather than restated: since
+    2026-09-25 the database applies it as a LIMIT, so a number typed here that
+    was larger than that one would silently show fewer rows than it asked for. */
+const TITLE_ROWS = DESK_TITLE_HEAD;
 const options = titleIndex.slice(0, TITLE_ROWS);
 /** How much of the index is behind the rows, so the panel can say so rather
     than letting the reader assume the head is all of it. */
-const titlesNotShown = Math.max(0, titleIndex.length - options.length);
+const titlesNotShown = Math.max(0, titleCount - options.length);
 
 const PAY_FLOORS = [
   { label: 'any', value: 0 },
@@ -135,7 +143,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
           ))}
           {titlesNotShown > 0 && (
             <p class="cr-suggest-foot">
-              The {options.length.toLocaleString()} most live of {titleIndex.length.toLocaleString()} titles on the board. Type any other and press Enter; it does not have to be on this list.
+              The {options.length.toLocaleString()} most live of {titleCount.toLocaleString()} titles on the board. Type any other and press Enter; it does not have to be on this list.
             </p>
           )}
         </div>

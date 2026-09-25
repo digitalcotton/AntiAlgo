@@ -75,6 +75,8 @@ for (const kind of ENTRY_KINDS) entriesByKind[kind] = view.entries.filter((e) =>
 
 const status = (n: number) => model.steps.find((s) => s.n === n)?.status;
 const titleIndex = view.home?.titleIndex ?? [];
+/** The whole index's length, not the head's: the panel says how much it holds back. */
+const titleCount = view.home?.titleCount ?? titleIndex.length;
 
 const eyebrow =
   edition === 'paid' ? 'Membership active' : edition === 'free' ? 'Free account' : view.joinedAt ? `Waitlisted, joined ${dayStamp(view.joinedAt)}` : 'Waitlisted';
@@ -112,7 +114,7 @@ const lede =
         {edition === 'waitlisted' && <WaitPanel joinedAt={view.joinedAt} />}
 
         {edition === 'paid' && model.active === 3 && (
-          <StepTitles edition="paid" n={3} coreTitles={view.coreTitles} stretchTitles={view.stretchTitles} titleIndex={titleIndex} prefs={view.home?.prefs ?? null} selfPath="/start?step=3" nextPath="/start?step=4" controlsOpen={controlsOpen} />
+          <StepTitles edition="paid" n={3} coreTitles={view.coreTitles} stretchTitles={view.stretchTitles} titleIndex={titleIndex} titleCount={titleCount} prefs={view.home?.prefs ?? null} selfPath="/start?step=3" nextPath="/start?step=4" controlsOpen={controlsOpen} />
         )}
         {edition === 'paid' && model.active === 4 && (
           <StepKey key={view.key} keysConfigured={view.keysConfigured} chosen={chosen} justSaved={justSaved} saveError={keyError} selfPath="/start?step=4" nextPath="/start?step=5" skipPath="/start?step=5" backPath="/start?step=3" />
@@ -141,7 +143,7 @@ const lede =
 
         {edition === 'free' && model.active === 3 && <StepEmail verified={viewer.emailVerified} email={email} nextPath="/start?step=4" skipPath="/start?step=4" />}
         {edition === 'free' && model.active === 4 && (
-          <StepTitles edition="free" n={4} coreTitles={view.coreTitles} stretchTitles={view.stretchTitles} titleIndex={titleIndex} prefs={null} selfPath="/start?step=4" nextPath="/start?step=door" />
+          <StepTitles edition="free" n={4} coreTitles={view.coreTitles} stretchTitles={view.stretchTitles} titleIndex={titleIndex} titleCount={titleCount} prefs={null} selfPath="/start?step=4" nextPath="/start?step=door" />
         )}
         {edition === 'free' && model.active === 'door' && <DoorFree billingOpen={isOn('stripe')} />}
       </div>

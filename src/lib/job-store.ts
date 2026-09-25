@@ -27,12 +27,22 @@ const BOARD_COLUMNS = `j.id, j.slug, j.company, j.title, j.url, j.location, j.co
   j.fit_total, j.fit_components, j.source, j.description, j.status, j.kill_id`;
 
 /**
+ * The same columns for a LIST read, with the heavy description column nulled at
+ * the source so it never leaves the database in bulk. Exported because
+ * desk-agg.ts reads rows in this exact shape (BoardRow) and a second copy of
+ * this list would drift from it the first time a column was added.
+ */
+export const BOARD_LIST_COLUMNS = `j.id, j.slug, j.company, j.title, j.url, j.location, j.country, j.remote, j.published, j.ats,
+  j.posting_id, j.department, j.comp_posted, j.comp_range, j.days_up, j.first_seen, j.last_seen,
+  j.fit_total, j.fit_components, j.source, NULL::text AS description, j.status, j.kill_id`;
+
+/**
  * The kill of record beside a board row, when one names it. Read with a LEFT
  * JOIN on jobs.kill_id so a live row carries nulls and a killed row carries the
  * rule, the machine's reason and the dates, exactly as kills-archive.json holds
  * them. Nothing here is derived on the site; the ingest wrote it from the file.
  */
-const KILL_COLUMNS = `k.kill_rule, k.reason AS kill_reason, k.killed_on, k.first_published AS kill_first_published,
+export const KILL_COLUMNS = `k.kill_rule, k.reason AS kill_reason, k.killed_on, k.first_published AS kill_first_published,
   k.pipeline AS kill_pipeline`;
 
 /** The board's counts, written by the ingest from the crawl and the kill record (db/020, db/032). */
@@ -340,10 +350,7 @@ const BOARD_ROW_OUT = `id, slug, company, title, url, location, country, remote,
 export async function listBoardAll(opts?: { liveOnly?: boolean }): Promise<BoardRow[]> {
   const where = opts && opts.liveOnly === false ? '' : "WHERE j.status <> 'killed'";
   const { rows } = await db().query<BoardRow>(
-    `SELECT j.id, j.slug, j.company, j.title, j.url, j.location, j.country, j.remote, j.published, j.ats,
-            j.posting_id, j.department, j.comp_posted, j.comp_range, j.days_up, j.first_seen, j.last_seen,
-            j.fit_total, j.fit_components, j.source, NULL::text AS description, j.status, j.kill_id,
-            ${KILL_COLUMNS}
+    `SELECT ${BOARD_LIST_COLUMNS}, ${KILL_COLUMNS}
        FROM jobs j LEFT JOIN board_kills k ON k.id = j.kill_id
        ${where}`
   );
