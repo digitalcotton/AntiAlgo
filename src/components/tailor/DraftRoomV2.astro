@@ -519,8 +519,19 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
   .dr-doc-para, .dr-doc-salutation, .dr-doc-closing { margin: 0; font-size: 0.96rem; line-height: 1.7; }
   .dr-doc-empty { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
   /* A line the connected model rephrased: marked inline, wrapping with the
-     text (design: --color-mark with box-decoration-break: clone). */
-  .is-tailored { background: var(--color-tailor-highlight, rgb(239, 231, 200)); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 2px 0; color: #0b0b0d; }
+     text (design: --color-mark with box-decoration-break: clone).
+
+     THE COLOUR IS A TOKEN NOW, AND THE TEXT INHERITS. This rule used to carry a
+     raw rgb(239, 231, 200) with a raw #0b0b0d on top. --color-tailor-highlight
+     did not exist, so the fallback won in BOTH themes: on ink it painted a cream
+     slab with near-black text on a gray.900 card, and since box-decoration-break
+     gives every wrapped line its own box, the right edge came out ragged. It
+     read as a broken image on /how-it-works, which is how it was found — nobody
+     had looked at a real draft in dark mode. The var() had a fallback, so the
+     tokens gate could not see it either: valid CSS, no missing variable, wrong
+     picture. `color: inherit` rather than a second token, because the right
+     answer in both themes is the page's own foreground on its own highlight. */
+  .is-tailored { background: var(--color-tailor-highlight); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 2px 0; color: inherit; }
 
   .dr-doc-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .dr-btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px; min-height: 44px; font-family: inherit; font-size: 0.88rem; text-decoration: none; cursor: pointer; color: var(--color-foreground); background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-line-strong); }

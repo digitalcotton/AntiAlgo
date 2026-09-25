@@ -44,6 +44,8 @@
   --status-stale-on-ink: #E8B15A; /** The same warning on a dark surface. 7.41:1 on the worst dark ground, clears AA. */
   --status-loss-on-paper: #A53A2E; /** The kill and ghost statistics on a light surface. 5.94:1 on gray.050, clears AA. */
   --status-loss-on-ink: #E58D7F; /** The kill and ghost statistics on a dark surface. 7.91:1 on gray.950, clears AA. The pair is required, not optional: the on-paper value is only 3.04:1 on ink and would fail gate 1. */
+  --tailor-on-paper: #EFE7C8; /** The draft room's marker highlight on paper: the exact cream DraftRoomV2 had hardcoded as rgb(239, 231, 200) before this became a token, so the light theme is unchanged to the pixel. */
+  --tailor-on-ink: #3A3520; /** Its mirror on ink. The highlight has to keep meaning the same thing in both themes, and a warm tint that the page's own foreground reads on top of is what does that. The cream did NOT survive the flip: on a gray.900 card it painted a light slab with hardcoded near-black text, and because each wrapped line is its own box, the right edge came out ragged. On /how-it-works it read as a broken image, which is how this was found. */
   --signal-base: #FF5A1F; /** Signal orange. The one accent on this marketing site, from the Anti Algo how-it-works canvas. Emphasis on the index stays inversion-only; here the signal marks the one thing that acts: the waitlist. Same value in both themes so the brand reads identically on paper and ink. */
   --size-100: 0.875rem;
   --size-150: 0.95rem; /** Sans narration, between label and body. */
@@ -94,6 +96,7 @@
   --color-line-strong: var(--gray-300); /** The heavy panel border the canvas names directly. */
   --color-hover-surface: var(--gray-100); /** Calm hover wash on paper. */
   --color-control: var(--gray-800); /** A handle a reader drags, and the rail it draws: the age strip's two bounds. One step softer than foreground, so the control reads as furniture the reader owns rather than as text. Owner's call 2026-09-13: gray.200 on ink, and its mirror on paper. Brought in with the board's AgePlot component (copied from the Index). */
+  --color-tailor-highlight: var(--tailor-on-paper); /** The background behind a line a connected model rephrased for this posting (DraftRoomV2's .is-tailored). The text on it is not a token: it inherits color-foreground, which is what keeps it legible in both themes. It was a raw rgb() with a raw #0b0b0d text colour until 2026-09-25, which is precisely why it had no dark value — it never passed through DARK_REMAP, and the build could not refuse what it never saw. */
   --color-mark-live: var(--status-live-on-paper); /** Verified this sweep, and re-verified. Two live states, one colour, per the legend canon. */
   --color-mark-closed: var(--gray-600); /** The closed mark. Deliberately not the loss colour: a closed posting is an honest archive record, not an alarm. */
   --color-banner-stale: var(--status-stale-on-paper); /** The assurance band when the sweep is older than the freshness window. The third and last non-neutral pair: it exists because a green band over stale rows is the one lie this site cannot tell. */
