@@ -61,8 +61,31 @@ const ROLES = [
   // account each and there is nothing to contend over. Parallelism comes back for
   // free and no spec has to know another exists.
   { name: 'paid-upload', tier: 'paid' },
-  { name: 'paid-draft', tier: 'paid' }
+  { name: 'paid-draft', tier: 'paid' },
+
+  // A PAID ACCOUNT THAT ALSO HOLDS A PROVIDER KEY, and it is not a test
+  // fixture — it is what scripts/capture-screens.mjs signs in as to take the
+  // step 03 capture on /how-it-works.
+  //
+  // WHY IT IS A ROLE OF ITS OWN rather than a key bolted onto `paid`. The
+  // action rail on JobDetailV2 only renders its real form — the reason field
+  // and the orange "Draft resumé and cover letter" button — for
+  // `signedIn && hasKey`, one rung narrower than paid alone, so a capture of
+  // the tailoring step needs a key on file. But draft.signedin.spec.ts's own
+  // header rests on the opposite fact: `paid` has NO key, which is what keeps
+  // its whole journey on the deterministic writer with no provider call and no
+  // socket. Seeding a key onto `paid` would quietly turn that spec into
+  // something else. Two accounts, no argument.
+  { name: 'capture', tier: 'paid', key: 'anthropic' }
 ] as const;
+
+/** Shaped, never real, and the same fixture string resume-upload.signedin.spec.ts
+ *  uses. validateKeyShape() (src/lib/keychain.ts) wants the 'sk-ant-' prefix,
+ *  20-512 characters and no whitespace — nothing about whether Anthropic would
+ *  ever issue it. It exists to decrypt cleanly under this account's own subkey so
+ *  that hasKey reads true; nothing in this repository ever calls a provider with
+ *  it (the capture takes a picture of the form, it does not submit it). */
+const FAKE_ANTHROPIC_KEY = 'sk-ant-sweep-fixture-fake-not-a-real-key-000000';
 
 /** Fixed addresses and ids, so two runs produce the same accounts and a stray row
  *  is recognisable as the sweep's rather than a person's. .test is reserved by
@@ -167,6 +190,26 @@ setup('mint a session for every role', async ({ browser }) => {
     ).toBe(1);
 
     await db().query('UPDATE app_user_profile SET tier = $2 WHERE user_id = $1', [user.id, role.tier]);
+
+    // putKey(), not an INSERT built by hand, for the reason
+    // resume-upload.signedin.spec.ts already gives where it seeds one: the real
+    // write path is the point. The key is sealed under this account's own HKDF
+    // subkey using KEY_ENCRYPTION_SECRET, which is forced above out of
+    // SWEEP_ENV — so the dev server, started with the same object, can read it
+    // back. Sealed under a different secret it would throw KeychainTamperError
+    // on the first read and the page would simply render as though there were
+    // no key at all.
+    if ('key' in role && role.key) {
+      const { putKey } = await import('../../src/lib/keychain-store');
+      await putKey(user.id, role.key, FAKE_ANTHROPIC_KEY, 'capture fixture key (fake, test-only)');
+      const { keyMeta } = await import('../../src/lib/keychain-store');
+      expect(
+        (await keyMeta(user.id)).length,
+        `no stored key landed for ${email}, so JobDetailV2's action rail would render ` +
+          'the keyless link instead of the draft form and the capture would be of the ' +
+          'wrong screen.'
+      ).toBeGreaterThan(0);
+    }
 
     const cookies = await helpers.getCookies({ userId: user.id, domain: 'localhost' });
     expect(cookies.length, `no session cookie was minted for ${email}`).toBeGreaterThan(0);
