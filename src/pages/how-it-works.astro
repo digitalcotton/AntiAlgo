@@ -16,12 +16,21 @@ import { INDEX, routeFor } from '../data/nav';
  * lives in this repo and shoots production, so the next time it drifts the fix
  * is one command.
  *
- * STEP 03 IS STILL THE OLD LAYOUT and is the open item on this page. It cannot
- * be re-taken the same way: the tailoring rail only renders for a signed-in
- * paid reader holding a provider key, so the shot needs a test account, and
- * both themes have to be the same posting at the same company or the light and
- * dark images disagree about what the page says. Owner's call 2026-09-24: park
- * it for a later update rather than ship a mismatched pair.
+ * STEP 03 WAS RE-TAKEN 2026-09-25, and not by that script. The step is about
+ * the drafted documents, which only exist for a signed-in paid reader holding a
+ * provider key, drafting against a posting — a state no capture of production
+ * can reach without signing into somebody's real account and photographing
+ * their real record. So this pair is shot by hand on a DEMO PROFILE: a real
+ * crawled Figma posting, the real drafting pipeline on a real key, and an
+ * invented person (the record on screen belongs to nobody). The figcaption says
+ * so. scripts/capture-screens.mjs's own `hiw-tailor` entry can still take the
+ * rail on the posting page against a seeded database, which is the picture this
+ * step used to be, and is kept for whenever the page wants that framing back.
+ *
+ * BOTH THEMES ARE THE SAME POSTING AND THE SAME DRAFT, which is the one hard
+ * constraint here: the reader's theme toggle must change the theme, never the
+ * content. The pair is cropped from one window at one size, so they are the
+ * same pixels apart from the palette.
  */
 const signUp = (from: string) => `${routeFor('sign-up')}?from=${from}`;
 
@@ -49,11 +58,12 @@ const STEPS = [
     title: 'Tailor in minutes, on your key',
     body: 'Your resume and cover letter rewritten for that one posting, in your browser, on an AI key you own. We never see the key. Your resume never touches our server.',
     link: { label: 'How the key works', href: routeFor('your-key') },
-    img: { light: '/screens/hiw-tailor-light.png', dark: '/screens/hiw-tailor-dark.png', w: 2700, h: 1350, alt: 'A role page with the tailored resume and cover letter ready to download, drafted on your key.' },
-    // Says so on the page, because it is true and the alternative is a page
-    // about not lying to you carrying a picture of a screen that no longer
-    // exists, presented as current. See the header note.
-    caption: 'Captured from the product, before the current posting layout shipped.'
+    img: { light: '/screens/hiw-tailor-light.png', dark: '/screens/hiw-tailor-dark.png', w: 1868, h: 1374, alt: 'The draft room: a resumé rewritten for one live Figma posting on the reader\'s own Anthropic key, the rephrased lines highlighted, beside a record of what was rewritten and what was kept exactly as the profile has it.' },
+    // "On a demo profile" because it is: the posting is a real crawled one and
+    // the drafting is the real pipeline on a real key, but the person whose
+    // record is on screen is invented. Naming that is cheaper than letting a
+    // reader assume this is somebody's actual resume.
+    caption: 'Captured from the product, on a demo profile.'
   },
   {
     n: '04',
