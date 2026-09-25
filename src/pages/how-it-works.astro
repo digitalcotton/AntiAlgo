@@ -5,15 +5,23 @@ import { INDEX, routeFor } from '../data/nav';
 /*
  * How it works, built to the Anti Algo how-it-works canvas: a hero, four
  * numbered steps, and a closer. Every step carries a real capture pulled from
- * the product (public/screens/): step 01 from a live posting, step 02 from the
- * signed-in Add a job panel, step 04 from the signed-in Desk.
+ * the product (public/screens/), never a mockup.
  *
- * A CAPTURE GOES STALE WHEN THE PRODUCT MOVES, and step 01's did. Job Detail
- * v2 shipped 2026-09-18 and this page kept advertising the layout it replaced:
- * a "Back to the index" crumb, a PROVENANCE sidebar, a "New here?" strip, none
- * of which the site has any more. Re-taken 2026-09-24 with
- * scripts/capture-screens.mjs, which now lives in this repo and shoots
- * production, so the next time it drifts the fix is one command.
+ * A CAPTURE GOES STALE WHEN THE PRODUCT MOVES, and two of these did. Job
+ * Detail v2 shipped 2026-09-18 and this page kept advertising the layout it
+ * replaced: a "Back to the index" crumb, a PROVENANCE sidebar, a "New here?"
+ * strip, none of which the site has any more.
+ *
+ * Step 01 was re-taken 2026-09-24 with scripts/capture-screens.mjs, which now
+ * lives in this repo and shoots production, so the next time it drifts the fix
+ * is one command.
+ *
+ * STEP 03 IS STILL THE OLD LAYOUT and is the open item on this page. It cannot
+ * be re-taken the same way: the tailoring rail only renders for a signed-in
+ * paid reader holding a provider key, so the shot needs a test account, and
+ * both themes have to be the same posting at the same company or the light and
+ * dark images disagree about what the page says. Owner's call 2026-09-24: park
+ * it for a later update rather than ship a mismatched pair.
  */
 const signUp = (from: string) => `${routeFor('sign-up')}?from=${from}`;
 
@@ -41,8 +49,11 @@ const STEPS = [
     title: 'Tailor in minutes, on your key',
     body: 'Your resume and cover letter rewritten for that one posting, in your browser, on an AI key you own. We never see the key. Your resume never touches our server.',
     link: { label: 'How the key works', href: routeFor('your-key') },
-    img: { light: '/screens/hiw-tailor-light.png', dark: '/screens/hiw-tailor-dark.png', w: 2700, h: 1350, alt: 'A role page on The Index with the tailored resume and cover letter ready to download, drafted on your key.' },
-    caption: 'Captured from the product.'
+    img: { light: '/screens/hiw-tailor-light.png', dark: '/screens/hiw-tailor-dark.png', w: 2700, h: 1350, alt: 'A role page with the tailored resume and cover letter ready to download, drafted on your key.' },
+    // Says so on the page, because it is true and the alternative is a page
+    // about not lying to you carrying a picture of a screen that no longer
+    // exists, presented as current. See the header note.
+    caption: 'Captured from the product, before the current posting layout shipped.'
   },
   {
     n: '04',
