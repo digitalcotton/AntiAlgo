@@ -69,9 +69,9 @@ const ABSENCES = [
       'One click is how a queue gets long enough that nobody can read it. Every apply link here names the board it sends you to before you click, and the last thing that happens on this site is you leaving it.'
   },
   {
-    absence: 'No resume black hole.',
+    absence: 'No stored resume.',
     prevents:
-      'We never take your resume, so we cannot lose it, sell it or rank you by it. No account, no profile, no form standing between you and the posting at its source.'
+      'An upload is read once to fill your own record and then dropped, so there is no copy here to lose, to sell, or to rank you by. You apply on the company\'s own board, and nothing you send an employer passes through us.'
   },
   {
     absence: 'No pay-to-rank.',
@@ -79,9 +79,9 @@ const ABSENCES = [
       'No company can buy a row, a mark or a place at the top. Order comes from a rubric and a clock that are both published, so you can check our arithmetic instead of trusting it.'
   },
   {
-    absence: 'No ghost jobs by construction.',
+    absence: 'No posting left unchecked.',
     prevents:
-      'Every posting is read at its source every night. One that fails a kill rule is killed that night and published with the dates behind it, so nothing here can quietly rot while you keep applying to it.'
+      'Every posting is read at its source every night. One that fails a kill rule is killed that night and published with the dates behind it. We cannot stop a company leaving a dead role up. We can tell you the night we catch it.'
   }
 ] as const;
 
@@ -104,7 +104,7 @@ const INSTEAD = [
 
 <BaseLayout
   title="Not here, on purpose"
-  description="The absences that make The Index worth reading: no feed, no one-click apply, no resumé black hole, no pay-to-rank, and no ghost jobs by construction."
+  description="The absences that make The Index worth reading: no feed, no one-click apply, no stored resumé, no pay-to-rank, and no posting left unchecked."
   active="manifesto"
 >
   <div class="shell manifesto">
