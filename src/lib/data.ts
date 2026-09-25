@@ -112,7 +112,17 @@ export type Risk = 'LOW' | 'MED' | 'HIGH';
 /** How hard the apply path is. Verbatim from the sweep, uppercase at source. */
 export type Friction = 'EASY' | 'MEDIUM' | 'HARD';
 
-/** The ATS or posting surface the record was read from, direct. */
+/**
+ * The ATS or posting surface the record was read from, direct.
+ *
+ * The named members keep editor autocomplete and let the three call sites that
+ * compare against a specific system (applyLabel, assertSourceSystems, and this
+ * file's own SOURCE_LABELS) do it by literal. `| (string & {})` widens the type
+ * so a board this list has not named yet — the next adapter the machine grows —
+ * is still a valid SourceSystem instead of being coerced to 'custom'. See
+ * sourceSystemOf in board-jobs.ts and atsLabel below: an unknown key is named
+ * honestly, not flattened.
+ */
 export type SourceSystem =
   | 'greenhouse'
   | 'ashby'
@@ -125,8 +135,17 @@ export type SourceSystem =
   | 'jobvite'
   | 'usajobs'
   | 'yc'
+  | 'breezy'
+  | 'bamboohr'
+  | 'recruitee'
+  | 'teamtailor'
+  | 'icims'
+  | 'successfactors'
+  | 'taleo'
+  | 'personio'
   | 'custom'
-  | 'founder_post';
+  | 'founder_post'
+  | (string & {});
 
 /** The five rubric v1 components. The keys are the fixture's own. */
 export interface Fit {
@@ -2552,7 +2571,7 @@ export function markStateOf(job: Job): 'verified' | 're-verified' | 'closed' {
  * the canvas prints proper names, so the mapping lives here rather than being
  * re-typed on every surface that names a board.
  */
-const SOURCE_LABELS: Record<SourceSystem, string> = {
+const SOURCE_LABELS: Record<string, string> = {
   greenhouse: 'Greenhouse',
   ashby: 'Ashby',
   workday: 'Workday',
@@ -2564,11 +2583,25 @@ const SOURCE_LABELS: Record<SourceSystem, string> = {
   jobvite: 'Jobvite',
   usajobs: 'USAJOBS',
   yc: 'Work at a Startup',
+  breezy: 'Breezy HR',
+  bamboohr: 'BambooHR',
+  recruitee: 'Recruitee',
+  teamtailor: 'Teamtailor',
+  icims: 'iCIMS',
+  successfactors: 'SuccessFactors',
+  taleo: 'Taleo',
+  personio: 'Personio',
   custom: 'the company site',
   founder_post: 'the founder posting'
 };
 
-export const sourceLabel = (job: Job): string => SOURCE_LABELS[job.source_system];
+/**
+ * The source system, as a reader sees it. Falls through the same way atsLabel
+ * does, because job.source_system can now be a board this file has never named
+ * (see the SourceSystem comment): a known key gets its SOURCE_LABELS entry, an
+ * unknown one gets named from its own key rather than reading as undefined.
+ */
+export const sourceLabel = (job: Job): string => atsLabel(job.source_system);
 
 /**
  * A display label for ANY applicant-system string, including a board this file

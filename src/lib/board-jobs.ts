@@ -74,29 +74,27 @@ export interface BoardRow {
 }
 
 /**
- * The tracker's ATS keys mapped to the site's SourceSystem. The three the design
- * export already uses map to themselves; every other board the crawl reaches
- * (lever, workday, amazon, netflix, personio, and the rest) has no proper label
- * in SOURCE_LABELS, so it maps to 'custom', whose apply label is "Apply on the
- * company site". Honest and generic beats naming a board the label table cannot
- * spell.
+ * The tracker's own ats key, passed through as the site's SourceSystem.
+ *
+ * Used to flatten anything outside a hardcoded set to 'custom', which is wrong
+ * twice over: it prints the wrong sentence ("Read direct from the company
+ * site's board" for a posting that is on Breezy, or iCIMS, or whatever the
+ * eighth adapter turns out to be), and it silently mis-files every board the
+ * set does not name, with no build-time signal that it happened. Six adapters
+ * shipped on 2026-09-22 and hit exactly that: 418 rows, 17% of the board,
+ * mislabelled with no test able to catch it because nothing here compared the
+ * ats column to the set.
+ *
+ * So this no longer checks a list. A named board passes through as itself, and
+ * sourceLabel/atsLabel in data.ts do the naming (their own SOURCE_LABELS entry,
+ * or a title-cased fallback for a board neither list has learned yet). 'custom'
+ * is reserved for what it always meant before KNOWN_SOURCES existed: a posting
+ * with no ats at all, i.e. genuinely on the employer's own site
+ * (src/lib/added-posting.ts:70 relies on that meaning and is untouched here).
  */
-const KNOWN_SOURCES = new Set<SourceSystem>([
-  'greenhouse',
-  'ashby',
-  'workday',
-  'amazon',
-  'lever',
-  'netflix',
-  'workable',
-  'rippling',
-  'jobvite',
-  'usajobs',
-  'yc'
-]);
 function sourceSystemOf(ats: string): SourceSystem {
-  const key = (ats || '').toLowerCase();
-  return KNOWN_SOURCES.has(key as SourceSystem) ? (key as SourceSystem) : 'custom';
+  const key = (ats || '').trim().toLowerCase();
+  return key ? (key as SourceSystem) : 'custom';
 }
 
 /** A stored date (Date or string) reduced to a plain YYYY-MM-DD, or null. */
