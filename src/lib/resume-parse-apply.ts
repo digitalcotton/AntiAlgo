@@ -24,7 +24,7 @@
  * A caller that needs to know whether anything landed reads the counts.
  */
 import { validateEntry } from './record';
-import { addLink, createEntry, personName, setPersonName } from './record-store';
+import { addLink, createEntry, personName, setPersonName, type ImportSource } from './record-store';
 import { isLinkPlatform, normaliseLinkUrl } from './profile-links';
 import { clearParse, getParse } from './resume-parse-store';
 import type { ResumeProposals } from './resume-parse';
@@ -42,7 +42,10 @@ export async function landReadyParse(userId: string): Promise<AppliedProposals |
   try {
     const parse = await getParse(userId);
     if (!parse || parse.status !== 'ready' || !parse.outcome) return null;
-    const applied = await applyParsedProposals(userId, parse.outcome.proposals);
+    // The buffer remembers which document this read came from (db/209), so a
+    // read that lands late — on the next /profile load, or on a draft POST —
+    // is still tagged with the document whose Remove can take it back.
+    const applied = await applyParsedProposals(userId, parse.outcome.proposals, parse.importSource);
     console.log(
       `resume-parse-apply: landed a waiting read for user ${userId}: ${applied.created} entries created, ${applied.failed} failed, ${applied.links} links, name ${applied.name ? 'set' : 'kept'}.`
     );
@@ -67,7 +70,11 @@ export interface AppliedProposals {
   readonly createdIds: readonly string[];
 }
 
-export async function applyParsedProposals(userId: string, proposals: ResumeProposals): Promise<AppliedProposals> {
+export async function applyParsedProposals(
+  userId: string,
+  proposals: ResumeProposals,
+  importSource: ImportSource = 'resume'
+): Promise<AppliedProposals> {
   let failed = 0;
   const createdIds: string[] = [];
 
@@ -81,7 +88,9 @@ export async function applyParsedProposals(userId: string, proposals: ResumeProp
       continue;
     }
     try {
-      const stored = await createEntry(userId, result.entry);
+      // Tagged with the document that brought it in, so removing that document
+      // takes this row back with it (record-store.ts deleteEntriesFrom).
+      const stored = await createEntry(userId, result.entry, importSource);
       createdIds.push(stored.prfId);
     } catch (error) {
       failed++;

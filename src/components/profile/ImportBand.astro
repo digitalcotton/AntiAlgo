@@ -49,15 +49,24 @@ export interface ImportReceipt {
   name: boolean;
 }
 
-/** The cover letter a person keeps on file (db/025), or null when none is
-    stored. Shown as a one-line "on file" receipt with a way to replace or
-    remove it. */
-export interface CoverLetterOnFileSummary {
+/** A document this person has on file, or null when none is. Shown as a
+    one-line receipt with a way to replace or remove it. ONE SHAPE FOR BOTH
+    DOCUMENTS (owner, 2026-09-25: the two sections are the same, essentially),
+    so the resume's receipt and the letter's cannot drift apart. */
+export interface DocumentOnFileSummary {
   sourceName: string | null;
   /** A already-formatted "added" date, or null. The component prints it as
       given; formatting is the caller's job (record data, not UI logic). */
   addedLabel: string | null;
+  /** How many record entries this document put in, so the Remove can name its
+      own cost. Removing a document deletes these (db/209); a control that
+      deletes confirmed record rows must not read like one that tidies up a
+      filename. */
+  entryCount: number;
 }
+
+/** The old name, kept so callers and specimens that import it still compile. */
+export type CoverLetterOnFileSummary = DocumentOnFileSummary;
 
 interface Props {
   state: ImportBandState;
@@ -80,7 +89,15 @@ interface Props {
       shown only when this is given. */
   coverAction?: string | null;
   /** The letter on file, or null. */
-  coverLetterOnFile?: CoverLetterOnFileSummary | null;
+  coverLetterOnFile?: DocumentOnFileSummary | null;
+  /** The resume read last, or null when none has been. Its receipt is the
+      resume's half of the symmetry: the letter always had a way to be taken
+      off, and the resume had none, so a second upload stacked a second copy
+      of every role with nothing to undo it. */
+  resumeOnFile?: DocumentOnFileSummary | null;
+  /** Where a resume remove posts. Optional for the same reason coverAction is:
+      a specimen that passes neither renders the band without the affordance. */
+  resumeRemoveAction?: string | null;
 }
 
 const {
@@ -93,7 +110,9 @@ const {
   profilePath,
   settingsPath,
   coverAction = null,
-  coverLetterOnFile = null
+  coverLetterOnFile = null,
+  resumeOnFile = null,
+  resumeRemoveAction = null
 } = Astro.props;
 ---
 
@@ -195,6 +214,31 @@ const {
             <button class="field-submit" type="submit">Read the text</button>
           </form>
         </details>
+
+        {/* The resume's receipt. The letter has always had one and the resume
+            had none, which is how a second upload came to stack a second copy
+            of every role with nothing to undo it. Removing it deletes the
+            entries that read put in, and the line says so before it is
+            pressed. The document itself was never stored and is not stored
+            now: this is its name and the moment it was read. */}
+        {resumeOnFile && resumeRemoveAction && (
+          <div class="import-onfile" role="status">
+            <span class="import-onfile-label mono-label">Resumé read</span>
+            {/* One expression, not two siblings: Astro renders the newline
+                between two of them, which printed as "resume.pdf , March 1". */}
+            <span class="import-onfile-name">
+              {[resumeOnFile.sourceName ?? 'Pasted text', resumeOnFile.addedLabel].filter(Boolean).join(', ')}
+            </span>
+            <form class="import-onfile-remove" method="POST" action={resumeRemoveAction}>
+              <input type="hidden" name="intent" value="remove" />
+              <button class="import-onfile-remove-button" type="submit">
+                {resumeOnFile.entryCount > 0
+                  ? `Remove, with the ${resumeOnFile.entryCount} ${resumeOnFile.entryCount === 1 ? 'entry' : 'entries'} it added`
+                  : 'Remove'}
+              </button>
+            </form>
+          </div>
+        )}
       </>
     ) : (
       <div class="import-locked">
@@ -208,24 +252,50 @@ const {
       </div>
     ))}
 
-  {/* The cover letter on file. Unlike the resume, it needs no key to store: it
-      is kept as a writing-voice sample and a drafted cover letter adapts it,
-      keeping the person's voice. Any dated role or employer it names is proposed
-      into the record through the same reviewer a resume upload uses (which does
-      need a key). A native <details> and plain POSTs, so it works with no
-      script, the same as the paste affordance above. */}
+  {/* ---------------------------------------------------------------------
+      The cover letter. THE SAME SECTION AS THE RESUME, ESSENTIALLY (owner,
+      2026-09-25). It used to be a bare <input type="file"> — the browser's
+      grey "Choose File / no file selected" — and a raw textarea hanging open
+      under it, one hairline below a dashed drop box with an arrow and a chip.
+      Same band, same endpoint shape, two different eras of the design.
+
+      So it now carries the resume half's own classes, not lookalikes of them:
+      .import-dropzone, .import-dropzone-mark, .import-chips and the paste
+      <details> are the same rules painting both boxes, which is the only way
+      the two stay the same the next time one of them changes.
+
+      The three data-cover-* hooks are ones /profile's script has been
+      reaching for since it was written (it wires wireDropZone and the file
+      chip to them); the markup they enhance never landed. Deliberately NOT
+      [data-import-form]: a letter is stored, not read on the polling path, so
+      it posts plainly to /profile/import/cover.
+
+      Unlike the resume it needs no key to store: it is kept as a writing-voice
+      sample and a drafted cover letter adapts it, keeping the person's voice.
+      Any dated role or employer it names is proposed into the record through
+      the same reader a resume upload uses (which does need a key). Native
+      <details> and plain POSTs, so it works with no script.
+      --------------------------------------------------------------------- */}
   {state === 'idle' && coverAction && (
     <div class="import-cover">
       {coverLetterOnFile && (
-        <div class="import-cover-onfile" role="status">
-          <span class="import-cover-label mono-label">Cover letter on file</span>
-          <span class="import-cover-name">
-            {coverLetterOnFile.sourceName ?? 'Pasted text'}
-            {coverLetterOnFile.addedLabel && `, added ${coverLetterOnFile.addedLabel}`}
+        <div class="import-onfile" role="status">
+          <span class="import-onfile-label mono-label">Cover letter on file</span>
+          <span class="import-onfile-name">
+            {[
+              coverLetterOnFile.sourceName ?? 'Pasted text',
+              coverLetterOnFile.addedLabel && `added ${coverLetterOnFile.addedLabel}`
+            ]
+              .filter(Boolean)
+              .join(', ')}
           </span>
-          <form class="import-cover-remove" method="POST" action={coverAction}>
+          <form class="import-onfile-remove" method="POST" action={coverAction}>
             <input type="hidden" name="intent" value="remove" />
-            <button class="import-cover-remove-button" type="submit">Remove</button>
+            <button class="import-onfile-remove-button" type="submit">
+              {coverLetterOnFile.entryCount > 0
+                ? `Remove, with the ${coverLetterOnFile.entryCount} ${coverLetterOnFile.entryCount === 1 ? 'entry' : 'entries'} it added`
+                : 'Remove'}
+            </button>
           </form>
         </div>
       )}
@@ -239,24 +309,48 @@ const {
             sample; any dated role or employer it names is proposed into your record for you to
             review before anything is saved.
           </p>
-          <form class="import-cover-file-form" method="POST" action={coverAction} enctype="multipart/form-data">
-            <label class="field-label" for="import-cover-file">Upload a file</label>
-            <input
-              class="import-cover-file-input"
-              id="import-cover-file"
-              type="file"
-              name="file"
-              accept=".md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            />
+
+          <form
+            class="import-file-form"
+            method="POST"
+            action={coverAction}
+            enctype="multipart/form-data"
+          >
+            <label class="import-dropzone" data-cover-dropzone>
+              <input
+                class="import-file-input"
+                id="import-cover-file"
+                type="file"
+                name="file"
+                data-cover-file-input
+                accept=".md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              />
+              <span class="import-dropzone-mark" aria-hidden="true">&#8595;</span>
+              <span class="import-dropzone-head">
+                {coverLetterOnFile ? 'Drop a different letter here' : 'Drop your cover letter here'}
+              </span>
+              <span class="import-dropzone-hint">
+                Drag it here, or click to choose. PDF, Word, Markdown, plain text. Up to 4 MB.
+                {coverLetterOnFile && ' It replaces the one on file.'}
+              </span>
+              <span class="import-chips" data-cover-file-chips />
+            </label>
             <button class="field-submit" type="submit">Save cover letter</button>
           </form>
-          <form class="record-form import-cover-paste-form" method="POST" action={coverAction}>
-            <div class="field">
-              <label class="field-label" for="import-cover-pasted">Or paste your cover letter</label>
-              <textarea class="import-cover-area" id="import-cover-pasted" name="pasted" rows="10" />
-            </div>
-            <button class="field-submit" type="submit">Save pasted letter</button>
-          </form>
+
+          {/* Closed on arrival, the same as the resume's. An empty textarea
+              sitting open under a drop box makes the section look like a form
+              to fill in rather than a file to hand over. */}
+          <details class="import-cover-paste">
+            <summary class="import-paste-summary import-cover-paste-summary">Paste text instead</summary>
+            <form class="record-form import-cover-paste-form" method="POST" action={coverAction}>
+              <div class="field">
+                <label class="field-label" for="import-cover-pasted">Pasted cover letter</label>
+                <textarea class="field-input field-textarea import-paste-area" id="import-cover-pasted" name="pasted" rows="16" />
+              </div>
+              <button class="field-submit" type="submit">Save pasted letter</button>
+            </form>
+          </details>
         </div>
       </details>
     </div>
@@ -382,16 +476,27 @@ const {
      sets its own border — so the treatment is written out here, with the same
      values, rather than left to a rule that never lands.
 
-     Hover and focus take it too. The plain foreground-and-grey wash this
-     replaced read as a hairline hover on a table row, not as a target that
-     catches a file, and the box is a big one: one answer for pointer, keyboard
-     and drag is what makes it read as the same thing in all three. */
-  .import-dropzone:hover,
-  .import-dropzone:focus-within,
+     ONLY A DRAG GETS IT. The lit edge and the wash mean "let go and this
+     catches the file", which is a lie when the pointer is merely crossing the
+     box on its way somewhere else. A pointer passing over a target is not an
+     intention; a file held over it is. Hover gets the quiet edge below and
+     the cursor, keyboard focus gets a ring. */
   .import-dropzone.is-dragging {
     border-style: solid;
     border-color: var(--color-signal);
     background: color-mix(in srgb, var(--color-signal) 8%, transparent);
+  }
+  /* Hover says clickable and nothing more: the dashed edge brightens, no
+     fill, nothing that reads as a target about to accept something. */
+  .import-dropzone:hover {
+    border-color: var(--color-foreground);
+  }
+  /* A keyboard reaching the picker has no cursor to show for it, so it gets
+     a ring rather than a fill — the same ring Come ready puts on its own file
+     control when it is tabbed to. */
+  .import-dropzone:focus-within {
+    outline: 2px solid var(--color-foreground);
+    outline-offset: 2px;
   }
   /* The real control, kept in the accessibility tree and kept operable by
      keyboard: it is the label's own input, so clicking anywhere in the dashed
@@ -544,30 +649,30 @@ const {
     padding-bottom: 2px;
   }
 
-  /* The cover-letter affordance: a hairline-separated band foot, matching the
-     paste affordance's own summary bar. */
-  .import-cover {
-    border-top: var(--border-hairline) solid var(--color-line);
-  }
-  .import-cover-onfile {
+  /* The receipt line, shared by both documents. One rule, because the resume's
+     receipt and the letter's are the same line saying the same kind of thing,
+     and two rules would have drifted the first time one of them changed. Same
+     shape as the three flat states above it. */
+  .import-onfile {
     display: flex;
     align-items: baseline;
     gap: var(--space-400);
     flex-wrap: wrap;
     padding: var(--space-400) var(--space-500);
+    border-top: var(--border-hairline) solid var(--color-line);
     font-family: var(--font-family-mono);
     font-size: var(--size-075);
     color: var(--color-foreground);
   }
-  .import-cover-label {
+  .import-onfile-label {
     letter-spacing: var(--tracking-loose);
     text-transform: uppercase;
     color: var(--color-muted);
   }
-  .import-cover-remove {
+  .import-onfile-remove {
     margin: 0 0 0 auto;
   }
-  .import-cover-remove-button {
+  .import-onfile-remove-button {
     background: transparent;
     border: 0;
     padding: 0;
@@ -579,9 +684,23 @@ const {
     color: var(--color-muted);
     text-decoration: underline;
     text-underline-offset: var(--text-underline-offset);
+    text-align: left;
   }
-  .import-cover-remove-button:hover {
+  .import-onfile-remove-button:hover {
     color: var(--color-foreground);
+  }
+
+  /* The cover-letter section: a hairline-separated band foot, matching the
+     paste affordance's own summary bar. Its insides are the resume half's
+     rules, not copies of them, so the two boxes cannot drift. */
+  .import-cover {
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  /* Two receipts cannot both draw the line between them. The letter's sits
+     directly under the resume's when both are on file, and the section's own
+     border already drew that hairline. */
+  .import-cover .import-onfile {
+    border-top: 0;
   }
   .import-cover-body {
     display: flex;
@@ -596,30 +715,13 @@ const {
     line-height: var(--leading-normal);
     color: var(--color-muted);
   }
-  .import-cover-file-form,
+  /* The nested paste toggle sits inside the cover body, which already carries
+     the band's side padding, so its own summary adds none. */
+  .import-cover-paste-summary {
+    padding-inline: 0;
+  }
   .import-cover-paste-form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-300);
-    align-items: flex-start;
-  }
-  .import-cover-file-input {
-    font-family: var(--font-family-mono);
-    font-size: var(--size-075);
-    color: var(--color-foreground);
-  }
-  .import-cover-area {
-    width: 100%;
-    min-height: 12rem;
-    padding: var(--space-300);
-    background: var(--color-surface);
-    border: var(--border-hairline) solid var(--color-line-strong);
-    color: var(--color-foreground);
-    font-family: var(--font-family-sans);
-    font-size: var(--size-100);
-    line-height: var(--leading-normal);
-    resize: vertical;
-    box-sizing: border-box;
+    padding: var(--space-300) 0 0;
   }
 
   /* Forms, matching sign-in.astro / sign-up.astro's field vocabulary, the
@@ -679,7 +781,7 @@ const {
     .import-how,
     .import-locked,
     .import-paste-summary,
-    .import-cover-onfile,
+    .import-onfile,
     .import-working:not([hidden]),
     .import-note:not([hidden]) {
       padding-inline: var(--space-400);
@@ -687,6 +789,9 @@ const {
     .import-paste-form,
     .import-cover-body {
       padding-inline: var(--space-400);
+    }
+    .import-cover-paste-summary {
+      padding-inline: 0;
     }
   }
 </style>

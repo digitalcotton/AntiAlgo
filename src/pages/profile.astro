@@ -104,7 +104,7 @@ import {
 } from '../components/profile/record-relay';
 import { routeFor } from '../data/nav';
 import { CEILINGS, CLASSIFICATIONS, ENTRY_KINDS } from '../lib/record';
-import { getCoverLetter, listEntries, listLinks, personName } from '../lib/record-store';
+import { countEntriesFrom, getCoverLetter, getResumeOnFile, listEntries, listLinks, personName } from '../lib/record-store';
 import { linkPlatformLabel } from '../lib/profile-links';
 import PlatformIcon from '../components/profile/PlatformIcon.astro';
 import { getParse } from '../lib/resume-parse-store';
@@ -335,19 +335,52 @@ const parseAction = routeFor('profile-import-parse');
 const coverAction = routeFor('profile-import-cover');
 const reviewPath = routeFor('profile-review');
 
-// The cover letter on file, and its "added" date formatted for the on-file
-// line. Formatting lives here (the component prints the label as given), using
-// the same month names the rest of this page uses.
-const coverLetterRecord = allowed && viewer ? await getCoverLetter(viewer.userId) : null;
+/* THE TWO DOCUMENTS ON FILE, read the same way and shaped the same way (owner,
+   2026-09-25: the two sections are the same, essentially). Each is a name, a
+   date and the number of record entries it put in — that last one is what the
+   band's Remove names before it is pressed, because removing a document
+   deletes those entries (db/209) and a control that deletes confirmed record
+   rows must not read like one that tidies up a filename.
+
+   Date formatting lives here, not in the component, which prints the label as
+   given: it is record data, not UI logic, and it uses the same month names the
+   rest of this page uses.
+
+   Four reads, together rather than in sequence: none of them needs another's
+   answer. */
+const [coverLetterRecord, resumeRecord, coverEntryCount, resumeEntryCount] =
+  allowed && viewer
+    ? await Promise.all([
+        getCoverLetter(viewer.userId),
+        getResumeOnFile(viewer.userId),
+        countEntriesFrom(viewer.userId, 'cover_letter'),
+        countEntriesFrom(viewer.userId, 'resume')
+      ])
+    : [null, null, 0, 0];
+
+function addedLabelFor(iso: string | null): string | null {
+  if (!iso) return null;
+  const when = new Date(iso);
+  return `${MONTH_NAMES[when.getUTCMonth()]} ${when.getUTCDate()}, ${when.getUTCFullYear()}`;
+}
+
 const coverLetterOnFile = coverLetterRecord
   ? {
       sourceName: coverLetterRecord.sourceName,
-      addedLabel: coverLetterRecord.addedAt
-        ? (() => {
-            const when = new Date(coverLetterRecord.addedAt);
-            return `${MONTH_NAMES[when.getUTCMonth()]} ${when.getUTCDate()}, ${when.getUTCFullYear()}`;
-          })()
-        : null
+      addedLabel: addedLabelFor(coverLetterRecord.addedAt),
+      entryCount: coverEntryCount
+    }
+  : null;
+
+/* The resume's receipt is labelled "Resumé read", not "on file": the document
+   itself was never kept. What is on file is its name and the moment it was
+   read (db/209's own header), and the band says exactly that. The label
+   carries the verb, so the date beside it is only the date. */
+const resumeOnFile = resumeRecord
+  ? {
+      sourceName: resumeRecord.sourceName,
+      addedLabel: addedLabelFor(resumeRecord.addedAt),
+      entryCount: resumeEntryCount
     }
   : null;
 const linkAction = routeFor('profile-link');
@@ -413,6 +446,8 @@ const linkAction = routeFor('profile-link');
               settingsPath={settingsPath}
               coverAction={coverAction}
               coverLetterOnFile={coverLetterOnFile}
+              resumeOnFile={resumeOnFile}
+              resumeRemoveAction={parseAction}
             />
 
             {/* The script's status carrier. A finished read lands in the record
@@ -797,6 +832,9 @@ const linkAction = routeFor('profile-link');
   const dropzone = document.querySelector<HTMLElement>('[data-dropzone]');
   const fileInput = document.querySelector<HTMLInputElement>('[data-file-input]');
   const chips = document.querySelector<HTMLElement>('[data-file-chips]');
+  const coverDropzone = document.querySelector<HTMLElement>('[data-cover-dropzone]');
+  const coverFileInput = document.querySelector<HTMLInputElement>('[data-cover-file-input]');
+  const coverChips = document.querySelector<HTMLElement>('[data-cover-file-chips]');
 
   const statusUrl = slot?.dataset.statusUrl ?? '';
   const providerLabel = working?.dataset.providerLabel ?? '';

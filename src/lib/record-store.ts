@@ -69,6 +69,13 @@ export interface StoredEntry extends ProfileEntry {
   artifacts: readonly StoredArtifact[];
 }
 
+/**
+ * The document an entry came in on (db/209). Null everywhere it is absent, and
+ * absent is the common case: an entry typed into the hand-entry form belongs to
+ * nobody but the person, and no document's remove may ever touch it.
+ */
+export type ImportSource = 'resume' | 'cover_letter';
+
 /** What a caller may change about an entry's core fields. Artifacts are
     deliberately absent: they are added and removed through their own
     functions below, each scoped to one artifact, not replaced wholesale by
@@ -99,6 +106,9 @@ export interface RecordEntryRow {
   description: string;
   classification: Classification;
   provenance: Provenance;
+  /** db/209. Null means typed by hand, which is every row written before that
+      migration and every row the hand-entry form writes after it. */
+  import_source?: ImportSource | null;
   created_at: Date | string;
   updated_at: Date | string;
 }
@@ -549,7 +559,11 @@ async function insertArtifact(
  * or rolls back, so two calls can never read the same ledger and both
  * compute the same "next" id.
  */
-export async function createEntry(userId: string, input: NewEntryInput): Promise<StoredEntry> {
+export async function createEntry(
+  userId: string,
+  input: NewEntryInput,
+  importSource: ImportSource | null = null
+): Promise<StoredEntry> {
   const client = await db().connect();
   try {
     await client.query('BEGIN');
@@ -580,8 +594,9 @@ export async function createEntry(userId: string, input: NewEntryInput): Promise
     const { rows: entryRows } = await client.query<RecordEntryRow>(
       `INSERT INTO record_entry
          (user_id, prf_id, kind, employer_or_institution, official_title,
-          start_year, start_month, end_year, end_month, location, description, classification)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          start_year, start_month, end_year, end_month, location, description, classification,
+          import_source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         userId,
@@ -595,7 +610,8 @@ export async function createEntry(userId: string, input: NewEntryInput): Promise
         input.end?.month ?? null,
         input.location,
         input.description,
-        input.classification
+        input.classification,
+        importSource
       ]
     );
 
@@ -688,6 +704,46 @@ export async function updateEntry(userId: string, prfId: string, input: EntryCor
 export async function deleteEntry(userId: string, prfId: string): Promise<boolean> {
   const result = await db().query('DELETE FROM record_entry WHERE user_id = $1 AND prf_id = $2', [userId, prfId]);
   return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * Deletes every entry one document brought in, and returns how many went
+ * (db/209). This is what a document's "Remove" actually costs: removing the
+ * resume or the cover letter takes back the record rows that document put in,
+ * which is the owner's rule of 2026-09-25 — whatever records we took in,
+ * delete them.
+ *
+ * WHAT IT CANNOT REACH, BY DESIGN. `import_source IS NULL` is every entry
+ * typed into the hand-entry form, and every entry that predates db/209. The
+ * equality below never matches NULL, so no remove can take a row the person
+ * wrote themselves, and no remove can take a row from the other document.
+ * That is the whole reason the column exists rather than "delete the imported
+ * ones".
+ *
+ * record_artifact cascades on the composite key (db/104), so the links hanging
+ * off these entries go with them in the same statement.
+ *
+ * PRF IDS ARE NOT RETURNED TO THE POOL, exactly as deleteEntry above leaves
+ * them: the id ledger on app_user_profile is untouched, so the next entry gets
+ * the next number and a number never names two different facts.
+ */
+export async function deleteEntriesFrom(userId: string, source: ImportSource): Promise<number> {
+  const result = await db().query('DELETE FROM record_entry WHERE user_id = $1 AND import_source = $2', [
+    userId,
+    source
+  ]);
+  return result.rowCount ?? 0;
+}
+
+/** How many entries one document has in the record right now. What the band's
+    Remove line names before it is pressed, so a control that deletes confirmed
+    record rows says its cost out loud. */
+export async function countEntriesFrom(userId: string, source: ImportSource): Promise<number> {
+  const { rows } = await db().query<{ n: string }>(
+    'SELECT count(*) AS n FROM record_entry WHERE user_id = $1 AND import_source = $2',
+    [userId, source]
+  );
+  return Number(rows[0]?.n ?? 0);
 }
 
 /**
@@ -934,10 +990,72 @@ export async function setCoverLetter(userId: string, text: string, sourceName: s
   return (result.rowCount ?? 0) > 0;
 }
 
-/** Removes the letter on file, clearing all three columns. */
+/** Removes the letter on file, clearing all three columns. The entries the
+    letter proposed into the record are a separate statement; the endpoint runs
+    deleteEntriesFrom(userId, 'cover_letter') beside this one. */
 export async function clearCoverLetter(userId: string): Promise<boolean> {
   const result = await db().query(
     'UPDATE app_user_profile SET cover_letter_text = NULL, cover_letter_source_name = NULL, cover_letter_added_at = NULL WHERE user_id = $1',
+    [userId]
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/* -------------------------------------------------------------------------
+   The resume's receipt (db/209). Deliberately NOT the shape of the cover
+   letter above it: there is no resume_text column and there is not going to be
+   one. The band's third promise reads "Read once, in memory, then gone.
+   Nothing stored, nothing sent to us", and that stays literally true — what is
+   kept here is the file's NAME and the moment it was read, so the person has
+   something to point a Remove at. The resume itself lives in memory for the
+   one parse call and is gone after (src/lib/resume-extract.ts's rule).
+   ------------------------------------------------------------------------- */
+
+export interface ResumeOnFile {
+  /** The uploaded file's name, or null when the resume was pasted as text. */
+  readonly sourceName: string | null;
+  /** When it was read, ISO 8601. */
+  readonly addedAt: string | null;
+}
+
+interface ResumeReceiptRow {
+  resume_source_name: string | null;
+  resume_added_at: Date | string | null;
+}
+
+/** The last resume read, or null when none has been. A paste leaves a receipt
+    too (sourceName null, addedAt set), because a pasted resume lands the same
+    entries a file does and must be as removable. */
+export async function getResumeOnFile(userId: string): Promise<ResumeOnFile | null> {
+  const { rows } = await db().query<ResumeReceiptRow>(
+    'SELECT resume_source_name, resume_added_at FROM app_user_profile WHERE user_id = $1',
+    [userId]
+  );
+  const row = rows[0];
+  if (!row || row.resume_added_at === null) return null;
+  const addedAt = row.resume_added_at;
+  return {
+    sourceName: row.resume_source_name,
+    addedAt: addedAt instanceof Date ? addedAt.toISOString() : addedAt
+  };
+}
+
+/** Stamps a resume read, replacing any earlier one: there is one resume on
+    file at a time, the same "replaced each upload" rule db/115 holds for the
+    parse buffer. */
+export async function setResumeOnFile(userId: string, sourceName: string | null): Promise<boolean> {
+  const result = await db().query(
+    'UPDATE app_user_profile SET resume_source_name = $2, resume_added_at = now() WHERE user_id = $1',
+    [userId, sourceName]
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/** Clears the receipt. As with the letter, the entries are a separate
+    statement the endpoint runs beside this one. */
+export async function clearResumeOnFile(userId: string): Promise<boolean> {
+  const result = await db().query(
+    'UPDATE app_user_profile SET resume_source_name = NULL, resume_added_at = NULL WHERE user_id = $1',
     [userId]
   );
   return (result.rowCount ?? 0) > 0;

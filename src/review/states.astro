@@ -548,7 +548,9 @@ const PROPOSAL_STATE: EntryProposal[] = [
       </p>
 
       <div class="specimen">
-        <p class="specimen-label mono-label">The import band, idle, with a key connected and a cover letter on file</p>
+        <p class="specimen-label mono-label">
+          The import band, idle, with a key connected and both documents on file
+        </p>
         <ImportBand
           state="idle"
           hasProviderKey={true}
@@ -558,7 +560,9 @@ const PROPOSAL_STATE: EntryProposal[] = [
           profilePath={profileHref}
           settingsPath={routeFor('settings')}
           coverAction={routeFor('profile-import-cover')}
-          coverLetterOnFile={{ sourceName: 'ryan-payne-cover.pdf', addedLabel: 'March 3, 2026' }}
+          coverLetterOnFile={{ sourceName: 'ryan-payne-cover.pdf', addedLabel: 'March 3, 2026', entryCount: 2 }}
+          resumeOnFile={{ sourceName: 'ryan-payne.pdf', addedLabel: 'March 1, 2026', entryCount: 11 }}
+          resumeRemoveAction={routeFor('profile-import-parse')}
         />
       </div>
 

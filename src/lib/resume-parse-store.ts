@@ -14,6 +14,7 @@
  * getRenders, minus the per-kind fan-out: a parse is one row, not two.
  */
 import { db } from './db';
+import type { ImportSource } from './record-store';
 import type { ResumeProposals } from './resume-parse';
 
 /** The finished parse, serialized whole into resume_parse.outcome. */
@@ -38,6 +39,12 @@ export type ParseStatus = 'pending' | 'ready';
 export interface StoredParse {
   readonly status: ParseStatus;
   readonly sourceName: string | null;
+  /** Which document this read belongs to (db/209). The buffer is the only
+      thing that survives between the upload request and the background apply,
+      so it is where the answer has to live: a cover letter goes through this
+      same reader, and the entries a read lands are tagged with this so the
+      document's own Remove can take them back. */
+  readonly importSource: ImportSource;
   /** Null while status is 'pending'. */
   readonly outcome: StoredParseOutcome | null;
   readonly updatedAt: Date;
@@ -46,6 +53,7 @@ export interface StoredParse {
 interface ResumeParseRow {
   status: ParseStatus;
   source_name: string | null;
+  import_source: ImportSource;
   outcome: StoredParseOutcome | null;
   updated_at: Date | string;
 }
@@ -62,6 +70,7 @@ export function rowToStoredParse(row: ResumeParseRow): StoredParse {
   return {
     status: row.status,
     sourceName: row.source_name,
+    importSource: row.import_source,
     outcome: row.outcome,
     updatedAt: toDate(row.updated_at)
   };
@@ -73,16 +82,21 @@ export function rowToStoredParse(row: ResumeParseRow): StoredParse {
  * while a new one is running. ON CONFLICT on the user_id primary key is what
  * makes "one parse per person, replaced each time" true.
  */
-export async function beginParse(userId: string, sourceName: string | null): Promise<void> {
+export async function beginParse(
+  userId: string,
+  sourceName: string | null,
+  importSource: ImportSource = 'resume'
+): Promise<void> {
   await db().query(
-    `INSERT INTO resume_parse (user_id, status, source_name, outcome, updated_at)
-     VALUES ($1, 'pending', $2, NULL, now())
+    `INSERT INTO resume_parse (user_id, status, source_name, import_source, outcome, updated_at)
+     VALUES ($1, 'pending', $2, $3, NULL, now())
      ON CONFLICT (user_id) DO UPDATE SET
        status = 'pending',
        source_name = EXCLUDED.source_name,
+       import_source = EXCLUDED.import_source,
        outcome = NULL,
        updated_at = now()`,
-    [userId, sourceName]
+    [userId, sourceName, importSource]
   );
 }
 
@@ -104,7 +118,7 @@ export async function completeParse(userId: string, outcome: StoredParseOutcome)
 /** This person's current parse, or null when they have never uploaded one. */
 export async function getParse(userId: string): Promise<StoredParse | null> {
   const { rows } = await db().query<ResumeParseRow>(
-    'SELECT status, source_name, outcome, updated_at FROM resume_parse WHERE user_id = $1',
+    'SELECT status, source_name, import_source, outcome, updated_at FROM resume_parse WHERE user_id = $1',
     [userId]
   );
   const row = rows[0];

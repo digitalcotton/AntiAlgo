@@ -32,6 +32,7 @@ import { GENERATION_PROVIDER_ORDER, PROVIDER_REGISTRY } from './generation-provi
 import { parseResumeDeterministic, parseResumeWithProvider } from './resume-parse';
 import { beginParse, clearParse, completeParse, type StoredParseOutcome } from './resume-parse-store';
 import { applyParsedProposals } from './resume-parse-apply';
+import type { ImportSource } from './record-store';
 import type { Provider } from './keychain';
 
 /**
@@ -40,8 +41,18 @@ import type { Provider } from './keychain';
  * the already-extracted plain text of the upload (src/lib/resume-extract.ts
  * ran in the request); it is held in memory and passed to the background read,
  * never written to the database.
+ *
+ * `importSource` names which document this is. A cover letter goes through
+ * this same reader (src/pages/profile/import/cover.ts), and the entries the
+ * read lands are tagged with it (db/209) so that document's own Remove can
+ * take them back and no other's can.
  */
-export async function startResumeParse(userId: string, sourceName: string | null, sourceText: string): Promise<void> {
+export async function startResumeParse(
+  userId: string,
+  sourceName: string | null,
+  sourceText: string,
+  importSource: ImportSource = 'resume'
+): Promise<void> {
   // The same gates generation-preference-store.ts runs, cheapest first, no key
   // table touched unless both pass. A person with byok off or no encryption
   // secret configured gets the deterministic reader, not an error.
@@ -58,7 +69,7 @@ export async function startResumeParse(userId: string, sourceName: string | null
     provider = chosen ? chosen.provider : null;
   }
 
-  await beginParse(userId, sourceName);
+  await beginParse(userId, sourceName, importSource);
 
   // Deferred, not awaited, and DEFERRED THROUGH THE PLATFORM: a bare void
   // fire on Vercel can be frozen the moment the 303 goes out, leaving the row
@@ -66,7 +77,7 @@ export async function startResumeParse(userId: string, sourceName: string | null
   // a background job's failure is logged, never thrown into a caller that has
   // already returned.
   deferWork(
-    parseInBackground(userId, sourceText, provider).catch((error) => {
+    parseInBackground(userId, sourceText, provider, importSource).catch((error) => {
       console.error(`resume-parse-runner: background parse for user ${userId} threw past its own guard.`, error);
     })
   );
@@ -80,7 +91,12 @@ export async function startResumeParse(userId: string, sourceName: string | null
  * completes the row 'ready' unless BOTH readers throw, which cannot happen for
  * the deterministic one (it is pure) but is caught anyway.
  */
-export async function parseInBackground(userId: string, sourceText: string, provider: Provider | null): Promise<void> {
+export async function parseInBackground(
+  userId: string,
+  sourceText: string,
+  provider: Provider | null,
+  importSource: ImportSource = 'resume'
+): Promise<void> {
   try {
     let outcome: StoredParseOutcome;
 
@@ -126,7 +142,7 @@ export async function parseInBackground(userId: string, sourceText: string, prov
     // throws, the row stays 'ready' so the review screen still offers the
     // proposals rather than losing them.
     try {
-      const applied = await applyParsedProposals(userId, outcome.proposals);
+      const applied = await applyParsedProposals(userId, outcome.proposals, importSource);
       console.log(
         `resume-parse-runner: applied the read for user ${userId}: ${applied.created} entries created, ${applied.failed} failed, ${applied.links} links, name ${applied.name ? 'set' : 'kept'}.`
       );

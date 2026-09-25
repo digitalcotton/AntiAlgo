@@ -53,10 +53,11 @@ beforeEach(() => {
 });
 
 describe('landReadyParse(): a read still waiting in the buffer lands on the next visit', () => {
-  function readyParse(entries: ReturnType<typeof validCandidate>[]) {
+  function readyParse(entries: ReturnType<typeof validCandidate>[], importSource = 'resume') {
     return {
       status: 'ready',
       sourceName: 'resume.pdf',
+      importSource,
       updatedAt: new Date(),
       outcome: {
         method: 'deterministic',
@@ -81,6 +82,16 @@ describe('landReadyParse(): a read still waiting in the buffer lands on the next
     expect(clearParse).toHaveBeenCalledWith('user_1');
     // Land, then clear: never the other way round.
     expect(createEntry.mock.invocationCallOrder[1]).toBeLessThan(clearParse.mock.invocationCallOrder[0]);
+  });
+
+  /* A letter read through the shared buffer must come out of it still knowing
+     it was a letter: the buffer is the only thing that survives between the
+     upload request and a read that lands later, on the next /profile load or
+     on a draft POST. */
+  it('lands a waiting read under the document the buffer remembers', async () => {
+    getParse.mockResolvedValue(readyParse([validCandidate('Designer')], 'cover_letter'));
+    await landReadyParse('user_1');
+    expect(createEntry).toHaveBeenCalledWith('user_1', expect.anything(), 'cover_letter');
   });
 
   it('nothing waiting, or a read still running, touches nothing and returns null', async () => {
@@ -152,6 +163,21 @@ describe('applyParsedProposals(): a finished read lands in the record', () => {
     expect(addLink).toHaveBeenCalledTimes(1);
     expect(addLink.mock.calls[0][1]).toBe('portfolio');
     expect(result.links).toBe(1);
+  });
+
+  /* db/209. The tag on a created entry is what a document's Remove deletes by,
+     so an entry that lands untagged can never be taken back, and one tagged
+     with the wrong document is taken back by the wrong Remove. Both are silent
+     failures in the database rather than errors anywhere, which is why they
+     are asserted here. */
+  it('tags every entry it creates with the document that brought it in', async () => {
+    await applyParsedProposals('user_1', proposals({ entries: [{ candidate: validCandidate('Designer'), sourceQuotes: {} }] }), 'cover_letter');
+    expect(createEntry).toHaveBeenCalledWith('user_1', expect.anything(), 'cover_letter');
+  });
+
+  it('defaults to the resume, so a caller that names no document cannot land an untagged entry', async () => {
+    await applyParsedProposals('user_1', proposals({ entries: [{ candidate: validCandidate('Designer'), sourceQuotes: {} }] }));
+    expect(createEntry).toHaveBeenCalledWith('user_1', expect.anything(), 'resume');
   });
 
   it('sets the name only when the profile has none', async () => {

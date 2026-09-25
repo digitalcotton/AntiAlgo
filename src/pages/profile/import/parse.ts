@@ -19,11 +19,18 @@
  * read once, in memory, and never stored (src/lib/resume-extract.ts's rule);
  * the raw resume text is handed to the background parse in memory and never
  * written to a column either (db/015's rule).
+ *
+ * IT ALSO ANSWERS intent=remove, the same verb import/cover.ts answers for the
+ * letter. Removing the resume clears its receipt and DELETES THE RECORD
+ * ENTRIES THAT READ PUT IN (owner, 2026-09-25: whatever records we took in,
+ * delete them). It reaches only rows tagged import_source = 'resume' (db/209),
+ * so an entry typed by hand, or one the cover letter brought in, is untouched.
  */
 import type { APIContext } from 'astro';
 import { extractResumeText } from '../../../lib/resume-extract';
 import { startResumeParse } from '../../../lib/resume-parse-runner';
-import { beginParse, completeParse } from '../../../lib/resume-parse-store';
+import { beginParse, clearParse, completeParse } from '../../../lib/resume-parse-store';
+import { clearResumeOnFile, deleteEntriesFrom, setResumeOnFile } from '../../../lib/record-store';
 import type { ImportWireStatus } from '../../../lib/resume-parse-wire';
 import { keyStorageIsConfigured } from '../../../lib/keychain';
 import { keyMeta } from '../../../lib/keychain-store';
@@ -51,9 +58,14 @@ const KEY_REQUIRED_MESSAGE =
   'Reading a resume needs your own AI provider key. Without one, only a basic reader is available: it matches one strict shape and misses anything written differently, so it is not run. Connect a key in Settings and your own model reads your resume properly.';
 
 const REVIEW_PATH = '/profile/review';
+const PROFILE_PATH = '/profile';
 
 function redirectToReview(): Response {
   return new Response(null, { status: 303, headers: { Location: withBase(REVIEW_PATH) } });
+}
+
+function redirectToProfile(): Response {
+  return new Response(null, { status: 303, headers: { Location: withBase(PROFILE_PATH) } });
 }
 
 /** Whether the caller is the profile page's own fetch() rather than a plain
@@ -125,6 +137,21 @@ export async function POST(context: APIContext): Promise<Response> {
 
   const userId = viewer.userId;
 
+  // REMOVE COMES FIRST, BEFORE THE KEY GATE. Taking a document back needs no
+  // model and no key: a person who removed their key must still be able to
+  // remove what a past read of theirs put in the record. Three effects, in the
+  // order that keeps them coherent if the request dies partway: the entries
+  // go, the receipt goes, and any read still sitting in the buffer is dropped
+  // so it cannot land after the remove and refill the record.
+  const removeForm = await context.request.formData();
+  if (String(removeForm.get('intent') ?? '') === 'remove') {
+    const removed = await deleteEntriesFrom(userId, 'resume');
+    await clearResumeOnFile(userId);
+    await clearParse(userId);
+    console.log(`profile/import/parse: removed the resume for user ${userId}, with ${removed} entries.`);
+    return wantsJson(context) ? jsonResponse({ status: 'ready', removed }) : redirectToProfile();
+  }
+
   // The bring-your-own-key gate, enforced here and not only hidden in the UI:
   // a resume is read only with the person's own model. No key, no read. Same
   // gate the profile page uses to hide the upload form, restated on the server
@@ -134,7 +161,8 @@ export async function POST(context: APIContext): Promise<Response> {
     return completeWithMessage(context, userId, null, KEY_REQUIRED_MESSAGE);
   }
 
-  const form = await context.request.formData();
+  // Already read above: a request body can only be consumed once.
+  const form = removeForm;
   const file = form.get('file');
   const pastedField = form.get('pasted');
   const pasted = typeof pastedField === 'string' ? pastedField : '';
@@ -146,12 +174,18 @@ export async function POST(context: APIContext): Promise<Response> {
     if (!extraction.ok) {
       return completeWithMessage(context, userId, file.name, extraction.message);
     }
-    await startResumeParse(userId, file.name, extraction.text.slice(0, PARSE_TEXT_MAX_CHARS));
+    await startResumeParse(userId, file.name, extraction.text.slice(0, PARSE_TEXT_MAX_CHARS), 'resume');
+    // The receipt, so the band has something to show and something to remove.
+    // The name and the moment, never the file and never its text.
+    await setResumeOnFile(userId, file.name);
     return started(context);
   }
 
   if (pasted.trim().length > 0) {
-    await startResumeParse(userId, null, pasted.slice(0, PARSE_TEXT_MAX_CHARS));
+    await startResumeParse(userId, null, pasted.slice(0, PARSE_TEXT_MAX_CHARS), 'resume');
+    // A pasted resume lands the same entries a file does, so it leaves the
+    // same receipt and is as removable. Null name: there was no file.
+    await setResumeOnFile(userId, null);
     return started(context);
   }
 

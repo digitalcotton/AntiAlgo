@@ -25,6 +25,14 @@
  * enforces. With no key, the letter is on file and usable as voice; its facts
  * wait for a key.
  *
+ * REMOVING THE LETTER REMOVES WHAT IT BROUGHT IN. intent=remove clears the
+ * three stored columns AND deletes the record entries this letter proposed
+ * (owner, 2026-09-25: whatever records we took in, delete them). It reaches
+ * only rows tagged import_source = 'cover_letter' (db/209), so an entry typed
+ * by hand, or one the resume brought in, is untouched. Without that tag the
+ * remove had no way to name its own rows, and every fact a letter ever
+ * proposed outlived the letter with nothing pointing at it.
+ *
  * WHO THIS CAN ACT ON. userId comes only from Astro.locals.viewer, never the
  * body. Same '/profile' mounting and wall as every other record endpoint.
  */
@@ -32,7 +40,7 @@ import type { APIContext } from 'astro';
 import { extractResumeText } from '../../../lib/resume-extract';
 import { startResumeParse } from '../../../lib/resume-parse-runner';
 import { acceptPastedVoiceSample } from '../../../lib/voice';
-import { setCoverLetter, clearCoverLetter } from '../../../lib/record-store';
+import { setCoverLetter, clearCoverLetter, deleteEntriesFrom } from '../../../lib/record-store';
 import { keyStorageIsConfigured } from '../../../lib/keychain';
 import { keyMeta } from '../../../lib/keychain-store';
 import { isOn } from '../../../lib/flags';
@@ -73,10 +81,14 @@ export async function POST(context: APIContext): Promise<Response> {
 
   const form = await context.request.formData();
 
-  // Remove clears all three columns; the band's own "Remove" posts this.
+  // Remove clears all three columns AND takes back the record entries this
+  // letter proposed; the band's own "Remove" posts this, naming the count it
+  // is about to delete.
   if (String(form.get('intent') ?? '') === 'remove') {
+    const removed = await deleteEntriesFrom(userId, 'cover_letter');
     await clearCoverLetter(userId);
-    return wantsJson(context) ? jsonResponse({ status: 'removed' }) : redirectTo(PROFILE_PATH);
+    console.log(`profile/import/cover: removed the cover letter for user ${userId}, with ${removed} entries.`);
+    return wantsJson(context) ? jsonResponse({ status: 'removed', removed }) : redirectTo(PROFILE_PATH);
   }
 
   const file = form.get('file');
@@ -114,7 +126,7 @@ export async function POST(context: APIContext): Promise<Response> {
   // which lands a finished read into the record on its next load); a refused
   // one always lands on the profile band above.
   if (hasProviderKey) {
-    await startResumeParse(userId, sourceName, text);
+    await startResumeParse(userId, sourceName, text, 'cover_letter');
     return wantsJson(context) ? jsonResponse({ status: 'started', parsing: true }) : redirectTo(returnTo(form, REVIEW_PATH));
   }
 

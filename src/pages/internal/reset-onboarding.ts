@@ -186,11 +186,20 @@ export async function POST(context: APIContext): Promise<Response> {
       // broke the contract the owner asked for — a "brand new" account whose
       // first entry comes back as PRF-0003. db/208 updates the column's own
       // COMMENT so the schema stops claiming nothing ever empties it.
+      //
+      // THE RESUME RECEIPT (db/209) goes with the rest. It names the document
+      // a past run read and the entries that read put in, and the loop above
+      // has already deleted every record_entry this account had, so leaving
+      // the receipt would offer a brand-new account a Remove for entries that
+      // are not there. The cover letter's three columns directly above clear
+      // for the same reason.
       await client.query(
         `UPDATE app_user_profile
             SET cover_letter_text = NULL,
                 cover_letter_source_name = NULL,
                 cover_letter_added_at = NULL,
+                resume_source_name = NULL,
+                resume_added_at = NULL,
                 drafting_provider = NULL,
                 generate_on_apply = DEFAULT,
                 handle = NULL,

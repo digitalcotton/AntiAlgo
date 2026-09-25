@@ -21,6 +21,7 @@ describe('rowToStoredParse', () => {
     const stored = rowToStoredParse({
       status: 'ready',
       source_name: 'resume.pdf',
+      import_source: 'resume',
       outcome,
       updated_at: new Date('2026-08-01T00:00:00Z')
     });
@@ -36,6 +37,7 @@ describe('rowToStoredParse', () => {
     const stored = rowToStoredParse({
       status: 'pending',
       source_name: 'resume.docx',
+      import_source: 'resume',
       outcome: null,
       updated_at: new Date('2026-08-01T00:00:00Z')
     });
@@ -48,6 +50,7 @@ describe('rowToStoredParse', () => {
     const stored = rowToStoredParse({
       status: 'ready',
       source_name: null,
+      import_source: 'resume',
       outcome: null,
       updated_at: '2026-08-01T12:00:00Z'
     });
@@ -60,10 +63,27 @@ describe('rowToStoredParse', () => {
     const stored = rowToStoredParse({
       status: 'pending',
       source_name: null,
+      import_source: 'resume',
       outcome: null,
       updated_at: new Date('2026-08-01T00:00:00Z')
     });
 
     expect(stored.sourceName).toBeNull();
+  });
+
+  // db/209. The buffer is the only thing that survives between the upload
+  // request and the background apply, so this field is what tells the apply
+  // which document's Remove will be able to take the entries back. A letter
+  // read through this same buffer must not come out tagged as a resume.
+  it('carries import_source through, so a letter read is not landed as a resume', () => {
+    const stored = rowToStoredParse({
+      status: 'ready',
+      source_name: 'letter.docx',
+      import_source: 'cover_letter',
+      outcome: null,
+      updated_at: new Date('2026-08-01T00:00:00Z')
+    });
+
+    expect(stored.importSource).toBe('cover_letter');
   });
 });
