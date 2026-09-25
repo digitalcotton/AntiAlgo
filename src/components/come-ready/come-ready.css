@@ -306,6 +306,91 @@ a.cr-row[data-status='waiting']:hover {
   color: var(--cr-ink-fixed);
   filter: brightness(0.94);
 }
+/* SECONDARY. Same geometry as .cr-btn so the two sit on a line together, but
+   hairline and unfilled: it is a control, not the control. Added 2026-09-25
+   after the owner walked the onboarding and found the opposite of both
+   problems on the same screen — two orange buttons competing on the Desk, and
+   here, real actions ("Add a title you are working toward", "Open controls",
+   "Open console.anthropic.com") wearing either a text underline that does not
+   read as pressable or the orange that belongs to the one step forward.
+   Orange is the step forward. This is everything else you can press. */
+.cr-btn-secondary {
+  background: transparent;
+  color: var(--color-foreground);
+  border: var(--border-hairline) solid var(--color-foreground);
+}
+.cr-btn-secondary:hover,
+.cr-btn-secondary:focus-visible {
+  background: var(--color-surface-inverse);
+  color: var(--color-foreground-inverse);
+  filter: none;
+}
+/* The quieter size, for a control that sits inside a card's own header row
+   rather than at the foot of a step. */
+.cr-btn-small {
+  min-height: 36px;
+  padding: 8px 16px;
+  font-size: 0.72rem;
+}
+
+/* Two directions on one line: the step forward where it always is, the way
+   back out at the far edge. Wraps to two rows on a narrow screen, forward
+   first, because that is the order they matter in. */
+.cr-split {
+  justify-content: space-between;
+}
+
+/* The way back, above the step's own title. Quiet: it is an exit, not the
+   thing to press. */
+.cr-card-back {
+  display: inline-block;
+  margin-bottom: 10px;
+  font-family: var(--font-family-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  text-decoration: none;
+}
+.cr-card-back:hover,
+.cr-card-back:focus-visible {
+  color: var(--color-foreground);
+}
+
+/* A state the reader earned, stated at the top corner of the box that earned
+   it rather than as a note trailing the button below it. */
+.cr-box-flag {
+  grid-column: 3;
+  align-self: start;
+  white-space: nowrap;
+  font-family: var(--font-family-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-mark-live);
+}
+.cr-box:has(.cr-box-flag) {
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+}
+
+/* What is in hand but not yet sent. */
+.cr-staged {
+  margin: 10px 0 0;
+  font-family: var(--font-family-mono);
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+/* A <summary> that wears the secondary button. list-style none on both the
+   modern and the WebKit pseudo-element, or the disclosure triangle sits
+   inside the border. */
+.cr-summary-btn {
+  list-style: none;
+  width: fit-content;
+}
+.cr-summary-btn::-webkit-details-marker {
+  display: none;
+}
+
 .cr-link {
   font-size: 0.95rem;
   color: var(--color-foreground);

@@ -101,7 +101,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
           name="title"
           minlength="2"
           maxlength="120"
-          placeholder="Type a title, two letters or more"
+          placeholder="Pick one below, or type your own and press Enter"
           aria-label="Add a core title"
           autofocus={!hasTitle}
           autocomplete="off"
@@ -111,7 +111,6 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
           aria-autocomplete="list"
           data-cr-combo-input
         />
-        <button type="submit" class="cr-btn">Add title</button>
       </div>
       <p class="cr-add-note" data-cr-combo-note role="status" hidden></p>
       {options.length > 0 && (
@@ -132,7 +131,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
     <details class="cr-stretch">
       <summary class="cr-between cr-rule">
         <span class="cr-label cr-label-inline">Stretch, working toward</span>
-        <span class="cr-link">{stretchTitles.length > 0 ? `${stretchTitles.join(', ')}. Add another` : 'Add a title you are working toward'}</span>
+        <span class="cr-btn cr-btn-secondary cr-btn-small">{stretchTitles.length > 0 ? 'Add another' : 'Add a stretch title'}</span>
       </summary>
       {stretchTitles.map((title) => (
         <div class="cr-title-row">
@@ -157,7 +156,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
             name="title"
             minlength="2"
             maxlength="120"
-            placeholder="Type a title, two letters or more"
+            placeholder="Pick one below, or type your own and press Enter"
             aria-label="Add a stretch title"
             autocomplete="off"
             role="combobox"
@@ -166,7 +165,6 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
             aria-autocomplete="list"
             data-cr-combo-input
           />
-          <button type="submit" class="cr-btn">Add title</button>
         </div>
         <p class="cr-add-note" data-cr-combo-note role="status" hidden></p>
         {options.length > 0 && (
@@ -188,7 +186,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
     <details class="cr-controls" open={controlsOpen}>
       <summary class="cr-between cr-rule-tight">
         <span class="cr-note">{controlsLine}</span>
-        <span class="cr-link">Open controls</span>
+        <span class="cr-btn cr-btn-secondary cr-btn-small">Open controls</span>
       </summary>
       <div class="cr-controls-body">
         <div class="cr-control-row">
@@ -244,8 +242,14 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
   // native <datalist> renders in the platform's own chrome (rounded, system
   // font) and cannot be styled, so the rows are ours: the whole list is in
   // the page and typing narrows it in place, which also means no request per
-  // keystroke. With no script the panel stays as the server left it and the
-  // field is still a plain text input that the Add title button submits.
+  // keystroke.
+  //
+  // THERE IS NO ADD BUTTON (owner, 2026-09-25). Choosing a row already commits
+  // the title on click, which made a button beside it a control with nothing
+  // left to do. A form whose only text field is this one submits on Enter by
+  // itself (implicit submission), so a title nobody has posted yet still goes
+  // in, and the placeholder says so. With no script at all the panel stays as
+  // the server left it and Enter is the way in.
   document.querySelectorAll<HTMLFormElement>('[data-cr-combo]').forEach((form) => {
     const input = form.querySelector<HTMLInputElement>('[data-cr-combo-input]');
     const panel = form.querySelector<HTMLElement>('[data-cr-combo-panel]');
@@ -300,8 +304,8 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
       open(shown > 0);
     }
 
-    // Both ways of adding end here: the Add title button submits, and choosing
-    // a row calls requestSubmit(). So one guard covers both presses.
+    // Both ways of adding end here: Enter in the field submits, and choosing
+    // a row calls requestSubmit(). So one guard covers both.
     form.addEventListener('submit', (event) => {
       const value = input.value.trim();
       if (value.length < 2) {

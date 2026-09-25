@@ -40,7 +40,6 @@ const { locked, reading, done, parse, landed, entriesByKind, entries, links, nam
 
 const parseAction = routeFor('profile-import-parse');
 const statusUrl = routeFor('profile-import-status');
-const profilePath = routeFor('profile');
 
 const kindLine = ENTRY_KINDS.filter((k) => (entriesByKind[k] ?? 0) > 0)
   .map((k) => `${entriesByKind[k]} ${KIND_LABELS[k].toLowerCase()}${entriesByKind[k] === 1 ? '' : k === 'role_held' ? ' held' : 's'}`)
@@ -51,7 +50,7 @@ const droppedLine = landed && landed.failed > 0
 const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 ---
 
-<StepCard n={5} title="Bring your resumé" time="1 to 2 min">
+<StepCard n={5} title="Bring your resumé" time="1 to 2 min" back={{ href: withBase(keyPath), label: 'Back to step 4' }}>
   <p class="cr-intro">Unlocks drafting. Your own model reads it on your key. Every value it proposes is checked to occur in the file; nothing is saved until you review. Employer, official title and dates print exactly as typed.</p>
 
   {locked && (
@@ -85,12 +84,18 @@ const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,applicati
             <span class="cr-mono">{entries}</span> {entries === 1 ? 'entry' : 'entries'} on your record{links > 0 && <>, <span class="cr-mono">{links}</span> {links === 1 ? 'link' : 'links'}</>}{nameSet && ', your name set'}.
           </p>
           <p class="cr-box-sub">{kindLine}{kindLine && '.'}{droppedLine && ` ${droppedLine}`}</p>
-          <a class="cr-link" href={profilePath}>Open your Profile Record</a>
         </div>
+        {/* The state this step just bought, in the corner of the box that
+            bought it (owner, 2026-09-25). It used to trail the Next button as
+            a loose "Drafting is on.", where it read as a caption on the button
+            rather than as the thing the reader had just achieved. There is no
+            longer a link to the Profile Record here either: it was the one
+            control on this card that led out of the run, and a reader three
+            steps in does not want to be somewhere else. */}
+        <span class="cr-box-flag">&#10003; Drafting is now active</span>
       </div>
       <div class="cr-actions cr-next">
         <a class="cr-btn" href={withBase(nextPath)}>Next: cover letter and links</a>
-        <span class="cr-ok">Drafting is on.</span>
       </div>
     </>
   )}
@@ -103,8 +108,11 @@ const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,applicati
           <span class="cr-drop-hint">PDF, Word (.docx), Markdown or plain text, up to 4 MB. Or paste the text.</span>
         </label>
         <input id="cr-file" class="cr-file visually-hidden" type="file" name="file" accept={ACCEPT} required data-cr-file />
-        <label class="cr-btn cr-btn-gap" for="cr-file">Choose a file</label>
-        <button type="submit" class="cr-btn cr-btn-gap cr-nojs" data-cr-nojs>Read my documents</button>
+        <p class="cr-staged" data-cr-staged role="status" hidden></p>
+        <span class="cr-actions cr-actions-gap">
+          <label class="cr-btn cr-btn-secondary" for="cr-file">Choose a file</label>
+          <button type="submit" class="cr-btn" data-cr-send>Send file</button>
+        </span>
       </form>
       <details class="cr-paste-details">
         <summary class="cr-link-quiet">Paste the text instead</summary>
@@ -204,12 +212,31 @@ const ACCEPT = '.md,.markdown,.txt,.pdf,.docx,text/markdown,text/plain,applicati
   const pendingWait = panel && !panel.hidden ? panel.querySelector<HTMLElement>('[data-cr-wait]') : null;
   if (pendingWait) void watch(pendingWait, Date.now());
 
-  // With script, a chosen file submits itself; the plain submit button is
-  // for a browser running none of this.
-  document.querySelector<HTMLElement>('[data-cr-nojs]')?.setAttribute('hidden', '');
-  if (fileInput) {
+  /*
+   * A DROPPED FILE IS STAGED, NOT SENT (owner, 2026-09-25).
+   *
+   * Choosing or dropping a file used to submit the form on the spot, so the
+   * read started before the reader had said to start it: a mis-drop, or the
+   * wrong file out of a folder of four, was already on its way to their own
+   * provider key and already costing them. The file now sits here with its
+   * name shown and the send button lit, and nothing leaves until it is
+   * pressed. The button is the same one a browser with no script has always
+   * had, rather than a second control that only exists with script, so both
+   * paths end at the same press.
+   */
+  const send = document.querySelector<HTMLButtonElement>('[data-cr-send]');
+  const staged = document.querySelector<HTMLElement>('[data-cr-staged]');
+  if (fileInput && send) {
+    // Disabled only once script is running: with none, the button is the only
+    // way to send and must work from the first paint.
+    send.disabled = true;
     fileInput.addEventListener('change', () => {
-      if (fileInput.files && fileInput.files.length > 0) fileInput.form?.requestSubmit();
+      const file = fileInput.files?.[0] ?? null;
+      send.disabled = file === null;
+      if (staged) {
+        staged.textContent = file ? `${file.name}, ${formatSize(file.size)}. Nothing has been sent yet.` : '';
+        staged.hidden = file === null;
+      }
     });
   }
 

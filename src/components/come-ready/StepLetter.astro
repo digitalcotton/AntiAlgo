@@ -19,8 +19,10 @@ interface Props {
   links: StoredLink[];
   selfPath: string;
   doorPath: string;
+  /** Step 5, so the run can be walked backwards as well as forwards. */
+  backPath: string;
 }
-const { letter, links, parsePending = false, selfPath, doorPath } = Astro.props;
+const { letter, links, parsePending = false, selfPath, doorPath, backPath } = Astro.props;
 const coverAction = routeFor('profile-import-cover');
 /** The types the cover endpoint's own extractor accepts, the same list the
     resumé band offers. */
@@ -33,7 +35,7 @@ const statusUrl = routeFor('profile-import-status');
 const deskHref = routeFor('desk');
 ---
 
-<StepCard n={6} title="Add your cover letter and links" time="Optional, 1 min">
+<StepCard n={6} title="Add your cover letter and links" time="Optional, 1 min" back={{ href: withBase(backPath), label: 'Back to step 5' }}>
   <p class="cr-intro">Unlocks better drafts. Both optional; done when the letter is on file.</p>
 
   <div class="cr-letter">
@@ -53,17 +55,27 @@ const deskHref = routeFor('desk');
         <span class="cr-drop-hint">PDF, Word (.docx), Markdown or plain text. {letter ? 'It replaces the one on file.' : 'Or paste it below.'}</span>
       </label>
       <input id="cr-letter-file" class="cr-file visually-hidden" type="file" name="file" accept={ACCEPT} required data-cr-letter-file />
-      <label class="cr-link cr-letter-choose" for="cr-letter-file">Choose a file</label>
-      <button type="submit" class="cr-link cr-letter-choose cr-nojs" data-cr-letter-nojs>Save that file</button>
+      <p class="cr-staged" data-cr-letter-staged role="status" hidden></p>
+      <span class="cr-actions cr-actions-gap">
+        <label class="cr-btn cr-btn-secondary cr-btn-small" for="cr-letter-file">Choose a file</label>
+        <button type="submit" class="cr-btn cr-btn-secondary cr-btn-small" data-cr-letter-send>Send file</button>
+      </span>
     </form>
     {letter ? (
       <textarea id="cr-letter" class="cr-textarea cr-letter-paste" rows="7" readonly aria-label="Cover letter">{letter.text}</textarea>
     ) : (
-      <form method="POST" action={coverAction} class="cr-letter-form">
-        <input type="hidden" name="return" value={selfPath} />
-        <textarea id="cr-letter" class="cr-textarea cr-letter-paste" name="pasted" rows="7" placeholder="Or paste the cover letter you reuse." aria-label="Cover letter" required></textarea>
-        <button type="submit" class="cr-link cr-letter-save">Save cover letter</button>
-      </form>
+      /* Closed on arrival (owner, 2026-09-25). Dropping a file is the way most
+         readers will do this, and an empty seven-row textarea sitting open
+         under the drop band made the step look like a form to fill in rather
+         than a file to hand over. Pasting is still one press away. */
+      <details class="cr-paste-details">
+        <summary class="cr-btn cr-btn-secondary cr-btn-small cr-summary-btn">Paste the text instead</summary>
+        <form method="POST" action={coverAction} class="cr-letter-form">
+          <input type="hidden" name="return" value={selfPath} />
+          <textarea id="cr-letter" class="cr-textarea cr-letter-paste" name="pasted" rows="7" placeholder="Paste the cover letter you reuse." aria-label="Cover letter" required></textarea>
+          <button type="submit" class="cr-btn cr-btn-secondary cr-btn-small">Save cover letter</button>
+        </form>
+      </details>
     )}
     {parsePending && (
       <div class="cr-reading-line" data-cr-letter-reading data-status-url={statusUrl} data-return={withBase(selfPath)} role="status" aria-live="polite">
@@ -90,7 +102,7 @@ const deskHref = routeFor('desk');
       <input type="hidden" name="intent" value="add" />
       <input type="hidden" name="return" value={selfPath} />
       <input id="cr-link" class="cr-input" type="url" name="url" inputmode="url" autocomplete="off" placeholder="Paste any link. We read what it is from the address." aria-label="Add a link" />
-      <button type="submit" class="cr-btn">Add</button>
+      <button type="submit" class="cr-btn cr-btn-secondary cr-btn-small">Add</button>
     </form>
     <p class="cr-note cr-note-small">Links sit at the top of every draft.</p>
   </div>
@@ -147,9 +159,18 @@ const deskHref = routeFor('desk');
   const band = document.querySelector<HTMLElement>('[data-cr-letter-drop]');
   const input = document.querySelector<HTMLInputElement>('[data-cr-letter-file]');
   if (band && input) {
-    document.querySelector<HTMLElement>('[data-cr-letter-nojs]')?.setAttribute('hidden', '');
+    // Staged, not sent. Same rule and same reason as the resumé band above
+    // (StepResume.astro): a dropped file waits for the press.
+    const send = document.querySelector<HTMLButtonElement>('[data-cr-letter-send]');
+    const staged = document.querySelector<HTMLElement>('[data-cr-letter-staged]');
+    if (send) send.disabled = true;
     input.addEventListener('change', () => {
-      if (input.files && input.files.length > 0) input.form?.requestSubmit();
+      const file = input.files?.[0] ?? null;
+      if (send) send.disabled = file === null;
+      if (staged) {
+        staged.textContent = file ? `${file.name}. Nothing has been sent yet.` : '';
+        staged.hidden = file === null;
+      }
     });
     wireDropZone(band, input);
   }
