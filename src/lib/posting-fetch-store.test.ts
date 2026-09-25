@@ -4,6 +4,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  CLAIMED_GIVE_UP_MS,
+  PENDING_GIVE_UP_MS,
   QUEUED_NOTICE_MS,
   SOURCE_KINDS,
   SLOW_NOTICE_MS,
@@ -95,6 +97,25 @@ describe('fetchDisplayState', () => {
     const claimed = stored({ status: 'claimed', claimedAt: new Date(t0 + 5000) });
     expect(fetchDisplayState(claimed, t0 + 6000)).toBe('reading');
     expect(fetchDisplayState(claimed, t0 + 5000 + SLOW_NOTICE_MS + 1)).toBe('slow');
+  });
+  it('calls the wait off once nothing has read it for long enough', () => {
+    // The lesson of September 2026: a row nobody ever read said "still queued"
+    // for nine days, which is how a dead reader looks exactly like a busy one.
+    expect(fetchDisplayState(stored(), t0 + PENDING_GIVE_UP_MS + 1)).toBe('abandoned');
+  });
+  it('calls it off for a claimed row too: a claim held this long is a dead reader', () => {
+    // Measured from when the person added it, not from the claim, so a machine
+    // that claims at minute twenty-nine cannot restart their clock.
+    const claimed = stored({ status: 'claimed', claimedAt: new Date(t0) });
+    // Still reading at the pending ceiling: a machine is genuinely on this one.
+    expect(fetchDisplayState(claimed, t0 + PENDING_GIVE_UP_MS + 1)).toBe('slow');
+    expect(fetchDisplayState(claimed, t0 + CLAIMED_GIVE_UP_MS + 1)).toBe('abandoned');
+  });
+  it('a settled row is never abandoned, however old', () => {
+    const old = t0 + CLAIMED_GIVE_UP_MS * 100;
+    expect(fetchDisplayState(stored({ status: 'ready', origin: 'machine' }), old)).toBe('ready');
+    expect(fetchDisplayState(stored({ status: 'pasted', origin: 'pasted' }), old)).toBe('pasted');
+    expect(fetchDisplayState(stored({ status: 'unreadable', failureCode: 'timeout' }), old)).toBe('unreadable');
   });
   it('settled rows read as themselves', () => {
     expect(fetchDisplayState(stored({ status: 'ready', origin: 'machine' }), t0)).toBe('ready');

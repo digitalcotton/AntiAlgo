@@ -43,8 +43,23 @@ describe('PostingProgress.astro', () => {
     expect(html).not.toContain('lives on');
   });
   it('queued and slow append their lines', async () => {
-    expect(await render(row(), T0 + 11 * 60 * 1000)).toContain('Still queued.');
-    expect(await render(row({ status: 'claimed', claimedAt: new Date(T0) }), T0 + 6 * 60 * 1000)).toContain('taking longer than usual');
+    expect(await render(row(), T0 + 20 * 1000)).toContain('Still queued.');
+    expect(await render(row({ status: 'claimed', claimedAt: new Date(T0) }), T0 + 30 * 1000)).toContain('taking longer than usual');
+  });
+  it('gives up on a pending row after ninety seconds and says so plainly', async () => {
+    const html = await render(row(), T0 + 100 * 1000);
+    expect(html).toContain('data-progress-state="abandoned"');
+    expect(html).toContain('The machine is not answering');
+    expect(html).toContain('A read that works takes seconds');
+    // The plan is a promise about steps a machine is about to take. Nothing is
+    // taking them, so it must not be on the page beside that heading.
+    expect(html).not.toContain('class="progress-steps"');
+    expect(html).not.toContain('class="spinner"');
+  });
+  it('gives a claimed row longer before giving up, because something is on it', async () => {
+    const claimed = row({ status: 'claimed', claimedAt: new Date(T0) });
+    expect(await render(claimed, T0 + 100 * 1000)).toContain('data-progress-state="slow"');
+    expect(await render(claimed, T0 + 5 * 60 * 1000)).toContain('data-progress-state="abandoned"');
   });
   it('unreadable says what stopped it, in words', async () => {
     const html = await render(row({ status: 'unreadable', failureCode: 'timeout' }));

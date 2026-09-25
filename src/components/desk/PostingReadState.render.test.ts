@@ -27,10 +27,19 @@ describe('PostingReadState.astro', () => {
     expect(html).toContain('name="applicationId" value="42"');
     expect(html).not.toContain('name="intent" value="retry"');
   });
-  it('queued after ten minutes still offers the paste box', async () => {
-    const html = await render(row(), T0 + 11 * 60 * 1000);
+  it('queued after twenty seconds still offers the paste box, folded', async () => {
+    const html = await render(row(), T0 + 20 * 1000);
     expect(html).toContain('data-read-state="queued"');
     expect(html).toContain('name="intent" value="paste"');
+    // Folded while the read is still plausibly coming: shouting the paste box
+    // at someone twenty seconds in is telling them to do the machine's job.
+    expect(html).not.toContain('<details class="paste-box" open');
+  });
+  it('abandoned opens the box and offers the retry, because the wait has failed', async () => {
+    const html = await render(row(), T0 + 100 * 1000);
+    expect(html).toContain('data-read-state="abandoned"');
+    expect(html).toContain('<details class="paste-box" open');
+    expect(html).toContain('name="intent" value="retry"');
   });
   it('unreadable opens the paste box and offers a retry', async () => {
     const html = await render(row({ status: 'unreadable', failureCode: 'no_content' }));
@@ -44,7 +53,7 @@ describe('PostingReadState.astro', () => {
     expect((await render(row({ status: 'pasted', origin: 'pasted' }))).trim()).toBe('');
   });
   it('carries no dashes in its copy', async () => {
-    const html = await render(row(), T0 + 11 * 60 * 1000);
+    const html = await render(row(), T0 + 100 * 1000);
     expect(html).not.toMatch(/[\u2013\u2014]/);
   });
 });

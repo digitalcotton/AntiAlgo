@@ -16,9 +16,10 @@
  * fixed (postfetch.py on the mini), not a live trace; the row's status is the
  * only live fact, and it is read off the row.
  *
- * Four voices: reading (the plan, with the ring beside the step in progress),
- * unreadable (what stopped it, in words), ready (how it was read and, when the
- * mini said so, what became of the posting's board), pasted (nothing was read).
+ * Five voices: reading (the plan, with the ring beside the step in progress),
+ * abandoned (nothing answered and the wait is called off), unreadable (what
+ * stopped it, in words), ready (how it was read and, when the mini said so,
+ * what became of the posting's board), pasted (nothing was read).
  * The rename form appears in the settled voices when the page gave no role or
  * no company, so the person can name them before drafting.
  */
@@ -40,6 +41,9 @@ const { row, nowMs, action, statusUrl } = Astro.props;
 const display = fetchDisplayState(row, nowMs);
 const host = hostnameOf(row.url);
 const source = postingSource(row.url);
+// 'abandoned' is deliberately NOT in flight: the plan below describes steps a
+// machine is about to take, and printing it beside "nothing is answering" would
+// be the same false promise the queued line used to make forever.
 const inFlight = display === 'reading' || display === 'queued' || display === 'slow';
 
 /** The reader's plan, in the order the mini runs it. The first step differs by
@@ -116,6 +120,19 @@ const ids = `posting-progress-${row.applicationId}`;
           </li>
         ))}
       </ol>
+    </>
+  )}
+
+  {display === 'abandoned' && (
+    <>
+      <h2 class="progress-title" id={`${ids}-title`}>The machine is not answering</h2>
+      <p class="progress-line">
+        A read that works takes seconds. This one has not, so something is wrong on our side, not with your link.
+      </p>
+      <p class="progress-line">
+        Paste the posting text below and we draft from it right now, marked as unverified. Pasting ends the wait
+        for good: your own text wins over a machine read, so nothing will overwrite it later.
+      </p>
     </>
   )}
 

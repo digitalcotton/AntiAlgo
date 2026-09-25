@@ -44,6 +44,11 @@ const prefix = display === 'pasted' ? 'From text you pasted. Unverified.' : disp
       Reading {host} is taking longer than usual. <a class="text-link" href={detailHref}>Open the posting</a>
     </>
   )}
+  {display === 'abandoned' && (
+    <>
+      Nothing has read this. <a class="text-link" href={detailHref}>Open the posting</a> to paste the text.
+    </>
+  )}
   {display === 'unreadable' && (
     <>
       We could not read that page. <a class="text-link" href={detailHref}>Paste the text on the posting</a>

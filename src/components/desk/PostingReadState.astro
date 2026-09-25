@@ -5,9 +5,18 @@
  *
  * It says nothing on its own. PostingProgress beside it tells the person what
  * the machine is doing; this is the form under that telling. It renders only
- * while there is something to act on (reading, queued, slow, unreadable) and
- * nothing at all once the row is settled, so a settled page never carries a
- * paste box for text it already has.
+ * while there is something to act on (reading, queued, slow, abandoned,
+ * unreadable) and nothing at all once the row is settled, so a settled page
+ * never carries a paste box for text it already has.
+ *
+ * OPEN, NOT FOLDED, ONCE THE WAIT HAS FAILED. The box is a <details> because
+ * during a read that is still plausibly coming, a paste box shouted at the
+ * person would be telling them to do the machine's job. Once the state is
+ * 'unreadable' or 'abandoned' that reasoning inverts: the machine's job is not
+ * getting done, and the fastest route to a draft is the person's own clipboard.
+ * So those two states open it, and 'abandoned' additionally offers the retry
+ * that used to belong to 'unreadable' alone -- a reader that was down when this
+ * was added may well be up now, and asking again costs one queued row.
  */
 import type { StoredPostingFetch } from '../../lib/posting-fetch-store';
 import { fetchDisplayState } from '../../lib/posting-fetch-store';
@@ -20,15 +29,17 @@ interface Props {
 
 const { row, action, nowMs } = Astro.props;
 const display = fetchDisplayState(row, nowMs);
-const showPaste = display === 'reading' || display === 'queued' || display === 'slow' || display === 'unreadable';
-const pasteOpen = display === 'unreadable';
+const showPaste =
+  display === 'reading' || display === 'queued' || display === 'slow' || display === 'abandoned' || display === 'unreadable';
+const pasteOpen = display === 'unreadable' || display === 'abandoned';
+const showRetry = display === 'unreadable' || display === 'abandoned';
 const ids = `paste-${row.applicationId}`;
 ---
 
 {showPaste && (
   <div class="read-state" data-read-state={display}>
     <details class="paste-box" open={pasteOpen}>
-      <summary class="paste-summary">Paste the text instead</summary>
+      <summary class="paste-summary">{pasteOpen ? 'Paste the text' : 'Paste the text instead'}</summary>
       <form class="paste-form" method="POST" action={action}>
         <input type="hidden" name="intent" value="paste" />
         <input type="hidden" name="applicationId" value={row.applicationId} />
@@ -42,7 +53,7 @@ const ids = `paste-${row.applicationId}`;
           <button class="paste-submit" type="submit">Draft from this text</button>
         </div>
       </form>
-      {display === 'unreadable' && (
+      {showRetry && (
         <form class="paste-retry" method="POST" action={action}>
           <input type="hidden" name="intent" value="retry" />
           <input type="hidden" name="applicationId" value={row.applicationId} />

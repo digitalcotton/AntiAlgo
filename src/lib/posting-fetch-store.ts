@@ -61,10 +61,47 @@ export const SNAPSHOT_MAX_CHARS = 40_000;
 export const NAME_MAX_CHARS = 500;
 /** A claim this old is a mini that never came back; the row is claimable again. */
 export const CLAIM_STALE_MS = 10 * 60 * 1000;
+/**
+ * THE CLOCKS ON THIS PAGE ARE A PERSON'S, NOT A MACHINE'S.
+ *
+ * The first version of these was sized off the agent's drain cycle -- ten
+ * minutes to say "queued", thirty to give up -- which is the machine's own
+ * rhythm and has nothing to do with the person watching. Nobody pastes a link
+ * and waits ten minutes to find out whether anything happened. The owner's
+ * correction, 2026-09-25, and it is the right one: a read either happens in
+ * seconds or it has failed, and the copy should follow that.
+ *
+ * WHAT THE REAL NUMBERS ARE. The site now reads the common case inline, inside
+ * the POST, in about a second; nothing reaches this table for those. What is
+ * left is the tail the mini takes, and there the wake is sub-second, the claim
+ * is immediate, and a measured browser read of a real Workday-class page took
+ * seven and a half seconds. A healthy machine finishes one of these inside
+ * twenty seconds.
+ */
 /** A pending row this old reads as "still queued" on the card. */
-export const QUEUED_NOTICE_MS = 10 * 60 * 1000;
+export const QUEUED_NOTICE_MS = 15 * 1000;
 /** A claimed row this old reads as "taking longer than usual". */
-export const SLOW_NOTICE_MS = 5 * 60 * 1000;
+export const SLOW_NOTICE_MS = 25 * 1000;
+/**
+ * PENDING this long and nobody is listening.
+ *
+ * The wake reaches the agent in under a second and it also drains on a timer,
+ * so a row still unclaimed after ninety seconds means either the wake was lost
+ * AND the drain did not come, or nothing is running at all. Ninety seconds is
+ * long enough to survive a lost wake (the agent drains every sixty) and short
+ * enough that nobody is being lied to.
+ */
+export const PENDING_GIVE_UP_MS = 90 * 1000;
+/**
+ * CLAIMED this long and the reader took it and died.
+ *
+ * Longer than the pending ceiling on purpose: a claimed row has a machine
+ * genuinely working on it, and the browser layer is allowed a forty-five second
+ * page budget inside a five minute request budget. Four minutes is past any
+ * honest read and short of the ten minute stale reclaim, so the page says
+ * something true before the row silently becomes claimable again.
+ */
+export const CLAIMED_GIVE_UP_MS = 4 * 60 * 1000;
 
 export interface PostingFetchRow {
   id: string;
@@ -209,7 +246,7 @@ export function normaliseUrlKey(url: string): string {
   return parsed.toString();
 }
 
-export type FetchDisplayState = 'reading' | 'queued' | 'slow' | 'ready' | 'unreadable' | 'pasted';
+export type FetchDisplayState = 'reading' | 'queued' | 'slow' | 'abandoned' | 'ready' | 'unreadable' | 'pasted';
 
 /** Pure: what the card says. Computed from the row's clocks, never stored. */
 export function fetchDisplayState(row: StoredPostingFetch, nowMs: number): FetchDisplayState {
@@ -217,11 +254,20 @@ export function fetchDisplayState(row: StoredPostingFetch, nowMs: number): Fetch
   if (row.status === 'pasted') return 'pasted';
   if (row.status === 'unreadable') return 'unreadable';
   if (row.status === 'claimed') {
+    // A claimed row is measured from the claim: a machine is on it, and the
+    // question is whether it is still alive, not how long the person has waited.
     const since = row.claimedAt ? row.claimedAt.getTime() : row.createdAt.getTime();
-    return nowMs - since > SLOW_NOTICE_MS ? 'slow' : 'reading';
+    const waited = nowMs - since;
+    if (waited > CLAIMED_GIVE_UP_MS) return 'abandoned';
+    return waited > SLOW_NOTICE_MS ? 'slow' : 'reading';
   }
-  return nowMs - row.createdAt.getTime() > QUEUED_NOTICE_MS ? 'queued' : 'reading';
+  // A pending row is measured from when the person added it, because nothing
+  // has happened to it since and that is precisely the complaint.
+  const waited = nowMs - row.createdAt.getTime();
+  if (waited > PENDING_GIVE_UP_MS) return 'abandoned';
+  return waited > QUEUED_NOTICE_MS ? 'queued' : 'reading';
 }
+
 
 /* ---- reads, owner scoped ---- */
 
