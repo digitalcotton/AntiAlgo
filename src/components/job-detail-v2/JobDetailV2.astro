@@ -69,6 +69,10 @@ interface Props {
       Defaults to the plain board, which is the right answer for the static
       /role page: nobody arrives there from a table they were reading. */
   backHref?: string | null;
+  /** What that breadcrumb is called. Travels with backHref, never apart from
+      it: a link to Opportunities labelled "The board" is a worse lie than the
+      bare crumb this replaced. */
+  backLabel?: string | null;
 }
 const {
   job,
@@ -77,7 +81,8 @@ const {
   hasKey = false,
   paid = false,
   applyTrack = null,
-  backHref = null
+  backHref = null,
+  backLabel = null
 } = Astro.props;
 
 const isClosed = job.status === 'closed';
@@ -163,6 +168,7 @@ const applyClass = paid ? ['jd-link', 'jd-link-apply'] : ['jd-btn', 'jd-btn-prim
 const draftAction = routeFor('desk-job-draft');
 const subtitleParts = [job.company, job.location, `via ${ats}`].filter(Boolean);
 const boardHref = backHref ?? routeFor('board');
+const boardLabel = (backHref && backLabel) || 'The board';
 const methodHref = routeFor('evidence');
 const signInHref = `${withBase('/sign-in')}?next=${encodeURIComponent(selfPath)}`;
 // Signed in but no key: the draft cannot run in the reader's voice, so the
@@ -177,7 +183,7 @@ const saveNote = applyTrack
 <article class="jd" data-slug={job.slug}>
   <!-- breadcrumb (the role-family tabs are omitted until tags land) -->
   <nav class="jd-crumbs" aria-label="Breadcrumb">
-    <a href={boardHref}>&larr; The board</a>
+    <a href={boardHref}>&larr; {boardLabel}</a>
   </nav>
 
   <!-- sticky mini action bar, revealed on scroll past the header -->

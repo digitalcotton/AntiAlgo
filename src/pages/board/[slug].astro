@@ -80,7 +80,7 @@ import { boardDetailPath, jobDraftPath, routeFor } from '../../data/nav';
 import { isConfigured } from '../../lib/db';
 import { getBoardJobBySlug } from '../../lib/job-store';
 import { boardRowToJob, killPipelineLabel } from '../../lib/board-jobs';
-import { boardReturnHref } from '../../lib/board-return';
+import { boardReturnLink } from '../../lib/board-return';
 import { isOn } from '../../lib/flags';
 import { keyMeta } from '../../lib/keychain-store';
 import { keyStorageIsConfigured } from '../../lib/keychain';
@@ -132,10 +132,15 @@ const selfPath = boardDetailPath(slug);
 // filters and all, rather than to page one of a table they were not reading.
 // See src/lib/board-return.ts for why this comes off the Referer header and
 // why every parameter is re-parsed on the way through.
-const backToListing = boardReturnHref(Astro.request.headers.get('referer'), Astro.request.url, [
-  routeFor('board'),
-  routeFor('prelist'),
-  routeFor('opportunities')
+// All three of these link into this page (the board's rows, Opportunities'
+// Open links, the Desk's role cards), so the label travels with the href: a
+// reader sent back to Opportunities under a link reading "The board" is worse
+// off than one sent to the right place by the wrong name.
+const backToListing = boardReturnLink(Astro.request.headers.get('referer'), Astro.request.url, [
+  { path: routeFor('board'), label: 'The board' },
+  { path: routeFor('prelist'), label: 'Newly funded' },
+  { path: routeFor('opportunities'), label: 'Opportunities' },
+  { path: routeFor('desk'), label: 'The Desk' }
 ]);
 const postingAction = routeFor('desk-posting');
 const statusUrl = `${jobDraftPath(slug)}/status`;
@@ -534,7 +539,8 @@ const applyTrack = showTrack && job?.apply_url ? { action: deskApplicationPath, 
               hasKey={hasKey}
               paid={paid}
               applyTrack={applyTrack}
-              backHref={backToListing}
+              backHref={backToListing?.href ?? null}
+              backLabel={backToListing?.label ?? null}
             />
           )
         ) : (

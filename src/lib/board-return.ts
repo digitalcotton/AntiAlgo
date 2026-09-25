@@ -38,19 +38,32 @@ function normalise(pathname: string): string {
   return pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
 }
 
+/** A listing a breadcrumb may point back at, and what to call it there. */
+export interface ReturnListing {
+  path: string;
+  /** Reads after the arrow: "&larr; The board", "&larr; Opportunities". */
+  label: string;
+}
+
 /**
- * The listing address a reader arrived from, re-emitted through the board's own
- * URL contract, or null when they did not arrive from one.
+ * The listing a reader arrived from, re-emitted through the board's own URL
+ * contract, or null when they did not arrive from one.
+ *
+ * THE LABEL TRAVELS WITH THE HREF, and that is not decoration. Three listings
+ * link into the same posting page: the board, Opportunities and the Desk's
+ * role cards. Sending a reader who came from Opportunities back to
+ * Opportunities under a link that says "The board" is a worse lie than the
+ * bug this replaces, because it is one the reader cannot see until they click.
  *
  * @param referer     the request's Referer header, as it comes (may be absent)
  * @param requestUrl  this request's own URL, which supplies the origin to match
- * @param listPaths   the listing paths a breadcrumb may point back at
+ * @param listings    the listings a breadcrumb may point back at
  */
-export function boardReturnHref(
+export function boardReturnLink(
   referer: string | null | undefined,
   requestUrl: string | URL,
-  listPaths: readonly string[]
-): string | null {
+  listings: readonly ReturnListing[]
+): { href: string; label: string } | null {
   if (!referer) return null;
 
   let from: URL;
@@ -66,8 +79,8 @@ export function boardReturnHref(
   if (from.origin !== here.origin) return null;
 
   const path = normalise(from.pathname);
-  const allowed = listPaths.find((candidate) => normalise(candidate) === path);
-  if (!allowed) return null;
+  const listing = listings.find((candidate) => normalise(candidate.path) === path);
+  if (!listing) return null;
 
-  return boardHref(allowed, parseBoardQuery(from.searchParams));
+  return { href: boardHref(listing.path, parseBoardQuery(from.searchParams)), label: listing.label };
 }
