@@ -63,8 +63,22 @@ interface Props {
       its title is resolved (addedPostingToJob). The Apply form already omits the
       titleOverride field when it is absent; the type says so now. */
   applyTrack?: { action: string; title: string | null; company: string } | null;
+  /** Where the breadcrumb goes. A reader who reached this posting from the
+      board was somewhere specific on it (page 4, remote only, sorted by age),
+      and the caller works that out from the request (src/lib/board-return.ts).
+      Defaults to the plain board, which is the right answer for the static
+      /role page: nobody arrives there from a table they were reading. */
+  backHref?: string | null;
 }
-const { job, signedIn, selfPath, hasKey = false, paid = false, applyTrack = null } = Astro.props;
+const {
+  job,
+  signedIn,
+  selfPath,
+  hasKey = false,
+  paid = false,
+  applyTrack = null,
+  backHref = null
+} = Astro.props;
 
 const isClosed = job.status === 'closed';
 const ats = sourceLabel(job);
@@ -148,7 +162,7 @@ const applyUrl = job.apply_url;
 const applyClass = paid ? ['jd-link', 'jd-link-apply'] : ['jd-btn', 'jd-btn-primary'];
 const draftAction = routeFor('desk-job-draft');
 const subtitleParts = [job.company, job.location, `via ${ats}`].filter(Boolean);
-const boardHref = routeFor('board');
+const boardHref = backHref ?? routeFor('board');
 const methodHref = routeFor('evidence');
 const signInHref = `${withBase('/sign-in')}?next=${encodeURIComponent(selfPath)}`;
 // Signed in but no key: the draft cannot run in the reader's voice, so the

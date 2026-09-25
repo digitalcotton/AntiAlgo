@@ -80,6 +80,7 @@ import { boardDetailPath, jobDraftPath, routeFor } from '../../data/nav';
 import { isConfigured } from '../../lib/db';
 import { getBoardJobBySlug } from '../../lib/job-store';
 import { boardRowToJob, killPipelineLabel } from '../../lib/board-jobs';
+import { boardReturnHref } from '../../lib/board-return';
 import { isOn } from '../../lib/flags';
 import { keyMeta } from '../../lib/keychain-store';
 import { keyStorageIsConfigured } from '../../lib/keychain';
@@ -126,6 +127,16 @@ const boardHref = withBase('/board');
 // This page's own path, so a reader sent to sign in comes back to the posting
 // they were reading rather than to the home page.
 const selfPath = boardDetailPath(slug);
+
+// The breadcrumb goes back to the exact listing the reader left, page and
+// filters and all, rather than to page one of a table they were not reading.
+// See src/lib/board-return.ts for why this comes off the Referer header and
+// why every parameter is re-parsed on the way through.
+const backToListing = boardReturnHref(Astro.request.headers.get('referer'), Astro.request.url, [
+  routeFor('board'),
+  routeFor('prelist'),
+  routeFor('opportunities')
+]);
 const postingAction = routeFor('desk-posting');
 const statusUrl = `${jobDraftPath(slug)}/status`;
 const host = fetchRow ? hostnameOf(fetchRow.url) : '';
@@ -523,6 +534,7 @@ const applyTrack = showTrack && job?.apply_url ? { action: deskApplicationPath, 
               hasKey={hasKey}
               paid={paid}
               applyTrack={applyTrack}
+              backHref={backToListing}
             />
           )
         ) : (
