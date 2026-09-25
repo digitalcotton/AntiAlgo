@@ -12,9 +12,18 @@ import { INDEX, routeFor } from '../data/nav';
  * replaced: a "Back to the index" crumb, a PROVENANCE sidebar, a "New here?"
  * strip, none of which the site has any more.
  *
- * Step 01 was re-taken 2026-09-24 with scripts/capture-screens.mjs, which now
- * lives in this repo and shoots production, so the next time it drifts the fix
- * is one command.
+ * Step 01 was re-taken 2026-09-24 with scripts/capture-screens.mjs, and then
+ * REPLACED BY HAND on 2026-09-25 (owner's call) with a signed-in pair, so the
+ * script is no longer what took the picture that is on the page. The entry is
+ * kept and still works: it shoots production signed out, which is the framing
+ * this step used to carry.
+ *
+ * WHAT CHANGED, because it is not only the crop. The old pair was signed OUT,
+ * and the fit cell showed the sign-in prompt — the page deliberately did not
+ * promise a reading the reader had not earned. The new pair is signed in on the
+ * same demo profile step 03 uses, so a real score and its five components are
+ * on screen. The alt text follows, and so does the figcaption. Worth knowing
+ * when reading the step's own body copy beside it.
  *
  * STEP 03 WAS RE-TAKEN 2026-09-25, and not by that script. The step is about
  * the drafted documents, which only exist for a signed-in paid reader holding a
@@ -39,10 +48,13 @@ const STEPS = [
     n: '01',
     tag: 'Free',
     title: "Find one that's real",
-    body: "Every posting re-checked at the company's own careers page last night. The fit score and the math behind it printed on the page. No account needed.",
+    // "No account needed" was the third sentence here until 2026-09-25. It came
+    // out with the capture: the pair on this step is signed in now, so the
+    // sentence was being read next to a picture of an account.
+    body: "Every posting re-checked at the company's own careers page last night. The fit score and the math behind it printed on the page.",
     link: { label: 'Open the board', href: INDEX.board },
-    img: { light: '/screens/hiw-01-light.png', dark: '/screens/hiw-01-dark.png', w: 2720, h: 2226, alt: 'A live posting on Anti Algo, signed out: the pay as posted, the age, the dates, and the full history of every sweep that read it. Fit says sign in, because fit is a signed-in reading.' },
-    caption: 'Captured from the product.'
+    img: { light: '/screens/hiw-01-light.png', dark: '/screens/hiw-01-dark.png', w: 1868, h: 1374, alt: 'A live Figma posting on Anti Algo: the pay as posted, the age, the dates and the sweep that read it this morning, beside a real fit score and the five components that add up to it.' },
+    caption: 'Captured from the product, on a demo profile.'
   },
   {
     n: '02',
