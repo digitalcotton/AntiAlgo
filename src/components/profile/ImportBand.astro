@@ -375,11 +375,23 @@ const {
     transition: border-color var(--motion-duration-instant) var(--motion-easing-standard),
       background var(--motion-duration-instant) var(--motion-easing-standard);
   }
+  /* Answering a drag the way Come ready's bands answer one: the dashed edge
+     closes into a solid signal line and the fill takes the faintest wash of
+     the same colour. The shared .is-dragging rule in come-ready.css cannot
+     reach this band — Astro's scoping attribute outranks it, and this band
+     sets its own border — so the treatment is written out here, with the same
+     values, rather than left to a rule that never lands.
+
+     Hover and focus take it too. The plain foreground-and-grey wash this
+     replaced read as a hairline hover on a table row, not as a target that
+     catches a file, and the box is a big one: one answer for pointer, keyboard
+     and drag is what makes it read as the same thing in all three. */
   .import-dropzone:hover,
   .import-dropzone:focus-within,
   .import-dropzone.is-dragging {
-    border-color: var(--color-foreground);
-    background: var(--color-hover-surface);
+    border-style: solid;
+    border-color: var(--color-signal);
+    background: color-mix(in srgb, var(--color-signal) 8%, transparent);
   }
   /* The real control, kept in the accessibility tree and kept operable by
      keyboard: it is the label's own input, so clicking anywhere in the dashed
