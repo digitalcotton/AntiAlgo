@@ -4,13 +4,16 @@ import { INDEX, routeFor } from '../data/nav';
 
 /*
  * How it works, built to the Anti Algo how-it-works canvas: a hero, four
- * numbered steps, and a closer. Three steps carry real captures pulled from
- * the product (public/screens/): step 01 from a live role page, step 02 from
- * the signed-in Add a job panel, step 04 from the signed-in Desk. Step 03,
- * tailoring, is the one still on a labelled placeholder: a real capture needs
- * a generated resume and cover, which need an AI key, so it waits until there
- * is one to draft with. See the live-screenshots note for how the captures
- * were taken (Playwright against the index, gated pages via a local sign-in).
+ * numbered steps, and a closer. Every step carries a real capture pulled from
+ * the product (public/screens/): step 01 from a live posting, step 02 from the
+ * signed-in Add a job panel, step 04 from the signed-in Desk.
+ *
+ * A CAPTURE GOES STALE WHEN THE PRODUCT MOVES, and step 01's did. Job Detail
+ * v2 shipped 2026-09-18 and this page kept advertising the layout it replaced:
+ * a "Back to the index" crumb, a PROVENANCE sidebar, a "New here?" strip, none
+ * of which the site has any more. Re-taken 2026-09-24 with
+ * scripts/capture-screens.mjs, which now lives in this repo and shoots
+ * production, so the next time it drifts the fix is one command.
  */
 const signUp = (from: string) => `${routeFor('sign-up')}?from=${from}`;
 
@@ -21,7 +24,7 @@ const STEPS = [
     title: "Find one that's real",
     body: "Every posting re-checked at the company's own careers page last night. The fit score and the math behind it printed on the page. No account needed.",
     link: { label: 'Open the board', href: INDEX.board },
-    img: { light: '/screens/hiw-01-light.png', dark: '/screens/hiw-01-dark.png', w: 2720, h: 2226, alt: 'A live role page on The Index: the fit score, the facts as posted, and the provenance panel.' },
+    img: { light: '/screens/hiw-01-light.png', dark: '/screens/hiw-01-dark.png', w: 2720, h: 2226, alt: 'A live posting on Anti Algo, signed out: the pay as posted, the age, the dates, and the full history of every sweep that read it. Fit says sign in, because fit is a signed-in reading.' },
     caption: 'Captured from the product.'
   },
   {
