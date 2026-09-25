@@ -11,8 +11,21 @@
  * WHAT IT REMOVES, and this is the whole list: watched titles, the Desk's
  * filters, provider keys and the designation that names which one drafts,
  * every Profile Record entry and its artifacts, links, the cover letter, any
- * resumé read in flight or waiting, every generated draft, and the postings
- * and applications the free flow's "add a job by link" creates.
+ * resumé read in flight or waiting, every generated draft, the postings and
+ * applications the free flow's "add a job by link" creates, every saved role
+ * and Pre-List follow, the board's remembered filter selection, and the
+ * funnel milestones this run crossed.
+ *
+ * THE JOB-SIDE ROWS WERE HALF THE PROBLEM. Until 2026-09-25 this list was
+ * written out by hand and three tables added after it — watchlist (db/108),
+ * account_filter_state (db/109) and analytics_event (db/128) — were never
+ * added to it, so a "reset" account walked back into a board that still
+ * remembered its filters, a Pre-List that still held its follows, and a
+ * funnel that already counted its first draft. A list maintained by memory
+ * drifts the moment a migration lands, so test/internal-reset-onboarding
+ * -post.test.ts now checks OWNED against src/lib/account.ts's PERSON_TABLES
+ * inventory: a new per-account table fails that test until it is named here
+ * or named as deliberately kept.
  *
  * WHAT IT KEEPS: the account, its tier, its name, its email and its verified
  * state. A reset is not a delete; the person signs back in to the same
@@ -36,7 +49,7 @@ const RELAY_COOKIE = 'internal_tier_relay';
 /** Every table a run of Come ready writes to, and the column each keys the
     account by. Listed once, so what a reset clears is readable in one place
     rather than inferred from a wall of statements. */
-const OWNED: readonly { table: string; column: string; label: string }[] = [
+export const OWNED: readonly { table: string; column: string; label: string }[] = [
   { table: 'ledger_watch', column: 'user_id', label: 'titles' },
   { table: 'account_ledger_prefs', column: 'user_id', label: 'filters' },
   { table: 'user_provider_key', column: 'user_id', label: 'keys' },
@@ -46,7 +59,30 @@ const OWNED: readonly { table: string; column: string; label: string }[] = [
   { table: 'generated_render', column: 'user_id', label: 'drafts' },
   { table: 'desk_posting_fetch', column: 'user_id', label: 'added postings' },
   { table: 'desk_application', column: 'user_id', label: 'applications' },
-  { table: 'desk_saved_job', column: 'user_id', label: 'saved roles' }
+  { table: 'desk_saved_job', column: 'user_id', label: 'saved roles' },
+  { table: 'watchlist', column: 'user_id', label: 'Pre-List follows' },
+  { table: 'account_filter_state', column: 'user_id', label: 'board filters' },
+  { table: 'analytics_event', column: 'user_id', label: 'milestones' }
+];
+
+/** The per-account tables a reset deliberately does NOT clear, and why. Read
+    by the same test that reads OWNED, so "we meant to leave this" is a
+    written decision rather than an omission nobody noticed.
+
+    record_artifact is not listed in OWNED because it does not need to be:
+    its foreign key cascades from record_entry (user_id, prf_id), which
+    OWNED does delete (db/104_profile_record.sql).
+
+    app_user_profile is the row a reset keeps by definition — the account,
+    its tier, its name, its email — so it is UPDATEd below rather than
+    deleted. record_prf_ids_issued stays with it: db/105_record_prf_ledger
+    .sql makes that column append-only on purpose, so a PRF number that has
+    ever been issued is never handed to a new entry. A reset account
+    therefore resumes its numbering rather than restarting at PRF-0001.
+    That is the ledger's whole contract, not an oversight here. */
+export const KEPT: readonly { table: string; why: string }[] = [
+  { table: 'record_artifact', why: 'cascades from record_entry, which OWNED deletes' },
+  { table: 'app_user_profile', why: 'the row a reset keeps; its first-run columns are cleared by the UPDATE below' }
 ];
 
 function redirect(): Response {
@@ -103,13 +139,17 @@ export async function POST(context: APIContext): Promise<Response> {
         const result = await client.query(`DELETE FROM ${table} WHERE ${column} = $1`, [row.id]);
         if (result.rowCount) cleared.push(`${result.rowCount} ${label}`);
       }
-      // The letter and the designation live on the profile row, which stays.
+      // The letter, the designation and the draft-on-apply choice live on the
+      // profile row, which stays. generate_on_apply goes back to the column
+      // default (db/111) rather than to a literal, so this line cannot drift
+      // from what a brand-new account actually starts with.
       await client.query(
         `UPDATE app_user_profile
             SET cover_letter_text = NULL,
                 cover_letter_source_name = NULL,
                 cover_letter_added_at = NULL,
-                drafting_provider = NULL
+                drafting_provider = NULL,
+                generate_on_apply = DEFAULT
           WHERE user_id = $1`,
         [row.id]
       );

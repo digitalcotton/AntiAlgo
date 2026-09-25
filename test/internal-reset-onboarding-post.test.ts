@@ -56,7 +56,8 @@ const clientRelease = vi.fn();
 const connect = vi.fn(async () => ({ query: clientQuery, release: clientRelease }));
 vi.mock('../src/lib/db', () => ({ db: () => ({ query: poolQuery, connect }) }));
 
-const { POST } = await import('../src/pages/internal/reset-onboarding');
+const { POST, OWNED, KEPT } = await import('../src/pages/internal/reset-onboarding');
+const { PERSON_TABLES } = await import('../src/lib/account');
 
 interface Viewer {
   userId: string;
@@ -155,11 +156,17 @@ describe('POST /internal/reset-onboarding, called as internal', () => {
       string,
       unknown[]
     ][];
-    expect(deleteCalls).toHaveLength(10); // reset-onboarding.ts's OWNED list has 10 tables
+    // Length read from OWNED itself, not typed as a number: the number was 10
+    // until 2026-09-25 and a literal here is a second place to forget.
+    expect(deleteCalls).toHaveLength(OWNED.length);
     for (const [, params] of deleteCalls) {
       expect(params).toEqual([MEMBER_ROW.id]);
     }
     expect(deleteCalls.some(([sql]) => sql.includes('record_entry'))).toBe(true);
+    // Every table OWNED names is actually aimed at, in OWNED's own order.
+    expect(deleteCalls.map(([sql]) => sql)).toEqual(
+      OWNED.map((t) => `DELETE FROM ${t.table} WHERE ${t.column} = $1`)
+    );
 
     const updateCall = clientQuery.mock.calls.find((call: unknown[]) => (call[0] as string).startsWith('UPDATE app_user_profile'));
     expect(updateCall).toBeDefined();
@@ -209,5 +216,47 @@ describe('POST /internal/reset-onboarding, called as internal', () => {
       expect(connect, 'the tool for clearing test accounts must never clear the account that operates it').not.toHaveBeenCalled();
       expect(relayPayload(context).ok).toBe(false);
     });
+  });
+});
+
+/**
+ * THE DRIFT GUARD, and the reason it exists.
+ *
+ * OWNED was written out by hand in 2026-09-22 and three per-account tables
+ * that landed around it — watchlist (db/108), account_filter_state (db/109)
+ * and analytics_event (db/128) — were never added. A reset account therefore
+ * walked back into a board that still remembered its filters and a Pre-List
+ * that still held its follows: the account looked reset on /start and was not
+ * reset on the job side at all. Nothing failed, because nothing was checking.
+ *
+ * src/lib/account.ts's PERSON_TABLES is this codebase's one inventory of what
+ * a person's rows actually are — it is what the delete and export routes read
+ * — so this test makes the reset answer to it. A migration that adds a
+ * per-account table and a PERSON_TABLES entry now fails here until someone
+ * decides, in writing, whether a reset clears it (OWNED) or deliberately
+ * keeps it (KEPT).
+ */
+describe('the reset stays in step with the account inventory', () => {
+  const appTables = PERSON_TABLES.filter((t) => t.owner === 'app');
+
+  it('every app-owned table in PERSON_TABLES is either cleared or deliberately kept', () => {
+    const named = new Set([...OWNED.map((t) => t.table), ...KEPT.map((t) => t.table)]);
+    const unaccounted = appTables.filter((t) => !named.has(t.table)).map((t) => t.table);
+    expect(
+      unaccounted,
+      'a per-account table exists that /internal/reset-onboarding neither clears nor names as kept'
+    ).toEqual([]);
+  });
+
+  it('the job-side tables the reset used to miss are cleared', () => {
+    const cleared = new Set(OWNED.map((t) => t.table));
+    for (const table of ['watchlist', 'account_filter_state', 'analytics_event']) {
+      expect(cleared.has(table), `${table} survived a reset before 2026-09-25`).toBe(true);
+    }
+  });
+
+  it('nothing is named twice, and nothing is both cleared and kept', () => {
+    const tables = [...OWNED.map((t) => t.table), ...KEPT.map((t) => t.table)];
+    expect(new Set(tables).size).toBe(tables.length);
   });
 });
