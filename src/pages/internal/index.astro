@@ -123,20 +123,24 @@ const TIERS = ['waitlisted', 'member', 'paid'] as const;
     </section>
 
     <section class="block" aria-labelledby="reset-h">
-      <h2 id="reset-h">Reset an account's first run</h2>
+      <h2 id="reset-h">Reset an account to brand new</h2>
       <p class="muted">
-        Puts one account back at the start of Come ready: titles, filters, keys, record entries, links,
-        the cover letter, any read in flight, drafts, added postings and applications, and the job-side
-        rows with them &#8212; saved roles, Pre-List follows, the board's remembered filters and the funnel
-        milestones. The account, its tier and its sign-in are untouched. An internal account is never
-        reset here.
+        Leaves the account holding nothing but its name and its email. Everything a run of Come ready
+        wrote goes: titles, filters, keys, record entries, links, the cover letter, any read in flight,
+        drafts, added postings, applications, saved roles, Pre-List follows, the board's remembered
+        filters and the funnel milestones. The profile row goes back to a fresh signup's defaults too
+        &#8212; the handle is released and the next Profile Record entry is PRF-0001 again.
+      </p>
+      <p class="muted">
+        Kept on purpose: the name, the email, the verified state, the tier (set it with the form above)
+        and the sign-in, so the tab you are in keeps working. An internal account is never reset here.
       </p>
       <form class="tier-form" method="POST" action={routeFor('internal-reset-onboarding')}>
         <label class="field">
           <span class="field-label">Email address</span>
           <input class="field-input" type="email" name="email" required autocomplete="off" placeholder="you@wherever.com" />
         </label>
-        <button class="cta" type="submit">Reset the first run</button>
+        <button class="cta" type="submit">Reset to brand new</button>
       </form>
     </section>
 

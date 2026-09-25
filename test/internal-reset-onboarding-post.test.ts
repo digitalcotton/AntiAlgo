@@ -48,6 +48,8 @@
  * is that an internal caller cannot use it to wipe another internal
  * account, not even itself.
  */
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const poolQuery = vi.fn();
@@ -56,7 +58,7 @@ const clientRelease = vi.fn();
 const connect = vi.fn(async () => ({ query: clientQuery, release: clientRelease }));
 vi.mock('../src/lib/db', () => ({ db: () => ({ query: poolQuery, connect }) }));
 
-const { POST, OWNED, KEPT } = await import('../src/pages/internal/reset-onboarding');
+const { POST, OWNED, KEPT, KEPT_COLUMNS } = await import('../src/pages/internal/reset-onboarding');
 const { PERSON_TABLES } = await import('../src/lib/account');
 
 interface Viewer {
@@ -170,8 +172,29 @@ describe('POST /internal/reset-onboarding, called as internal', () => {
 
     const updateCall = clientQuery.mock.calls.find((call: unknown[]) => (call[0] as string).startsWith('UPDATE app_user_profile'));
     expect(updateCall).toBeDefined();
-    expect(updateCall![0]).toContain('cover_letter_text');
     expect(updateCall![1]).toEqual([MEMBER_ROW.id]);
+    // The owner's line on 2026-09-25 was "no data other than the name and the
+    // email", so the columns that carry a first run are named one by one
+    // rather than spot-checked: cover_letter_text alone used to pass here
+    // while handle, the resumé email and the PRF ledger all survived a reset.
+    for (const column of [
+      'cover_letter_text',
+      'cover_letter_source_name',
+      'cover_letter_added_at',
+      'drafting_provider',
+      'generate_on_apply',
+      'handle',
+      'resume_email',
+      'resume_email_use_login',
+      'signup_source',
+      'record_prf_ids_issued'
+    ]) {
+      expect(updateCall![0], `${column} survives a reset`).toContain(column);
+    }
+    // And the ones a reset keeps are not written at all.
+    for (const column of ['tier', 'first_name', 'last_name', 'created_at']) {
+      expect(updateCall![0], `${column} must survive a reset`).not.toContain(`${column} =`);
+    }
 
     expect(clientRelease).toHaveBeenCalledTimes(1);
     expect(relayPayload(context).ok).toBe(true);
@@ -258,5 +281,101 @@ describe('the reset stays in step with the account inventory', () => {
   it('nothing is named twice, and nothing is both cleared and kept', () => {
     const tables = [...OWNED.map((t) => t.table), ...KEPT.map((t) => t.table)];
     expect(new Set(tables).size).toBe(tables.length);
+  });
+});
+
+/**
+ * THE SAME DRIFT GUARD, one level down: the profile row's own columns.
+ *
+ * The table list above was one half of "a reset does not actually reset".
+ * The other half was app_user_profile itself. Its UPDATE cleared four
+ * columns, and every column added to that table after those four was simply
+ * never considered: handle, resume_email, resume_email_use_login,
+ * signup_source and record_prf_ids_issued all survived, which is why a
+ * supposedly brand-new test account handed out PRF-0003 as its first entry.
+ *
+ * So the schema is the source here, the same way PERSON_TABLES is the source
+ * above. This reads db/*.sql for every column that has ever been added to
+ * app_user_profile and requires each one to be either written by the UPDATE
+ * or named in KEPT_COLUMNS with a reason. A migration that adds a column
+ * fails this test until someone decides, in writing, which it is.
+ */
+describe("the reset stays in step with app_user_profile's own schema", () => {
+  /** Every column the migrations give app_user_profile, read from db/*.sql.
+      Both shapes the schema actually uses: the CREATE TABLE block in db/101,
+      and every `ALTER TABLE app_user_profile ... ADD COLUMN IF NOT EXISTS`. */
+  function schemaColumns(): string[] {
+    const dir = join(process.cwd(), 'db');
+    const found = new Set<string>();
+    for (const file of readdirSync(dir).filter((f) => f.endsWith('.sql'))) {
+      const sql = readFileSync(join(dir, file), 'utf8');
+
+      const created = sql.match(/CREATE TABLE IF NOT EXISTS app_user_profile\s*\(([\s\S]*?)\n\);/);
+      if (created) {
+        for (const line of created[1].split('\n')) {
+          const bare = line.trim();
+          if (!bare || bare.startsWith('--')) continue;
+          const name = bare.match(/^([a-z_]+)\s+[a-z]/);
+          if (name) found.add(name[1]);
+        }
+      }
+
+      // Scope to this table: a file may ALTER others in the same breath.
+      for (const chunk of sql.split(/ALTER TABLE\s+/).slice(1)) {
+        if (!chunk.startsWith('app_user_profile')) continue;
+        const statement = chunk.slice(0, chunk.indexOf(';') + 1);
+        for (const m of statement.matchAll(/ADD COLUMN IF NOT EXISTS\s+([a-z_]+)/g)) found.add(m[1]);
+      }
+    }
+    return [...found].sort();
+  }
+
+  it('the schema reader actually finds the columns (it is the test\'s own input)', () => {
+    const columns = schemaColumns();
+    // If this ever goes empty or thin, every assertion below passes vacuously.
+    expect(columns).toContain('user_id');
+    expect(columns).toContain('tier');
+    expect(columns).toContain('record_prf_ids_issued');
+    expect(columns).toContain('cover_letter_added_at');
+    expect(columns.length).toBeGreaterThanOrEqual(15);
+  });
+
+  it('every app_user_profile column is either cleared by the reset or kept on purpose', async () => {
+    const context = ctx({ viewer: INTERNAL_VIEWER, verdict: INTERNAL_VERDICT, form: { email: MEMBER_ROW.email } });
+    await POST(context);
+    const update = clientQuery.mock.calls.find((call: unknown[]) =>
+      (call[0] as string).startsWith('UPDATE app_user_profile')
+    )![0] as string;
+
+    // What the statement actually assigns, read off the statement itself.
+    const written = new Set([...update.matchAll(/([a-z_]+)\s*=/g)].map((m) => m[1]));
+    const kept = new Set(KEPT_COLUMNS.map((c) => c.column));
+
+    const unaccounted = schemaColumns().filter((c) => !written.has(c) && !kept.has(c));
+    expect(
+      unaccounted,
+      'an app_user_profile column exists that a reset neither clears nor names in KEPT_COLUMNS'
+    ).toEqual([]);
+  });
+
+  it('every kept column carries a written reason, and none is also cleared', async () => {
+    for (const { column, why } of KEPT_COLUMNS) {
+      expect(why.length, `${column} is kept with no reason given`).toBeGreaterThan(20);
+    }
+    const kept = KEPT_COLUMNS.map((c) => c.column);
+    expect(new Set(kept).size).toBe(kept.length);
+  });
+
+  it('the columns that made a reset account look used are cleared', async () => {
+    const context = ctx({ viewer: INTERNAL_VIEWER, verdict: INTERNAL_VERDICT, form: { email: MEMBER_ROW.email } });
+    await POST(context);
+    const update = clientQuery.mock.calls.find((call: unknown[]) =>
+      (call[0] as string).startsWith('UPDATE app_user_profile')
+    )![0] as string;
+
+    // record_prf_ids_issued is the one you could see: a brand-new account
+    // whose first Profile Record entry came back numbered PRF-0003.
+    expect(update).toContain('record_prf_ids_issued = DEFAULT');
+    expect(update).toContain('handle = NULL');
   });
 });

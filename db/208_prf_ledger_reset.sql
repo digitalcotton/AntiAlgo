@@ -1,0 +1,32 @@
+-- 208_prf_ledger_reset.sql
+--
+-- No schema change. One COMMENT, corrected, because the old one had become
+-- false and a false comment on a column is worse than none.
+--
+-- WHAT db/105 SAID, and why it said it. record_prf_ids_issued is the
+-- append-only list of every PRF-nnnn ever issued to a person, and its
+-- COMMENT ended: "Append-only: nothing in this codebase removes an entry
+-- from this array." The reasoning behind it is sound and unchanged — a
+-- person who deletes PRF-0003 must never see that number handed to a new
+-- entry, because every render that ever cited it (a downloaded resumé, a
+-- link someone else was sent) would go ambiguous about which fact it meant.
+--
+-- WHAT CHANGED ON 2026-09-25. /internal/reset-onboarding now empties this
+-- array, so the sentence is no longer true. It is emptied in exactly one
+-- place, inside the one transaction that has already deleted every
+-- record_entry, every generated_render and every desk_application the
+-- account has: by the time that line runs, nothing anywhere still cites a
+-- PRF number, so there is nothing left for a reused number to be ambiguous
+-- about. The condition db/105's rule protects does not exist at that
+-- moment. Leaving the ledger alone was what made a supposedly brand-new
+-- test account hand out PRF-0003 as its first entry.
+--
+-- The rule still binds everything else: no delete path, no edit path and no
+-- store function removes an entry from this array. The exemption is the
+-- account reset, and only because a reset removes every citation first.
+--
+-- Run with:  npm run db:migrate
+-- Safe to run repeatedly. A COMMENT is idempotent by nature.
+
+COMMENT ON COLUMN app_user_profile.record_prf_ids_issued IS
+  'Every PRF-nnnn ever issued to this person by record-store.ts''s createEntry(), including ids whose record_entry row has since been deleted. src/lib/record.ts''s nextPrfId() reads it in full so a deleted entry''s number is never handed to a new one. Append-only with exactly one exemption: src/pages/internal/reset-onboarding.ts empties it, in the same transaction that deletes every entry, render and application the account has, so no surviving document can cite a number that gets reused. Nothing else in this codebase removes an entry from this array.';

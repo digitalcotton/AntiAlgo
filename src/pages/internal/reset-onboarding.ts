@@ -27,9 +27,22 @@
  * inventory: a new per-account table fails that test until it is named here
  * or named as deliberately kept.
  *
- * WHAT IT KEEPS: the account, its tier, its name, its email and its verified
- * state. A reset is not a delete; the person signs back in to the same
- * account and walks the flow again.
+ * WHAT IT KEEPS, and as of 2026-09-25 this is the whole list: the account
+ * row itself, its tier, its first and last name, its email, its verified
+ * state, when it was created, and its live sessions. Everything else on the
+ * profile row goes back to what a fresh signup has — the handle is released,
+ * the resumé email settings, the signup source and the draft-on-apply choice
+ * go back to their column defaults, and the PRF ledger is emptied so the
+ * next entry is PRF-0001 again.
+ *
+ * WHY TIER AND THE SESSION SURVIVE, owner's call 2026-09-25. Tier: testing
+ * the paid first run has to stay one click, and the "Set an account's tier"
+ * form directly above this one on /internal is the tool for changing it.
+ * Session: a genuinely brand-new account IS signed in the second it signs
+ * up, so keeping the session is the accurate brand-new state, not a
+ * shortcut — the tab stays alive and /start shows step 1 on refresh.
+ *
+ * A reset is still not a delete; the person is on the same account.
  *
  * THIS DESTROYS REAL WORK, so it is deliberately narrow. Internal tier only
  * (the middleware gates the whole /internal prefix), the address has to be
@@ -75,14 +88,25 @@ export const OWNED: readonly { table: string; column: string; label: string }[] 
 
     app_user_profile is the row a reset keeps by definition — the account,
     its tier, its name, its email — so it is UPDATEd below rather than
-    deleted. record_prf_ids_issued stays with it: db/105_record_prf_ledger
-    .sql makes that column append-only on purpose, so a PRF number that has
-    ever been issued is never handed to a new entry. A reset account
-    therefore resumes its numbering rather than restarting at PRF-0001.
-    That is the ledger's whole contract, not an oversight here. */
+    deleted, and that UPDATE is where "brand new" is actually enforced. */
 export const KEPT: readonly { table: string; why: string }[] = [
   { table: 'record_artifact', why: 'cascades from record_entry, which OWNED deletes' },
   { table: 'app_user_profile', why: 'the row a reset keeps; its first-run columns are cleared by the UPDATE below' }
+];
+
+/** The app_user_profile columns a reset deliberately leaves alone, and why.
+    Every OTHER column on that table must appear in the UPDATE below, and the
+    test reads both this list and the schema to hold that: a migration that
+    adds a column to app_user_profile fails the test until someone decides
+    whether a reset clears it or keeps it. That decision being implicit is
+    the whole bug this endpoint was rewritten for on 2026-09-25 — the reset
+    had quietly stopped meaning "brand new". */
+export const KEPT_COLUMNS: readonly { column: string; why: string }[] = [
+  { column: 'user_id', why: 'the primary key; it IS the account' },
+  { column: 'tier', why: "owner's call 2026-09-25: testing the paid first run stays one click. /internal's tier form is the tool for changing it" },
+  { column: 'first_name', why: 'the name, which a reset keeps by definition' },
+  { column: 'last_name', why: 'the name, which a reset keeps by definition' },
+  { column: 'created_at', why: 'when the account was born, which a reset does not rewrite' }
 ];
 
 function redirect(): Response {
@@ -139,17 +163,42 @@ export async function POST(context: APIContext): Promise<Response> {
         const result = await client.query(`DELETE FROM ${table} WHERE ${column} = $1`, [row.id]);
         if (result.rowCount) cleared.push(`${result.rowCount} ${label}`);
       }
-      // The letter, the designation and the draft-on-apply choice live on the
-      // profile row, which stays. generate_on_apply goes back to the column
-      // default (db/111) rather than to a literal, so this line cannot drift
-      // from what a brand-new account actually starts with.
+      // The profile row stays, but nothing a run of Come ready wrote on it
+      // stays with it. Every column here is set to DEFAULT rather than to a
+      // literal wherever the column has one, so this statement cannot drift
+      // from what a brand-new account actually starts with: the default is
+      // read from the schema at execution, not copied here by hand.
+      //
+      // handle goes to NULL, which is a release, not a blank: db/110 makes
+      // the column UNIQUE and nullable precisely so NULL is the ordinary
+      // state and the name becomes claimable again.
+      //
+      // THE PRF LEDGER, and why this is the one place that empties it.
+      // db/105_record_prf_ledger.sql makes record_prf_ids_issued append-only
+      // so a deleted entry's PRF number is never reissued — every render
+      // that ever cited PRF-0003 would otherwise go ambiguous about which
+      // fact it meant. That reasoning holds for a person deleting one entry.
+      // It does not hold here: this transaction has already deleted every
+      // record_entry, every generated_render and every desk_application this
+      // account has, so by the time this line runs there is nothing left
+      // anywhere that cites a PRF number at all. Nothing can be made
+      // ambiguous by reusing one. Leaving the ledger alone is what actually
+      // broke the contract the owner asked for — a "brand new" account whose
+      // first entry comes back as PRF-0003. db/208 updates the column's own
+      // COMMENT so the schema stops claiming nothing ever empties it.
       await client.query(
         `UPDATE app_user_profile
             SET cover_letter_text = NULL,
                 cover_letter_source_name = NULL,
                 cover_letter_added_at = NULL,
                 drafting_provider = NULL,
-                generate_on_apply = DEFAULT
+                generate_on_apply = DEFAULT,
+                handle = NULL,
+                resume_email = NULL,
+                resume_email_use_login = DEFAULT,
+                signup_source = DEFAULT,
+                record_prf_ids_issued = DEFAULT,
+                updated_at = now()
           WHERE user_id = $1`,
         [row.id]
       );
@@ -165,7 +214,7 @@ export async function POST(context: APIContext): Promise<Response> {
     return relay(
       context,
       true,
-      `${row.email} is back at the start of Come ready. Cleared: ${cleared.join(', ') || 'nothing, it was already clear'}. The account, its tier and its sign-in are untouched.`
+      `${row.email} is brand new again. Cleared: ${cleared.join(', ') || 'nothing, it was already clear'}, plus the profile row's own first-run columns (handle released, PRF numbering back to 0001). Its name, email, tier and sign-in are untouched.`
     );
   } catch (error) {
     console.error('internal/reset-onboarding: failed.', error);
