@@ -30,18 +30,14 @@ import {
   DESCRIPTION_MAX_CHARS,
   FAILURE_CODES,
   NAME_MAX_CHARS,
-  SNAPSHOT_MAX_CHARS,
   SOURCE_KINDS,
   boardNoteFrom,
-  settlePostingFetch,
   type FailureCode,
   type MachineNotes,
   type SourceKind
 } from '../../../lib/posting-fetch-store';
-import { fillApplicationSnapshot } from '../../../lib/desk-store';
+import { settlePostingAndFillSnapshot } from '../../../lib/posting-settle';
 import { sanitizeCrawledHtml } from '../../../lib/description';
-import { plainTextFromHtml } from '../../../lib/vocabulary';
-import { addedPostingToJob } from '../../../lib/added-posting';
 
 export const prerender = false;
 
@@ -105,7 +101,7 @@ export async function POST(context: APIContext): Promise<Response> {
   const board = boardNoteFrom(body.board);
   if (board) machineNotes.board = board;
 
-  const settled = await settlePostingFetch(id, {
+  const settled = await settlePostingAndFillSnapshot(id, {
     outcome,
     sourceKind,
     title: name(body.title),
@@ -115,17 +111,9 @@ export async function POST(context: APIContext): Promise<Response> {
     httpStatus,
     failureCode,
     fetchedAt,
-    machineNotes
+    machineNotes: { ...machineNotes, reader: 'mini' }
   });
   if (!settled) return json({ accepted: false, reason: 'already-settled' });
 
-  if (outcome === 'ready') {
-    const job = addedPostingToJob(settled);
-    await fillApplicationSnapshot(settled.userId, settled.applicationId, {
-      title: settled.title,
-      company: job.company,
-      description: settled.descriptionHtml ? plainTextFromHtml(settled.descriptionHtml).slice(0, SNAPSHOT_MAX_CHARS) : null
-    });
-  }
   return json({ accepted: true, outcome });
 }

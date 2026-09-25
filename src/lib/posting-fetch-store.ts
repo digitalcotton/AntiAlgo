@@ -43,7 +43,18 @@ export interface BoardNote {
     optional and allowlisted; the page prints only what it knows how to. */
 export interface MachineNotes {
   board?: BoardNote;
+  /** Which machine did the reading. The site reads most postings itself now
+      (posting-read.ts) and hands the rest to the mini, and the two are
+      otherwise indistinguishable on the row: `origin` says 'machine' for both,
+      because both are a machine rather than a person typing, and `source_kind`
+      says how the page was read rather than by whom. Without this the question
+      "is the fast path actually working in production" has no answer short of
+      reading logs, which is the state this whole feature was already in. */
+  reader?: Reader;
 }
+
+export const READERS = ['site', 'mini'] as const;
+export type Reader = (typeof READERS)[number];
 
 export const DESCRIPTION_MAX_CHARS = 120_000;
 export const SNAPSHOT_MAX_CHARS = 40_000;
@@ -111,6 +122,9 @@ export function machineNotesFrom(value: unknown): MachineNotes {
   const notes: MachineNotes = {};
   const board = boardNoteFrom(raw.board);
   if (board) notes.board = board;
+  if (typeof raw.reader === 'string' && (READERS as readonly string[]).includes(raw.reader)) {
+    notes.reader = raw.reader as Reader;
+  }
   return notes;
 }
 
