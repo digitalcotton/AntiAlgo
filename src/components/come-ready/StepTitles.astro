@@ -43,11 +43,22 @@ const deskHref = routeFor('desk');
 const hasTitle = coreTitles.length > 0;
 /** The rows the dropdown holds, most live first. Rendered whole and narrowed
     in place, so the panel needs no request of its own and the top of the list
-    is already there before a key is pressed. The board carries about ten
-    thousand distinct live titles and all of them as markup is megabytes, so
-    this is the head of that list; the field takes any title either way, and
-    what is here is what can be browsed. */
-const options = titleIndex.slice(0, 500);
+    is already there before a key is pressed. The board carries thousands of
+    distinct live titles and all of them as markup is megabytes, so this is the
+    head of that list; the field takes any title either way, and what is here
+    is what can be browsed.
+    Raised from 500 to 1,500 on 2026-09-25: the owner typed "design", saw four
+    rows and read the list as thin. Most of that was the window (see the panel's
+    max-height, and the count line below, which now says how many matched), but
+    the head was also narrower than it needed to be. 1,500 rows of markup is
+    tens of kilobytes over the wire, which this page can carry; the whole index
+    is not, and the honest fix for the tail is a search that asks the server.
+    THE LIST IS STILL A HEAD, NOT THE WHOLE INDEX. */
+const TITLE_ROWS = 1500;
+const options = titleIndex.slice(0, TITLE_ROWS);
+/** How much of the index is behind the rows, so the panel can say so rather
+    than letting the reader assume the head is all of it. */
+const titlesNotShown = Math.max(0, titleIndex.length - options.length);
 
 const PAY_FLOORS = [
   { label: 'any', value: 0 },
@@ -115,13 +126,18 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
       <p class="cr-add-note" data-cr-combo-note role="status" hidden></p>
       {options.length > 0 && (
         <div class="cr-suggest" id="cr-titles-core" role="listbox" aria-label="Live titles" data-cr-combo-panel hidden={hasTitle}>
-          <p class="cr-suggest-head">Most live tonight</p>
+          <p class="cr-suggest-head" data-cr-combo-head data-default="Most live tonight">Most live tonight</p>
           {options.map((o) => (
             <button type="button" class="cr-suggest-row" role="option" data-cr-combo-row data-title={o.title}>
               <span>{o.title}</span>
               <span class="cr-suggest-live">{o.count.toLocaleString()} live</span>
             </button>
           ))}
+          {titlesNotShown > 0 && (
+            <p class="cr-suggest-foot">
+              The {options.length.toLocaleString()} most live of {titleIndex.length.toLocaleString()} titles on the board. Type any other and press Enter; it does not have to be on this list.
+            </p>
+          )}
         </div>
       )}
     </form>
@@ -169,7 +185,7 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
         <p class="cr-add-note" data-cr-combo-note role="status" hidden></p>
         {options.length > 0 && (
           <div class="cr-suggest" id="cr-titles-stretch" role="listbox" aria-label="Live titles" data-cr-combo-panel hidden>
-            <p class="cr-suggest-head">Most live tonight</p>
+            <p class="cr-suggest-head" data-cr-combo-head data-default="Most live tonight">Most live tonight</p>
             {options.map((o) => (
               <button type="button" class="cr-suggest-row" role="option" data-cr-combo-row data-title={o.title}>
                 <span>{o.title}</span>
@@ -290,6 +306,13 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
     };
     const visible = () => rows.filter((row) => !row.hidden);
 
+    // The panel is a short scrolling window, so a narrow that leaves forty
+    // matches looks exactly like one that leaves four (owner, 2026-09-25: typed
+    // "design", saw four rows, read the list as thin). The head says the count,
+    // so the window's height stops being the reader's only evidence.
+    const head = form.querySelector<HTMLElement>('[data-cr-combo-head]');
+    const headDefault = head?.dataset.default ?? 'Most live tonight';
+
     function narrow(): void {
       const query = input!.value.trim().toLowerCase();
       let shown = 0;
@@ -297,6 +320,12 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
         const hit = query.length === 0 || (row.dataset.title ?? '').toLowerCase().includes(query);
         row.hidden = !hit;
         if (hit) shown += 1;
+      }
+      if (head) {
+        head.textContent =
+          query.length === 0
+            ? headDefault
+            : `${shown.toLocaleString()} ${shown === 1 ? 'title matches' : 'titles match'} "${input!.value.trim()}"`;
       }
       // Back to the head of the list: after narrowing, the best match is the
       // first row, and a panel left scrolled down would hide it.
@@ -477,7 +506,9 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
     border: var(--border-hairline) solid var(--color-line-strong);
     border-top: 0;
     border-radius: 0 0 var(--radius) var(--radius);
-    max-height: 246px;
+    /* Was 246px, about five rows, which made every narrowed list look like a
+       short one. Nine rows is enough to read as a list you scroll. */
+    max-height: 430px;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
@@ -496,6 +527,18 @@ const controlsLine = `Remote only: ${remoteOnly ? 'on' : 'off'}. Pay floor: ${fl
     color: var(--color-muted);
     background: var(--color-surface-raised);
     border-bottom: var(--border-hairline) solid var(--color-line);
+  }
+  .cr-suggest-foot {
+    position: sticky;
+    bottom: 0;
+    margin: 0;
+    padding: 8px 12px;
+    background: var(--color-surface-raised);
+    border-top: var(--border-hairline) solid var(--color-line);
+    font-family: var(--font-family-mono);
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--color-muted);
   }
   .cr-suggest-row {
     display: flex;
