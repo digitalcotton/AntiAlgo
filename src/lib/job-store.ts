@@ -13,6 +13,7 @@
 import { db } from './db';
 import type { BoardRow } from './board-jobs';
 import type { AgeHistogram, AgeBucket } from './data';
+import { COMP_TOP_PATTERN } from './data';
 import { normalizeTitle } from './ledger-titles';
 
 /**
@@ -129,6 +130,25 @@ const COMP_BAND_SQL: readonly { key: string; ceiling: number | null }[] = [
   { key: '300-plus', ceiling: null }
 ];
 
+/**
+ * The comp_top SQL expression, as a function of a `comp_posted` column
+ * reference, so BOARD_FACET_CTE and comp-top-sql.test.ts (which runs this
+ * exact expression against known strings on a live database) share one
+ * source rather than two copies that could drift the way comp_top's
+ * pattern once drifted from compTop()'s. Built from COMP_TOP_PATTERN
+ * (data.ts) — see the comment on comp_top in BOARD_FACET_CTE below before
+ * changing this.
+ *
+ * m[1] is the digits (commas intact), m[2] is "k"/"K" or NULL. A "k" figure
+ * is already in thousands; a bare figure is a full dollar amount and is
+ * divided by 1000 to land in the same unit (matches compTop()'s
+ * normalisation in data.ts, which this must be changed together with).
+ */
+export function compTopSql(column: string): string {
+  return `(SELECT max((replace(m[1], ',', ''))::numeric / (CASE WHEN m[2] IS NULL THEN 1000 ELSE 1 END))
+            FROM regexp_matches(coalesce(${column}, ''), '${COMP_TOP_PATTERN}', 'gi') AS m)`;
+}
+
 /** The ORDER BY for each sort key, allowlisted; the raw string never reaches SQL. */
 const BOARD_ORDER: Record<BoardFilter['sort'], string> = {
   fit: 'fit_total DESC, company ASC, title ASC, id ASC',
@@ -152,7 +172,12 @@ const BOARD_ORDER: Record<BoardFilter['sort'], string> = {
  * age_days: the posted date (UTC calendar day), else the kill's own first
  *   published date, else first_seen when it is strictly before the sweep date;
  *   measured to the kill date for a killed row and to the sweep date otherwise.
- * comp_top: the largest "$Nk" figure in the posted pay text, the comp sort key.
+ * comp_top: built by compTopSql() above from COMP_TOP_PATTERN (data.ts) — the
+ *   largest stated pay figure in the posted text, normalised to thousands,
+ *   the comp sort key. MUST BE CHANGED TOGETHER WITH compTop() in data.ts:
+ *   that function reads the same pattern and applies the same
+ *   comma-strip/thousands-normalisation, and a row's comp sort must never
+ *   disagree with what its comp cell displays.
  * description is NULL::text on purpose: the heavy column never leaves the
  * database for a list, and the row shape stays BoardRow.
  */
@@ -178,7 +203,7 @@ WITH base AS (
            WHEN j.first_seen IS NOT NULL AND j.first_seen < $1::date
              THEN (CASE WHEN j.status = 'killed' THEN coalesce(k.killed_on::date, $1::date) ELSE $1::date END) - j.first_seen
            ELSE NULL END AS age_days,
-         (SELECT max((m[1])::numeric) FROM regexp_matches(coalesce(j.comp_posted, ''), '\\$(\\d+(?:\\.\\d+)?)k', 'gi') AS m) AS comp_top
+         ${compTopSql('j.comp_posted')} AS comp_top
     FROM jobs j LEFT JOIN board_kills k ON k.id = j.kill_id
 ),
 scored AS (

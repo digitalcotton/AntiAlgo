@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clusterJobs, locationDisplay, type Job } from './data';
+import { clusterJobs, compShortFromText, compTop, locationDisplay, type Job } from './data';
 
 // data.ts's clusterJobs() is MASTER-SPEC F10's duplicate-cluster collapse:
 // same title, same company, different locations becomes one row. These tests
@@ -297,5 +297,68 @@ describe('facetGroupsFromCounts', () => {
     const counts = { location: { all: 0, remote: 0, onsite: 0 }, comp: { all: 0, 'not-listed': 0 }, freshness: { all: 0, older: 0 } };
     expect(facetGroupsFromCounts(counts, { location: 'all', comp: 'all', freshness: 'all' })).toEqual([]);
     expect(facetGroupsFromCounts(counts, { location: 'remote', comp: 'all', freshness: 'all' }).map((g) => g.key)).toEqual(['location']);
+  });
+});
+
+// compTop() is the comp SORT key; compShortFromText() is what the comp cell
+// DISPLAYS. They used to read comp_posted with two different regexes and
+// disagree — a "k"-less, comma-formatted range ("$150,000 - $250,000")
+// rendered a real range but sorted as if comp_posted were null. These pin
+// that they now agree on which strings carry a stated figure, and that a
+// full-dollar figure lands in the same unit as a "k" figure.
+describe('compTop(): the comp sort key agrees with what the cell displays', () => {
+  it('reads a "k" figure the same as always', () => {
+    expect(compTop(job({ comp_posted: '$204k-$348k' }))).toBe(348);
+    expect(compTop(job({ comp_posted: '$300k-$450k + equity' }))).toBe(450);
+    expect(compTop(job({ comp_posted: '$150K' }))).toBe(150);
+    expect(compTop(job({ comp_posted: '$150.5k' }))).toBe(150.5);
+  });
+
+  it('reads a full-dollar, comma-formatted figure and normalises it to the same unit as a "k" figure', () => {
+    expect(compTop(job({ comp_posted: '$150,000' }))).toBe(150);
+    expect(compTop(job({ comp_posted: '$150,000 - $250,000' }))).toBe(250);
+    expect(compTop(job({ comp_posted: 'USD $150,000 - $250,000 DOE' }))).toBe(250);
+    // Same money, either spelling: this is the normalisation the display
+    // already assumed and the old sort key did not apply.
+    expect(compTop(job({ comp_posted: '$150,000' }))).toBe(compTop(job({ comp_posted: '$150k' })));
+  });
+
+  it('is null for a string with no figure, and for no comp_posted at all', () => {
+    expect(compTop(job({ comp_posted: 'Compensation commensurate with experience' }))).toBeNull();
+    expect(compTop(job({ comp_posted: null }))).toBeNull();
+  });
+
+  it('does not let a small, "k"-less figure (plausibly hourly, not annual) sort as a real salary', () => {
+    const hourly = compTop(job({ comp_posted: '$45/hr' }));
+    const salary = compTop(job({ comp_posted: '$150,000' }));
+    expect(hourly).not.toBeNull();
+    expect(hourly as number).toBeLessThan(1);
+    expect(hourly as number).toBeLessThan(salary as number);
+  });
+
+  // compShortFromText() only ever fires for the few postings with no
+  // structured comp_range, and even then only recognises a two-sided range
+  // (it requires a separator); a bare single figure like "$150,000" or
+  // "$150k" with no dash was already null there before this ticket, and
+  // staying null is the display staying exactly as it renders today (the
+  // ticket's own constraint). So the guarantee this fix owes is one
+  // direction only: whenever the cell WOULD show a figure, the sort must
+  // not treat the row as unpaid. The reverse (sort non-null, display null)
+  // is the pre-existing "bare figure, no range, no comp_range" case and is
+  // untouched by this change.
+  it('is non-null whenever compShortFromText() would show a figure (the reported defect, fixed)', () => {
+    const strings = [
+      '$204k-$348k',
+      '$300k-$450k + equity',
+      '$150,000 - $250,000',
+      'USD $150,000 - $250,000 DOE',
+      'Compensation commensurate with experience',
+      null
+    ];
+    for (const text of strings) {
+      const displayed = compShortFromText(text);
+      const sorted = compTop(job({ comp_posted: text }));
+      if (displayed !== null) expect(sorted).not.toBeNull();
+    }
   });
 });
