@@ -213,15 +213,21 @@ const shelves: { key: 'core' | 'stretch'; label: string; caption: string; list: 
   .wl-head::-webkit-details-marker { display: none; }
   .wl-index { font-size: var(--size-100); font-weight: var(--weight-medium); letter-spacing: var(--tracking-loose); text-transform: uppercase; color: var(--color-muted); }
   .wl-index .mono-label { margin-right: var(--space-200); }
-  /* The edit action reads as a button, not a footnote: bordered, foreground
-     ink, filled on hover. */
-  /* The page's primary control (owner's call, 2026-09-20): the site's
-     signal-orange CTA with the same values as Add a job on Opportunities and
-     Open controls on Jobs Data. Dark ink in both themes; hover dims. */
-  .wl-toggle { display: inline-flex; align-items: center; justify-content: center; padding: var(--space-300) var(--space-500); border: var(--border-hairline) solid var(--color-signal); border-radius: var(--radius); background: var(--color-signal); color: var(--gray-950); font-family: var(--font-family-sans); font-weight: var(--weight-bold); font-size: var(--size-100); letter-spacing: var(--tracking-loose); text-transform: uppercase; white-space: nowrap; }
+  /* SECONDARY, and it took two decisions to get here.
+     It was made the page's primary control in signal orange (owner,
+     2026-09-20), back when it was the only orange thing on the Desk. Come
+     Ready then put its own orange CTA at the top of the same screen, so a
+     member arriving for the first time met two primary buttons and neither
+     one said "start here" (owner, 2026-09-24). Onboarding owns the orange on
+     this page; editing a list you already have is the quieter action, so this
+     drops to the ghost treatment its siblings already use (RoleCard's
+     .rc-btn-ghost): hairline border, foreground ink, transparent fill,
+     inverted on hover so it still reads as a button and not a footnote. No
+     new colour, both values are tokens already on the page. */
+  .wl-toggle { display: inline-flex; align-items: center; justify-content: center; padding: var(--space-300) var(--space-500); border: var(--border-hairline) solid var(--color-foreground); border-radius: var(--radius); background: transparent; color: var(--color-foreground); font-family: var(--font-family-sans); font-weight: var(--weight-bold); font-size: var(--size-100); letter-spacing: var(--tracking-loose); text-transform: uppercase; white-space: nowrap; }
   .wl-toggle::after { content: 'Edit watch list +'; }
   .wl-d[open] .wl-toggle::after { content: 'Done editing \2212'; }
-  .wl-head:hover .wl-toggle { opacity: 0.86; }
+  .wl-head:hover .wl-toggle { background: var(--color-surface-inverse); color: var(--color-foreground-inverse); }
 
   /* Editor. */
   .wl-editor { display: flex; flex-direction: column; gap: var(--space-500); padding-top: var(--space-500); }
