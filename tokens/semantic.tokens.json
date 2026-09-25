@@ -55,6 +55,11 @@
       "$type": "color",
       "$description": "A handle a reader drags, and the rail it draws: the age strip's two bounds. One step softer than foreground, so the control reads as furniture the reader owns rather than as text. Owner's call 2026-09-13: gray.200 on ink, and its mirror on paper. Brought in with the board's AgePlot component (copied from the Index)."
     },
+    "tailor-highlight": {
+      "$value": "{tailor.on-paper}",
+      "$type": "color",
+      "$description": "The background behind a line a connected model rephrased for this posting (DraftRoomV2's .is-tailored). The text on it is not a token: it inherits color-foreground, which is what keeps it legible in both themes. It was a raw rgb() with a raw #0b0b0d text colour until 2026-09-25, which is precisely why it had no dark value \u2014 it never passed through DARK_REMAP, and the build could not refuse what it never saw."
+    },
     "mark-live": {
       "$value": "{status.live.on-paper}",
       "$type": "color",

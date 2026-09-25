@@ -56,6 +56,12 @@ export const DARK_REMAP = {
   'hatch-a': '900',
   'hatch-b': '925',
 
+  // The draft room's marker highlight. Its own primitive pair rather than a gray
+  // step, for the same reason the live mark has one: it carries meaning ("the
+  // model rephrased this line"), and meaning has to survive the flip. It did not,
+  // before 2026-09-25 — see tailor.on-ink's own description.
+  'tailor-highlight': 'tailor.on-ink',
+
   // The one accent. Same value in both themes, so it remaps to its own primitive
   // rather than to a gray step: the brand does not dim on ink.
   signal: 'signal.base'

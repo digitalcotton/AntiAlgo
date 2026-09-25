@@ -109,6 +109,18 @@
       }
     }
   },
+  "tailor": {
+    "on-paper": {
+      "$value": "#EFE7C8",
+      "$type": "color",
+      "$description": "The draft room's marker highlight on paper: the exact cream DraftRoomV2 had hardcoded as rgb(239, 231, 200) before this became a token, so the light theme is unchanged to the pixel."
+    },
+    "on-ink": {
+      "$value": "#3A3520",
+      "$type": "color",
+      "$description": "Its mirror on ink. The highlight has to keep meaning the same thing in both themes, and a warm tint that the page's own foreground reads on top of is what does that. The cream did NOT survive the flip: on a gray.900 card it painted a light slab with hardcoded near-black text, and because each wrapped line is its own box, the right edge came out ragged. On /how-it-works it read as a broken image, which is how this was found."
+    }
+  },
   "signal": {
     "base": {
       "$value": "#FF5A1F",

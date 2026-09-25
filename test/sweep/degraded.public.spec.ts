@@ -161,7 +161,19 @@ async function startHarness(): Promise<Harness> {
   const upstreamOrigin = `http://127.0.0.1:${upstreamAddress.port}`;
 
   const appPort = await freePort();
-  const appOrigin = `http://127.0.0.1:${appPort}`;
+  // localhost, NOT 127.0.0.1, and the difference is the whole test.
+  //
+  // `astro dev` binds one socket and it is IPv6: `lsof` on a running instance
+  // shows `TCP [::1]:<port> (LISTEN)` and nothing on the v4 stack. A literal
+  // 127.0.0.1 is not a name to resolve, so waitUntilUp() below got ECONNREFUSED
+  // for its full 30s boot budget and every scenario in this group reported that
+  // the server "never came up" — while the server was up, answering /privacy on
+  // ::1 in 105ms. The shared webServer in playwright.config.ts never hit this
+  // because it has always been addressed as localhost, which resolves to ::1.
+  //
+  // The mock upstream above keeps its 127.0.0.1: this harness binds that socket
+  // itself, so it is listening where it says it is.
+  const appOrigin = `http://localhost:${appPort}`;
 
   // node_modules/.bin/astro directly, not `npm run dev`: the npm script also
   // runs `npm run tokens` (style-dictionary), which writes src/styles/
