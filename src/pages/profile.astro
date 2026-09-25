@@ -859,16 +859,34 @@ const linkAction = routeFor('profile-link');
     // rather than letting the browser navigate away to the file.
     wireDropZone(dropzone, fileInput);
 
-    fileInput.addEventListener('change', () => {
-      if (!chips) return;
-      chips.replaceChildren();
-      const chosen = fileInput.files?.[0];
+    showChosenFile(fileInput, chips);
+  }
+
+  /** The chip under a drop box, naming what is now in the input. Written once
+      because the resume box and the cover-letter box below want the same
+      thing, and two copies would have drifted the first time one of them
+      changed its wording. */
+  function showChosenFile(input: HTMLInputElement, into: HTMLElement | null): void {
+    input.addEventListener('change', () => {
+      if (!into) return;
+      into.replaceChildren();
+      const chosen = input.files?.[0];
       if (!chosen) return;
       const chip = document.createElement('span');
       chip.className = 'import-chip';
       chip.textContent = `${chosen.name}, ${formatSize(chosen.size)}`;
-      chips.append(chip);
+      into.append(chip);
     });
+  }
+
+  /* The cover letter's own drop box. Deliberately NOT a [data-import-form]:
+     a letter is stored, not read by a model, so it posts plainly to
+     /profile/import/cover and never touches the polling below. Dropping a
+     file fills the input and names it; the person still presses Save, the
+     same as the resume box. */
+  if (coverDropzone && coverFileInput) {
+    wireDropZone(coverDropzone, coverFileInput);
+    showChosenFile(coverFileInput, coverChips);
   }
 
   /* ---- the read ---------------------------------------------------------- */

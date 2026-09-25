@@ -51,8 +51,16 @@ export function wireDropZone(band: HTMLElement, input: HTMLInputElement): void {
   let depth = 0;
   const paint = (on: boolean) => band.classList.toggle(DRAGGING, on);
 
+  // A drag is only answered when it is carrying a file. Text selected on the
+  // page, a link, an image dragged out of the document — all of those fire the
+  // same events, and lighting the band for them promises a catch that the drop
+  // handler below would refuse anyway.
+  const carriesFile = (event: DragEvent) =>
+    Array.from(event.dataTransfer?.types ?? []).includes('Files');
+
   band.addEventListener('dragenter', (event) => {
     event.preventDefault();
+    if (!carriesFile(event)) return;
     depth += 1;
     paint(true);
   });

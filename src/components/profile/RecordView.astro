@@ -26,7 +26,7 @@
  */
 import EntryCard from './EntryCard.astro';
 import { KIND_LABELS, type EntryFormValues } from './entry-presentation';
-import { ENTRY_KINDS, type ValidationIssue } from '../../lib/record';
+import { ENTRY_KINDS, START_OPTIONAL_KINDS, type ValidationIssue } from '../../lib/record';
 import type { StoredEntry } from '../../lib/record-store';
 
 interface EditFormState {
@@ -115,13 +115,38 @@ const groups = ENTRY_KINDS.map((kind) => ({
   items: entries.filter((entry) => entry.kind === kind)
 })).filter((group) => group.items.length > 0);
 const showHeaders = groups.length > 1;
+
+/**
+ * Which groups run dense. START_OPTIONAL_KINDS is the record's own name for
+ * the kinds that often carry no date at all — a skill, an artifact, a piece
+ * of recognition — and it is exactly the set whose entries are one short
+ * fact rather than a job with an employer and a range.
+ *
+ * WHY THIS EXISTS. db/204 (991082a) let an undated skill survive a resume
+ * read. Before it, a skills line — which never has years — was dropped whole,
+ * so the record only ever held a handful of dated roles and the full-width
+ * row was the right shape for all of them. After it, one resume lands
+ * seventeen one-word rows, each with its own id, its own empty date column
+ * and a kind label repeating the header directly above it, and the record
+ * stops looking like a record. Nothing broke; the row was built for the wrong
+ * census. So these kinds lay out in columns and drop the repeated kind cell,
+ * and the substantive kinds keep the row they always had.
+ *
+ * The same set, not a second list, because the reason is the same reason: a
+ * kind that needs no date is a kind whose entries are short.
+ */
+const DENSE_KINDS: readonly string[] = START_OPTIONAL_KINDS;
 ---
 
 {
   entries.length > 0 && (
     <div class="record-groups">
       {groups.map((group) => (
-        <section class="record-group" aria-label={KIND_LABELS[group.kind]}>
+        <section
+          class="record-group"
+          aria-label={KIND_LABELS[group.kind]}
+          data-dense={DENSE_KINDS.includes(group.kind) ? '' : undefined}
+        >
           {showHeaders && (
             <div class="record-group-head">
               <span class="mono-label record-group-title">
@@ -186,9 +211,58 @@ const showHeaders = groups.length > 1;
   /* Each group's rows meet with hairlines; only the very last row of the whole
      record drops its trailing hairline, because the record section draws its
      own closing border. Between two groups, the upper group's last-row hairline
-     is the divider under which the next header sits. */
-  .record-groups .record-group:last-child .record-entries :global(.record-row:last-child) {
+     is the divider under which the next header sits.
+
+     A dense group keeps its hairlines: its final line of cells is a row of
+     them, not one, so the closing edge is drawn by the group instead. */
+  .record-groups .record-group:not([data-dense]):last-child .record-entries :global(.record-row:last-child) {
     border-bottom: 0;
+  }
+
+  /* ---- the dense groups -------------------------------------------------
+     Columns, not one tall stack. See the frontmatter on DENSE_KINDS for what
+     changed underneath to make seventeen of these arrive at once.
+
+     Two things go, and only two: the kind cell, which repeats the header two
+     lines above it, and the fixed date track, which is empty on most of these
+     and cannot be worth thirteen and a half rem of every row when it is. The
+     date itself stays, sized to what it says, so a skill that DOES carry a
+     range still prints it. The id stays: it is what a drafted document cites.
+
+     The overrides reach EntryCard's own scoped rules on specificity — three
+     classes and an attribute here against one class there — the same way the
+     last-row rule above already does. */
+  /* auto-FIT, not auto-fill: a group holding a single certification collapses
+     its empty tracks and reads as one full-width line, which is the row it
+     would have had anyway. Only a group with enough entries to need columns
+     gets them. */
+  .record-group[data-dense] .record-entries {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+    column-gap: var(--space-500);
+  }
+  .record-group[data-dense] .record-entries :global(.record-summary) {
+    grid-template-columns: 4.5rem minmax(0, 1fr) auto 1.5rem;
+    gap: var(--space-300);
+    padding-block: var(--space-300);
+  }
+  .record-group[data-dense] .record-entries :global(.record-summary-kind) {
+    display: none;
+  }
+  .record-group[data-dense] .record-entries :global(.record-summary-name) {
+    font-size: var(--size-150);
+  }
+  /* An opened row takes the whole width back: its body is a form, and a form
+     in a nineteen-rem column is the narrow box this layout exists to avoid. */
+  .record-group[data-dense] .record-entries :global(.record-row:has(details[open])) {
+    grid-column: 1 / -1;
+  }
+  /* One column below lap, where two would not fit anyway and the row already
+     reflows to two lines of its own. */
+  @media (max-width: 60rem) {
+    .record-group[data-dense] .record-entries {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   @media (max-width: 60rem) {
