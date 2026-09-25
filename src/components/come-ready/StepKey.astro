@@ -30,8 +30,10 @@ interface Props {
   selfPath: string;
   nextPath: string;
   skipPath: string;
+  /** Step 3, so the run can be walked backwards as well as forwards. */
+  backPath: string;
 }
-const { key, keysConfigured, chosen, justSaved, saveError = null, selfPath, nextPath, skipPath } = Astro.props;
+const { key, keysConfigured, chosen, justSaved, saveError = null, selfPath, nextPath, skipPath, backPath } = Astro.props;
 
 /** The consoles, in the site's provider order. Addresses as the Your key
     page lists them; the one-line reasons are the design's. */
@@ -53,7 +55,7 @@ const console = CONSOLES[provider];
 const returnPath = `${selfPath}&saved=1`;
 ---
 
-<StepCard n={4} title="Connect your key" time="3 to 5 min, off site">
+<StepCard n={4} title="Connect your key" time="3 to 5 min, off site" back={{ href: withBase(backPath), label: 'Back to step 3' }}>
   <p class="cr-intro">Unlocks the resumé reader and drafting. Your model, your bill, cents per draft. The key is encrypted for you alone and read only at the instant a draft is written.</p>
 
   {key ? (
@@ -67,26 +69,27 @@ const returnPath = `${selfPath}&saved=1`;
       </div>
       <p class="cr-note cr-note-gap">Your provider answered this key when it was saved.</p>
 
-      {/* The way back out: one action, because picking again is also how a
-          wrong key is replaced, and the console picker is where that starts. */}
-      <div class="cr-actions cr-undo">
+      {/* One row, the two directions opposite each other (owner, 2026-09-25):
+          the step forward on the left where every other step keeps it, the way
+          back out pushed to the far right so it is never the thing a reader
+          hits on the way through. Picking again is also how a wrong key is
+          replaced, which is why removing and re-picking is one action. */}
+      <div class="cr-actions cr-next cr-split">
+        <a class="cr-btn" href={withBase(nextPath)}>Next: bring your resumé</a>
         <form method="POST" action={removeAction}>
           <input type="hidden" name="provider" value={key.provider} />
           <input type="hidden" name="return" value={selfPath} />
           <button type="submit" class="cr-link-quiet">Remove and pick again</button>
         </form>
       </div>
-
-      <div class="cr-actions cr-next">
-        <a class="cr-btn" href={withBase(nextPath)}>Next: bring your resumé</a>
-      </div>
     </div>
   ) : (
     <>
       <span class="cr-label cr-pick">Pick one console</span>
+      <script type="application/json" data-cr-consoles set:html={JSON.stringify(CONSOLES)} is:inline></script>
       <div class="cr-providers">
         {PROVIDERS.map((id) => (
-          <a class="cr-provider" href={withBase(`${selfPath}&provider=${id}`)} aria-current={chosen === id ? 'true' : undefined}>
+          <a class="cr-provider" href={withBase(`${selfPath}&provider=${id}`)} aria-current={chosen === id ? 'true' : undefined} data-cr-provider={id}>
             <span class="cr-between cr-provider-head">
               <span class="cr-provider-name">{PROVIDER_REGISTRY[id].label}</span>
               <span class="cr-provider-host">{CONSOLES[id].host}</span>
@@ -98,7 +101,7 @@ const returnPath = `${selfPath}&saved=1`;
 
       {chosen && (
         <div class="cr-rule-loose">
-          <span class="cr-label">The trip, at {console.host}</span>
+          <span class="cr-label">The trip, at <span data-cr-console-host>{console.host}</span></span>
           <ol class="cr-trip">
             {TRIP.map((text, i) => (
               <li>
@@ -109,7 +112,7 @@ const returnPath = `${selfPath}&saved=1`;
           </ol>
           <p class="cr-intro cr-intro-gap">Set a monthly spend cap in their console. Drafting costs cents; the cap is your ceiling.</p>
           <div class="cr-actions cr-actions-gap">
-            <a class="cr-btn" href={console.url} target="_blank" rel="noopener">Open {console.host}</a>
+            <a class="cr-btn cr-btn-secondary" href={console.url} target="_blank" rel="noopener" data-cr-console-link>Open <span data-cr-console-host>{console.host}</span></a>
             <span class="cr-note">Opens in a new tab. This one waits here.</span>
           </div>
         </div>
@@ -177,24 +180,80 @@ const returnPath = `${selfPath}&saved=1`;
   const field = form?.querySelector<HTMLInputElement>('[data-cr-key]') ?? null;
   const line = form?.querySelector<HTMLElement>('[data-cr-key-reason]') ?? null;
   if (form && field && line) {
-    const provider = form.dataset.provider ?? 'anthropic';
     const show = (reason: string | null) => {
       line.textContent = reason ?? '';
       line.hidden = reason === null;
       field.setAttribute('aria-invalid', reason === null ? 'false' : 'true');
     };
-    field.addEventListener('input', () => {
-      // An empty field is not yet a mistake; the reason appears once there is text.
-      show(field.value.length === 0 ? null : reasonFor(provider, field.value));
-    });
+    /** Read fresh every time: switching console below rewrites it. */
+    const providerNow = () => form.dataset.provider ?? 'anthropic';
+    const revalidate = () => show(field.value.length === 0 ? null : reasonFor(providerNow(), field.value));
+
+    field.addEventListener('input', revalidate);
     form.addEventListener('submit', (event) => {
-      const reason = reasonFor(provider, field.value);
+      const reason = reasonFor(providerNow(), field.value);
       if (reason !== null) {
         event.preventDefault();
         show(reason);
         field.focus();
       }
     });
+
+    /*
+     * SWITCHING CONSOLE DOES NOT RELOAD THE PAGE, and that is the whole point.
+     *
+     * Each console is a link to ?provider=<id>, so picking a second one was a
+     * full navigation and anything already pasted went with it: a reader who
+     * typed their Anthropic key, looked at OpenAI, then came back found an
+     * empty box (owner, 2026-09-25). Nothing is stored to fix that — putting a
+     * secret in sessionStorage to survive a reload would be a worse answer than
+     * not reloading. The four consoles differ by four strings, all of them
+     * already on the page, so the panel is rewritten in place and the field is
+     * never destroyed in the first place.
+     *
+     * The first pick still navigates: the trip panel does not exist until a
+     * console is chosen, there is nothing typed yet, and the server rendering
+     * it is the no-script path anyway.
+     */
+    const blob = document.querySelector('[data-cr-consoles]')?.textContent;
+    const trip = document.querySelector<HTMLElement>('[data-cr-console-link]');
+    const hidden = form.querySelector<HTMLInputElement>('input[name="provider"]');
+    if (blob && trip && hidden) {
+      let consoles: Record<string, { host: string; url: string; placeholder: string }> = {};
+      try {
+        consoles = JSON.parse(blob);
+      } catch {
+        consoles = {};
+      }
+      for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-cr-provider]')) {
+        link.addEventListener('click', (event) => {
+          const id = link.dataset.crProvider ?? '';
+          const next = consoles[id];
+          if (!next) return; // Unknown: let the link do what it says.
+          // A modified click is the reader asking for a new tab. Leave it.
+          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+
+          for (const other of document.querySelectorAll<HTMLAnchorElement>('[data-cr-provider]')) {
+            if (other === link) other.setAttribute('aria-current', 'true');
+            else other.removeAttribute('aria-current');
+          }
+          for (const host of document.querySelectorAll('[data-cr-console-host]')) host.textContent = next.host;
+          trip.setAttribute('href', next.url);
+          field.placeholder = next.placeholder;
+          hidden.value = id;
+          form.dataset.provider = id;
+          // The reason is provider-specific ("sk-ant- is an anthropic key"), so
+          // what is already typed is judged again against the console just
+          // picked rather than the one before it.
+          revalidate();
+          // The address keeps up, so a reload lands on the same console. replace,
+          // not push: flipping between two consoles is one decision, not four
+          // steps to press Back through.
+          history.replaceState(null, '', link.getAttribute('href') ?? location.href);
+        });
+      }
+    }
   }
 </script>
 

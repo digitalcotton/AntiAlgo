@@ -11,6 +11,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { boardRowToJob, killPipelineLabel, type BoardRow } from './board-jobs';
+import { sourceLabel } from './data';
 
 function row(over: Partial<BoardRow> = {}): BoardRow {
   return {
@@ -115,6 +116,48 @@ describe('boardRowToJob', () => {
     expect(job.status).toBe('closed');
     expect(job.closed_on).toBeUndefined();
     expect(job.closed_reason).toBe('zombie: ...');
+  });
+});
+
+describe('boardRowToJob: source_system, a board this file does not flatten', () => {
+  it('a Phase C adapter (breezy) maps to itself and labels as its brand, not "the company site"', () => {
+    const job = boardRowToJob(row({ ats: 'breezy', url: 'https://alectrona-llc.breezy.hr/p/123' }));
+    expect(job.source_system).toBe('breezy');
+    expect(sourceLabel(job)).toBe('Breezy HR');
+  });
+
+  it('every Phase C adapter reads as its own brand', () => {
+    const brands: Record<string, string> = {
+      teamtailor: 'Teamtailor',
+      personio: 'Personio',
+      icims: 'iCIMS',
+      recruitee: 'Recruitee',
+      breezy: 'Breezy HR',
+      bamboohr: 'BambooHR'
+    };
+    for (const [ats, brand] of Object.entries(brands)) {
+      const job = boardRowToJob(row({ ats }));
+      expect(job.source_system).toBe(ats);
+      expect(sourceLabel(job)).toBe(brand);
+    }
+  });
+
+  it('an ats this file has never named still passes through, title-cased, rather than becoming "the company site"', () => {
+    const job = boardRowToJob(row({ ats: 'some_future_board' }));
+    expect(job.source_system).toBe('some_future_board');
+    expect(sourceLabel(job)).toBe('Some Future Board');
+  });
+
+  it('an empty ats still becomes \'custom\' and still labels "the company site"', () => {
+    const job = boardRowToJob(row({ ats: '' }));
+    expect(job.source_system).toBe('custom');
+    expect(sourceLabel(job)).toBe('the company site');
+  });
+
+  it('a null-ish ats (the store\'s own shape allows it) becomes \'custom\' the same way', () => {
+    const job = boardRowToJob(row({ ats: null as unknown as string }));
+    expect(job.source_system).toBe('custom');
+    expect(sourceLabel(job)).toBe('the company site');
   });
 });
 

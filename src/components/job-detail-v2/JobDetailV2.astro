@@ -87,6 +87,22 @@ const {
 
 const isClosed = job.status === 'closed';
 const ats = sourceLabel(job);
+/**
+ * "Read direct from {company}'s {ats} board" reads correctly for a named
+ * board ("Alectrona Llc's Breezy HR board") but breaks its own possessive for
+ * 'custom' and 'founder_post', whose labels ("the company site", "the founder
+ * posting") already carry their own article: "Alectrona Llc's the company
+ * site board". Pre-existing, not introduced by widening SourceSystem (any
+ * unlabelled board flattened to 'custom' before this file learned new
+ * systems), so this sentence alone is worded around it rather than reused
+ * as a pattern anywhere else.
+ */
+const sourceSub =
+  job.source_system === 'custom'
+    ? `Read direct from ${job.company}'s own site`
+    : job.source_system === 'founder_post'
+      ? `Read direct from ${job.company}'s own posting`
+      : `Read direct from ${job.company}'s ${ats} board`;
 
 // --- comp: full numbers for the stats row ("$245,000 - $310,000"), short form
 // for the sticky bar ("$245K-$310K"). ---
@@ -203,7 +219,7 @@ const saveNote = applyTrack
       <p class="jd-verified">
         <span class={`jd-dot ${isClosed ? 'is-closed' : 'is-live'}`} aria-hidden="true"></span>
         <strong class={`jd-verified-strong ${isClosed ? 'is-closed' : ''}`}>{isClosed ? 'Closed, last read at the source' : 'Verified today at the source'}</strong>
-        <span class="jd-verified-sub">Read direct from {job.company}'s {ats} board{verifiedTimeShort ? `, ${verifiedTimeShort} UTC` : ''}</span>
+        <span class="jd-verified-sub">{sourceSub}{verifiedTimeShort ? `, ${verifiedTimeShort} UTC` : ''}</span>
       </p>
 
       <h1 class="jd-title">{job.title}</h1>

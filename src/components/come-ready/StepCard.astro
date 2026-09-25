@@ -8,11 +8,20 @@ interface Props {
   n?: number;
   title: string;
   time: string;
+  /** The step before this one. Rendered as a way back above the title.
+      Omitted on the first step of a flow, which has nowhere to go back to.
+      Added 2026-09-25: the tracker rows on the left were already links, but
+      nothing about them said so, so a reader partway through had no visible
+      way back and the only exits on the card led out of the flow entirely. */
+  back?: { href: string; label: string } | null;
 }
-const { n, title, time } = Astro.props;
+const { n, title, time, back = null } = Astro.props;
 ---
 
 <section class="cr-card">
+  {back && (
+    <a class="cr-card-back" href={back.href}>&larr; {back.label}</a>
+  )}
   <div class="cr-card-head">
     <h2 class="cr-card-title">{n !== undefined && <span class="cr-card-n">{n}</span>}{title}</h2>
     <span class="cr-card-time">{time}</span>

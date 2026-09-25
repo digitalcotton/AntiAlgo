@@ -112,7 +112,17 @@ export type Risk = 'LOW' | 'MED' | 'HIGH';
 /** How hard the apply path is. Verbatim from the sweep, uppercase at source. */
 export type Friction = 'EASY' | 'MEDIUM' | 'HARD';
 
-/** The ATS or posting surface the record was read from, direct. */
+/**
+ * The ATS or posting surface the record was read from, direct.
+ *
+ * The named members keep editor autocomplete and let the three call sites that
+ * compare against a specific system (applyLabel, assertSourceSystems, and this
+ * file's own SOURCE_LABELS) do it by literal. `| (string & {})` widens the type
+ * so a board this list has not named yet — the next adapter the machine grows —
+ * is still a valid SourceSystem instead of being coerced to 'custom'. See
+ * sourceSystemOf in board-jobs.ts and atsLabel below: an unknown key is named
+ * honestly, not flattened.
+ */
 export type SourceSystem =
   | 'greenhouse'
   | 'ashby'
@@ -125,8 +135,17 @@ export type SourceSystem =
   | 'jobvite'
   | 'usajobs'
   | 'yc'
+  | 'breezy'
+  | 'bamboohr'
+  | 'recruitee'
+  | 'teamtailor'
+  | 'icims'
+  | 'successfactors'
+  | 'taleo'
+  | 'personio'
   | 'custom'
-  | 'founder_post';
+  | 'founder_post'
+  | (string & {});
 
 /** The five rubric v1 components. The keys are the fixture's own. */
 export interface Fit {
@@ -1744,17 +1763,50 @@ export function referenceDays(): number {
 export type SortKey = 'fit' | 'comp' | 'age';
 
 /**
+ * The regex SOURCE shared by compTop() below and job-store.ts's SQL comp_top
+ * column, so the sort key can't drift from what compTop actually computes,
+ * the way it drifted from compShortFromText() for months: the display cell
+ * (compShortFromText) matches "$150,000" and prints a range; this pattern
+ * used to require a literal "k" and no comma, so that same row sorted as if
+ * it stated no pay at all. Written once here and consumed two ways:
+ * compTop() below builds a JS RegExp from it, and job-store.ts's
+ * BOARD_FACET_CTE interpolates the raw string into the SQL text it hands to
+ * Postgres' regexp_matches(). THE TWO CONSUMERS MUST BE CHANGED TOGETHER —
+ * see the matching comment on comp_top in job-store.ts.
+ *
+ * Group 1 is the digits, comma grouping intact ("150,000" or "150" or
+ * "150.5"). Group 2 is a trailing "k"/"K" if present, else unmatched (NULL
+ * in Postgres, undefined in JS) — that flag is what tells the consumer
+ * whether the figure is already stated in thousands or is a full dollar
+ * amount that still needs dividing by 1000.
+ */
+export const COMP_TOP_PATTERN = '\\$(\\d[\\d,]*(?:\\.\\d+)?)(k)?';
+
+/**
  * The top of a posted range, in thousands, or null.
  *
- * Parses only what the source wrote: "$204k-$348k" gives 348, "$300k-$450k +
- * equity" gives 450, and a null comp_posted gives null. Equity percentages,
- * commission and zone qualifiers are ignored for ordering and are never dropped
- * from what a reader sees, because the cell renders the string verbatim. Nine
- * records post no range at all and sort last rather than sorting as zero.
+ * Recognises whatever compShortFromText() below can display: "$204k-$348k"
+ * gives 348, "$300k-$450k + equity" gives 450, "$150,000" gives 150,
+ * "$150,000 - $250,000" gives 250, "USD $150,000 - $250,000 DOE" gives 250,
+ * and a null comp_posted gives null. A figure with no "k" is treated as a
+ * full dollar amount and divided by 1000 to land in the same unit as a "k"
+ * figure ("$150,000" and "$150k" both give 150) — which also keeps a small
+ * bare number such as "$45" (plausibly hourly, not annual) from landing in
+ * the same range as a real salary: it becomes 0.045, not 45. This file has
+ * no hourly/monthly unit of its own, so that is the full extent of the
+ * protection; it does not attempt to detect or label a rate.
+ *
+ * Equity percentages, commission and zone qualifiers are ignored for
+ * ordering and are never dropped from what a reader sees, because the cell
+ * renders the string verbatim. Nine records post no range at all and sort
+ * last rather than sorting as zero.
  */
 export function compTop(job: Job): number | null {
   if (!job.comp_posted) return null;
-  const amounts = [...job.comp_posted.matchAll(/\$(\d+(?:\.\d+)?)k/gi)].map((match) => Number(match[1]));
+  const amounts = [...job.comp_posted.matchAll(new RegExp(COMP_TOP_PATTERN, 'gi'))].map((match) => {
+    const value = Number(match[1].replace(/,/g, ''));
+    return match[2] ? value : value / 1000;
+  });
   if (amounts.length === 0) return null;
   return Math.max(...amounts);
 }
@@ -2552,7 +2604,7 @@ export function markStateOf(job: Job): 'verified' | 're-verified' | 'closed' {
  * the canvas prints proper names, so the mapping lives here rather than being
  * re-typed on every surface that names a board.
  */
-const SOURCE_LABELS: Record<SourceSystem, string> = {
+const SOURCE_LABELS: Record<string, string> = {
   greenhouse: 'Greenhouse',
   ashby: 'Ashby',
   workday: 'Workday',
@@ -2564,11 +2616,25 @@ const SOURCE_LABELS: Record<SourceSystem, string> = {
   jobvite: 'Jobvite',
   usajobs: 'USAJOBS',
   yc: 'Work at a Startup',
+  breezy: 'Breezy HR',
+  bamboohr: 'BambooHR',
+  recruitee: 'Recruitee',
+  teamtailor: 'Teamtailor',
+  icims: 'iCIMS',
+  successfactors: 'SuccessFactors',
+  taleo: 'Taleo',
+  personio: 'Personio',
   custom: 'the company site',
   founder_post: 'the founder posting'
 };
 
-export const sourceLabel = (job: Job): string => SOURCE_LABELS[job.source_system];
+/**
+ * The source system, as a reader sees it. Falls through the same way atsLabel
+ * does, because job.source_system can now be a board this file has never named
+ * (see the SourceSystem comment): a known key gets its SOURCE_LABELS entry, an
+ * unknown one gets named from its own key rather than reading as undefined.
+ */
+export const sourceLabel = (job: Job): string => atsLabel(job.source_system);
 
 /**
  * A display label for ANY applicant-system string, including a board this file

@@ -43,8 +43,11 @@ const MARKETING = [
 // from here. Since 2026-09-19 this one row is the whole member nav: the second
 // row (MemberSubnav) is gone.
 const MEMBER = [
-  { label: 'The Board', href: routeFor('board') },
+  // The Desk leads (owner, 2026-09-25). It is the member's home: the nightly
+  // read of what is new and what died under the titles they named. The Board
+  // is the whole index, which is where you go when the Desk is not enough.
   { label: 'The Desk', href: routeFor('desk') },
+  { label: 'The Board', href: routeFor('board') },
   { label: 'Opportunities', href: routeFor('opportunities') },
   { label: 'Jobs Data', href: routeFor('jobs-data') }
 ];
