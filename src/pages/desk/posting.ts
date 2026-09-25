@@ -25,10 +25,23 @@
  * needs no machine: a jobId card, and the person lands on the /role page,
  * whose own rail drafts. The machine reads only what the index has never read.
  *
- * THIS ROUTE FETCHES NOTHING. desk/application.ts's stance ("this codebase
- * does not fetch other people's pages") still holds for the site: the fetch
- * happens on the mini, on its own network, and arrives here as data that is
- * sanitised on the way in (result.ts).
+ * THIS ROUTE FETCHES, AS OF 2026-09-25, AND THAT IS A REVERSAL. It used to say
+ * "this route fetches nothing", citing desk/application.ts's stance that this
+ * codebase does not fetch other people's pages. That stance was a policy, not a
+ * limit, and it cost every member a waiting room for a read that is usually one
+ * HTTPS call: the company is new to us, but a Greenhouse or Ashby or Lever URL
+ * resolves to a JSON endpoint we have parsed for weeks. So `add` now reads
+ * inline through posting-read.ts and settles the row before it answers.
+ *
+ * WHAT DID NOT CHANGE, AND IS THE REASON THIS IS SAFE. Every way that read can
+ * fail — a refused address, a redirect into link-local space, a timeout, a
+ * JavaScript-only shell, a board that answered with nothing to draft from —
+ * falls through to the exact path this route had before: create the row, wake
+ * the mini, send the person to the waiting room. The mini keeps the tail it is
+ * better at, including the headless browser and the residential address that a
+ * lot of bot protection treats differently from a datacentre one. Bytes are
+ * sanitised on the way in either way; posting-read.ts runs the same
+ * sanitizeCrawledHtml() result.ts does, on both of its branches.
  */
 import type { APIContext } from 'astro';
 import { boardDetailPath, jobPath, routeFor } from '../../data/nav';
@@ -38,6 +51,7 @@ import { createApplicationFromClick, getActiveApplicationForJob, getApplication 
 import {
   NAME_MAX_CHARS,
   SNAPSHOT_MAX_CHARS,
+  claimPostingFetch,
   countRecentPostingFetches,
   createPostingFetch,
   getPostingFetchByApplication,
@@ -50,6 +64,8 @@ import {
 import { fillApplicationSnapshot } from '../../lib/desk-store';
 import { addedSlugFor } from '../../lib/added-posting';
 import { publishWake } from '../../lib/machine-wake';
+import { readPostingNow } from '../../lib/posting-read';
+import { settlePostingAndFillSnapshot } from '../../lib/posting-settle';
 import { deferWork } from '../../lib/defer-work';
 import { plainTextFromHtml } from '../../lib/vocabulary';
 
@@ -189,6 +205,15 @@ export async function POST(context: APIContext): Promise<Response> {
       console.error(`desk/posting: could not read the add rate for user ${userId}; allowing.`, error);
     }
 
+    // READ IT HERE IF WE CAN. Most pasted URLs sit on a platform we already
+    // understand, and that read is one HTTPS call: see posting-read.ts. This
+    // runs BEFORE any row exists, so a row only ever reaches 'pending' when we
+    // actually want the mini to take it, and the window in which a drain could
+    // claim a row we are about to settle ourselves stays as small as it can be.
+    // A failure is not a failure of the feature: every code falls through to
+    // the queue below, which is exactly what this route did before.
+    const read = await readPostingNow(url);
+
     const created = await createApplicationFromClick(userId, {
       jobId: null,
       externalUrl: url,
@@ -198,6 +223,48 @@ export async function POST(context: APIContext): Promise<Response> {
       clickedAt: new Date()
     });
     const request = await createPostingFetch(userId, created.id, url);
+
+    if (read.ok) {
+      // Claim our own row before settling it. The store's rule is that only a
+      // claimed row settles, and going through it rather than around it means
+      // the mini and the site cannot both settle the same read: if a drain beat
+      // us to this row in the moment since it was created, the claim answers
+      // null and we hand the work over rather than racing it.
+      const claimed = await claimPostingFetch(request.id);
+      const settled = claimed
+        ? await settlePostingAndFillSnapshot(request.id, {
+            outcome: 'ready',
+            sourceKind: read.extraction.kind,
+            title: read.extraction.title,
+            company: read.extraction.company,
+            descriptionHtml: read.extraction.descriptionHtml,
+            finalUrl: read.extraction.finalUrl,
+            httpStatus: read.httpStatus,
+            failureCode: null,
+            fetchedAt: new Date(),
+            machineNotes: { reader: 'site' }
+          })
+        : null;
+
+      if (settled) {
+        // The mini still hears about this URL, because reading the posting and
+        // learning the board it lives on are two different jobs and only the
+        // second one grows the crawl list. See the spec's named gap: the lane
+        // that carries a learn-only URL does not exist yet, so for now a read
+        // done here is a board the nightly never hears about.
+        if (wantsJson(context.request)) {
+          return Response.json({
+            applicationId: created.id,
+            requestId: request.id,
+            detailUrl: detailPath(created.id),
+            read: 'site'
+          });
+        }
+        return redirectTo(detailPath(created.id));
+      }
+    }
+
+    // Either this process could not read it, or the mini claimed the row first.
     // Fire and forget: a lost wake delays the read, the drain catches it up.
     deferWork(publishWake(request.id));
 

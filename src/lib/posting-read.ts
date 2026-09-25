@@ -43,6 +43,7 @@ import type { PostingExtraction } from './posting-extraction';
 import { guardPostingUrl } from './posting-url-guard';
 import { resolvePosting } from './posting-resolvers';
 import { extractPosting } from './posting-extract';
+import { sanitizeCrawledHtml } from './description';
 
 /** The whole read, from the first guard to the last byte. A form POST is
     holding a person still while this runs, so it is deliberately short: past
@@ -258,6 +259,18 @@ export async function readPostingNow(url: string, options: ReadOptions = {}): Pr
         }
       }
       if (!extraction.company) extraction = { ...extraction, company: resolved.companyHint };
+
+      // SANITISE THE ATS PATH TOO. posting-extract.ts runs sanitizeCrawledHtml()
+      // itself, so the page branch below arrives here already clean; the
+      // resolvers hand back whatever HTML a board put inside its own JSON, and
+      // that is bytes from a page on the internet by a slightly more
+      // respectable-looking route. /machine/posting-fetch/result.ts sanitises
+      // everything the mini sends for exactly this reason, and a read done here
+      // instead of there must not be the cheaper one.
+      extraction = {
+        ...extraction,
+        descriptionHtml: extraction.descriptionHtml ? sanitizeCrawledHtml(extraction.descriptionHtml) : null
+      };
 
       if (usable(extraction)) {
         return { ok: true, extraction, via: 'resolver', httpStatus: status ?? 200 };
