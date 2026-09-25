@@ -25,7 +25,14 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
 const feed = await loadKills();
 const records = feed.records;
 const featured = records[0] ?? null;
-const rest = records.slice(1);
+/* The list runs as long as the sweep was busy, and a night with two hundred
+   kills turned this page into a wall nobody reads to the bottom of (owner,
+   2026-09-24). Twenty rows is a list; two hundred is a log file. The count of
+   what is not shown is printed below it rather than dropped silently, because
+   a truncated list that does not say so reads as the whole record. */
+const LIST_ROWS = 20;
+const rest = records.slice(1, 1 + LIST_ROWS);
+const notShown = Math.max(0, records.length - 1 - rest.length);
 const scaleMax = killScaleMax(records);
 const sweptLabel = feed.servedAt ? sweptStamp(feed.servedAt) : null;
 const address = 'tokenstoagents.ai/jobs/kills';
@@ -61,7 +68,7 @@ const signedIn = Boolean(Astro.locals.viewer);
       )}
 
       {rest.length > 0 && (
-        <ul class="ev-list" aria-label="More kills in the last two months">
+        <ul class="ev-list" aria-label="The most recent kills in the last two months">
           {rest.map((r) => (
             <li class="ev-list-row">
               <span class="ev-li-rule">{r.rule ?? 'killed'}</span>
@@ -70,6 +77,12 @@ const signedIn = Boolean(Astro.locals.viewer);
             </li>
           ))}
         </ul>
+      )}
+
+      {notShown > 0 && (
+        <p class="ev-truncated">
+          The {rest.length} most recent, of {records.length.toLocaleString()} killed in the same window.
+        </p>
       )}
 
       {featured && signedIn && (
@@ -244,6 +257,15 @@ const signedIn = Boolean(Astro.locals.viewer);
   .ev-li-date {
     text-align: right;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* The truncation note. Same machine face and muted ink as the rows it
+     closes, so it reads as the last line of the list rather than as copy. */
+  .ev-truncated {
+    margin: var(--sp-3) 0 0;
+    font-family: var(--machine);
+    font-size: var(--fs-12);
+    color: var(--muted);
   }
 
   .ev-more {
