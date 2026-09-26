@@ -85,7 +85,35 @@ different punctuation (`Senior Business Systems Analyst, SAP IBP Planning` and
 `... - SAP IBP Planning`). So in practice every collision is a role colliding
 with itself.
 
-## The decision, which is the owner's
+## Settled, 2026-09-26: the address is remembered, not recomputed
+
+The owner's question was whether the collision could be fixed without changing
+every job URL. It could, and the way is not to pick a better formula -- any
+formula wide enough to stop colliding spells a different string from the one
+that is live, so all of them churn every address. The fix is to stop
+recomputing at all.
+
+`db/211` adds `job_slug_ledger`: one row per posting id, holding the address
+that posting was given the first time it was seen. The ingest reads it before
+it writes the board. A posting already in it keeps its address; a new one is
+offered its candidates in order and takes the first that nobody holds.
+
+Measured on the real crawl, against the addresses that were live:
+
+- **37,620 addresses unchanged, 145 changed** (0.4%), and the 145 are exactly
+  the postings that had no working address of their own -- their twin was
+  winning the page. Each gains the one character `slice(0, 6)` was dropping.
+- **0 addresses shared by two postings**, down from 117.
+- A second run: `37765 kept from the ledger, 0 newly assigned`. It holds.
+- An employer renaming their own role no longer moves the URL, which was a
+  second bug nobody had named.
+- A posting that leaves the feed keeps its address, so it comes back to the
+  same page.
+
+The three options below are kept as the reasoning that led there, not as an
+open question.
+
+## The options, as they stood
 
 Three coherent answers. They are not fixes of the same size.
 

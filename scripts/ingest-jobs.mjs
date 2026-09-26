@@ -150,14 +150,50 @@ function slugify(text) {
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
 }
-function shortHash(text) {
+function hashOf(text) {
   let h = 5381;
-  for (let i = 0; i < text.length; i += 1) h = ((h << 5) + h + text.charCodeAt(i)) >>> 0;
-  return h.toString(36).slice(0, 6);
+  for (let i = 0; i < String(text).length; i += 1) h = ((h << 5) + h + String(text).charCodeAt(i)) >>> 0;
+  return h;
+}
+function shortHash(text) {
+  return hashOf(text).toString(36).slice(0, 6);
 }
 function slugFor(j) {
   const base = slugify(`${j.company} ${j.title}`) || 'role';
   return `${base}-${shortHash(j.id)}`;
+}
+
+/**
+ * The candidates for one posting's address, best first.
+ *
+ * The first is what slugFor() has always produced, so a posting whose address
+ * is already unique is offered exactly the address it already has and the
+ * ledger writes that down unchanged. The rest exist only for a posting whose
+ * first choice is taken by somebody else:
+ *
+ *   1. base-1y6m01     the six-character tail, today's address
+ *   2. base-1y6m01z    the tail with the digit slice(0, 6) was dropping
+ *   3. base-1y6m01z-2  and a counter, for the vanishing case where even the
+ *                      full hash collides (two different ids CAN hash the
+ *                      same; 32-bit djb2 over 37k rows makes that likely
+ *                      enough to handle rather than assert away)
+ *
+ * Every one of them is a pure function of the id, so the sequence a posting is
+ * offered never changes. Which one it gets depends on what was already taken
+ * when it first arrived, and that answer is then kept in the ledger rather
+ * than recomputed, which is what makes the address stable even when the
+ * posting it collided with disappears.
+ */
+function* slugCandidates(j) {
+  // A slug the crawl itself supplied outranks anything computed here, but it
+  // still goes through the ledger rather than around it, so even a
+  // crawl-supplied address cannot be handed to two postings.
+  if (j.slug_from_feed) yield j.slug_from_feed;
+  const base = slugify(`${j.company} ${j.title}`) || 'role';
+  const full = hashOf(j.id).toString(36);
+  yield `${base}-${full.slice(0, 6)}`;
+  if (full.length > 6) yield `${base}-${full}`;
+  for (let n = 2; n <= 50; n += 1) yield `${base}-${full}-${n}`;
 }
 
 /*
@@ -224,7 +260,10 @@ function normalise(raw) {
   };
   row.comp_range = compRangeOf(raw);
   const scored = scoreJob(row);
-  row.slug = s(raw.slug).trim() || slugFor(row);
+  // The crawl's own slug, kept apart from the computed one so the ledger can
+  // offer it first (nothing emits one today; the board file carries no slugs).
+  row.slug_from_feed = s(raw.slug).trim() || null;
+  row.slug = row.slug_from_feed || slugFor(row);
   row.fit_total = scored.total;
   row.fit_components = scored.components;
   row.source = s(raw.source).trim() || 'tracked';
@@ -343,6 +382,119 @@ if (DRY) {
   process.exit(0);
 }
 
+/**
+ * Give every row its address, from the ledger (db/211).
+ *
+ * THE RULE. A posting already in the ledger keeps the address it was given,
+ * whatever tonight's row would compute -- that is the whole point, and it is
+ * what makes an employer's title edit stop moving a published URL. A posting
+ * not in the ledger is offered slugCandidates() in order and takes the first
+ * one nobody holds, which for all but a colliding posting is the address
+ * slugFor() would have computed anyway.
+ *
+ * IN THE SAME TRANSACTION AS THE BOARD. Called after BEGIN and before the
+ * upserts, so an assignment cannot survive a load that then rolls back: the
+ * board and the addresses it was written with commit together or neither does.
+ *
+ * THREE QUERIES, NOT 37,765. One read for the ids, one read for the candidate
+ * addresses those ids might want, one write for the new assignments. The
+ * batching matters: a per-row round trip over a crawl this size is the
+ * difference between a second and several minutes inside an open transaction.
+ *
+ * `raw.slug` still wins when the crawl supplies one (nothing does today); it
+ * is offered to the ledger as the first candidate rather than bypassing it, so
+ * even a crawl-supplied address cannot be handed to two postings.
+ */
+async function resolveSlugs(client, rows) {
+  if (rows.length === 0) return;
+  const ids = rows.map((r) => r.id);
+
+  const { rows: known } = await client.query(
+    'SELECT job_id, slug FROM job_slug_ledger WHERE job_id = ANY($1::text[])',
+    [ids]
+  );
+  const held = new Map(known.map((r) => [r.job_id, r.slug]));
+
+  // Everything a new posting might ask for, checked in one read. Only the
+  // candidates actually needed are gathered, so this is a few thousand strings
+  // on a normal night and two on a quiet one, not the whole ledger.
+  const wanted = new Set();
+  const newcomers = [];
+  for (const r of rows) {
+    if (held.has(r.id)) continue;
+    newcomers.push(r);
+    for (const candidate of slugCandidates(r)) {
+      wanted.add(candidate);
+      break; // the first choice is enough to ask about up front
+    }
+  }
+  const { rows: takenRows } = wanted.size
+    ? await client.query('SELECT slug FROM job_slug_ledger WHERE slug = ANY($1::text[])', [[...wanted]])
+    : { rows: [] };
+  const taken = new Set(takenRows.map((r) => r.slug));
+  // Addresses handed out earlier in THIS run count as taken too, which is the
+  // case that matters: the 117 collisions are two rows of the same crawl.
+  for (const slug of held.values()) taken.add(slug);
+
+  const assigned = [];
+  let contested = 0;
+  for (const r of newcomers) {
+    let chosen = null;
+    let first = true;
+    for (const candidate of slugCandidates(r)) {
+      if (taken.has(candidate)) { first = false; continue; }
+      // A later candidate was never in the read above, so ask for it directly.
+      // This only runs for a posting whose first choice was taken, which is a
+      // hundred-odd rows a night, not 37,765.
+      if (!first) {
+        const { rowCount } = await client.query('SELECT 1 FROM job_slug_ledger WHERE slug = $1', [candidate]);
+        if (rowCount > 0) { taken.add(candidate); continue; }
+      }
+      chosen = candidate;
+      break;
+    }
+    if (!chosen) {
+      // Fifty candidates all taken means something is wrong with the id, not
+      // with the board. Fail rather than write a row with no address.
+      throw new Error(`ingest: could not find a free slug for ${r.id} (${r.company} / ${r.title}).`);
+    }
+    if (!first) contested += 1;
+    taken.add(chosen);
+    assigned.push([r.id, chosen]);
+  }
+
+  // BATCHED, because a first run assigns every posting on the board at once.
+  // Postgres carries its parameter count in 16 bits: 37,765 rows at two
+  // parameters each is 75,530, which wrapped to 9,994 and failed with "bind
+  // message has 9994 parameter formats but 0 parameters". 1,000 rows a
+  // statement is 2,000 parameters, well inside it, and the whole loop is still
+  // one transaction.
+  const LEDGER_BATCH = 1000;
+  for (let i = 0; i < assigned.length; i += LEDGER_BATCH) {
+    const slice = assigned.slice(i, i + LEDGER_BATCH);
+    const values = slice.map((_, n) => `($${n * 2 + 1}, $${n * 2 + 2})`).join(',');
+    await client.query(
+      `INSERT INTO job_slug_ledger (job_id, slug) VALUES ${values}
+       ON CONFLICT (job_id) DO NOTHING`,
+      slice.flat()
+    );
+  }
+  await client.query(
+    'UPDATE job_slug_ledger SET last_seen_at = now() WHERE job_id = ANY($1::text[])',
+    [ids]
+  );
+
+  // A Map, not a find() over `assigned`: on a first run every row is a
+  // newcomer, and a linear scan per row is 37,765 x 37,765 inside an open
+  // transaction holding a TRUNCATE.
+  const fresh = new Map(assigned);
+  for (const r of rows) r.slug = held.get(r.id) ?? fresh.get(r.id) ?? r.slug;
+  console.log(
+    `slugs: ${held.size} kept from the ledger, ${assigned.length} newly assigned` +
+      (contested ? `, ${contested} of them past a taken address` : '')
+  );
+}
+
 const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 if (!url) {
   console.error('No DATABASE_URL_UNPOOLED or DATABASE_URL in the environment. Pull it with: npx vercel env pull .env.local');
@@ -362,6 +514,14 @@ try {
   // TRUNCATE is transactional in Postgres, so this holds. The batch loop below is
   // now only for progress logging; there are no per-batch commits.
   await client.query('BEGIN');
+
+  // THE ADDRESSES, BEFORE ANY ROW IS WRITTEN (db/211). Until this existed the
+  // slug was recomputed from tonight's company and title every night, so it
+  // collided (117 slugs on two postings each, on this very crawl) and it moved
+  // whenever an employer edited their own title. Now a posting's address is
+  // assigned once and remembered, and this is where tonight's rows are told
+  // which address is theirs.
+  await resolveSlugs(client, rows);
 
   // A full sweep replaces the board: a posting gone from the feed drops out,
   // which is the signal the ghost watch and the counts depend on.
