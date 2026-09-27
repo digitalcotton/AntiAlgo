@@ -227,6 +227,14 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
     // document. The degraded state is the calm one, which is the right way
     // round for a decoration.
   }
+  // Regenerate and Start-the-draft-over are work too, so they mark on submit —
+  // the same rule as the posting's own draft button, and it holds however fast
+  // the re-draft comes back.
+  document.addEventListener('submit', (e) => {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement) || !form.matches('[data-draft-start]')) return;
+    try { sessionStorage.setItem(revealKey, '1'); } catch {}
+  }, true);
 </script>
 
 <article class="dr" data-slug={slug}>
@@ -255,7 +263,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
     {!anyDrafting && resumeUpdatedAt && <span class="dr-status-sub mono-label">drafted {timeAgo(resumeUpdatedAt)}</span>}
   </p>
   {anyDrafting && (
-    <form class="dr-restart no-print" method="POST" action={regenerateAction}>
+    <form class="dr-restart no-print" method="POST" action={regenerateAction} data-draft-start>
       <input type="hidden" name="slug" value={slug} />
       <p class="dr-restart-line">Taking too long? <button type="submit" class="dr-restart-button">Start the draft over</button>.</p>
     </form>
@@ -388,7 +396,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
           <section class="dr-steer">
             <h2 class="dr-box-title">Not right yet? Steer it</h2>
             <div class:list={['dr-box-body', { 'dr-locked': anyDrafting }]}>
-              <form method="POST" action={regenerateAction} class="dr-steer-form" inert={drafting.resume ? true : undefined}>
+              <form method="POST" action={regenerateAction} class="dr-steer-form" data-draft-start inert={drafting.resume ? true : undefined}>
                 <input type="hidden" name="slug" value={slug} />
                 <input type="hidden" name="kind" value="resume" />
                 <div class="dr-chips">
@@ -428,7 +436,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
           <section class="dr-steer">
             <h2 class="dr-box-title">Not right yet? Steer it</h2>
             <div class:list={['dr-box-body', { 'dr-locked': anyDrafting }]}>
-              <form method="POST" action={regenerateAction} class="dr-steer-form" inert={drafting.cover ? true : undefined}>
+              <form method="POST" action={regenerateAction} class="dr-steer-form" data-draft-start inert={drafting.cover ? true : undefined}>
                 <input type="hidden" name="slug" value={slug} />
                 <input type="hidden" name="kind" value="cover" />
                 <div class="dr-chips">

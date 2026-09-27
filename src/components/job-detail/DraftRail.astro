@@ -46,6 +46,7 @@
  * a signed-out posting sits under the apply control in board/[slug].astro, so a
  * reader is asked once, at the point of action, not twice in one column.
  */
+import { keylessDraftAllowed } from '../../lib/dev-keyless-draft';
 import Spinner from '../Spinner.astro';
 import { jobDraftPath, routeFor } from '../../data/nav';
 import { withBase } from '../../../site.config.mjs';
@@ -82,7 +83,10 @@ const signUpHref = `${routeFor('sign-up')}?next=${encodeURIComponent(returnTo)}`
 const settingsHref = routeFor('settings');
 const keySetupHref = `${settingsHref}#keys`;
 // Signed in, server-confirmed, but no key: route to key setup rather than draft.
-const needsKey = signedIn === true && hasKey === false;
+// keylessDraftAllowed() is a developer's own machine only (see its header: it
+// collapses to false in any build). It suppresses the diversion, not the rule —
+// the draft that runs is the deterministic built-in writer.
+const needsKey = signedIn === true && hasKey === false && !keylessDraftAllowed();
 
 // The description is what the tailor reads to aim the documents at this role.
 // Where the crawl captured none, the draft still runs, aimed at the title and
@@ -125,7 +129,7 @@ const slotLine = tailorOn
 >
   <p class="draft-title mono-label">Your documents for this role</p>
 
-  <form class="draft-form" method="POST" action={startEndpoint} data-draft-form>
+  <form class="draft-form" method="POST" action={startEndpoint} data-draft-form data-draft-start>
     <input type="hidden" name="slug" value={job.slug} />
     <label class="draft-reason">
       <span class="draft-reason-label mono-label">Why this company (optional)</span>
@@ -220,6 +224,29 @@ const slotLine = tailorOn
   </p>
 </section>
 )}
+
+
+{/* The click IS the work starting, so it is what earns the reveal.
+
+    A draft that finishes before the room first renders — the built-in writer is
+    effectively instant — is never seen as pending, so the poll never runs and
+    never sets the flag. The reveal would then be skipped for exactly the
+    journey it was built for: press the button, watch it draft, watch it land.
+    Marking on submit makes the animation independent of how long the work took,
+    which is the owner's rule (2026-09-27): motion reports work, not page loads,
+    and a fast draft is still work. */}
+<script is:inline define:vars={{ revealKey: `dr-revealed:${job.slug}` }}>
+  document.addEventListener('submit', (e) => {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    if (!form.matches('[data-draft-start]')) return;
+    try {
+      sessionStorage.setItem(revealKey, '1');
+    } catch {
+      // No session storage: the draft still runs, just without the focus pull.
+    }
+  }, true);
+</script>
 
 <style>
   .draft-rail {

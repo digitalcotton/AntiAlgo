@@ -50,8 +50,18 @@ A reveal that replayed on every page load would be decoration: it re-blurs text
 the person already read, and it stops the motion being evidence, because seeing
 it would no longer tell you anything is happening.
 
-The mechanism is one flag. The poll writes `dr-revealed:<slug>` to
-`sessionStorage` only after it has watched a run finish, then reloads. An
+The mechanism is one flag, `dr-revealed:<slug>` in `sessionStorage`, written
+by whichever of two things means work just began or just ended:
+
+- **the click**, on any form marked `data-draft-start` — the posting's draft
+  button, Regenerate, Start the draft over. This is the load-bearing one: the
+  built-in writer is effectively instant, so a draft can be finished before the
+  room first renders, never seen as pending, never polled. Without marking on
+  submit the reveal would be skipped for exactly the journey it exists for.
+- **the poll**, after it has watched a pending run finish.
+
+Either way the flag is a one-shot, and the reveal is independent of how long the
+work took. An
 `is:inline` script at the top of the room reads it *before the document markup
 is parsed*, sets `data-dr-revealed` on `<html>`, and clears the flag. Every
 reveal selector is scoped to that attribute, so:
