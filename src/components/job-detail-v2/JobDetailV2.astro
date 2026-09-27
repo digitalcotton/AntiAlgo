@@ -38,6 +38,7 @@
  * apply action, so there is no separate save, and the control says so rather
  * than linking somewhere it cannot go.
  */
+import { keylessDraftAllowed } from '../../lib/dev-keyless-draft';
 import DescriptionSlot from '../job-detail/DescriptionSlot.astro';
 import { expiryOf } from '../job-detail/detail';
 import { compShort, formatDate, daysBetween, sweepDate, sweptAt, sourceLabel } from '../../lib/data';
@@ -314,8 +315,8 @@ const saveNote = applyTrack
           carry. The entitlement policy refuses every draft route besides. */}
       {!isClosed && paid && (
         <>
-          {signedIn && hasKey ? (
-            <form class="jd-draft-form" method="POST" action={draftAction}>
+          {signedIn && (hasKey || keylessDraftAllowed()) ? (
+            <form class="jd-draft-form" method="POST" action={draftAction} data-draft-start>
               <input type="hidden" name="slug" value={job.slug} />
               <label class="jd-reason-label" for="jd-reason">Tell the model why you want this role and what to lead with.</label>
               <div class="jd-reason-lines">
@@ -425,6 +426,29 @@ const saveNote = applyTrack
     );
     io.observe(top);
   }
+</script>
+
+
+{/* The click IS the work starting, so it is what earns the reveal.
+
+    A draft that finishes before the room first renders — the built-in writer is
+    effectively instant — is never seen as pending, so the poll never runs and
+    never sets the flag. The reveal would then be skipped for exactly the
+    journey it was built for: press the button, watch it draft, watch it land.
+    Marking on submit makes the animation independent of how long the work took,
+    which is the owner's rule (2026-09-27): motion reports work, not page loads,
+    and a fast draft is still work. */}
+<script is:inline define:vars={{ revealKey: `dr-revealed:${job.slug}` }}>
+  document.addEventListener('submit', (e) => {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    if (!form.matches('[data-draft-start]')) return;
+    try {
+      sessionStorage.setItem(revealKey, '1');
+    } catch {
+      // No session storage: the draft still runs, just without the focus pull.
+    }
+  }, true);
 </script>
 
 <style>

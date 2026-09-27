@@ -49,6 +49,12 @@ interface Props {
   applyTrack: { action: string; title: string; company: string } | null;
   resumeCost?: DraftCost | null;
   coverCost?: DraftCost | null;
+  /** Which documents are still being written. Defaults to neither, so the
+      apply-flow room at /desk/draft/[id] is untouched until it opts in.
+      A drafting document renders its styled lines blurred under a shimmer
+      (docs/draft-loading-spec.md); its text is the deterministic placeholder
+      from draft-placeholder.ts, not a model's. */
+  drafting?: { resume: boolean; cover: boolean };
 }
 
 /** What one document's draft cost to run, all real: the render duration and the
@@ -84,8 +90,11 @@ const {
   applyLabel,
   applyTrack,
   resumeCost = null,
-  coverCost = null
+  coverCost = null,
+  drafting = { resume: false, cover: false }
 } = Astro.props;
+
+const anyDrafting = drafting.resume || drafting.cover;
 
 function fmtTok(n: number): string {
   return n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(n);
@@ -153,6 +162,42 @@ function rewroteSet(render: ResumeRender | CoverRender | null): Set<string> {
 }
 const resumeRewrote = rewroteSet(resume);
 
+/**
+ * The attributes that put one styled line into the focus-pull state machine
+ * (docs/draft-loading-spec.md; design: ani.html's [data-para]).
+ *
+ * Two states reach the browser. `drafting` is blurred under a travelling
+ * shimmer. `settled` is the finished document, and it is INERT by default: it
+ * renders sharp, instantly, with no animation at all.
+ *
+ * THE ANIMATION IS TIED TO THE WORK, NOT TO THE RENDER. Owner's rule,
+ * 2026-09-27: a draft being written animates; a plain refresh of a finished
+ * draft does not, because a refresh is not work; pressing Regenerate animates
+ * again, because a resume is genuinely being written again. Motion here means
+ * "this is being made right now", and a reveal that replayed on every page load
+ * would be decoration — re-blurring text the person already read, and telling
+ * them nothing about whether anything is happening.
+ *
+ * So the server never renders the reveal. It is switched on for exactly one
+ * paint by the marker below, which only the poll sets, and only after it has
+ * watched a run finish. The design reference (ani.html) animates on mount, but
+ * that is a prototype showing the motion, not a spec for when it fires.
+ *
+ * `--shim` is this line's place in the cascade. It offsets the shimmer while
+ * drafting and the focus pull on arrival, which is what makes the document
+ * settle top-to-bottom instead of flashing all at once. The counter is per
+ * document, so the cover letter starts its own cascade at zero.
+ */
+function paraAttrs(isDrafting: boolean, index: number) {
+  return {
+    'data-para': '',
+    'data-state': isDrafting ? 'drafting' : 'settled',
+    style: `--shim:${index * 120}ms`
+  };
+}
+let resumeShim = 0;
+let coverShim = 0;
+
 // The steer chips: ids match draft-steer.ts's allowlist (the endpoint drops
 // anything else), labels are the UI's own. A checked chip posts its id as a
 // `steer` value; the note posts as `steerNote`.
@@ -164,6 +209,34 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
 ];
 ---
 
+{/* Runs BEFORE the document below is parsed, which is the whole point: it
+    decides whether this paint starts blurred, so there is never a flash of
+    sharp text that then re-blurs. is:inline keeps it unbundled and synchronous.
+
+    The flag is a one-shot, written by the poll only after it watched a run
+    finish, and consumed here. A refresh finds nothing and the document renders
+    sharp — the owner's rule: the animation reports work, not page loads. */}
+<script is:inline define:vars={{ revealKey: `dr-revealed:${slug}` }}>
+  try {
+    if (sessionStorage.getItem(revealKey)) {
+      sessionStorage.removeItem(revealKey);
+      document.documentElement.setAttribute('data-dr-revealed', '');
+    }
+  } catch {
+    // Private browsing, blocked site data: no marker, no reveal, sharp
+    // document. The degraded state is the calm one, which is the right way
+    // round for a decoration.
+  }
+  // Regenerate and Start-the-draft-over are work too, so they mark on submit —
+  // the same rule as the posting's own draft button, and it holds however fast
+  // the re-draft comes back.
+  document.addEventListener('submit', (e) => {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement) || !form.matches('[data-draft-start]')) return;
+    try { sessionStorage.setItem(revealKey, '1'); } catch {}
+  }, true);
+</script>
+
 <article class="dr" data-slug={slug}>
   <nav class="dr-crumbs" aria-label="Breadcrumb">
     <a href={postingHref}>&larr; Back to the posting</a>
@@ -173,11 +246,28 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
     <span class="dr-crumb-here">Your documents</span>
   </nav>
 
-  <p class="dr-status">
-    <span class="dr-dot" aria-hidden="true"></span>
-    <strong>{bothReady ? 'Both documents drafted' : (resume ? 'Resumé drafted' : 'Cover letter drafted')}</strong>
-    {resumeUpdatedAt && <span class="dr-status-sub mono-label">drafted {timeAgo(resumeUpdatedAt)}</span>}
+  {/* The status line carries the wait (design: ani.html's headline block): a
+      dot that pulses while a document is still being written, the plain
+      sentence saying which, and the escape hatch demoted to muted text beside
+      it. aria-live announces the flip to a screen reader, which is the only
+      way the focus pull reaches someone who cannot see it. */}
+  <p class="dr-status" data-drafting={anyDrafting ? '' : null} aria-live="polite">
+    <span class="dr-dot" data-pulse={anyDrafting ? '' : null} aria-hidden="true"></span>
+    <strong>
+      {anyDrafting
+        ? (drafting.resume && drafting.cover
+            ? 'Drafting your resumé and cover letter'
+            : (drafting.resume ? 'Drafting your resumé' : 'Drafting your cover letter'))
+        : (bothReady ? 'Both documents drafted' : (resume ? 'Resumé drafted' : 'Cover letter drafted'))}
+    </strong>
+    {!anyDrafting && resumeUpdatedAt && <span class="dr-status-sub mono-label">drafted {timeAgo(resumeUpdatedAt)}</span>}
   </p>
+  {anyDrafting && (
+    <form class="dr-restart no-print" method="POST" action={regenerateAction} data-draft-start>
+      <input type="hidden" name="slug" value={slug} />
+      <p class="dr-restart-line">Taking too long? <button type="submit" class="dr-restart-button">Start the draft over</button>.</p>
+    </form>
+  )}
   <h1 class="dr-title">Read them before you send them</h1>
   <p class="dr-lede">Written for {targetLine}, from your profile and the posting as published. Nothing is submitted for you. When they read right, download and apply.</p>
   {provider && !fallback && <p class="dr-provider mono-label">Drafted on your connected {providerLabel}{model ? ` (${model})` : ''} key.</p>}
@@ -219,7 +309,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
               {resume.summary && (
                 <section class="dr-doc-section">
                   <h3 class="dr-doc-heading mono-label">Summary</h3>
-                  <p class="dr-doc-line"><span class:list={[{ 'is-tailored': resumeRewrote.has(SUMMARY_LINE_ID) }]}>{resume.summary.text}</span></p>
+                  <p class="dr-doc-line" {...paraAttrs(drafting.resume, resumeShim++)}><span class:list={[{ 'is-tailored': resumeRewrote.has(SUMMARY_LINE_ID) }]}>{resume.summary.text}</span></p>
                 </section>
               )}
               {resume.sections.map((section) => (
@@ -237,7 +327,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
                           ? DESCRIPTION_KINDS.has(row.entry.kind) && <p class="dr-doc-empty">No description on record.</p>
                           : (
                             <ul class="dr-doc-bullets">
-                              {row.entry.bullets.map((b) => <li><span class:list={[{ 'is-tailored': resumeRewrote.has(row.entry.prfId) }]}>{b.text}</span></li>)}
+                              {row.entry.bullets.map((b) => <li {...paraAttrs(drafting.resume, resumeShim++)}><span class:list={[{ 'is-tailored': resumeRewrote.has(row.entry.prfId) }]}>{b.text}</span></li>)}
                             </ul>
                           )}
                       </div>
@@ -258,7 +348,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
             <div class="dr-doc-actions">
               {resumeDownloadable && <a class="dr-btn" href={jobDraftPdfPath(slug, 'resume')} download>Download PDF</a>}
               {resumeDownloadable && <a class="dr-btn" href={`${jobDraftPdfPath(slug, 'resume')}?format=docx`} download>Download DOCX</a>}
-              <button type="button" class="dr-btn dr-copy">Copy as text</button>
+              {!drafting.resume && <button type="button" class="dr-btn dr-copy">Copy as text</button>}
             </div>
             <p class="dr-highlight-note">Highlighted lines are ones your connected model rephrased for this posting. Everything else is your record's own words, unchanged, so you can tell at a glance what the model touched.</p>
           </>
@@ -282,7 +372,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
               )}
               <p class="dr-doc-salutation">{cover.salutation}</p>
               {cover.paragraphs
-                ? cover.paragraphs.map((p) => <p class="dr-doc-para"><span class:list={[{ 'is-tailored': p.role === 'proof' || p.role === 'fit' }]}>{p.text}</span></p>)
+                ? cover.paragraphs.map((p) => <p class="dr-doc-para" {...paraAttrs(drafting.cover, coverShim++)}><span class:list={[{ 'is-tailored': p.role === 'proof' || p.role === 'fit' }]}>{p.text}</span></p>)
                 : cover.sections.map((section) => section.entries.map((e) => e.bullets.map((b) => <p class="dr-doc-para">{b.text}</p>)))}
               {cover.closing && <p class="dr-doc-closing">{cover.closing}</p>}
             </article>
@@ -290,7 +380,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
             <div class="dr-doc-actions">
               {coverDownloadable && <a class="dr-btn" href={jobDraftPdfPath(slug, 'cover')} download>Download PDF</a>}
               {coverDownloadable && <a class="dr-btn" href={`${jobDraftPdfPath(slug, 'cover')}?format=docx`} download>Download DOCX</a>}
-              <button type="button" class="dr-btn dr-copy">Copy as text</button>
+              {!drafting.cover && <button type="button" class="dr-btn dr-copy">Copy as text</button>}
             </div>
             <p class="dr-highlight-note">Highlighted paragraphs answer the posting's own requirements. The rest is drawn straight from your record.</p>
           </>
@@ -305,8 +395,8 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
         {resume && (
           <section class="dr-steer">
             <h2 class="dr-box-title">Not right yet? Steer it</h2>
-            <div class="dr-box-body">
-              <form method="POST" action={regenerateAction} class="dr-steer-form">
+            <div class:list={['dr-box-body', { 'dr-locked': anyDrafting }]}>
+              <form method="POST" action={regenerateAction} class="dr-steer-form" data-draft-start inert={drafting.resume ? true : undefined}>
                 <input type="hidden" name="slug" value={slug} />
                 <input type="hidden" name="kind" value="resume" />
                 <div class="dr-chips">
@@ -345,8 +435,8 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
         {cover && (
           <section class="dr-steer">
             <h2 class="dr-box-title">Not right yet? Steer it</h2>
-            <div class="dr-box-body">
-              <form method="POST" action={regenerateAction} class="dr-steer-form">
+            <div class:list={['dr-box-body', { 'dr-locked': anyDrafting }]}>
+              <form method="POST" action={regenerateAction} class="dr-steer-form" data-draft-start inert={drafting.cover ? true : undefined}>
                 <input type="hidden" name="slug" value={slug} />
                 <input type="hidden" name="kind" value="cover" />
                 <div class="dr-chips">
@@ -383,7 +473,7 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
 
       <section class="dr-send">
         <h2 class="dr-box-title">Send it</h2>
-        <div class="dr-box-body">
+        <div class:list={['dr-box-body', { 'dr-locked': anyDrafting }]}>
           {applyUrl && (applyTrack ? (
             <form method="POST" action={applyTrack.action} target="_blank">
               <input type="hidden" name="intent" value="click" />
@@ -396,7 +486,9 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
           ) : (
             <a class="dr-btn dr-send-apply" href={applyUrl} target="_blank" rel="noopener nofollow">{applyLabel} &#8599;</a>
           ))}
-          <p class="dr-send-note">Opens the posting in a new tab and moves this role to Applied on your desk. You still paste and submit there.</p>
+          {anyDrafting
+            ? <p class="dr-lock-note">Apply opens when the draft lands.</p>
+            : <p class="dr-send-note">Opens the posting in a new tab and moves this role to Applied on your desk. You still paste and submit there.</p>}
         </div>
       </section>
 
@@ -406,17 +498,17 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
             <h2 class="dr-changed-title">What it changed for this posting</h2>
             <dl class="dr-changed-list">
               {resume.changeRecord.counts.rewrote > 0 && (
-                <div class="dr-changed-row"><dt class="dr-changed-verb">Rewrote</dt><dd>{resume.changeRecord.counts.rewrote} {resume.changeRecord.counts.rewrote === 1 ? 'line' : 'lines'} rephrased on your key, inside their locked facts.</dd></div>
+                <div class="dr-changed-row"><dt class="dr-changed-verb">Rewrote</dt><dd {...paraAttrs(drafting.resume, resumeShim++)}>{resume.changeRecord.counts.rewrote} {resume.changeRecord.counts.rewrote === 1 ? 'line' : 'lines'} rephrased on your key, inside their locked facts.</dd></div>
               )}
               {resume.changeRecord.mirroredTerms.length > 0 && (
-                <div class="dr-changed-row"><dt class="dr-changed-verb">Added</dt><dd>The posting's own terms ({resume.changeRecord.mirroredTerms.join(', ')}) paired onto skills you already hold.</dd></div>
+                <div class="dr-changed-row"><dt class="dr-changed-verb">Added</dt><dd {...paraAttrs(drafting.resume, resumeShim++)}>The posting's own terms ({resume.changeRecord.mirroredTerms.join(', ')}) paired onto skills you already hold.</dd></div>
               )}
-              <div class="dr-changed-row"><dt class="dr-changed-verb">Kept</dt><dd>Every date, title, and number exactly as your profile has them.{resume.changeRecord.counts.kept > 0 ? ` ${resume.changeRecord.counts.kept} ${resume.changeRecord.counts.kept === 1 ? 'line is' : 'lines are'} your own words, unchanged.` : ''}</dd></div>
+              <div class="dr-changed-row"><dt class="dr-changed-verb">Kept</dt><dd {...paraAttrs(drafting.resume, resumeShim++)}>Every date, title, and number exactly as your profile has them.{resume.changeRecord.counts.kept > 0 ? ` ${resume.changeRecord.counts.kept} ${resume.changeRecord.counts.kept === 1 ? 'line is' : 'lines are'} your own words, unchanged.` : ''}</dd></div>
               {/* The gap note (tailor.ts computeGaps, RESUME-RULES.md layer 1:
                   "if the record is thin, ask, do not pad"): what the record is
                   missing, named, with the way to add it. */}
               {resume.gaps && (
-                <div class="dr-changed-row"><dt class="dr-changed-verb dr-changed-verb-check">Check</dt><dd>{resume.gaps.missing.join(' ')} <a class="dr-changed-link" href={profilePath}>Add to your Profile Record</a></dd></div>
+                <div class="dr-changed-row"><dt class="dr-changed-verb dr-changed-verb-check">Check</dt><dd {...paraAttrs(drafting.resume, resumeShim++)}>{resume.gaps.missing.join(' ')} <a class="dr-changed-link" href={profilePath}>Add to your Profile Record</a></dd></div>
               )}
             </dl>
             <p class="dr-footer-note mono">Drafted on your own key. Your profile and the posting text only. No other applicant's data was read.</p>
@@ -430,9 +522,9 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
             <h2 class="dr-changed-title">What it changed for this posting</h2>
             <dl class="dr-changed-list">
               {cover.changeRecord.counts.rewrote > 0 && (
-                <div class="dr-changed-row"><dt class="dr-changed-verb">Rewrote</dt><dd>{cover.changeRecord.counts.rewrote} {cover.changeRecord.counts.rewrote === 1 ? 'paragraph' : 'paragraphs'} rephrased on your key, from your record's own evidence.</dd></div>
+                <div class="dr-changed-row"><dt class="dr-changed-verb">Rewrote</dt><dd {...paraAttrs(drafting.cover, coverShim++)}>{cover.changeRecord.counts.rewrote} {cover.changeRecord.counts.rewrote === 1 ? 'paragraph' : 'paragraphs'} rephrased on your key, from your record's own evidence.</dd></div>
               )}
-              <div class="dr-changed-row"><dt class="dr-changed-verb">Kept</dt><dd>Every claim traces to a role, date, or fact in your profile. Nothing was invented for this letter.</dd></div>
+              <div class="dr-changed-row"><dt class="dr-changed-verb">Kept</dt><dd {...paraAttrs(drafting.cover, coverShim++)}>Every claim traces to a role, date, or fact in your profile. Nothing was invented for this letter.</dd></div>
             </dl>
             <p class="dr-footer-note mono">Drafted on your own key. Your profile and the posting text only. No other applicant's data was read.</p>
           </section>
@@ -532,6 +624,92 @@ const STEER_CHIPS: readonly { id: string; label: string }[] = [
      picture. `color: inherit` rather than a second token, because the right
      answer in both themes is the page's own foreground on its own highlight. */
   .is-tailored { background: var(--color-tailor-highlight); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 2px 0; color: inherit; }
+
+  /* ---- The focus-pull reveal (design: ani.html; docs/draft-loading-spec.md).
+     Keyframes, durations and easings are the example's, unchanged. State lives
+     on data-state; --shim is the line's place in the cascade.
+
+     WHAT THE MOTION CLAIMS. The shimmer says "this document is being written",
+     which is true for as long as the draft row is pending. It does NOT claim
+     per-line progress: the backend hands back one payload, so the cascade on
+     arrival is motion, not measurement. No line says it was written at the
+     moment it unblurs. */
+  @keyframes dr-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+  @keyframes dr-focus-in { from { filter: blur(6px); opacity: 0.45; } to { filter: blur(0); opacity: 1; } }
+  @keyframes dr-sweep { from { background-size: 0% 100%; } to { background-size: 100% 100%; } }
+  @keyframes dr-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.78); } }
+
+  [data-para] { position: relative; }
+
+  [data-para][data-state="drafting"] {
+    display: block;
+    overflow: hidden;
+    filter: blur(6px);
+    opacity: 0.45;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: none;
+  }
+  /* The travelling sheen. It sits above the blurred text, inherits the line's
+     own --shim so the sweep walks down the page, and is pointer-transparent so
+     it never eats a click on a line that has already landed. */
+  [data-para][data-state="drafting"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent 25%, var(--color-shimmer) 50%, transparent 75%);
+    transform: translateX(-100%);
+    animation: dr-shimmer 1.6s ease-in-out infinite;
+    animation-delay: var(--shim, 0ms);
+  }
+
+  /* A finished document is inert. No animation, no delay, nothing to wait for:
+     this is what a refresh and a bookmark get. */
+
+  /* Arrival, and ONLY arrival. The whole cascade hangs off one marker that the
+     poll sets on <html> before it reloads, having watched a run finish; the
+     inline script below reads it before this markup is parsed, so the first
+     paint is already blurred and there is no flash of sharp text. Without the
+     marker every selector here fails and the document is simply sharp. */
+  :root[data-dr-revealed] [data-para][data-state="settled"] {
+    animation: dr-focus-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation-delay: var(--shim, 0ms);
+  }
+  /* The highlight sweeps in after the line is already sharp, so the eye reads
+     the words first and the mark second. Only lines the model actually
+     rephrased carry .is-tailored, so this marks real rewrites. */
+  :root[data-dr-revealed] [data-para][data-state="settled"] .is-tailored {
+    background-image: linear-gradient(var(--color-tailor-highlight), var(--color-tailor-highlight));
+    background-color: transparent;
+    background-repeat: no-repeat;
+    animation: dr-sweep 350ms ease-out both;
+    animation-delay: calc(var(--shim, 0ms) + 260ms);
+  }
+
+  .dr-dot[data-pulse] { background: var(--color-signal); animation: dr-pulse 1.2s ease-in-out infinite; }
+
+  .dr-restart { margin: 0 0 6px; }
+  .dr-restart-line { margin: 0; font-size: 0.84rem; color: var(--color-muted); }
+  .dr-restart-button {
+    background: none; border: none; padding: 0; cursor: pointer;
+    font: inherit; color: inherit; border-bottom: 1px solid var(--color-line-strong);
+  }
+  .dr-restart-button:hover { color: var(--color-foreground); border-color: var(--color-foreground); }
+
+  /* Locked-but-visible, the example's rule: a person can see what is coming,
+     and neither mouse nor keyboard reaches it early (tabindex is set on the
+     controls themselves). */
+  .dr-locked { opacity: 0.45; pointer-events: none; transition: opacity 200ms; }
+  .dr-lock-note { margin: 0; font-size: 0.8rem; color: var(--color-muted); }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-para][data-state="drafting"] { filter: none; opacity: 0.3; }
+    [data-para][data-state="drafting"]::after { display: none; }
+    :root[data-dr-revealed] [data-para][data-state="settled"] { animation: none; opacity: 1; }
+    :root[data-dr-revealed] [data-para][data-state="settled"] .is-tailored { animation: none; background-size: 100% 100%; }
+    .dr-dot[data-pulse] { animation: none; }
+  }
 
   .dr-doc-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .dr-btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px; min-height: 44px; font-family: inherit; font-size: 0.88rem; text-decoration: none; cursor: pointer; color: var(--color-foreground); background: var(--color-surface-raised); border: var(--border-hairline) solid var(--color-line-strong); }

@@ -40,9 +40,10 @@ import EmptyState from '../../../components/EmptyState.astro';
 import LoadingState from '../../../components/LoadingState.astro';
 import DraftDocuments from '../../../components/tailor/DraftDocuments.astro';
 import DraftRoomV2 from '../../../components/tailor/DraftRoomV2.astro';
+import { buildDraftPlaceholder } from '../../../lib/draft-placeholder';
 import { applyLabel } from '../../../lib/data';
 import { estimateDraftCost, formatCost } from '../../../lib/generation-cost';
-import { routeFor, boardDetailPath, jobDraftPdfPath } from '../../../data/nav';
+import { routeFor, boardDetailPath, jobDraftPath, jobDraftPdfPath, jobDraftStatusPath } from '../../../data/nav';
 import { draftableJobBySlug } from '../../../lib/draft-job';
 import AddedPostingNote from '../../../components/desk/AddedPostingNote.astro';
 import { addedApplicationId, hostnameOf, isAddedSlug } from '../../../lib/added-posting';
@@ -104,7 +105,7 @@ const resumeFailureReason = resumeState === 'failed' ? (resume?.failureReason ??
 const coverFailureReason = coverState === 'failed' ? (cover?.failureReason ?? 'it did not finish in time') : null;
 // A muted line when one document is ready and the other is still drafting, so a
 // reader sitting on the resume knows the cover is still on its way.
-const oneReadyOnePending =
+const oneReadyOnePendingRaw =
   (resumeState === 'ready' && coverState === 'pending') || (coverState === 'ready' && resumeState === 'pending');
 
 // The render carries its own gap report (thin record) and its own provenance;
@@ -130,7 +131,7 @@ const coverDownloadable = coverPayload ? coverHasBody(coverPayload) : false;
 // document has landed. Both failing is its own dead end, above.
 const showDocuments =
   !hasNoDraft && !bothFailed && (!!resumePayload || !!coverPayload || resumeState === 'failed' || coverState === 'failed');
-const showBigLoading = anyPending && !showDocuments && !hasNoDraft && !bothFailed;
+
 
 // A provider was configured only when the row names one. A no-key draft is
 // deterministic by design (provider null, status fallback), which is a
@@ -154,9 +155,64 @@ const jobDraftEndpoint = routeFor('desk-job-draft');
 // both: a finished resume must not be hidden behind a slow or stuck cover. The
 // room prints "still drafting" for the one not yet in, and the meta refresh
 // below reloads until it lands.
-const useRoomV2 = !!resumePayload || !!coverPayload;
-const resumeVersions = useRoomV2 ? await listJobRenderVersions(viewer.userId, slug, 'resume') : [];
-const coverVersions = useRoomV2 ? await listJobRenderVersions(viewer.userId, slug, 'cover') : [];
+// NO DRAFT MEANS YOU ARE NOT IN THIS JOURNEY, SO THIS PAGE DOES NOT EXIST YET.
+// Owner, 2026-09-27: pressing the draft button on the posting starts the draft
+// AND lands here, so the only legitimate way in is with one already running
+// (src/pages/desk/job-draft.ts redirects to jobDraftPath after it creates the
+// rows). A "No draft yet" screen offering its own start button was a second
+// front door into a journey the reader is already inside — it asked them to
+// begin the thing they had just begun.
+//
+// A stale bookmark or a deleted draft can still land here with nothing. That is
+// not a dead end to decorate: the posting is where the button lives, so send
+// them to the button rather than rebuilding it here. `waiting` keeps its own
+// branch below, because an added posting the machine has not read yet is a
+// different fact from a draft that was never started.
+// `postingHref` is only set for an ADDED posting, so it is null for an ordinary
+// board job; boardDetailPath(slug) is the posting page every job has. Falling
+// through to Opportunities covers the last case — a slug with no job behind it
+// at all, where there is no posting to send anyone to.
+if (hasNoDraft && !waiting) {
+  return Astro.redirect(postingHref ?? (job ? boardDetailPath(slug) : routeFor('opportunities')), 303);
+}
+
+// THE WAIT SHOWS THE DOCUMENT NOW, NOT AN EMPTY BAND (docs/draft-loading-spec.md).
+// While a document is pending we render the deterministic placeholder — the
+// built-in writer's real output for this record and this posting — and the room
+// blurs it under a shimmer until the model's version lands. The placeholder is
+// never stored and never downloadable; it is a view-time stand-in for a
+// document that is genuinely on its way.
+const draftingPair = { resume: resumeState === 'pending', cover: coverState === 'pending' };
+const placeholder = anyPending && !hasNoDraft && job
+  ? await buildDraftPlaceholder(viewer.userId, { kind: 'verified_posting', job }, draftingPair)
+  : { resume: null, cover: null };
+
+// What the room actually draws per document: the stored render when it has
+// landed, otherwise the placeholder. `drafting` below tells the room which of
+// the two it is holding, so a blurred placeholder can never be mistaken for a
+// finished draft.
+const roomResume = resumePayload ?? placeholder.resume;
+const roomCover = coverPayload ?? placeholder.cover;
+const roomDrafting = { resume: !resumePayload && !!placeholder.resume, cover: !coverPayload && !!placeholder.cover };
+
+// The room shows once there is anything to draw, real or placeholder. When the
+// record is too thin to render a placeholder, buildDraftPlaceholder returns
+// nulls and the page keeps its plain waiting state below rather than showing an
+// eerie blurred blank.
+const useRoomV2 = !!roomResume || !!roomCover;
+
+// The room's own status line says which document is still drafting, so this
+// separate sentence would be a second voice saying the same thing.
+const oneReadyOnePending = oneReadyOnePendingRaw && !useRoomV2;
+
+// The plain band is the fallback for a record too thin to draw a placeholder
+// from. When the room is showing (real or blurred), the wait is drawn there.
+const showBigLoading = anyPending && !showDocuments && !hasNoDraft && !bothFailed && !useRoomV2;
+// Versions belong to stored renders. A placeholder has no history, so these
+// stay empty while drafting rather than spending two reads on a list the room
+// will not show.
+const resumeVersions = resumePayload ? await listJobRenderVersions(viewer.userId, slug, 'resume') : [];
+const coverVersions = coverPayload ? await listJobRenderVersions(viewer.userId, slug, 'cover') : [];
 const roomPostingHref = postingHref ?? (job ? boardDetailPath(slug) : jobDraftEndpoint);
 const roomApplyUrl = job?.apply_url || null;
 const roomApplyLabel = job ? applyLabel(job) : 'Apply';
@@ -202,8 +258,9 @@ const coverCost = costVmFor(cover);
           jobTitle={job?.title ?? null}
           company={job?.company ?? ''}
           postingHref={roomPostingHref}
-          resume={resumePayload}
-          cover={coverPayload}
+          resume={roomResume}
+          cover={roomCover}
+          drafting={roomDrafting}
           resumeVersions={resumeVersions}
           coverVersions={coverVersions}
           resumeUpdatedAt={resumeUpdatedIso}
@@ -238,21 +295,28 @@ const coverCost = costVmFor(cover);
         )
       }
 
-      {
-        !waiting && hasNoDraft && (
-          <EmptyState
-            title="No draft yet"
-            detail="Nothing has been drafted for this posting. Draft a resumé and cover letter for it now."
-          >
-            <form class="draft-start" slot="action" method="POST" action={jobDraftEndpoint}>
-              <input type="hidden" name="slug" value={slug} />
-              <button class="draft-button" type="submit">Draft my resumé and cover letter for this role</button>
-            </form>
-          </EmptyState>
-        )
-      }
-
-      {anyPending && <meta http-equiv="refresh" content="3" />}
+      {/* THE WAIT NO LONGER RELOADS THE PAGE UNDER THE READER.
+           A <meta http-equiv="refresh"> every three seconds restarts the
+           shimmer mid-sweep and throws away scroll position, which is exactly
+           what the focus-pull reveal cannot survive. When the room is showing,
+           a poll watches the draft's own state endpoint and reloads once, when
+           there is something new to draw. The plain band below has no animation
+           to protect, so it keeps the cheap meta refresh. */}
+      {anyPending && !useRoomV2 && <meta http-equiv="refresh" content="3" />}
+      {anyPending && useRoomV2 && (
+        <div
+          class="draft-poll no-print"
+          data-draft-poll
+          data-status={jobDraftStatusPath(slug)}
+          data-ceiling={String(FUNCTION_MAX_DURATION_S)}
+          data-slug={slug}
+        >
+          <p class="muted draft-poll-timeout" hidden>
+            This draft has been going longer than a draft takes.{' '}
+            <a class="draft-link" href={jobDraftPath(slug)}>Reload</a>, or start it over above.
+          </p>
+        </div>
+      )}
 
       {
         showBigLoading && (
@@ -498,3 +562,73 @@ const coverCost = costVmFor(cover);
     margin-top: var(--space-300);
   }
 </style>
+
+<script>
+  /**
+   * The draft room's poll (docs/draft-loading-spec.md).
+   *
+   * WHY NOT A META REFRESH. The page used to reload every three seconds while
+   * a draft was pending. That restarted the shimmer mid-sweep, dropped scroll
+   * position, and re-rendered the whole document to learn one word. This asks
+   * the state endpoint instead, and reloads once — when there is something new
+   * to draw.
+   *
+   * EVERY WAIT HAS A TERMINAL STATE. The poll stops at the platform's own
+   * function ceiling plus a grace margin, which is the longest a draft can
+   * legitimately still be running, and says so plainly rather than shimmering
+   * forever at somebody who has been abandoned. A draft that fails is a
+   * terminal state too: the endpoint reports it, this reloads, and the page's
+   * failure branch takes over.
+   */
+  import { pollEnds } from '../../../lib/job-draft-wire';
+
+  const host = document.querySelector<HTMLElement>('[data-draft-poll]');
+  if (host) {
+    const url = host.dataset.status ?? '';
+    const ceilingS = Number(host.dataset.ceiling) || 60;
+    const timeoutNote = host.querySelector<HTMLElement>('.draft-poll-timeout');
+    // Two seconds is under the threshold where a person starts wondering
+    // whether the page is doing anything, and well above the endpoint's own
+    // cost. The grace margin covers the gap between a run being abandoned and
+    // the next read reconciling it to 'failed'.
+    const EVERY_MS = 2000;
+    const giveUpAt = Date.now() + (ceilingS + 20) * 1000;
+
+    const tick = async (): Promise<void> => {
+      if (Date.now() > giveUpAt) {
+        if (timeoutNote) timeoutNote.hidden = false;
+        return;
+      }
+      try {
+        const res = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+        if (res.ok) {
+          // Anything that is not still pending is news worth redrawing for:
+          // 'ready' and 'failed' both have their own branch on this page, and
+          // so would a status this build has never heard of. The predicate
+          // lives in job-draft-wire.ts precisely so that stays true.
+          if (pollEnds(await res.json())) {
+            // THIS is what earns the reveal: a run we watched finish, not a
+            // page load. The room's own inline script consumes the flag on the
+            // next paint and clears it, so a later refresh of the same draft
+            // renders sharp. A regenerate lands here again and animates again,
+            // because a document is genuinely being written again.
+            try {
+              sessionStorage.setItem(`dr-revealed:${host.dataset.slug ?? ''}`, '1');
+            } catch {
+              // No session storage: the draft still lands, just without the
+              // focus pull. Never let a decoration block the reload.
+            }
+            window.location.reload();
+            return;
+          }
+        }
+      } catch {
+        // A dropped request is not a terminal state — the draft is still
+        // running on the server whether or not this tab can reach it. Keep
+        // polling until the ceiling says otherwise.
+      }
+      window.setTimeout(() => void tick(), EVERY_MS);
+    };
+    window.setTimeout(() => void tick(), EVERY_MS);
+  }
+</script>

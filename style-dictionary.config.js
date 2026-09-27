@@ -61,6 +61,7 @@ export const DARK_REMAP = {
   // model rephrased this line"), and meaning has to survive the flip. It did not,
   // before 2026-09-25 — see tailor.on-ink's own description.
   'tailor-highlight': 'tailor.on-ink',
+  shimmer: 'shimmer.on-ink',
 
   // The one accent. Same value in both themes, so it remaps to its own primitive
   // rather than to a gray step: the brand does not dim on ink.
