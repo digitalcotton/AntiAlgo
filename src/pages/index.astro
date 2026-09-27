@@ -5,7 +5,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { INDEX, routeFor } from '../data/nav';
 import { SITE } from '../data/site';
 import { count, loadStats, sweptStamp, waitlistEmailCount } from '../lib/stats';
-import { daysToLaunch, withBase } from '../../site.config.mjs';
+import { LAUNCH_LABEL, daysToLaunch, withBase } from '../../site.config.mjs';
 
 // The live board, the same component /board renders, now on the home page.
 import Board from '../components/Board.astro';
@@ -38,7 +38,7 @@ const stats = await loadStats();
 const stamp = stats ? sweptStamp(stats.swept_at) : null;
 const days = daysToLaunch();
 const inLine = await waitlistEmailCount();
-const LAUNCH = 'Nov 10, 2026';
+const LAUNCH = LAUNCH_LABEL;
 const signUp = (from: string) => `${routeFor('sign-up')}?from=${from}`;
 
 // The board section, page one at the default order, the same load /board does.
