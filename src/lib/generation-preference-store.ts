@@ -188,7 +188,7 @@ export type GenerationTriggerOutcome = GenerationTriggerDecision;
  * called inside renderInBackground()'s try blocks so a failure lands in the
  * one deterministic fallback path rather than a second copy of it.
  */
-async function buildRenderHeader(userId: string): Promise<RenderHeader> {
+export async function buildRenderHeader(userId: string): Promise<RenderHeader> {
   const name = await personName(userId);
   const links = await listLinks(userId);
   const email = await resolveResumeEmail(userId);

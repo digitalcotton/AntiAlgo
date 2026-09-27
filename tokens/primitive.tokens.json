@@ -109,6 +109,18 @@
       }
     }
   },
+  "shimmer": {
+    "on-paper": {
+      "$value": "rgba(255, 255, 255, 0.75)",
+      "$type": "color",
+      "$description": "The travelling sheen over a paragraph still being drafted (DraftRoomV2's [data-para][data-state=\"drafting\"]). Nearly opaque white on paper, because it sweeps over a white document and has to be visible through a 6px blur."
+    },
+    "on-ink": {
+      "$value": "rgba(255, 255, 255, 0.08)",
+      "$type": "color",
+      "$description": "The same sheen on ink. Far fainter: on a near-black document the sweep reads at a twelfth of the paper alpha, and anything stronger looks like a flashbulb rather than a light passing over paper."
+    }
+  },
   "tailor": {
     "on-paper": {
       "$value": "#EFE7C8",

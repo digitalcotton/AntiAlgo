@@ -201,6 +201,10 @@ export const jobDraftPdfPath = (slug: string, doc: 'resume' | 'cover'): string =
   withBase(`/desk/job-draft/${slug}/${doc}`);
 /** The per-document render hand-off for one job draft (server-to-server). */
 export const jobDraftRunPath = (slug: string): string => withBase(`/desk/job-draft/${slug}/run`);
+
+/** The draft's own state as JSON, for the room's poll while it waits. Typed
+    like its siblings so the slug cannot be forgotten. */
+export const jobDraftStatusPath = (slug: string): string => withBase(`/desk/job-draft/${slug}/status`);
 /** Restores one job draft to an earlier version.
  *
  *  Added 2026-09-24. Its three siblings (run, status, the document download) each

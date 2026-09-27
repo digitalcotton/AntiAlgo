@@ -9,6 +9,7 @@ import RecordView from '../components/profile/RecordView.astro';
 import ProviderRows, { type ProviderRow } from '../components/settings/ProviderRows.astro';
 import AccountRow from '../components/settings/AccountRow.astro';
 import DraftDocuments from '../components/tailor/DraftDocuments.astro';
+import DraftRoomV2 from '../components/tailor/DraftRoomV2.astro';
 import { PROVIDER_REGISTRY } from '../lib/generation-providers';
 import { renderCover, renderResume, type ProfileRecord, type Target } from '../lib/tailor';
 import { routeFor } from '../data/nav';
@@ -637,6 +638,39 @@ const PROPOSAL_STATE: EntryProposal[] = [
           provider={null}
           model={null}
           fallback={false}
+        />
+      </div>
+
+      <div class="specimen">
+        <p class="specimen-label mono-label">The draft room while it is still drafting: the focus-pull reveal</p>
+        <p class="group-note">
+          The wait used to be an empty white band. It is the document now, blurred under a
+          travelling shimmer, with steering and apply visible but locked
+          (<span class="mono">docs/draft-loading-spec.md</span>). What is under the blur is not
+          filler: it is the deterministic writer's real output for this record, which is exactly
+          what a person gets if the model draft fails.
+        </p>
+        <DraftRoomV2
+          slug="review-specimen"
+          jobTitle={DRAFT_TARGET.kind === 'verified_posting' ? DRAFT_TARGET.job.title : null}
+          company={DRAFT_TARGET.kind === 'verified_posting' ? DRAFT_TARGET.job.company : ''}
+          postingHref="#draft-states"
+          resume={draftResume}
+          cover={draftCover}
+          drafting={{ resume: true, cover: true }}
+          resumeVersions={[]}
+          coverVersions={[]}
+          resumeUpdatedAt={null}
+          coverUpdatedAt={null}
+          resumeDownloadable={false}
+          coverDownloadable={false}
+          provider={null}
+          model={null}
+          fallback={false}
+          regenerateAction="#draft-states"
+          applyUrl={null}
+          applyLabel="Apply"
+          applyTrack={null}
         />
       </div>
     </section>
