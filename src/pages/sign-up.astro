@@ -6,7 +6,7 @@ import { INDEX, routeFor } from '../data/nav';
 import { sanitiseSource } from '../lib/auth';
 import { isOn } from '../lib/flags';
 import { count, dayStamp, waitlistEmailCount } from '../lib/stats';
-import { LAUNCH_DATE } from '../../site.config.mjs';
+import { LAUNCH_DATE, LAUNCH_LABEL_LONG } from '../../site.config.mjs';
 
 /*
  * Create an account -- or, while the waitlist flag is on (flags.config.mjs),
@@ -46,66 +46,195 @@ Astro.cookies.set('signup_source', signupSource, {
 // email-waitlist count or the launch date.
 const inLine = waitlistOn ? await waitlistEmailCount() : 0;
 const today = dayStamp(new Date());
-const LAUNCH = 'Nov 10, 2026';
+/*
+ * Whole days left, FLOORED -- deliberately not site.config's daysToLaunch(),
+ * which ceils. The two answer different questions: daysToLaunch is "how many
+ * calendar days until launch", which is what the home page wants, and this is
+ * "how many whole days are left on the clock", which is what a running
+ * countdown shows. On this page both appear in the same eyeful, the closer
+ * headline beside the closer countdown, and a headline reading 99 next to a
+ * clock reading 98 is the page contradicting itself. Same question, same
+ * number. The client re-derives it every second from the same instant, so the
+ * server's value is only the first paint.
+ */
+const days = Math.floor(Math.max(0, new Date(LAUNCH_DATE).getTime() - Date.now()) / 86400000);
+
+/*
+ * The line's rules, in the order they happen to a reader. This is the page's
+ * content, not decoration: the order is the argument, so it lives here as data
+ * rather than as seven hand-numbered blocks of markup that can be reordered
+ * without their numbers following. The number printed beside each rule is
+ * derived from its index below -- move a rule and its number moves with it.
+ *
+ * SEATS is the same table the client script reads to name a reader's door, and
+ * the figures printed under doors 2, 3 and 4 are read from it rather than typed
+ * twice. One edit here changes the copy and the confirmation together.
+ */
+const SEATS = [1000, 2000, 4000, 8000];
+const seatsIn = (door: number) => SEATS[door - 1].toLocaleString('en-US');
+
+const RULES = [
+  {
+    title: "Why there's a line",
+    body: [
+      'Doors are sized to how many people we can onboard well. That is the only reason for the cap. The board is free and public for everyone; the line is for the paid account.'
+    ],
+    figures: []
+  },
+  {
+    title: 'Door 1',
+    body: [
+      `Opens ${LAUNCH_LABEL_LONG}, no matter how many people are in line. 800 seats go by line order, 200 to whole groups that joined together, earliest first.`
+    ],
+    figures: [
+      { k: 'Seats', v: seatsIn(1) },
+      { k: 'By order', v: '800' },
+      { k: 'Groups', v: '200' }
+    ]
+  },
+  {
+    title: 'Your spot never slides back',
+    body: [
+      'We show you your door, never your number. Once you are in line, nothing moves you further from the front.'
+    ],
+    figures: []
+  },
+  {
+    title: 'When your seat comes up',
+    body: [
+      'You have 7 days to start at $7.25 a month. Miss it and the seat passes to the next person; you keep your place at the front for the next door.'
+    ],
+    figures: [
+      { k: 'To start', v: '7 days' },
+      { k: 'A month', v: '$7.25' }
+    ]
+  },
+  {
+    title: 'Doors 2, 3 and 4',
+    body: [
+      'No dates. Each opens when the line holds enough people to fill it and every seat in the previous door is claimed. A live counter shows how many more it takes.'
+    ],
+    figures: [
+      { k: 'Door 2', v: seatsIn(2) },
+      { k: 'Door 3', v: seatsIn(3) },
+      { k: 'Door 4', v: seatsIn(4) }
+    ]
+  },
+  {
+    title: 'Giving seats',
+    body: [
+      'A member who sends 3 applications through Anti Algo gets 2 seats to give. The person who gets one skips the line and has 7 days to start. Nobody can ask for a seat.'
+    ],
+    figures: []
+  },
+  {
+    title: 'Sign-in',
+    body: [
+      `Turns on for everyone in line on ${LAUNCH_LABEL_LONG}. A free account gets the fit score, add any job by link, and a Jobs Data preview.`
+    ],
+    figures: []
+  }
+];
 ---
 
 <BaseLayout title="Save my spot" description="Get in line for launch." noindex>
   {waitlistOn ? (
-    <div class="wl">
-      <section class="wl-hero" aria-labelledby="wl-title">
-        <p class="wl-eyebrow">Product opens {LAUNCH} · {today} · {count(inLine)} in line</p>
+    <div class="wl" data-launch-label={LAUNCH_LABEL_LONG}>
+      {/*
+        The reference design carries its own wordmark row and its own footer.
+        Both are dropped here on purpose: this page renders inside BaseLayout,
+        which already owns the site header and footer, and a second nav band
+        under the first is the seam this page was meant to remove.
+      */}
+      <section class="wl-hero" id="join" aria-labelledby="wl-title">
+        <div class="wl-hero-main">
+          <p class="wl-eyebrow">Door 1 opens {LAUNCH_LABEL_LONG} · {count(inLine)} in line</p>
+          <h1 id="wl-title" class="wl-h1">
+            <span class="wl-h1-line">Every employer has AI.</span>
+            <span class="wl-h1-line">Get the one on your side.</span>
+          </h1>
+          <p class="wl-lede">Your resumé and cover letter, rewritten for every opening. One email holds your spot. No password, no card.</p>
 
-        <div class="wl-countdown" id="wl-countdown" data-launch={LAUNCH_DATE} aria-label="Time to launch">
-          <div class="wl-ctile">
-            <span class="wl-cnum" data-unit="days">00</span>
-            <span class="wl-clabel">Days</span>
-          </div>
-          <div class="wl-ctile">
-            <span class="wl-cnum" data-unit="hours">00</span>
-            <span class="wl-clabel">Hours</span>
-          </div>
-          <div class="wl-ctile">
-            <span class="wl-cnum" data-unit="minutes">00</span>
-            <span class="wl-clabel">Minutes</span>
-          </div>
-          <div class="wl-ctile">
-            <span class="wl-cnum" data-unit="seconds">00</span>
-            <span class="wl-clabel">Seconds</span>
-          </div>
+          <form class="wl-form" data-wl-form method="POST" action={routeFor('waitlist-join')}>
+            <div class="wl-row">
+              <label class="wl-field">
+                <span class="visually-hidden">Email address</span>
+                <input class="wl-input" name="email" type="email" placeholder="you@example.com" required autocomplete="email" />
+              </label>
+              <button class="wl-cta" type="submit">Save my spot</button>
+            </div>
+            <p class="wl-note">The board stays free and public either way. Your spot never slides back.</p>
+          </form>
+          <p class="wl-done" data-wl-done role="status" hidden></p>
+          <p class="wl-error" data-wl-error role="alert" hidden></p>
         </div>
 
-        <h1 id="wl-title" class="wl-h1">Get in line for launch.</h1>
-        <p class="wl-sub">Email in, position number out. Someone you refer joins, you move up. Small on purpose, for now.</p>
-
-        <form class="wl-form" id="wl-form" method="POST" action={routeFor('waitlist-join')}>
-          <label class="visually-hidden" for="wl-email">Email address</label>
-          <input class="wl-input" id="wl-email" name="email" type="email" placeholder="you@wherever.com" required autocomplete="email" />
-          <button class="wl-cta" type="submit">Save my spot</button>
-        </form>
-        <p class="wl-position" id="wl-position" role="status" hidden></p>
-        <p class="wl-error" id="wl-error" role="alert" hidden></p>
+        <div class="wl-side">
+          <p class="wl-eyebrow">Door 1 opens in</p>
+          <div class="wl-countdown" data-countdown data-launch={LAUNCH_DATE} aria-label="Time until Door 1 opens">
+            <div class="wl-ctile"><span class="wl-cnum" data-unit="days">00</span><span class="wl-clabel">Days</span></div>
+            <div class="wl-ctile"><span class="wl-cnum" data-unit="hours">00</span><span class="wl-clabel">Hours</span></div>
+            <div class="wl-ctile"><span class="wl-cnum" data-unit="minutes">00</span><span class="wl-clabel">Minutes</span></div>
+            <div class="wl-ctile"><span class="wl-cnum" data-unit="seconds">00</span><span class="wl-clabel">Seconds</span></div>
+          </div>
+          <dl class="wl-facts">
+            <div class="wl-fact"><dt class="wl-fact-k">Seats</dt><dd class="wl-fact-v">{seatsIn(1)}</dd></div>
+            <div class="wl-fact"><dt class="wl-fact-k">A month</dt><dd class="wl-fact-v">$7.25</dd></div>
+            <div class="wl-fact"><dt class="wl-fact-k">To decide</dt><dd class="wl-fact-v">7 days</dd></div>
+          </dl>
+          <p class="wl-note wl-side-note">Free account for everyone in line the same day. Paid seats in line order, 800 by order, 200 for groups.</p>
+        </div>
       </section>
 
-      <section class="wl-hiw" aria-labelledby="wl-hiw-title">
-        <h2 id="wl-hiw-title" class="visually-hidden">How the line works</h2>
-        <div class="wl-hiw-grid">
-          <div class="wl-hiw-col">
-            <span class="wl-hiw-label">At launch</span>
-            <p class="wl-hiw-line">The first 1,000 positions get an account. The Index stays open to everyone.</p>
-          </div>
-          <div class="wl-hiw-col">
-            <span class="wl-hiw-label">Invites</span>
-            <p class="wl-hiw-line">Two, the moment you finish onboarding. Yours to hand to whoever you want beside you.</p>
-          </div>
-          <div class="wl-hiw-col">
-            <span class="wl-hiw-label">After 1,000</span>
-            <p class="wl-hiw-line">The line keeps running. Your position and the count stay visible the whole way.</p>
-          </div>
+      <section class="wl-how" id="how" aria-labelledby="wl-how-title">
+        <div class="wl-how-head">
+          <p class="wl-eyebrow">How the line works</p>
+          <h2 id="wl-how-title" class="wl-how-h2">All the rules, in the order they happen to you.</h2>
         </div>
+        <ol class="wl-rules">
+          {RULES.map((rule, i) => (
+            <li class="wl-rule">
+              <h3 class="wl-rule-h3">
+                <span class="wl-rule-n">{String(i + 1).padStart(2, '0')}</span>
+                <span>{rule.title}</span>
+              </h3>
+              <div class="wl-rule-body">
+                {rule.body.map((line) => <p class="wl-rule-p">{line}</p>)}
+                {rule.figures.length > 0 && (
+                  <dl class="wl-figs">
+                    {rule.figures.map((f) => (
+                      <div class="wl-fig"><dt class="wl-fig-k">{f.k}</dt><dd class="wl-fig-v">{f.v}</dd></div>
+                    ))}
+                  </dl>
+                )}
+              </div>
+            </li>
+          ))}
+        </ol>
       </section>
 
       <section class="wl-closer" aria-label="Save your spot">
-        <p class="wl-closer-line">Finish the onboarding and you get two invites. Spend them on the two people you would most want in here with you.</p>
+        <div class="wl-closer-main">
+          <h2 class="wl-closer-h2">Door 1 opens in <span data-days-phrase>{days} {days === 1 ? 'day' : 'days'}</span>. Hold your place.</h2>
+          <form class="wl-form" data-wl-form method="POST" action={routeFor('waitlist-join')}>
+            <div class="wl-row">
+              <label class="wl-field">
+                <span class="visually-hidden">Email address</span>
+                <input class="wl-input" name="email" type="email" placeholder="you@example.com" required autocomplete="email" />
+              </label>
+              <button class="wl-cta" type="submit">Save my spot</button>
+            </div>
+            <p class="wl-note">{count(inLine)} in line as of {today}. One email, nothing else.</p>
+          </form>
+          <p class="wl-done" data-wl-done role="status" hidden></p>
+          <p class="wl-error" data-wl-error role="alert" hidden></p>
+        </div>
+        <div class="wl-countdown wl-countdown-big" data-countdown data-launch={LAUNCH_DATE} aria-hidden="true">
+          <div class="wl-ctile"><span class="wl-cnum" data-unit="days">00</span><span class="wl-clabel">Days</span></div>
+          <div class="wl-ctile"><span class="wl-cnum" data-unit="hours">00</span><span class="wl-clabel">Hours</span></div>
+          <div class="wl-ctile"><span class="wl-cnum" data-unit="minutes">00</span><span class="wl-clabel">Minutes</span></div>
+          <div class="wl-ctile"><span class="wl-cnum" data-unit="seconds">00</span><span class="wl-clabel">Seconds</span></div>
+        </div>
       </section>
     </div>
   ) : (
@@ -153,74 +282,128 @@ const LAUNCH = 'Nov 10, 2026';
 </BaseLayout>
 
 <script>
-  // The countdown, ticking every second from the launch instant carried in
-  // data-launch. Guarded on the element existing: this script loads on every
-  // sign-up render, but the element it drives only exists when the waitlist
-  // branch rendered, so on the account-creation branch this is a no-op.
-  const countdown = document.getElementById('wl-countdown');
-  if (countdown) {
-    const launch = new Date(countdown.dataset.launch ?? '').getTime();
-    const days = countdown.querySelector<HTMLElement>('[data-unit="days"]');
-    const hours = countdown.querySelector<HTMLElement>('[data-unit="hours"]');
-    const minutes = countdown.querySelector<HTMLElement>('[data-unit="minutes"]');
-    const seconds = countdown.querySelector<HTMLElement>('[data-unit="seconds"]');
+  // The countdowns, ticking every second from the launch instant carried in
+  // data-launch. There are two on the page -- one beside the hero, one in the
+  // closer -- and they are driven by one loop rather than two, because two
+  // intervals started a few milliseconds apart visibly disagree on the seconds
+  // digit. Guarded on finding any: this script loads on every sign-up render,
+  // but the elements it drives only exist when the waitlist branch rendered,
+  // so on the account-creation branch it is a no-op.
+  const countdowns = [...document.querySelectorAll<HTMLElement>('[data-countdown]')];
+  if (countdowns.length > 0) {
+    const launch = new Date(countdowns[0].dataset.launch ?? '').getTime();
     const pad = (n: number) => String(Math.max(0, n)).padStart(2, '0');
+    const dayPhrases = [...document.querySelectorAll<HTMLElement>('[data-days-phrase]')];
+    const cells = countdowns.flatMap((el) =>
+      (['days', 'hours', 'minutes', 'seconds'] as const).map((unit) => ({
+        unit,
+        el: el.querySelector<HTMLElement>(`[data-unit="${unit}"]`)
+      }))
+    );
 
     function tick() {
-      const diff = Math.max(0, launch - Date.now());
-      const totalSeconds = Math.floor(diff / 1000);
-      if (days) days.textContent = pad(Math.floor(totalSeconds / 86400));
-      if (hours) hours.textContent = pad(Math.floor((totalSeconds % 86400) / 3600));
-      if (minutes) minutes.textContent = pad(Math.floor((totalSeconds % 3600) / 60));
-      if (seconds) seconds.textContent = pad(totalSeconds % 60);
+      const total = Math.floor(Math.max(0, launch - Date.now()) / 1000);
+      const value = {
+        // Days is unpadded in the design: "99", not "099", and "7", not "07".
+        days: String(Math.floor(total / 86400)),
+        hours: pad(Math.floor((total % 86400) / 3600)),
+        minutes: pad(Math.floor((total % 3600) / 60)),
+        seconds: pad(total % 60)
+      };
+      for (const cell of cells) {
+        if (cell.el) cell.el.textContent = value[cell.unit];
+      }
+      // The closer headline names the same number the clock beside it shows,
+      // so the two cannot drift apart across a midnight the reader sat through.
+      const wholeDays = Number(value.days);
+      for (const el of dayPhrases) {
+        el.textContent = `${value.days} ${wholeDays === 1 ? 'day' : 'days'}`;
+      }
     }
     tick();
     setInterval(tick, 1000);
   }
 
-  // The waitlist form: a same-origin fetch POST to its own action (/waitlist/join), JSON in,
-  // JSON out. On success the position replaces the form rather than sitting
-  // beside it, so there is exactly one thing on screen to read afterward.
-  const form = document.querySelector<HTMLFormElement>('#wl-form');
-  const positionEl = document.querySelector<HTMLElement>('#wl-position');
-  const wlErrorEl = document.querySelector<HTMLElement>('#wl-error');
+  // The seats behind each door, smallest first -- the same table the rules list
+  // prints. A reader's door is the first one whose running total still has room
+  // for their position, so door 1 covers 1 to 1,000, door 2 covers 1,001 to
+  // 3,000, and so on.
+  const DOOR_SEATS = [1000, 2000, 4000, 8000];
 
-  form?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    if (wlErrorEl) wlErrorEl.hidden = true;
-
-    const email = String(new FormData(form).get('email') ?? '').trim();
-    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
-    if (button) button.disabled = true;
-
-    try {
-      const response = await fetch(form.action, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-      const data = await response.json().catch(() => null);
-      if (response.ok && data && data.ok) {
-        if (positionEl) {
-          positionEl.textContent = `You're #${data.position} in line.`;
-          positionEl.hidden = false;
-        }
-        form.hidden = true;
-        return;
-      }
-      if (wlErrorEl) {
-        wlErrorEl.textContent = (data && data.error) || 'Something went wrong. Try again.';
-        wlErrorEl.hidden = false;
-      }
-    } catch {
-      if (wlErrorEl) {
-        wlErrorEl.textContent = 'Something went wrong. Try again.';
-        wlErrorEl.hidden = false;
-      }
-    } finally {
-      if (button) button.disabled = false;
+  function doorFor(position: number): number | null {
+    let filled = 0;
+    for (let i = 0; i < DOOR_SEATS.length; i += 1) {
+      filled += DOOR_SEATS[i];
+      if (position <= filled) return i + 1;
     }
-  });
+    return null;
+  }
+
+  // The waitlist forms: a same-origin fetch POST to their own action
+  // (/waitlist/join), JSON in, JSON out. Both forms on the page share this
+  // handler, and a success in either one answers in both -- someone who fills
+  // in the closer should not scroll back up to a form still asking for the
+  // email they already gave.
+  //
+  // The endpoint still answers with a position. The page does not print it:
+  // rule 03 is that we show a reader their door and never their number, so the
+  // position is read only to work out which door that is. Nothing about what is
+  // stored changed; this is what is said back.
+  const wlForms = [...document.querySelectorAll<HTMLFormElement>('[data-wl-form]')];
+  const wlDone = [...document.querySelectorAll<HTMLElement>('[data-wl-done]')];
+  const wlErrors = [...document.querySelectorAll<HTMLElement>('[data-wl-error]')];
+
+  function settle(message: string) {
+    for (const form of wlForms) form.hidden = true;
+    for (const el of wlDone) {
+      el.textContent = message;
+      el.hidden = false;
+    }
+  }
+
+  function showError(message: string) {
+    for (const el of wlErrors) {
+      el.textContent = message;
+      el.hidden = false;
+    }
+  }
+
+  for (const form of wlForms) {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      for (const el of wlErrors) el.hidden = true;
+
+      const email = String(new FormData(form).get('email') ?? '').trim();
+      const buttons = wlForms.flatMap((f) => [...f.querySelectorAll<HTMLButtonElement>('button[type="submit"]')]);
+      for (const button of buttons) button.disabled = true;
+
+      try {
+        const response = await fetch(form.action, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await response.json().catch(() => null);
+        if (response.ok && data && data.ok) {
+          const door = doorFor(Number(data.position));
+          const launchLabel = form.closest<HTMLElement>('.wl')?.dataset.launchLabel ?? '';
+          if (door === 1) {
+            settle(`You're in line for Door 1. It opens ${launchLabel}.`);
+          } else if (door) {
+            settle(`You're in line for Door ${door}. It opens once the doors ahead of it are claimed.`);
+          } else {
+            settle("You're in line. Your door opens as the ones ahead of it fill.");
+          }
+          return;
+        }
+        showError((data && data.error) || 'Something went wrong. Try again.');
+      } catch {
+        showError('Something went wrong. Try again.');
+      } finally {
+        for (const button of buttons) button.disabled = false;
+      }
+    });
+  }
 </script>
 
 <script>
@@ -261,253 +444,475 @@ const LAUNCH = 'Nov 10, 2026';
 </script>
 
 <style>
-  /* The waitlist landing page's own scale, local to .wl, the same pattern the
-     home canvas (.home, src/pages/index.astro) and /your-key (.hiw) use: a
-     small set of sizing and spacing variables scoped to this canvas, mapped
-     onto the shared colour/font tokens rather than the app's default ramp. */
+  /*
+   * The Get-in-line canvas, measured off the approved reference and mapped onto
+   * the site's own colour and font tokens rather than the reference's private
+   * ones: --paper is --color-surface, --ink is --color-foreground, --hair is
+   * --color-line, --heavy is --color-line-strong. The hex values behind both
+   * sets are already identical, so this is a rename, not a re-colour, and the
+   * page inverts with the theme switch instead of pinning one of them.
+   *
+   * The reference sizes itself off its own width with container queries, not
+   * the viewport, which is why the breakpoints below are 1100, 900 and 680 and
+   * do not sit on the site's viewport breakpoint ramp: they are widths of this
+   * canvas. Kept as written so the layout breaks where it was drawn to break.
+   */
   .wl {
-    --fs-11: 11px;
-    --fs-13: 13.5px;
-    --fs-15: 15px;
-    --fs-17: 17.5px;
-    --fs-num: clamp(28px, 4vw, 40px);
-    --fs-h1: clamp(34px, 4.4vw, 50px);
-    --sp-1: 4px;
-    --sp-2: 8px;
-    --sp-3: 12px;
-    --sp-4: 16px;
-    --sp-5: 24px;
-    --sp-6: 32px;
-    --sp-7: 48px;
-    --sp-8: 72px;
-    --tc: 0.13em;
-    --tt: -0.02em;
+    container-type: inline-size;
 
-    --ink: var(--color-foreground);
+    --hair: var(--color-line);
+    --heavy: var(--color-line-strong);
     --muted: var(--color-muted);
-    --line: var(--color-line);
-    --line-strong: var(--color-foreground);
     --signal: var(--color-signal);
-    --human: var(--font-family-sans);
     --machine: var(--font-family-mono);
 
     /* The site's one frame (global.css .shell), since 2026-09-20. */
     max-width: 86rem;
     margin-inline: auto;
-    padding-inline: clamp(16px, 2.5vw, 36px);
+    padding-inline: clamp(16px, 3vw, 36px);
   }
 
-  .wl-hero {
-    padding: var(--sp-8) 0 var(--sp-7);
-    border-bottom: 1px solid var(--line);
-  }
-
+  /* The mono label that opens each band: eyebrow, section kicker, tile caption.
+     One rule, because three different letter-spacings on the same label is how
+     a page stops reading as one page. */
   .wl-eyebrow {
     margin: 0;
     font-family: var(--machine);
+    font-size: 0.82rem;
     font-weight: 500;
-    font-size: var(--fs-11);
-    letter-spacing: var(--tc);
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--muted);
   }
 
-  /* The countdown: a bordered four-cell band, big mono numerals over a mono
-     label, ticking client-side (see the script above). */
-  .wl-countdown {
-    margin-top: var(--sp-5);
+  /* ---- hero ---- */
+
+  .wl-hero {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    max-width: 34rem;
-    border: 1px solid var(--line);
-  }
-  .wl-ctile {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--sp-1);
-    padding: var(--sp-4) var(--sp-2);
-    border-left: 1px solid var(--line);
-  }
-  .wl-ctile:first-child {
-    border-left: none;
-  }
-  .wl-cnum {
-    font-family: var(--machine);
-    font-weight: 600;
-    font-size: var(--fs-num);
-    line-height: 1;
-    letter-spacing: -0.01em;
-    color: var(--ink);
-    font-variant-numeric: tabular-nums;
-  }
-  .wl-clabel {
-    font-family: var(--machine);
-    font-size: var(--fs-11);
-    letter-spacing: var(--tc);
-    text-transform: uppercase;
-    color: var(--muted);
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 0 clamp(24px, 5vw, 80px);
+    padding: clamp(40px, 6vw, 72px) 0 clamp(40px, 5vw, 64px);
+    border-bottom: 1px solid var(--hair);
   }
 
   .wl-h1 {
-    margin: var(--sp-6) 0 0;
+    margin: 18px 0 0;
     font-weight: 700;
-    font-size: var(--fs-h1);
-    line-height: 1.08;
-    letter-spacing: var(--tt);
-    /* 28ch, up from the design's 20ch, since the frame widened to 86rem on
-       2026-09-20: the same hero measure as the home page. */
-    max-width: 28ch;
-    text-wrap: pretty;
-  }
-  .wl-sub {
-    margin: var(--sp-4) 0 0;
-    font-size: var(--fs-17);
-    line-height: 1.55;
-    color: var(--ink);
-    /* 68ch, up from the design's 50ch, for the same widened frame: the same
-       lede measure as the home page. */
-    max-width: 68ch;
+    font-size: clamp(2.5rem, 5vw, 4rem);
+    line-height: 1.02;
+    letter-spacing: -0.025em;
     text-wrap: pretty;
   }
 
+  /* Two lines by construction, not by luck: the break between the problem and
+     the offer is the sentence, and letting it fall wherever the measure lands
+     puts "AI. Get" on one line. */
+  .wl-h1-line {
+    display: block;
+  }
+
+  .wl-lede {
+    margin: 22px 0 0;
+    font-size: 1.25rem;
+    line-height: 1.5;
+    max-width: 34ch;
+    text-wrap: pretty;
+  }
+
+  .wl-side {
+    padding-left: clamp(0px, 3vw, 40px);
+    border-left: 1px solid var(--hair);
+  }
+
+  /* ---- the form, in both bands ---- */
+
   .wl-form {
-    margin-top: var(--sp-6);
-    display: flex;
-    align-items: stretch;
-    gap: var(--sp-3);
-    flex-wrap: wrap;
+    margin-top: 30px;
     max-width: 34rem;
   }
-  /* The submit handler sets the hidden attribute on success. Without this
-     rule the class selector above (equal specificity, but an author rule)
-     beats the browser's own [hidden] { display: none }, and the form stays
-     visible next to the position it just returned. */
+
+  .wl-closer .wl-form {
+    margin-top: 26px;
+  }
+
   .wl-form[hidden] {
     display: none;
   }
-  .wl-input {
-    flex: 1 1 16rem;
-    min-width: 0;
-    min-height: 44px;
-    padding: 0 var(--sp-4);
-    background: var(--color-surface);
-    border: 1px solid var(--line-strong);
-    color: var(--ink);
-    font-family: var(--human);
-    font-size: var(--fs-15);
-  }
-  .wl-input::placeholder {
-    color: var(--muted);
-  }
-  .wl-input:focus-visible {
-    outline: 2px solid var(--signal);
-    outline-offset: -1px;
-  }
-  .wl-cta {
-    background: var(--signal);
-    color: var(--gray-950);
-    font-family: var(--human);
-    font-weight: 600;
-    font-size: var(--fs-17);
-    padding: 0 var(--sp-6);
-    min-height: 44px;
-    border: 1px solid var(--signal);
-    cursor: pointer;
-  }
-  .wl-cta:hover,
-  .wl-cta:focus-visible {
-    filter: brightness(1.05);
-  }
-  .wl-cta:disabled {
-    filter: none;
-    opacity: 0.6;
-    cursor: default;
+
+  .wl-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
   }
 
-  .wl-position {
-    margin: var(--sp-5) 0 0;
-    font-family: var(--machine);
-    font-size: var(--fs-17);
-    color: var(--ink);
+  .wl-field {
+    flex: 1 1 220px;
+    min-width: 0;
   }
-  .wl-error {
-    margin: var(--sp-3) 0 0;
+
+  .wl-input {
+    width: 100%;
+    min-height: 52px;
+    padding: 10px 14px;
+    background: var(--color-surface-raised);
+    color: var(--color-foreground);
+    border: 1px solid var(--heavy);
+    border-radius: 2px;
+    font: inherit;
+  }
+
+  .wl-input::placeholder {
+    color: var(--muted);
+    opacity: 1;
+  }
+
+  .wl-input:focus {
+    outline: none;
+    border-color: var(--color-foreground);
+    box-shadow: inset 0 0 0 1px var(--color-foreground);
+  }
+
+  .wl-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    white-space: nowrap;
+    min-height: 52px;
+    padding: 12px 28px;
+    border: 0;
+    border-radius: 2px;
+    background: var(--signal);
+    /* Signal orange is the same value in both themes, so its text is pinned to
+       cool ink rather than to the theme's foreground, which would go white on
+       orange in dark mode. */
+    color: var(--gray-950);
     font-family: var(--machine);
-    font-size: var(--fs-13);
-    color: var(--ink);
-    border: 1px solid var(--line-strong);
-    padding: var(--sp-2) var(--sp-3);
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .wl-cta:hover,
+  .wl-cta:focus-visible {
+    filter: brightness(0.94);
+  }
+
+  .wl-cta:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  .wl-note {
+    margin: 12px 0 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--muted);
+    max-width: 52ch;
+    text-wrap: pretty;
+  }
+
+  .wl-side-note {
+    margin-top: 16px;
+    line-height: 1.55;
+  }
+
+  /* The handler sets hidden on the forms and clears it here, so the reader has
+     exactly one thing to read once they are in line. */
+  .wl-done {
+    margin: 30px 0 0;
+    font-size: 1.25rem;
+    line-height: 1.5;
+    max-width: 34ch;
+    text-wrap: pretty;
+  }
+
+  .wl-done[hidden],
+  .wl-error[hidden] {
+    display: none;
+  }
+
+  .wl-error {
+    margin: 12px 0 0;
+    padding: 8px 12px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--color-stat-loss);
+    border: 1px solid currentColor;
+    border-radius: 2px;
     max-width: 34rem;
   }
 
-  /* ---- how the line works ---- */
-  .wl-hiw {
-    padding: var(--sp-7) 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .wl-hiw-grid {
+  /* ---- the countdown ---- */
+
+  .wl-countdown {
+    margin-top: 14px;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--sp-6);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border: 1px solid var(--heavy);
   }
-  .wl-hiw-col {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-2);
+
+  .wl-ctile {
+    padding: 18px 6px 14px;
+    text-align: center;
+    border-right: 1px solid var(--heavy);
   }
-  .wl-hiw-label {
+
+  .wl-ctile:last-child {
+    border-right: 0;
+  }
+
+  .wl-cnum {
+    display: block;
+    font-weight: 700;
+    font-size: clamp(1.75rem, 2.8vw, 2.5rem);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .wl-clabel {
+    display: block;
+    margin-top: 8px;
     font-family: var(--machine);
-    font-weight: 500;
-    font-size: var(--fs-11);
-    letter-spacing: var(--tc);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--muted);
   }
-  .wl-hiw-line {
-    margin: 0;
-    font-size: var(--fs-15);
-    line-height: 1.55;
-    color: var(--ink);
+
+  /* The closer's copy of the same band, drawn one step larger: it is the last
+     thing on the page and has a column to itself rather than a sidebar. */
+  .wl-countdown-big {
+    margin-top: 0;
+  }
+
+  .wl-countdown-big .wl-ctile {
+    padding: 22px 6px 16px;
+  }
+
+  .wl-countdown-big .wl-cnum {
+    font-size: clamp(2rem, 3.2vw, 3rem);
+  }
+
+  .wl-countdown-big .wl-clabel {
+    margin-top: 10px;
+  }
+
+  /* ---- the three figures under the hero countdown ---- */
+
+  .wl-facts {
+    margin: 22px 0 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0 16px;
+    border-top: 2px solid var(--heavy);
+  }
+
+  .wl-fact {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--hair);
+  }
+
+  .wl-fact-k {
+    font-family: var(--machine);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .wl-fact-v {
+    margin: 4px 0 0;
+    font-weight: 700;
+    font-size: 1.5rem;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  /* ---- how the line works ---- */
+
+  .wl-how {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 2fr);
+    gap: 20px clamp(24px, 4vw, 64px);
+    align-items: start;
+    padding: clamp(40px, 5vw, 64px) 0;
+  }
+
+  .wl-how-h2 {
+    margin: 14px 0 0;
+    font-weight: 700;
+    font-size: clamp(1.75rem, 3vw, 2.25rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    max-width: 16ch;
     text-wrap: pretty;
+  }
+
+  .wl-rules {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 2px solid var(--heavy);
+  }
+
+  .wl-rule {
+    display: grid;
+    grid-template-columns: minmax(200px, 1fr) minmax(0, 1.8fr);
+    gap: 6px clamp(20px, 3vw, 44px);
+    padding: 22px 0;
+    border-bottom: 1px solid var(--hair);
+  }
+
+  .wl-rule-h3 {
+    margin: 0;
+    display: flex;
+    gap: 14px;
+    align-items: baseline;
+    font-weight: 700;
+    font-size: 1.25rem;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    hyphens: manual;
+  }
+
+  .wl-rule-n {
+    font-family: var(--machine);
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+
+  .wl-rule-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .wl-rule-p {
+    margin: 0;
+    font-size: 1.0625rem;
+    line-height: 1.6;
+    max-width: 56ch;
+    text-wrap: pretty;
+  }
+
+  .wl-figs {
+    margin: 4px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 28px;
+  }
+
+  .wl-fig {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    white-space: nowrap;
+  }
+
+  .wl-fig-k {
+    font-family: var(--machine);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .wl-fig-v {
+    margin: 0;
+    font-weight: 700;
+    font-size: 1.0625rem;
   }
 
   /* ---- closer ---- */
+
   .wl-closer {
-    padding: var(--sp-8) 0 var(--sp-7);
-  }
-  .wl-closer-line {
-    margin: 0;
-    font-weight: 600;
-    font-size: var(--fs-17);
-    line-height: 1.4;
-    letter-spacing: var(--tt);
-    color: var(--ink);
-    max-width: 42ch;
-    text-wrap: pretty;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 28px clamp(24px, 5vw, 80px);
+    align-items: end;
+    padding: clamp(40px, 5vw, 64px) 0 clamp(48px, 6vw, 80px);
+    border-top: 2px solid var(--heavy);
   }
 
-  @media (max-width: 640px) {
-    .wl-countdown {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .wl-ctile:nth-child(3) {
-      border-left: none;
-    }
-    .wl-ctile:nth-child(1),
-    .wl-ctile:nth-child(2) {
-      border-bottom: 1px solid var(--line);
-    }
-    .wl-hiw-grid {
+  .wl-closer-h2 {
+    margin: 0;
+    font-weight: 700;
+    font-size: clamp(2rem, 4vw, 3rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    max-width: 18ch;
+    text-wrap: balance;
+  }
+
+  /* ---- the canvas's own breakpoints, in its own width ---- */
+
+  @container (max-width: 1100px) {
+    /* The rules stop being a two-column reference table and become a list. */
+    .wl-how {
       grid-template-columns: 1fr;
-      gap: var(--sp-5);
     }
-    .wl-form {
+  }
+
+  @container (max-width: 900px) {
+    .wl-hero,
+    .wl-closer {
+      grid-template-columns: 1fr;
+    }
+    /* The sidebar's left rule becomes a top rule once it is no longer a side. */
+    .wl-side {
+      border-left: 0;
+      padding-left: 0;
+      border-top: 1px solid var(--hair);
+      padding-top: 26px;
+      margin-top: 26px;
+    }
+    .wl-row {
       flex-direction: column;
       align-items: stretch;
     }
-    .wl-cta {
-      padding: 0 var(--sp-4);
+    /* The field's flex-basis is a WIDTH while the row is a row, and becomes a
+       HEIGHT the moment the row turns into a column -- which printed a 220px
+       empty box between the input and the button on a phone. Released here so
+       the field is as tall as the input inside it. */
+    .wl-field {
+      flex: 0 0 auto;
+    }
+    .wl-rule {
+      grid-template-columns: 1fr;
+    }
+    /* Two by two rather than four across, so the numerals keep their size. */
+    .wl-countdown {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .wl-ctile:nth-child(2) {
+      border-right: 0;
+    }
+    .wl-ctile:nth-child(1),
+    .wl-ctile:nth-child(2) {
+      border-bottom: 1px solid var(--heavy);
+    }
+    .wl-ctile:nth-child(3) {
+      border-right: 1px solid var(--heavy);
+    }
+  }
+
+  @container (max-width: 680px) {
+    .wl-rule {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wl * {
+      transition: none !important;
+      animation: none !important;
     }
   }
 </style>

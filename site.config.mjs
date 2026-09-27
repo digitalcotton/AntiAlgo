@@ -111,12 +111,44 @@ export function indexUrl(path = '/') {
 }
 
 /**
- * The product's launch, from the Anti Algo home canvas. "Product opens" and the
- * "days to launch" countdown both read this one date, and the day count is
- * DERIVED from it (never typed), so the number is right on every day without an
- * edit. Move launch by changing this one constant.
+ * The product's launch -- Door 1, the first of the four doors described on
+ * /sign-up. "Product opens" and the "days to launch" countdown both read this
+ * one date, and the day count is DERIVED from it (never typed), so the number
+ * is right on every day without an edit. Move launch by changing this one
+ * constant.
  */
-export const LAUNCH_DATE = '2026-11-10T00:00:00Z';
+export const LAUNCH_DATE = '2027-01-04T00:00:00Z';
+
+/**
+ * The same instant written the way a person reads it. It was a literal typed
+ * twice -- once on the home page, once on /sign-up -- which is how the two
+ * pages ended up free to disagree about when the product opens. Derived here
+ * so moving LAUNCH_DATE moves every printed copy of it.
+ *
+ * UTC, because LAUNCH_DATE is a UTC instant and a local-time read of it prints
+ * the day before west of Greenwich -- the whole of the United States would
+ * have seen "Jan 3".
+ *
+ * Two forms because the two pages ask for different things and always did: the
+ * home eyebrow prints the date alone, and /sign-up leads with the weekday
+ * because a door that opens on a Monday is a different promise than one that
+ * opens on a Saturday. The long form drops the comma the formatter puts after
+ * the weekday, which is the only hand-shaping here.
+ */
+function launchLabel(withWeekday) {
+  return new Date(LAUNCH_DATE)
+    .toLocaleDateString('en-US', {
+      ...(withWeekday ? { weekday: 'short' } : {}),
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'UTC'
+    })
+    .replace(/^(\w{3}),/, '$1');
+}
+
+export const LAUNCH_LABEL = launchLabel(false);
+export const LAUNCH_LABEL_LONG = launchLabel(true);
 
 /** Whole days from now until launch, floored at zero. Derived, never typed. */
 export function daysToLaunch(now = new Date()) {
