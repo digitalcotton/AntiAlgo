@@ -155,6 +155,27 @@ const jobDraftEndpoint = routeFor('desk-job-draft');
 // both: a finished resume must not be hidden behind a slow or stuck cover. The
 // room prints "still drafting" for the one not yet in, and the meta refresh
 // below reloads until it lands.
+// NO DRAFT MEANS YOU ARE NOT IN THIS JOURNEY, SO THIS PAGE DOES NOT EXIST YET.
+// Owner, 2026-09-27: pressing the draft button on the posting starts the draft
+// AND lands here, so the only legitimate way in is with one already running
+// (src/pages/desk/job-draft.ts redirects to jobDraftPath after it creates the
+// rows). A "No draft yet" screen offering its own start button was a second
+// front door into a journey the reader is already inside — it asked them to
+// begin the thing they had just begun.
+//
+// A stale bookmark or a deleted draft can still land here with nothing. That is
+// not a dead end to decorate: the posting is where the button lives, so send
+// them to the button rather than rebuilding it here. `waiting` keeps its own
+// branch below, because an added posting the machine has not read yet is a
+// different fact from a draft that was never started.
+// `postingHref` is only set for an ADDED posting, so it is null for an ordinary
+// board job; boardDetailPath(slug) is the posting page every job has. Falling
+// through to Opportunities covers the last case — a slug with no job behind it
+// at all, where there is no posting to send anyone to.
+if (hasNoDraft && !waiting) {
+  return Astro.redirect(postingHref ?? (job ? boardDetailPath(slug) : routeFor('opportunities')), 303);
+}
+
 // THE WAIT SHOWS THE DOCUMENT NOW, NOT AN EMPTY BAND (docs/draft-loading-spec.md).
 // While a document is pending we render the deterministic placeholder — the
 // built-in writer's real output for this record and this posting — and the room
@@ -271,20 +292,6 @@ const coverCost = costVmFor(cover);
               The machine is still reading this posting. <a class="draft-link" href={postingHref}>Back to the posting</a>
             </p>
           </>
-        )
-      }
-
-      {
-        !waiting && hasNoDraft && (
-          <EmptyState
-            title="No draft yet"
-            detail="Nothing has been drafted for this posting. Draft a resumé and cover letter for it now."
-          >
-            <form class="draft-start" slot="action" method="POST" action={jobDraftEndpoint}>
-              <input type="hidden" name="slug" value={slug} />
-              <button class="draft-button" type="submit">Draft my resumé and cover letter for this role</button>
-            </form>
-          </EmptyState>
         )
       }
 
