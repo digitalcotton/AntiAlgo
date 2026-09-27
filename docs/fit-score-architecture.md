@@ -211,6 +211,89 @@ move together and all keep meaning "the completeness rubric."
 The signed-out half of the migration question is already solved, and the
 precedent extends exactly to "member with an empty record."
 
+## Step 0 was run on 2026-09-27. Here is what it found.
+
+Measured offline against `src/data/board-latest.json.gz` (37,765 postings) and a
+Profile Record. **Two of this plan's recommendations do not survive it.**
+
+### The `&&` boolean does not discriminate
+
+"Shares at least one word with your record" is true for **73.96% of the board** —
+27,930 of 37,765 postings. As a board-wide band it is worthless, which is exactly
+the failure this step existed to catch.
+
+### "Rarest N terms" is the wrong cap
+
+For a product-design record, the rarest 16 terms are:
+
+| kept by rarest-16 | postings containing it |
+|---|---|
+| `tokenstoagents` | 0 — a URL |
+| `cotton` | 6 — the person's own employer |
+| `wrote`, `took` | 20, 31 — incidental verbs |
+| `dictionary`, `fortune`, `six` | fragments of "Style Dictionary", "Fortune 250", "team of six" |
+
+And it **discards** `design` (9,402), `product` (10,110), `platform`, `tools`.
+
+Rarity is not characteristicness. In a short document the rarest terms are proper
+nouns and stray verbs, while the words that describe the craft are mid-frequency.
+Capping by rarity would match people on their employer's name and throw away what
+they do.
+
+The characteristic terms sit in a **middle band**: `conformance` (106), `tokens`
+(80), `component` (647), `interfaces` (874), `prototype` (921). The rule should be
+a document-frequency window, not a top-N.
+
+### Separation exists in aggregate, but individual comparisons are filler
+
+Against titles containing a design word: median **13** shared terms, 0.1% zero.
+Everything else: median **3**, 27.3% zero. A 4x gap, and real.
+
+But the aggregate hides the mechanism. A worked example, same record:
+
+| posting | shared |
+|---|---|
+| Product Designer, Payments — OpenAI | 9 |
+| Staff Software Engineer, Data Warehouse — Commure | 9 |
+
+A dead tie, and the engineering match ran on `through`, `employees`, `million`,
+`governance`, `platform`, `system`. Corporate filler, not craft.
+
+**This is a design-level problem, not just a ranking one.** The design spec's
+central honesty requirement is to show the member the shared words. If the honest
+answer is "through, employees, million", the feature embarrasses itself in front
+of the person it is trying to help.
+
+### The tokenizer makes it worse, and a bigger stopword list is not the fix
+
+`extractWords()` in `src/lib/vocabulary.ts` carries a **26-word** stopword list —
+the, and, for, with, you, your… Basic English function words. Every term in the
+filler list above passes straight through it. The spike above used a
+hand-written ~100-word list and still produced that tie, so its numbers are
+**optimistic** relative to what the board would actually do.
+
+Do not answer this by extending the stopword list. "Platform" is filler in one
+posting and craft in another; a hand-curated list cannot settle that and will
+drift forever, which is the same class of problem `vocabulary.ts` was written to
+prevent. The corpus already knows: 403 terms appear in >= 10% of postings, 900 in
+>= 5%. Let document frequency decide what is generic.
+
+### What this changes in the plan above
+
+1. **The three-boolean band is replaced by a document-frequency-weighted
+   overlap.** Terms above a corpus-frequency ceiling contribute nothing. The
+   ceiling comes from the distribution, not from a chosen number.
+2. **The member artifact stores a frequency band, not a rarest-N cap.**
+3. **The displayed evidence must be filtered by the same rule**, so the words
+   shown to the member are the ones that carried the score.
+4. **Re-run the separation check after the band is applied.** If a weighted
+   measure still ties a designer posting with a data-warehouse posting, keyword
+   matching has failed for this product and the vector question reopens on its
+   merits rather than on cost.
+
+Everything below still stands: read-time in SQL, one tokenizer, language as a
+gate, rename rather than delete.
+
 ## Build order, riskiest assumption first
 
 ### Step 0 — the measurement spike. Ships nothing. Decides everything.
