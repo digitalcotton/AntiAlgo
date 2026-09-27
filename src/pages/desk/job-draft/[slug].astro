@@ -221,8 +221,14 @@ const roomApplyTrack =
 const roomProvider = resume?.provider ?? cover?.provider ?? null;
 const roomModel = resume?.model ?? cover?.model ?? null;
 const roomFallback = providerTried && fellBack;
-const resumeUpdatedIso = resume?.updatedAt ? resume.updatedAt.toISOString() : null;
-const coverUpdatedIso = cover?.updatedAt ? cover.updatedAt.toISOString() : null;
+// ONLY A LANDED DOCUMENT HAS A DRAFTED-AT. A pending row carries an updatedAt
+// too — it is stamped when the row is created — and passing that through made
+// the room print "resumé, drafted just now" over a document still visibly
+// blurred. Harmless before the room rendered during drafting; a plain lie on
+// screen after. The state, not the column, decides whether there is a time to
+// print.
+const resumeUpdatedIso = resumeState === 'ready' && resume?.updatedAt ? resume.updatedAt.toISOString() : null;
+const coverUpdatedIso = coverState === 'ready' && cover?.updatedAt ? cover.updatedAt.toISOString() : null;
 
 // The per-document cost line: real render time and the tokens the provider
 // billed (db/203), priced by the dated table (generation-cost.ts), or a plain
@@ -311,6 +317,17 @@ const coverCost = costVmFor(cover);
           data-ceiling={String(FUNCTION_MAX_DURATION_S)}
           data-slug={slug}
         >
+          {/* TWO CLOCKS, BECAUSE THERE ARE TWO. The server's is real and long: a
+              model call can legitimately run to the platform's function ceiling.
+              A person's is short — at about forty seconds of nothing, a wait
+              stops reading as "working" and starts reading as "broken", and the
+              honest thing is to say so WITHOUT abandoning a draft that is still
+              coming. So the slow line acknowledges at human scale and the poll
+              keeps going; only the ceiling ends the wait. */}
+          <p class="muted draft-poll-slow" hidden>
+            This is taking longer than a draft usually does. It is still running &mdash; you can
+            wait, or start it over above.
+          </p>
           <p class="muted draft-poll-timeout" hidden>
             This draft has been going longer than a draft takes.{' '}
             <a class="draft-link" href={jobDraftPath(slug)}>Reload</a>, or start it over above.
@@ -587,18 +604,31 @@ const coverCost = costVmFor(cover);
     const url = host.dataset.status ?? '';
     const ceilingS = Number(host.dataset.ceiling) || 60;
     const timeoutNote = host.querySelector<HTMLElement>('.draft-poll-timeout');
+    const slowNote = host.querySelector<HTMLElement>('.draft-poll-slow');
+    // Forty seconds is the person's clock, not the platform's. It is roughly
+    // where a wait with no acknowledgement stops feeling like work in progress.
+    // It does not stop the poll: the draft may still be perfectly fine, and
+    // giving up on it here would throw away work that is about to land.
+    const SLOW_AFTER_MS = 40_000;
+    const startedAt = Date.now();
     // Two seconds is under the threshold where a person starts wondering
     // whether the page is doing anything, and well above the endpoint's own
     // cost. The grace margin covers the gap between a run being abandoned and
     // the next read reconciling it to 'failed'.
     const EVERY_MS = 2000;
+    // The server's deadline, not a guess: a run cannot outlive the function
+    // ceiling, and the grace margin covers the gap between a run being
+    // abandoned and the next read reconciling it to 'failed'. The person is
+    // spoken to long before this, by the slow line above.
     const giveUpAt = Date.now() + (ceilingS + 20) * 1000;
 
     const tick = async (): Promise<void> => {
       if (Date.now() > giveUpAt) {
+        if (slowNote) slowNote.hidden = true;
         if (timeoutNote) timeoutNote.hidden = false;
         return;
       }
+      if (slowNote && slowNote.hidden && Date.now() - startedAt > SLOW_AFTER_MS) slowNote.hidden = false;
       try {
         const res = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
         if (res.ok) {
