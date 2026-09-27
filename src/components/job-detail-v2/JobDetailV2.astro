@@ -14,8 +14,19 @@
  *
  * HONESTY, decided with the owner 2026-09-18:
  * - Fit is a signed-in reading. Signed-out visitors get a sign-in prompt where
- *   the "Fit for you" stat and the "Why this fits you" card would be, never a
- *   personalised fit without a viewer.
+ *   the "Fit for you" stat and the fit card would be, never a personalised fit
+ *   without a viewer.
+ *
+ *   STILL TRUE AS A RULE, FALSE AS A DESCRIPTION OF THIS NUMBER, and the gap is
+ *   an open owner decision (2026-09-27). The rubric reads nothing about the
+ *   viewer: scoreJob() in scripts/ingest-jobs.mjs scores the posting's own
+ *   title, location, pay, age and apply link, and no userId reaches it, so the
+ *   number is identical for every member. There is therefore nothing personal
+ *   for the sign-in gate to protect. The gate is LEFT STANDING here rather than
+ *   quietly reversed, because removing it changes what a signed-out visitor
+ *   sees and that is the owner's call, not this file's. The card's own title
+ *   and its per-component notes, which asserted checks against the reader that
+ *   never ran, are fixed below. See docs/fit-score-architecture.md.
  * - The design's role-family category tabs and its cross-company "More <family>"
  *   related-roles row need role_family tags that do not exist upstream yet, so
  *   both are omitted (not stubbed with invented counts) until the tags land.
@@ -160,13 +171,35 @@ const FIT_ROWS: { key: keyof typeof job.fit; label: string; max: number }[] = [
   { key: 'freshness', label: 'Freshness', max: 15 },
   { key: 'apply_friction', label: 'Apply friction', max: 10 }
 ];
-/** An honest one-line note per component, read off the record, never invented. */
+/**
+ * What each component actually measured, and nothing more.
+ *
+ * THESE SENTENCES USED TO DESCRIBE THE READER, AND NONE OF THEM COULD. Until
+ * 2026-09-27 this function was commented "read off the record, never invented"
+ * and then invented in every branch: `title_scope` full printed "Title and
+ * scope match a lane you saved", `comp` full printed "Full range printed, floor
+ * above your number", `remote_geo` full printed "inside the metros you allow".
+ *
+ * Nobody saved a lane. There is no "your number". No metros were allowed. Read
+ * scoreJob() in scripts/ingest-jobs.mjs: `title_scope` is 30 when
+ * `title.trim().length > 2`, `comp` is 20 when the posted pay contains a digit,
+ * `remote_geo` is 25 when a location string exists. Every component is a
+ * property of the POSTING; not one of them reads the person. No userId reaches
+ * that function, so the number is identical for every member.
+ *
+ * The rubric is a COMPLETENESS score for the crawled record — how much the
+ * sweep captured — and it is useful as that. It was only ever wrong as a claim
+ * about fit. docs/fit-score-architecture.md carries the rename and
+ * docs/fit-score-design.md what replaces it on screen; this function is the
+ * part that could not wait for either, because a vague number is a smaller
+ * wrong than a sentence asserting a check that never ran.
+ */
 function fitNote(key: string, score: number, max: number): string {
   const full = score >= max;
   switch (key) {
-    case 'title_scope': return full ? 'Title and scope match a lane you saved.' : 'Partial match to your saved lanes.';
-    case 'remote_geo': return job.remote ? 'Remote, inside the geographies you allow.' : `${job.location}${full ? ', inside the metros you allow.' : '.'}`;
-    case 'comp': return compFullText ? (full ? 'Full range printed, floor above your number.' : 'Pay printed, below your floor.') : 'No pay printed.';
+    case 'title_scope': return full ? 'A specific title is posted.' : 'No usable title posted.';
+    case 'remote_geo': return job.remote ? 'Posted as remote.' : job.location ? `Posted in ${job.location}.` : 'No location posted.';
+    case 'comp': return compFullText ? (full ? 'Pay range printed.' : 'Pay mentioned, no figure printed.') : 'No pay printed.';
     case 'freshness': return ageDays !== null ? `${ageDays} ${ageDays === 1 ? 'day' : 'days'} old, verified this sweep.` : 'Age unknown.';
     case 'apply_friction': return `Applies on ${ats}.`;
     default: return '';
@@ -387,7 +420,7 @@ const saveNote = applyTrack
       {signedIn ? (
         <section class="jd-fit" aria-labelledby="jd-fit-h">
           <div class="jd-fit-head">
-            <h2 id="jd-fit-h" class="jd-fit-title">Why this fits you</h2>
+            <h2 id="jd-fit-h" class="jd-fit-title">What this posting printed</h2>
             <p class="jd-fit-total">{fitTotal}<span>/100</span></p>
           </div>
           <ol class="jd-fit-rows">
