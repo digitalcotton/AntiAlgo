@@ -2313,24 +2313,33 @@ export function facetGroupsFromCounts(
       },
       selected.comp
     ),
-    keep(
-      {
-        key: 'freshness',
-        label: 'Freshness',
-        options: [
-          { value: 'all', label: 'All', count: counts.freshness.all ?? 0 },
-          { value: 'fresh', label: 'Inside 96 hours', count: counts.freshness.fresh ?? 0 },
-          { value: 'older', label: 'Older', count: counts.freshness.older ?? 0 },
-          { value: 'unknown', label: 'No date shown', count: counts.freshness.unknown ?? 0 }
-        ]
-      },
-      selected.freshness
-    )
+    // FRESHNESS IS NOT OFFERED (owner, 2026-09-28). The board already says a
+    // posting's age three other ways: the age strip across the top, the Age
+    // column on every row, and 15 of the 100 points in Deets. A fourth reading
+    // of one fact, as a dropdown whose options routinely carry identical
+    // counts, was a choice that was not a choice.
+    //
+    // The `freshness` query parameter still narrows, so an old bookmark keeps
+    // working; it simply has no control. If it is ever offered again it goes
+    // back here, and the counts are still computed for it.
   ];
+  // KEYED, NOT POSITIONAL. This read `[selected.location, selected.comp,
+  // selected.freshness][i]`, which was correct only while those three were the
+  // whole list in that order. The Field group was added ahead of them on
+  // 2026-09-27 and every index silently shifted by one, so a group was kept or
+  // dropped on the strength of a different group's selection. An index into a
+  // parallel array is a second copy of the group order; reading the group's own
+  // key cannot drift from it.
+  const chosen: Record<string, string | undefined> = {
+    fam: selected.fam,
+    location: selected.location,
+    comp: selected.comp,
+    freshness: selected.freshness
+  };
   return groups.filter(
-    (group, i) =>
+    (group) =>
       group.options.filter((o) => o.count > 0).length > 1 ||
-      [selected.location, selected.comp, selected.freshness][i] !== 'all'
+      (chosen[group.key] ?? 'all') !== 'all'
   );
 }
 

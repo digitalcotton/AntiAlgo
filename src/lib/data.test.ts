@@ -276,7 +276,7 @@ describe('facetsOf location for a company that has not posted', () => {
 });
 
 describe('facetGroupsFromCounts', () => {
-  it('builds the three groups from counts, drops empty bands, keeps the selected option', async () => {
+  it('builds the offered groups from counts, drops empty bands, keeps the selected option', async () => {
     const { facetGroupsFromCounts } = await import('./data');
     const groups = facetGroupsFromCounts(
       {
@@ -286,11 +286,36 @@ describe('facetGroupsFromCounts', () => {
       },
       { location: 'all', comp: '200-250', freshness: 'all' }
     );
-    expect(groups.map((g) => g.key)).toEqual(['location', 'comp', 'freshness']);
+    // Freshness is counted but not offered (2026-09-28): the age strip, the Age
+    // column and Deets already say a posting's age, and a fourth reading of one
+    // fact was a choice that was not a choice. The counts stay so it can be
+    // offered again without re-plumbing anything.
+    expect(groups.map((g) => g.key)).toEqual(['location', 'comp']);
     const comp = groups[1].options.map((o) => o.value);
     expect(comp).toEqual(['all', '150-200', '200-250', '300-plus', 'not-listed']);
     expect(groups[1].options.find((o) => o.value === '200-250')?.count).toBe(0);
-    expect(groups[2].options.map((o) => o.value)).toEqual(['all', 'fresh', 'older']);
+  });
+
+  it('keeps a group on its OWN selection, not the one beside it', async () => {
+    // The keep rule read a parallel array by index, which was right only while
+    // location/comp/freshness were the whole list in that order. Field was added
+    // ahead of them and every index shifted, so a group survived or vanished on
+    // the strength of a different group's value. Reading group.key cannot drift.
+    const { facetGroupsFromCounts } = await import('./data');
+    const counts = {
+      location: { all: 0, remote: 0, onsite: 0 },
+      comp: { all: 0, 'not-listed': 0 },
+      freshness: { all: 0, older: 0 },
+      family: { all: 0, design: 0, unplaced: 0 }
+    };
+    // Only the family is chosen, so only the family survives an empty board.
+    expect(
+      facetGroupsFromCounts(counts, { location: 'all', comp: 'all', freshness: 'all', fam: 'design' }).map((g) => g.key)
+    ).toEqual(['fam']);
+    // And a chosen location survives while the family beside it does not.
+    expect(
+      facetGroupsFromCounts(counts, { location: 'remote', comp: 'all', freshness: 'all', fam: 'all' }).map((g) => g.key)
+    ).toEqual(['location']);
   });
   it('drops every group over an empty set, unless the address names a value in it', async () => {
     const { facetGroupsFromCounts } = await import('./data');
