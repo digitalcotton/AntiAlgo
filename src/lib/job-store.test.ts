@@ -20,14 +20,15 @@ describe('listBoardFiltered', () => {
     expect(query).toHaveBeenCalledTimes(2);
     const [countSql, countParams] = query.mock.calls[0];
     const [pageSql, pageParams] = query.mock.calls[1];
-    // The eleven shared params: sweep, fresh window, search, the three facets,
-    // the age range, then country/liveOnly/hasComp. liveOnly defaults to TRUE
-    // (2026-09-20): a browsed list never carries a killed row. No watched
-    // titles, so nothing binds past them.
-    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false]);
-    expect(pageParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, 50, 50]);
+    // The twelve shared params: sweep, fresh window, search, the three facets,
+    // the age range, then country/liveOnly/hasComp, then the families ($12,
+    // NULL for an unnarrowed board). liveOnly defaults to TRUE (2026-09-20): a
+    // browsed list never carries a killed row. No watched titles, so nothing
+    // binds past them.
+    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, null]);
+    expect(pageParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, null, 50, 50]);
     expect(countSql).toContain('FILTER (WHERE match_age AND');
-    expect(pageSql).toContain('LIMIT $12 OFFSET $13');
+    expect(pageSql).toContain('LIMIT $13 OFFSET $14');
     expect(pageSql).toContain('ORDER BY fit_total DESC, company ASC, title ASC, id ASC');
     expect(result.total).toBe(3);
     expect(result.counts.location).toEqual({ all: 3, remote: 1, onsite: 2 });
@@ -36,23 +37,57 @@ describe('listBoardFiltered', () => {
     await listBoardFiltered({ ...FILTER, titles: ['Product Designer'] });
     const [countSql, countParams] = query.mock.calls[0];
     const [pageSql, pageParams] = query.mock.calls[1];
-    // The title normalises to ONE phrase param, bound after the eleven shared ($12).
-    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, 'product designer']);
+    // The title normalises to ONE phrase param, bound after the twelve shared ($13).
+    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, null, 'product designer']);
     // Then limit and offset shift past the phrase.
     expect(pageParams.slice(-2)).toEqual([50, 50]);
-    expect(pageSql).toContain('LIMIT $13 OFFSET $14');
+    expect(pageSql).toContain('LIMIT $14 OFFSET $15');
     // A normalised, padded whole-phrase LIKE (mirroring ledger-titles.matchesTitle),
     // applied to the facet counts too, so the counts describe the narrowed board.
     expect(pageSql).toContain(String.raw`regexp_replace(lower(title), '[^a-z0-9]+', ' ', 'g')`);
-    expect(pageSql).toContain(`LIKE ('% ' || $12 || ' %')`);
-    expect(countSql).toContain(`LIKE ('% ' || $12 || ' %')`);
+    expect(pageSql).toContain(`LIKE ('% ' || $13 || ' %')`);
+    expect(countSql).toContain(`LIKE ('% ' || $13 || ' %')`);
   });
   it('leaves the board unnarrowed when no titles are watched', async () => {
     await listBoardFiltered({ ...FILTER, titles: [] });
     const [, countParams] = query.mock.calls[0];
-    expect(countParams).toHaveLength(11);
-    expect(query.mock.calls[1][0]).toContain('LIMIT $12 OFFSET $13');
+    expect(countParams).toHaveLength(12);
+    expect(query.mock.calls[1][0]).toContain('LIMIT $13 OFFSET $14');
   });
+  it('narrows to the chosen families, and treats unplaced as the absence it is', async () => {
+    await listBoardFiltered({ ...FILTER, families: ['design', 'unplaced'] });
+    const [countSql, countParams] = query.mock.calls[0];
+    // The families bind as ONE array param at $12, so the shape does not change
+    // with how many are picked and nothing shifts behind them.
+    expect(countParams[11]).toEqual(['design', 'unplaced']);
+    expect(countParams).toHaveLength(12);
+    // 'unplaced' is not a family id: it is matched against a NULL derived_fam,
+    // never looked up, so picking it alongside Design returns both.
+    expect(countSql).toContain("derived_fam = ANY($12::text[])");
+    expect(countSql).toContain("derived_fam IS NULL AND 'unplaced' = ANY($12::text[])");
+  });
+
+  it('leaves the board unnarrowed when no family is chosen', async () => {
+    await listBoardFiltered({ ...FILTER, families: [] });
+    const [, countParams] = query.mock.calls[0];
+    expect(countParams[11]).toBeNull();
+  });
+
+  it('counts each family leave-one-out, so a count is what that option would leave', async () => {
+    await listBoardFiltered({ ...FILTER, families: ['design'] });
+    const [countSql] = query.mock.calls[0];
+    // Every other facet count respects match_family; the family counts do not,
+    // or picking Design would make every family count read as Design's own.
+    // The identifier is quoted because a family id carries a hyphen
+    // (social-care, public-safety, it-infra, data-ai).
+    expect(countSql).toContain('AS "family_design"');
+    expect(countSql).toContain('AS "family_social-care"');
+    expect(countSql).toContain('AS family_unplaced');
+    expect(countSql).toContain('AS family_all');
+    const famLine = String(countSql).split('\n').find((l) => l.includes('AS "family_design"')) ?? '';
+    expect(famLine).not.toContain('match_family');
+  });
+
   it('mirrors the TypeScript facet rules in SQL', async () => {
     await listBoardFiltered(FILTER);
     const sql = query.mock.calls[1][0] as string;

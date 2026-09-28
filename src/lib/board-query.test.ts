@@ -19,7 +19,7 @@ describe('parseBoardQuery', () => {
   });
   it('accepts only allowlisted values and falls back per field', () => {
     const q = parseBoardQuery(params('page=3&per=100&q=%20designer%20&location=remote&comp=200-250&freshness=fresh&sort=age'));
-    expect(q).toEqual({ page: 3, per: 100, q: 'designer', location: 'remote', comp: '200-250', freshness: 'fresh', sort: 'age', ageMin: null, ageMax: null, titles: [] });
+    expect(q).toEqual({ page: 3, per: 100, q: 'designer', location: 'remote', comp: '200-250', freshness: 'fresh', sort: 'age', ageMin: null, ageMax: null, titles: [], families: [] });
     const bad = parseBoardQuery(params('page=-2&per=7&location=mars&comp=nope&freshness=soon&sort=price&age_min=-1&age_max=soon'));
     expect(bad).toEqual(DEFAULT_QUERY);
   });
@@ -59,7 +59,7 @@ describe('boardHref', () => {
 
 describe('hiddenFields', () => {
   it('carries every non-default setting except the ones the form owns, and never the page', () => {
-    const q = { page: 4, per: 25, q: 'lead', location: 'remote' as const, comp: 'all', freshness: 'older' as const, sort: 'age' as const, ageMin: null, ageMax: null, titles: [] };
+    const q = { page: 4, per: 25, q: 'lead', location: 'remote' as const, comp: 'all', freshness: 'older' as const, sort: 'age' as const, ageMin: null, ageMax: null, titles: [], families: [] };
     expect(hiddenFields(q, ['location', 'comp', 'freshness', 'q'])).toEqual([['sort', 'age'], ['per', '25']]);
     expect(hiddenFields(q, ['per'])).toEqual([['q', 'lead'], ['location', 'remote'], ['freshness', 'older'], ['sort', 'age']]);
     expect(hiddenFields(q, []).some(([k]) => k === 'page')).toBe(false);

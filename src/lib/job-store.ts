@@ -15,6 +15,7 @@ import type { BoardRow } from './board-jobs';
 import type { AgeHistogram, AgeBucket } from './data';
 import { COMP_TOP_PATTERN } from './data';
 import { normalizeTitle } from './ledger-titles';
+import { FAMILY_IDS } from './job-family.mjs';
 
 /**
  * The columns the board adapter (board-jobs.ts) reads, in one place. ghost is
@@ -113,6 +114,16 @@ export interface BoardFilter {
    *  It narrows every facet count too, so the counts describe the narrowed board.
    *  Resolved from Astro.locals.viewer, never from the query string. */
   titles?: string[];
+  /** Occupational families to keep (src/lib/job-family.mjs, db/212's
+   *  derived_fam). Empty or undefined means every family, which is the default
+   *  and what a signed-out reader always gets. A row with no family is outside
+   *  every chosen family: it has no field to be inside of, the same rule the age
+   *  strip states for a row with no measurable age.
+   *
+   *  THIS NARROWS, IT DOES NOT RANK. The family answers "is this even my field";
+   *  which of two design jobs is better is what tier, comp and region already
+   *  answer, from measured values. */
+  families?: string[];
 }
 
 /** How many rows each option would leave, given everything else that is set. */
@@ -121,6 +132,11 @@ export interface FacetCounts {
   location: Record<string, number>;
   comp: Record<string, number>;
   freshness: Record<string, number>;
+  /** Keyed by family id, plus 'all' and 'unplaced' for the rows the classifier
+   *  could not place. 'unplaced' is a real option a reader can select: 12.3% of
+   *  the board carries no family, and a filter that silently swallowed an eighth
+   *  of the sweep would be the pre-filtering this product refuses. */
+  family: Record<string, number>;
 }
 
 export interface BoardFilteredResult {
@@ -196,6 +212,7 @@ WITH base AS (
   SELECT j.id, j.slug, j.company, j.title, j.url, j.location, j.country, j.remote, j.published, j.ats,
          j.posting_id, j.department, j.comp_posted, j.comp_range, j.days_up, j.first_seen, j.last_seen,
          j.fit_total, j.fit_components, j.source, NULL::text AS description, j.status, j.kill_id,
+         j.derived_fam, j.derived_fam_source,
          ${KILL_COLUMNS},
          CASE WHEN j.location ~* '\\yhybrid\\y' THEN 'onsite'
               WHEN j.location ~* '\\yremote\\y' THEN 'remote'
@@ -233,7 +250,19 @@ matched AS (
                AND ($8::int IS NULL OR age_days <= $8::int))) AS match_age,
          ($9::text IS NULL OR country = $9::text) AS match_country,
          (NOT $10::boolean OR status = 'live')     AS match_live,
-         (NOT $11::boolean OR facet_comp <> 'not-listed') AS match_comp_present
+         (NOT $11::boolean OR facet_comp <> 'not-listed') AS match_comp_present,
+         -- The occupational family (src/lib/job-family.mjs, db/212). NULL means
+         -- no family was chosen and the board is unnarrowed; a row whose own
+         -- derived_fam is NULL is outside every chosen family, because it has no
+         -- field to be inside of. Same rule the age strip states for a row with
+         -- no measurable age.
+         -- 'unplaced' is not a family id, it is the absence of one, so it is
+         -- matched against NULL rather than looked up. A reader who picks
+         -- Design AND Unplaced gets both, which is the only reading of that
+         -- selection that is not a lie about one of them.
+         ($12::text[] IS NULL
+           OR derived_fam = ANY($12::text[])
+           OR (derived_fam IS NULL AND 'unplaced' = ANY($12::text[]))) AS match_family
     FROM scored s
 )`;
 
@@ -241,7 +270,12 @@ matched AS (
     range is in every keep clause: it is a filter every count respects, not an
     option any count is taken without. */
 function facetCountSql(titleClause: string): string {
-  const on = (keep: string, extra = '') => `count(*) FILTER (WHERE match_age AND match_country AND match_live AND match_comp_present AND ${titleClause} AND ${keep}${extra})::int`;
+  const on = (keep: string, extra = '') => `count(*) FILTER (WHERE match_age AND match_country AND match_live AND match_comp_present AND ${titleClause} AND match_family AND ${keep}${extra})::int`;
+  // The family's own counts are the one place match_family is NOT applied: a
+  // leave-one-out count answers "how many would this option leave", and
+  // counting Design inside a Design filter would answer "how many are already
+  // showing". Same shape as location_remote being counted without match_location.
+  const onFam = (extra: string) => `count(*) FILTER (WHERE match_age AND match_country AND match_live AND match_comp_present AND ${titleClause} AND match_q AND match_location AND match_comp AND match_freshness${extra})::int`;
   const cols = [
     `${on('match_q AND match_location AND match_comp AND match_freshness')} AS total`,
     `${on('match_q AND match_comp AND match_freshness')} AS location_all`,
@@ -255,7 +289,15 @@ function facetCountSql(titleClause: string): string {
     `${on('match_q AND match_location AND match_comp')} AS freshness_all`,
     `${on('match_q AND match_location AND match_comp', " AND facet_freshness = 'fresh'")} AS freshness_fresh`,
     `${on('match_q AND match_location AND match_comp', " AND facet_freshness = 'older'")} AS freshness_older`,
-    `${on('match_q AND match_location AND match_comp', " AND facet_freshness = 'unknown'")} AS freshness_unknown`
+    `${on('match_q AND match_location AND match_comp', " AND facet_freshness = 'unknown'")} AS freshness_unknown`,
+    // One column per family, plus the two that are not families: every row, and
+    // the rows the classifier could not place. `unplaced` is shown rather than
+    // hidden — 12.3% of the board has no family, and a filter that silently
+    // swallowed an eighth of the sweep would be the pre-filtering this product
+    // is named for refusing.
+    `${onFam('')} AS family_all`,
+    `${onFam(' AND derived_fam IS NULL')} AS family_unplaced`,
+    ...FAMILY_IDS.map((id) => `${onFam(` AND derived_fam = '${id}'`)} AS "family_${id}"`)
   ];
   return `${BOARD_FACET_CTE}\nSELECT ${cols.join(',\n       ')}\n  FROM matched`;
 }
@@ -305,7 +347,8 @@ export async function listBoardFiltered(opts: BoardFilter): Promise<BoardFiltere
   const page = Math.max(1, Math.floor(opts.page) || 1);
   const shared: unknown[] = [
     opts.sweepDate, FRESH_WINDOW_DAYS_SQL, likePattern(opts.q), opts.location, opts.comp, opts.freshness,
-    opts.ageMin ?? null, opts.ageMax ?? null, opts.country ?? null, opts.liveOnly ?? true, opts.hasComp ?? false
+    opts.ageMin ?? null, opts.ageMax ?? null, opts.country ?? null, opts.liveOnly ?? true, opts.hasComp ?? false,
+    opts.families && opts.families.length > 0 ? opts.families : null
   ];
   // The watched-titles narrowing binds after the 11 shared params ($12..), so
   // the LIMIT/OFFSET indices shift by however many title tokens there are.
@@ -317,7 +360,12 @@ export async function listBoardFiltered(opts: BoardFilter): Promise<BoardFiltere
     total: c.total ?? 0,
     location: { all: c.location_all ?? 0, remote: c.location_remote ?? 0, onsite: c.location_onsite ?? 0 },
     comp: Object.fromEntries([...COMP_BAND_SQL.map((b) => b.key), 'not-listed', 'all'].map((k) => [k, c[`comp_${k}`] ?? 0])),
-    freshness: { all: c.freshness_all ?? 0, fresh: c.freshness_fresh ?? 0, older: c.freshness_older ?? 0, unknown: c.freshness_unknown ?? 0 }
+    freshness: { all: c.freshness_all ?? 0, fresh: c.freshness_fresh ?? 0, older: c.freshness_older ?? 0, unknown: c.freshness_unknown ?? 0 },
+    family: Object.fromEntries([
+      ['all', c.family_all ?? 0],
+      ['unplaced', c.family_unplaced ?? 0],
+      ...FAMILY_IDS.map((id) => [id, c[`family_${id}`] ?? 0] as const)
+    ])
   };
 
   const order = BOARD_ORDER[opts.sort] ?? BOARD_ORDER.fit;
@@ -327,7 +375,7 @@ export async function listBoardFiltered(opts: BoardFilter): Promise<BoardFiltere
     `${BOARD_FACET_CTE}
 SELECT ${BOARD_ROW_OUT}
   FROM matched
- WHERE match_age AND match_q AND match_location AND match_comp AND match_freshness AND match_country AND match_live AND match_comp_present AND ${titleClause}
+ WHERE match_age AND match_q AND match_location AND match_comp AND match_freshness AND match_country AND match_live AND match_comp_present AND match_family AND ${titleClause}
  ORDER BY ${order}
  LIMIT $${limIdx} OFFSET $${offIdx}`,
     [...shared, ...titleParams, perPage, (page - 1) * perPage]
@@ -337,7 +385,7 @@ SELECT ${BOARD_ROW_OUT}
 
 /** The BoardRow columns read back out of the CTE (the same names, unprefixed). */
 const BOARD_ROW_OUT = `id, slug, company, title, url, location, country, remote, published, ats,
-  posting_id, department, comp_posted, comp_range, days_up, first_seen, last_seen,
+  posting_id, department, derived_fam, derived_fam_source, comp_posted, comp_range, days_up, first_seen, last_seen,
   fit_total, fit_components, source, description, status, kill_id,
   kill_rule, kill_reason, killed_on, kill_first_published, kill_pipeline`;
 

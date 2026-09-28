@@ -51,7 +51,7 @@ const bq = parseBoardQuery(new URLSearchParams());
 // The visitor's country, from Vercel's edge headers (absent in local dev and
 // for unknown IPs, where we default to US).
 const country = (Astro.request.headers.get('x-vercel-ip-country') || 'US').toUpperCase();
-const EMPTY_COUNTS = { total: 0, location: {}, comp: {}, freshness: {} };
+const EMPTY_COUNTS = { total: 0, location: {}, comp: {}, freshness: {}, family: {} };
 let bServed: Awaited<ReturnType<typeof listBoardFiltered>> = { rows: [], total: 0, counts: EMPTY_COUNTS };
 let bAgeHistogram: AgeHistogram = EMPTY_AGE_HISTOGRAM;
 let bStats: Awaited<ReturnType<typeof getBoardStats>> = null;
