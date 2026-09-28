@@ -93,7 +93,7 @@ if (signedIn && isConfigured()) {
   }
 }
 
-const EMPTY_COUNTS: FacetCounts = { total: 0, location: {}, comp: {}, freshness: {} };
+const EMPTY_COUNTS: FacetCounts = { total: 0, location: {}, comp: {}, freshness: {}, family: {} };
 const EMPTY_PAGE: BoardFilteredResult = { rows: [], total: 0, counts: EMPTY_COUNTS };
 // The age plot is a fact about the whole set, never about one page: the store
 // returns its distribution (one row per age), not the rows themselves. Its
@@ -127,7 +127,8 @@ if (isConfigured()) {
       page: query.page,
       perPage: query.per,
       sweepDate: sweepDate(),
-      titles: pickedTitles.length > 0 ? pickedTitles : undefined
+      titles: pickedTitles.length > 0 ? pickedTitles : undefined,
+      families: query.families.length > 0 ? [...query.families] : undefined
     }).catch((error) => {
       console.error('board: the job store did not answer; rendering an empty board.', error);
       return EMPTY_PAGE;
@@ -145,7 +146,7 @@ if (page !== query.page) {
 }
 
 const jobs = served.rows.map(boardRowToJob);
-const groups = facetGroupsFromCounts(served.counts, query);
+const groups = facetGroupsFromCounts(served.counts, { ...query, fam: query.families[0] ?? 'all' });
 
 // The board's own counts, from the sweep. verified-live is the table's real
 // size, so it always matches what a reader can count.

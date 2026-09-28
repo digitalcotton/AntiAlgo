@@ -13,6 +13,7 @@
  * a sort key or a page size it did not expect: an unknown value reads as the
  * default, never as an error and never as a pass-through into SQL.
  */
+import { FAMILY_IDS } from './job-family.mjs';
 import { COMP_BANDS, SORT_KEYS, type SortKey } from './data';
 
 /** 5 on arrival (the owner's call, 2026-09-11): a first page a person reads
@@ -52,6 +53,14 @@ export interface BoardQuery {
    * trusted to name a title on its own.
    */
   titles: readonly string[];
+  /**
+   * The occupational families the reader picked (`fam=`, repeatable). Empty
+   * means every family. Unlike `titles`, these ARE trusted from the address: a
+   * family is a public classification of a posting, not a fact about the
+   * reader, so naming one in a URL reveals nothing and grants nothing. Unknown
+   * ids are dropped rather than passed to SQL.
+   */
+  families: readonly string[];
 }
 
 export const TITLES_MAX = 20;
@@ -66,8 +75,32 @@ export const DEFAULT_QUERY: Readonly<BoardQuery> = Object.freeze({
   sort: 'fit',
   ageMin: null,
   ageMax: null,
-  titles: []
+  titles: [],
+  families: []
 });
+
+/**
+ * The `fam=` values from the address, kept only if they name a real family.
+ *
+ * An unknown id is DROPPED, not passed through and not an error. The list is a
+ * closed set this repo owns (job-family.mjs), so anything else is a stale
+ * bookmark or someone typing, and the honest answer to both is the board
+ * without that narrowing rather than an error page or an empty result.
+ * 'unplaced' is accepted as well: the rows the classifier could not place are a
+ * real thing to ask for, not a hole.
+ */
+export function parseFamilies(values: readonly string[]): readonly string[] {
+  const allowed = new Set<string>([...FAMILY_IDS, 'unplaced']);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const v = String(raw ?? '').trim().toLowerCase();
+    if (!allowed.has(v) || seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out;
+}
 
 /** The `title=` values from the address: trimmed, capped, de-duplicated, in order. */
 export function parseTitles(values: readonly string[]): readonly string[] {
@@ -118,7 +151,8 @@ export function parseBoardQuery(params: URLSearchParams): BoardQuery {
     sort: oneOf(params.get('sort'), SORT_KEYS, 'fit'),
     ageMin,
     ageMax,
-    titles: parseTitles(params.getAll('title'))
+    titles: parseTitles(params.getAll('title')),
+    families: parseFamilies(params.getAll('fam'))
   };
 }
 
@@ -127,7 +161,7 @@ export function isExplicit(params: URLSearchParams): boolean {
   return params.toString() !== '';
 }
 
-const FILTER_KEYS: readonly (keyof BoardQuery)[] = ['q', 'location', 'comp', 'freshness', 'ageMin', 'ageMax', 'sort', 'per', 'titles'];
+const FILTER_KEYS: readonly (keyof BoardQuery)[] = ['q', 'location', 'comp', 'freshness', 'ageMin', 'ageMax', 'sort', 'per', 'titles', 'families'];
 
 /**
  * The address for a query, with only the values that differ from the defaults
@@ -151,6 +185,7 @@ export function boardHref(base: string, query: BoardQuery, overrides: Partial<Bo
   if (next.per !== DEFAULT_PER_PAGE) params.set('per', String(next.per));
   // Same guard as the age range: an older caller's query may carry no titles.
   for (const title of next.titles ?? []) params.append('title', title);
+  for (const fam of next.families ?? []) params.append('fam', fam);
   if (next.page > 1) params.set('page', String(next.page));
   const search = params.toString();
   return search ? `${base}?${search}` : base;
@@ -172,6 +207,7 @@ export function hiddenFields(query: BoardQuery, omit: readonly (keyof BoardQuery
   if (!skip.has('sort') && query.sort !== 'fit') out.push(['sort', query.sort]);
   if (!skip.has('per') && query.per !== DEFAULT_PER_PAGE) out.push(['per', String(query.per)]);
   if (!skip.has('titles')) for (const title of query.titles ?? []) out.push(['title', title]);
+  if (!skip.has('families')) for (const fam of query.families ?? []) out.push(['fam', fam]);
   return out;
 }
 

@@ -15,6 +15,13 @@ import { PER_PAGE_OPTIONS, boardHref, hiddenFields, pageSpan, type BoardQuery } 
 /**
  * The board, the one component both tabs render through.
  *
+ * WHY 'families' IS IN THE FILTER FORM'S SKIP LIST. The Field select submits
+ * `fam=` itself, so carrying it as a hidden field too writes the parameter
+ * twice (`?fam=health&q=&fam=health`). parseFamilies dedupes, so nothing
+ * breaks — but a duplicated parameter in an address people share is the kind of
+ * thing that gets copied into a bug report. Every filter the strip OWNS is
+ * skipped for the same reason; families joined that list on 2026-09-27.
+ *
  * The index and the Pre-List are the same surface with different populations:
  * the Board tab lists postings, the Newly funded tab lists companies scored
  * before they post a role. Both are Jobs, both are scored by the same weights,
@@ -174,10 +181,10 @@ const ageHref = serverMode
         <Filters
           mode="server"
           groups={groups}
-          selected={{ location: q.location, comp: q.comp, freshness: q.freshness }}
+          selected={{ location: q.location, comp: q.comp, freshness: q.freshness, fam: q.families?.[0] ?? 'all' }}
           query={q.q}
           action={boardPath}
-          hidden={hiddenFields(q, ['location', 'comp', 'freshness', 'q', 'titles'])}
+          hidden={hiddenFields(q, ['location', 'comp', 'freshness', 'q', 'titles', 'families'])}
           titleChoices={titleChoices}
           selectedTitles={q.titles}
         >

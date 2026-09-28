@@ -31,6 +31,7 @@
  * SESSION-07-KILL-LIST.md, "Compute the duration, never store it".
  */
 
+import { FAMILIES } from './job-family.mjs';
 import rawJobs from '../data/jobs.json';
 import rawProspects from '../data/prospects.json';
 import rawKills from '../data/kills.json';
@@ -2222,14 +2223,51 @@ export function facetsOf(job: Job): JobFacets {
  * show what the URL says even when it would leave nothing.
  */
 export function facetGroupsFromCounts(
-  counts: { location: Record<string, number>; comp: Record<string, number>; freshness: Record<string, number> },
-  selected: { location: string; comp: string; freshness: string }
+  counts: {
+    location: Record<string, number>;
+    comp: Record<string, number>;
+    freshness: Record<string, number>;
+    /** Keyed by family id, plus 'all' and 'unplaced'. Optional so a caller
+        built before db/212 still type-checks and simply gets no Field group. */
+    family?: Record<string, number>;
+  },
+  selected: { location: string; comp: string; freshness: string; fam?: string }
 ): FilterGroup[] {
   const keep = (group: FilterGroup, current: string): FilterGroup => ({
     ...group,
     options: group.options.filter((o) => o.count > 0 || o.value === 'all' || o.value === current || o.value === 'not-listed')
   });
+  // The occupational family (src/lib/job-family.mjs, db/212). The group's key
+  // IS the query parameter the select submits, so it is 'fam' rather than
+  // 'family'.
+  //
+  // ONE FAMILY AT A TIME IN THE UI, SEVERAL IN THE ADDRESS. The select is a
+  // single choice because that is the interaction this strip already has, and a
+  // second interaction pattern for one filter is not worth the surface. The
+  // parameter is repeatable and the SQL takes an array, so `?fam=design&fam=product`
+  // works for anyone who writes it, and a multi-select can be added later
+  // without touching the query or the store.
+  //
+  // Options are sorted by count, not alphabetically: a reader scanning for
+  // their own field finds it faster where the board is deepest, and a family
+  // with no live rows is dropped by keep() below anyway.
+  const familyCounts = counts.family ?? {};
+  const familyGroup: FilterGroup = {
+    key: 'fam',
+    label: 'Field',
+    options: [
+      { value: 'all', label: 'All fields', count: familyCounts.all ?? 0 },
+      ...FAMILIES.map((f) => ({ value: f.id, label: f.label, count: familyCounts[f.id] ?? 0 }))
+        .sort((a, b) => b.count - a.count),
+      // Last, and never hidden: 12.3% of the board carries no family, and a
+      // filter that silently swallowed an eighth of the sweep would be the
+      // pre-filtering this product is named for refusing.
+      { value: 'unplaced', label: 'Not placed', count: familyCounts.unplaced ?? 0 }
+    ]
+  };
+
   const groups: FilterGroup[] = [
+    ...(counts.family ? [keep(familyGroup, selected.fam ?? 'all')] : []),
     keep(
       {
         key: 'location',
