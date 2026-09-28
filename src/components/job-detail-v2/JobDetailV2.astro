@@ -416,35 +416,6 @@ const saveNote = applyTrack
       )}
     </div>
 
-    <aside class="jd-body-aside">
-      {signedIn ? (
-        <section class="jd-fit" aria-labelledby="jd-fit-h">
-          <div class="jd-fit-head">
-            <h2 id="jd-fit-h" class="jd-fit-title">What this posting printed</h2>
-            <p class="jd-fit-total">{fitTotal}<span>/100</span></p>
-          </div>
-          <ol class="jd-fit-rows">
-            {fitRows.map((r) => (
-              <li class="jd-fit-row">
-                <div class="jd-fit-row-head">
-                  <span class="jd-fit-label">{r.label}</span>
-                  <span class="jd-fit-score">{r.score}/{r.max}</span>
-                </div>
-                <div class="jd-fit-bar" aria-hidden="true"><span style={`width:${Math.round((r.score / r.max) * 100)}%`}></span></div>
-                <p class="jd-fit-note">{r.note}</p>
-              </li>
-            ))}
-          </ol>
-          <p class="jd-fit-foot"><a href={methodHref}>How detail is scored</a></p>
-        </section>
-      ) : (
-        <section class="jd-fit jd-fit-signin" aria-label="Detail">
-          <h2 class="jd-fit-title">What this posting printed</h2>
-          <p class="jd-fit-note">Every posting is scored on how much it tells you: the title, the location, whether the pay is printed, how to apply, and how recent it is. Nothing here is scored against you.</p>
-          <p class="jd-fit-foot"><a class="jd-btn jd-btn-outline jd-btn-inline" href={signInHref}>Sign in</a></p>
-        </section>
-      )}
-    </aside>
   </div>
 </article>
 
@@ -602,12 +573,16 @@ const saveNote = applyTrack
   .jd-link-save:hover, .jd-link-save:focus-visible { color: var(--color-foreground); border-bottom-color: var(--color-foreground); }
 
   /* row 2: description beside the fit sidebar */
-  /* The right column is the rail's own 392px track, so the fit card's left
-     edge meets the rail's above it (owner's call, 2026-09-20). */
-  .jd-body-row { display: grid; grid-template-columns: minmax(0, 1fr) 392px; gap: var(--space-600); align-items: start; }
+  /* ONE COLUMN SINCE 2026-09-28. The right track existed to hold the score
+     card, and the card is gone: owner's call, because once it stopped claiming
+     to be about the reader there was nothing left in it a reader could not
+     already see. Three of its five rows restated columns on the same page —
+     the title is in the heading, the location and the pay are in the stats,
+     the apply target is on the button — and the other two were its own
+     freshness and the ATS name. The rubric it drew is still measured and still
+     feeds /jobs-data, where crawl completeness is genuinely the question. */
+  .jd-body-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-600); align-items: start; }
   .jd-body-main { display: flex; flex-direction: column; gap: var(--space-500); min-width: 0; }
-  /* the fit card follows the reader down, clearing the sticky mini action bar */
-  .jd-body-aside { min-width: 0; position: sticky; top: 84px; align-self: start; }
 
   .jd-fresh { margin: 0; color: var(--color-muted); font-size: var(--size-100); }
 
