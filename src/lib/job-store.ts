@@ -25,7 +25,7 @@ import { FAMILY_IDS } from './job-family.mjs';
  */
 const BOARD_COLUMNS = `j.id, j.slug, j.company, j.title, j.url, j.location, j.country, j.remote, j.published, j.ats,
   j.posting_id, j.department, j.comp_posted, j.comp_range, j.days_up, j.first_seen, j.last_seen,
-  j.fit_total, j.fit_components, j.source, j.description, j.status, j.kill_id`;
+  j.detail_total, j.detail_components, j.source, j.description, j.status, j.kill_id`;
 
 /**
  * The same columns for a LIST read, with the heavy description column nulled at
@@ -35,7 +35,7 @@ const BOARD_COLUMNS = `j.id, j.slug, j.company, j.title, j.url, j.location, j.co
  */
 export const BOARD_LIST_COLUMNS = `j.id, j.slug, j.company, j.title, j.url, j.location, j.country, j.remote, j.published, j.ats,
   j.posting_id, j.department, j.comp_posted, j.comp_range, j.days_up, j.first_seen, j.last_seen,
-  j.fit_total, j.fit_components, j.source, NULL::text AS description, j.status, j.kill_id`;
+  j.detail_total, j.detail_components, j.source, NULL::text AS description, j.status, j.kill_id`;
 
 /**
  * The kill of record beside a board row, when one names it. Read with a LEFT
@@ -177,7 +177,10 @@ export function compTopSql(column: string): string {
 
 /** The ORDER BY for each sort key, allowlisted; the raw string never reaches SQL. */
 const BOARD_ORDER: Record<BoardFilter['sort'], string> = {
-  fit: 'fit_total DESC, company ASC, title ASC, id ASC',
+  // The sort key stays 'fit' because it is in the address and in people's
+  // bookmarks; the COLUMN is what was renamed (db/213). The label a reader sees
+  // is 'Detail' (SortControl.astro).
+  fit: 'detail_total DESC, company ASC, title ASC, id ASC',
   comp: 'comp_top DESC NULLS LAST, company ASC, title ASC, id ASC',
   age: 'age_days ASC NULLS LAST, company ASC, title ASC, id ASC'
 };
@@ -211,7 +214,7 @@ const BOARD_FACET_CTE = `
 WITH base AS (
   SELECT j.id, j.slug, j.company, j.title, j.url, j.location, j.country, j.remote, j.published, j.ats,
          j.posting_id, j.department, j.comp_posted, j.comp_range, j.days_up, j.first_seen, j.last_seen,
-         j.fit_total, j.fit_components, j.source, NULL::text AS description, j.status, j.kill_id,
+         j.detail_total, j.detail_components, j.source, NULL::text AS description, j.status, j.kill_id,
          j.derived_fam, j.derived_fam_source,
          ${KILL_COLUMNS},
          CASE WHEN j.location ~* '\\yhybrid\\y' THEN 'onsite'
@@ -386,7 +389,7 @@ SELECT ${BOARD_ROW_OUT}
 /** The BoardRow columns read back out of the CTE (the same names, unprefixed). */
 const BOARD_ROW_OUT = `id, slug, company, title, url, location, country, remote, published, ats,
   posting_id, department, derived_fam, derived_fam_source, comp_posted, comp_range, days_up, first_seen, last_seen,
-  fit_total, fit_components, source, description, status, kill_id,
+  detail_total, detail_components, source, description, status, kill_id,
   kill_rule, kill_reason, killed_on, kill_first_published, kill_pipeline`;
 
 /**
@@ -555,7 +558,7 @@ export async function getBoardJobBySlug(slug: string): Promise<BoardRow | null> 
             NULL::text AS country, false AS remote, NULL::timestamptz AS published, coalesce(k.ats, 'custom') AS ats,
             NULL::text AS posting_id, NULL::text AS department, NULL::text AS comp_posted, NULL::jsonb AS comp_range,
             NULL::integer AS days_up, k.first_published AS first_seen, k.last_fired_on AS last_seen,
-            0 AS fit_total, NULL::jsonb AS fit_components, 'tracked' AS source, NULL::text AS description,
+            0 AS detail_total, NULL::jsonb AS detail_components, 'tracked' AS source, NULL::text AS description,
             'killed' AS status, k.id AS kill_id, ${KILL_COLUMNS}
        FROM board_kills k
       WHERE k.job_slug = $1 AND k.vacated_at IS NULL

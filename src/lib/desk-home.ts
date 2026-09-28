@@ -19,7 +19,7 @@
  *
  * HONESTY. role_family and tier are still absent upstream, so "Core" and
  * "Stretch" are the member's own shelving of a title (target vs reach), never a
- * seniority read. Fit is fit_total, a signed-in reading; there is no fabricated
+ * seniority read. Detail is detail_total (db/213); there is no fabricated
  * per-requirement "distance" here, because measured fit components do not exist
  * yet. Company names are held on kill rows, as everywhere else on a paid surface.
  */
@@ -82,7 +82,7 @@ export interface DeskRoleVM {
   url: string | null;
   /** Which watched titles pulled this role in (the "matched X" line). */
   matched: string[];
-  /** fit_total, a signed-in reading, 0..100. */
+  /** detail_total (db/213), 0..100: how much the posting tells you. */
   fit: number;
   /** First observed, as an ISO date, for the head-start timeline. */
   firstSeen: string | null;
@@ -237,7 +237,7 @@ function roleVM(row: BoardRow, matched: string[], sweepIso: string, isNewFlag: b
     ats: atsLabel(row.ats),
     url: row.url,
     matched,
-    fit: typeof row.fit_total === 'number' && Number.isFinite(row.fit_total) ? row.fit_total : 0,
+    fit: typeof row.detail_total === 'number' && Number.isFinite(row.detail_total) ? row.detail_total : 0,
     firstSeen: isoDay(row.first_seen),
     ageDays,
     headStart: headStartFor(ageDays),

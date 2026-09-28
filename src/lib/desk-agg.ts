@@ -154,7 +154,7 @@ function prefsParams(prefs: LedgerSelection): { remoteOnly: boolean; compFloor: 
  *
  * THE CANDIDATE SET IS NARROW ON PURPOSE. The matching CTE carries four columns,
  * not a whole board row: the normalisation and the match run over id, first_seen,
- * fit_total and the normalised title, and the full columns are joined back on id
+ * detail_total (db/213) and the normalised title, and the full columns are joined back on id
  * for the twelve rows that actually win. Carrying every column through the match
  * measured 48 ms against 32 ms for the narrow one, for rows that were then thrown
  * away.
@@ -181,7 +181,7 @@ WITH w AS (
     FROM unnest($1::int[], $2::text[], $3::text[], $4::boolean[]) AS t(ord, phrase, raw, is_core)
 ),
 cand AS MATERIALIZED (
-  SELECT j.id, j.first_seen, j.fit_total,
+  SELECT j.id, j.first_seen, j.detail_total,
          (' ' || regexp_replace(lower(j.title), '[^a-z0-9]+', ' ', 'g') || ' ') AS nt
     FROM jobs j
    WHERE j.status <> 'killed'
@@ -191,7 +191,7 @@ cand AS MATERIALIZED (
               AND (j.comp_range->>'min')::numeric >= $6::numeric))
 ),
 lane AS (
-  SELECT c.id, c.first_seen, c.fit_total,
+  SELECT c.id, c.first_seen, c.detail_total,
          ARRAY(SELECT w.raw FROM w WHERE c.nt LIKE ('% ' || w.phrase || ' %') ORDER BY w.ord) AS matched,
          EXISTS (SELECT 1 FROM w WHERE w.is_core AND c.nt LIKE ('% ' || w.phrase || ' %')) AS is_core,
          ($7::date - c.first_seen IS NOT NULL
@@ -267,7 +267,7 @@ export async function deskLaneRows(
 ranked AS (
   SELECT lane.id, lane.matched, lane.is_core, lane.is_new,
          row_number() OVER (PARTITION BY is_core
-                            ORDER BY coalesce(fit_total, 0) DESC,
+                            ORDER BY coalesce(detail_total, 0) DESC,
                                      coalesce(first_seen, '1970-01-01'::date) DESC,
                                      lane.id ASC) AS rn
     FROM lane

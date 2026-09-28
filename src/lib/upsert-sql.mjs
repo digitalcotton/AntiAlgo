@@ -28,7 +28,7 @@
  */
 
 /** Columns bound per row. Must match values() in scripts/ingest-jobs.mjs. */
-export const COLUMNS_PER_ROW = 31;
+export const COLUMNS_PER_ROW = 33;
 
 /** Postgres refuses a statement carrying more bound parameters than this. */
 export const MAX_PARAMETERS = 65535;
@@ -39,7 +39,8 @@ export const MAX_ROWS_PER_STATEMENT = Math.floor(MAX_PARAMETERS / COLUMNS_PER_RO
 const HEAD = `
   INSERT INTO jobs (id, company, title, url, location, country, remote, published,
                     ats, posting_id, department, comp_posted, days_up, ghost,
-                    first_seen, last_seen, slug, fit_total, fit_components, source,
+                    first_seen, last_seen, slug, fit_total, fit_components,
+                    detail_total, detail_components, source,
                     comp_range, description,
                     derived_tier, derived_fam, derived_fam_source, derived_region, derived_friction,
                     priced, comp_min_k, comp_max_k, comp_mid_k,
@@ -54,6 +55,11 @@ const TAIL = `
     comp_posted=EXCLUDED.comp_posted, days_up=EXCLUDED.days_up, ghost=EXCLUDED.ghost,
     first_seen=EXCLUDED.first_seen, last_seen=EXCLUDED.last_seen, slug=EXCLUDED.slug,
     fit_total=EXCLUDED.fit_total, fit_components=EXCLUDED.fit_components,
+    -- DUAL-WRITTEN UNTIL THE OLD PAIR IS DROPPED (db/213). The two hold the
+    -- identical number: detail_* is fit_* renamed to what it measures, not
+    -- recomputed. When nothing selects fit_* any more, a later migration drops
+    -- it and these two lines go with it.
+    detail_total=EXCLUDED.detail_total, detail_components=EXCLUDED.detail_components,
     source=EXCLUDED.source, comp_range=EXCLUDED.comp_range, description=EXCLUDED.description,
     derived_tier=EXCLUDED.derived_tier, derived_fam=EXCLUDED.derived_fam,
     derived_fam_source=EXCLUDED.derived_fam_source,

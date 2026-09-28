@@ -29,7 +29,7 @@ describe('listBoardFiltered', () => {
     expect(pageParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, null, 50, 50]);
     expect(countSql).toContain('FILTER (WHERE match_age AND');
     expect(pageSql).toContain('LIMIT $13 OFFSET $14');
-    expect(pageSql).toContain('ORDER BY fit_total DESC, company ASC, title ASC, id ASC');
+    expect(pageSql).toContain('ORDER BY detail_total DESC, company ASC, title ASC, id ASC');
     expect(result.total).toBe(3);
     expect(result.counts.location).toEqual({ all: 3, remote: 1, onsite: 2 });
   });

@@ -270,12 +270,12 @@ const saveNote = applyTrack
         </div>
         {signedIn ? (
           <div class="jd-stat">
-            <dt>Fit for you</dt>
+            <dt>Detail</dt>
             <dd class="jd-stat-fit">{fitTotal}<span>/100</span></dd>
           </div>
         ) : (
           <div class="jd-stat">
-            <dt>Fit for you</dt>
+            <dt>Detail</dt>
             <dd class="jd-stat-muted"><a href={signInHref}>Sign in</a></dd>
           </div>
         )}
@@ -435,13 +435,13 @@ const saveNote = applyTrack
               </li>
             ))}
           </ol>
-          <p class="jd-fit-foot"><a href={methodHref}>How fit is scored</a></p>
+          <p class="jd-fit-foot"><a href={methodHref}>How detail is scored</a></p>
         </section>
       ) : (
-        <section class="jd-fit jd-fit-signin" aria-label="Fit">
-          <h2 class="jd-fit-title">Fit is a signed-in reading</h2>
-          <p class="jd-fit-note">We score every posting against the titles, pay and geographies you save, and show you the breakdown. Sign in to see how this one scores for you.</p>
-          <p class="jd-fit-foot"><a class="jd-btn jd-btn-outline jd-btn-inline" href={signInHref}>Sign in to see your fit</a></p>
+        <section class="jd-fit jd-fit-signin" aria-label="Detail">
+          <h2 class="jd-fit-title">What this posting printed</h2>
+          <p class="jd-fit-note">Every posting is scored on how much it tells you: the title, the location, whether the pay is printed, how to apply, and how recent it is. Nothing here is scored against you.</p>
+          <p class="jd-fit-foot"><a class="jd-btn jd-btn-outline jd-btn-inline" href={signInHref}>Sign in</a></p>
         </section>
       )}
     </aside>

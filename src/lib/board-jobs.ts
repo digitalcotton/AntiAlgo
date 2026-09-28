@@ -58,8 +58,8 @@ export interface BoardRow {
   days_up: number | null;
   first_seen: Date | string | null;
   last_seen: Date | string | null;
-  fit_total: number;
-  fit_components: Partial<Fit> | null;
+  detail_total: number;
+  detail_components: Partial<Fit> | null;
   source: string | null;
   description: string | null;
   /** 'live', or 'killed' when a published kill names this row's URL (db/031). */
@@ -115,9 +115,9 @@ function instantOf(value: Date | string | null): string | null {
 
 /** The five rubric parts, defaulting a missing component to zero. */
 function fitOf(row: BoardRow): Fit {
-  const c = row.fit_components ?? {};
+  const c = row.detail_components ?? {};
   return {
-    total: Number.isFinite(row.fit_total) ? row.fit_total : 0,
+    total: Number.isFinite(row.detail_total) ? row.detail_total : 0,
     title_scope: c.title_scope ?? 0,
     remote_geo: c.remote_geo ?? 0,
     comp: c.comp ?? 0,
