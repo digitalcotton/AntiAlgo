@@ -11,6 +11,8 @@ import { FUNCTION_MAX_DURATION_S } from '../../site.config.mjs';
 import ArchivedRow from '../components/desk/ArchivedRow.astro';
 import { isOn } from '../lib/flags';
 import { routeFor, jobPath, deskDraftPath, jobDraftPath, boardDetailPath } from '../data/nav';
+import { listBoardJobsByIds } from '../lib/job-store';
+import { boardRowToJob } from '../lib/board-jobs';
 import { withBase } from '../../site.config.mjs';
 import {
   archiveApplication,
@@ -234,6 +236,38 @@ const nothingTrackedYet = applications.length === 0 && savedJobs.length === 0;
    their own section below regardless of this. */
 const trackerHasRows = savedOnlyJobs.length > 0 || activeApplications.length > 0;
 
+/* THIS PAGE USED TO RESOLVE A POSTING AGAINST THE STATIC DESIGN FIXTURE.
+   jobById() searched loadJobs() — the 104 rows in src/data/jobs.json — while
+   every posting a member actually clicks comes from the board table, which
+   holds 37,765. The lookup therefore missed on essentially every real row, and
+   one hole produced four symptoms: a card's title could not link back to its
+   job, the saved cards linked only for fixture rows, the follow-up prompt fell
+   to its generic branch because it could not read the posting's apply friction,
+   and — worst — "We observed" printed "No observation of this posting" about
+   postings this sweep verifies nightly.
+
+   One query for exactly the ids on this page (listBoardJobsByIds), never the
+   whole board: the read-size discipline db/207 and desk-agg.ts exist to hold.
+   The fixture stays as a fallback beneath it, because the design board at /role
+   is still drawn from it and those ids are not in the table. */
+const boardIdsOnPage = [
+  ...applications.map((a) => a.jobId),
+  ...savedJobs.map((saved) => saved.jobId)
+].filter((id): id is string => typeof id === 'string' && id !== '');
+const boardJobsById = new Map<string, Job>();
+if (boardIdsOnPage.length > 0) {
+  try {
+    for (const row of await listBoardJobsByIds(boardIdsOnPage)) {
+      boardJobsById.set(row.id, boardRowToJob(row));
+    }
+  } catch (error) {
+    // A tracker that cannot reach the board still renders every card it holds;
+    // it just cannot say what the sweep observed. Degrading to the fixture is
+    // the same shape every other read on this page already uses.
+    console.error('opportunities: the board lookup failed; cards render without their postings.', error);
+  }
+}
+
 /* ---------------------------------------------------------------------------
    Matching an application back to a published posting, and a posting to a
    kill, by the same identity src/lib/desk.ts's fateOf() documents: company
@@ -246,7 +280,9 @@ const jobs = loadJobs();
 const kills = killArchive();
 
 function jobById(jobId: string): Job | null {
-  return jobs.find((job) => job.id === jobId) ?? null;
+  // The live board first, the static fixture second. See boardJobsById above
+  // for why this used to be fixture-only and what that cost.
+  return boardJobsById.get(jobId) ?? jobs.find((job) => job.id === jobId) ?? null;
 }
 
 function killForJob(job: Job): Kill | null {
@@ -466,6 +502,45 @@ interface ClickPrompt {
  * call site (the freshly clicked board card) are exactly where that prompt
  * still lives.
  */
+/**
+ * Where a card's title points: back at the posting it is tracking.
+ *
+ * A card names a role and then gave the reader nowhere to go with it — the
+ * saved-only cards below have linked their titles all along, and the
+ * application cards, which are the ones people actually sit with, did not.
+ * Owner, 2026-09-28: the title should be a link and it should return you to
+ * that job.
+ *
+ * Two kinds of posting, two paths. A tracked board posting resolves through its
+ * own slug; a posting the person added by link has no board row and lives at
+ * the added slug built from the application id (addedSlugFor, the same path
+ * PostingCardStatus already sends them to). Null when neither resolves — an
+ * application whose posting has since left the sweep still renders its title,
+ * just without a link, because a dead link is worse than plain text.
+ */
+function applicationHref(application: StoredApplication): string | null {
+  if (postingFetches.has(application.id)) return boardDetailPath(addedSlugFor(application.id));
+  const job = application.jobId ? jobById(application.jobId) : null;
+  return job ? postingHrefFor(job) : null;
+}
+
+/**
+ * The page a posting is actually readable on.
+ *
+ * jobPath() builds /role/<slug>, which is the STATIC design board and is
+ * prerendered from src/data/jobs.json. A posting that came from the table has
+ * no /role page — checked, not assumed: /role/openai-product-designer-payments-30o9z
+ * answers 404 while /board/openai-product-designer-payments-30o9z answers 200.
+ * So a board row goes to /board and only a fixture row keeps /role.
+ *
+ * This is why the saved cards' links were worth a second look rather than being
+ * copied: they have always used jobPath(), so every one of them pointing at a
+ * board posting has been a 404 waiting to be clicked.
+ */
+function postingHrefFor(job: Job): string {
+  return boardJobsById.has(job.id) ? boardDetailPath(job.slug) : jobPath(job.slug);
+}
+
 function clickPrompt(application: StoredApplication): ClickPrompt {
   const job = application.jobId ? jobById(application.jobId) : null;
   const timing = promptTiming(job ? job.ease : null);
@@ -513,7 +588,7 @@ function describeSaved(saved: StoredSavedJob): SavedDisplay {
   return {
     title: job.title ?? 'Untitled role',
     company: job.company,
-    href: jobPath(job.slug),
+    href: postingHrefFor(job),
     applyUrl: job.apply_url,
     savedAtLabel: formatDate(saved.savedAt.toISOString()),
     observed: savedObserved(job)
@@ -851,7 +926,13 @@ function columnOf(states: readonly ApplicationState[]): StoredApplication[] {
                               const prompt = application.state === 'clicked' ? clickPrompt(application) : null;
                               return (
                                 <li class="app-card" id={`app-${application.id}`}>
-                                  <p class="app-card-title">{application.snapshot.title ?? 'Untitled role'}</p>
+                                  <p class="app-card-title">
+                                    {(() => {
+                                      const href = applicationHref(application);
+                                      const title = application.snapshot.title ?? 'Untitled role';
+                                      return href ? <a class="text-link" href={href}>{title}</a> : title;
+                                    })()}
+                                  </p>
                                   <p class="app-card-company">{application.snapshot.company ?? 'Unknown company'}</p>
 
                                   <dl class="app-tracks">

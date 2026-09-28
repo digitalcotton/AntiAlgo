@@ -323,8 +323,16 @@ const widest = (group: FilterGroup): string =>
     menu.setAttribute('role', 'listbox');
     menu.hidden = true;
 
+    // The label goes in its own span so it can be truncated. As a bare text
+    // node it was an anonymous flex item, which cannot take text-overflow, so a
+    // long option ("Administration & Business Support") painted straight out of
+    // the cell and over the control beside it.
+    const triggerText = document.createElement('span');
+    triggerText.className = 'filter-value-text';
+    trigger.append(triggerText);
+
     const paintValue = () => {
-      trigger.textContent = select.options[select.selectedIndex]?.text ?? '';
+      triggerText.textContent = select.options[select.selectedIndex]?.text ?? '';
       for (const row of Array.from(menu.querySelectorAll<HTMLElement>('[role="option"]'))) {
         row.setAttribute('aria-selected', row.dataset.value === select.value ? 'true' : 'false');
       }
@@ -769,15 +777,14 @@ const widest = (group: FilterGroup): string =>
     min-width: 0;
   }
 
-  /* At lap width and above the row stops wrapping and scrolls itself instead
-     (--breakpoint-lap, restated as a literal because a media query cannot
-     read a custom property; check-token-usage.mjs checks it matches). */
-  @media (min-width: 60rem) { /* --breakpoint-lap */
-    .filters-row {
-      flex-wrap: nowrap;
-      overflow-x: auto;
-    }
-  }
+  /* THE ROW WRAPS. IT DOES NOT SCROLL.
+     It used to go `flex-wrap: nowrap; overflow-x: auto` at lap width and above,
+     which fit while there were six controls and started scrolling the moment
+     the Field select became the seventh. A filter strip that scrolls sideways
+     hides its own controls behind an edge with nothing to say they are there —
+     the reader cannot see what they can filter by, which is the one job the
+     strip has. Owner, 2026-09-28: it should not scroll. So it wraps at every
+     width, and a cell too narrow for its value truncates (see .filter-field). */
 
   /* One cell: label, then value, with the hairline on its left edge. The
      first cell has no left edge because the strip's border draws it. */
@@ -913,12 +920,35 @@ const widest = (group: FilterGroup): string =>
     white-space: nowrap;
   }
 
+  /* THE CAP THAT KEEPS ONE LONG OPTION FROM SETTING THE WHOLE CELL'S WIDTH.
+     The sizer lays out the widest option invisibly so the control does not
+     resize when the selection changes — a real guarantee, kept. But the Field
+     group's widest is "Administration & Business Support", 33 characters, and
+     without a ceiling that one string decided how wide the cell had to be and
+     pushed the strip past the viewport.
+     Measured in ch because the thing being capped is a run of text: about
+     fourteen characters is where the longest family names start to clip, and
+     every shorter option still renders whole. */
+  .filter-field {
+    min-width: 0;
+    max-width: 14ch;
+  }
+
   .filter-sizer {
     visibility: hidden;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .filter-select {
     width: 100%;
+    /* The selected option, clipped with an ellipsis rather than widening the
+       cell or spilling out of it. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     appearance: none;
     -webkit-appearance: none;
     background: transparent var(--select-chevron) no-repeat right center;
@@ -952,7 +982,21 @@ const widest = (group: FilterGroup): string =>
     pointer-events: none;
   }
 
+  /* The chosen option's label. Truncates rather than widening the cell or
+     painting over the control beside it. min-width:0 on the button is what
+     lets .filter-field's cap actually bite: without it a flex item refuses to
+     shrink below its content. */
+  .filter-field > :global(.filter-value) > :global(.filter-value-text) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .filter-field > :global(.filter-value) {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
     grid-area: 1 / 1;
     display: inline-flex;
     align-items: center;

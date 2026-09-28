@@ -6,7 +6,7 @@
  * still classify the board, which is the thing that rots silently as employers
  * change how they file jobs and as the crawl adds companies.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { familyOf, familyLabel, FAMILIES, FAMILY_IDS } from './job-family.mjs';
@@ -147,22 +147,39 @@ describe('coverage against the real corpus', () => {
   const CORPUS = 'src/data/board-latest.json.gz';
   const FLOOR = 0.84;
 
-  it.skipIf(!existsSync(CORPUS))('classifies at least 84% of the board', () => {
+  /**
+   * READ AND CLASSIFY ONCE. Both cases below need the same 37,765 rows, and the
+   * first version of this file gunzipped 33 MB twice — fine alone, and a
+   * timeout under a full parallel suite, where it failed while passing on its
+   * own. A test that only fails when other tests are running teaches people to
+   * re-run rather than to look.
+   */
+  let classified = 0;
+  let total = 0;
+  const unmapped = new Map<string, number>();
+  const counts = new Map<string, number>();
+
+  beforeAll(() => {
+    if (!existsSync(CORPUS)) return;
     const rows = JSON.parse(gunzipSync(readFileSync(CORPUS)).toString()).jobs as ReadonlyArray<{
       department?: string | null;
       title?: string | null;
     }>;
-    let classified = 0;
-    const unmapped = new Map<string, number>();
+    total = rows.length;
     for (const r of rows) {
       const f = familyOf(r.department ?? null, r.title ?? null);
-      if (f) classified += 1;
-      else {
+      if (f) {
+        classified += 1;
+        counts.set(f, (counts.get(f) ?? 0) + 1);
+      } else {
         const k = (r.department ?? '').trim() || '(no department)';
         unmapped.set(k, (unmapped.get(k) ?? 0) + 1);
       }
     }
-    const share = classified / rows.length;
+  }, 60_000);
+
+  it.skipIf(!existsSync(CORPUS))('classifies at least 84% of the board', () => {
+    const share = classified / total;
     const worst = [...unmapped]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
@@ -170,7 +187,7 @@ describe('coverage against the real corpus', () => {
       .join('\n  ');
     expect(
       share,
-      `family coverage fell to ${(share * 100).toFixed(1)}% of ${rows.length} postings. ` +
+      `family coverage fell to ${(share * 100).toFixed(1)}% of ${total} postings. ` +
         `The largest unmapped groups are:\n  ${worst}\n` +
         'Add the terms the corpus is asking for in job-family.mjs, or record that the tail ' +
         'is genuinely unclassifiable. Do not lower this floor to make the gate pass.'
@@ -180,16 +197,7 @@ describe('coverage against the real corpus', () => {
   it.skipIf(!existsSync(CORPUS))('puts no family above half the board', () => {
     // A rule that over-claims is invisible in a coverage number: everything is
     // classified, and all of it is wrong. This is the guard for that.
-    const rows = JSON.parse(gunzipSync(readFileSync(CORPUS)).toString()).jobs as ReadonlyArray<{
-      department?: string | null;
-      title?: string | null;
-    }>;
-    const counts = new Map<string, number>();
-    for (const r of rows) {
-      const f = familyOf(r.department ?? null, r.title ?? null);
-      if (f) counts.set(f, (counts.get(f) ?? 0) + 1);
-    }
     const [biggest, n] = [...counts].sort((a, b) => b[1] - a[1])[0];
-    expect(n / rows.length, `${biggest} claims ${((n / rows.length) * 100).toFixed(1)}% of the board`).toBeLessThan(0.5);
+    expect(n / total, `${biggest} claims ${((n / total) * 100).toFixed(1)}% of the board`).toBeLessThan(0.5);
   });
 });

@@ -545,6 +545,41 @@ export async function listBoardAgeHistogram(sweepDate: string): Promise<AgeHisto
  * the kill's own company, title and URL, status 'killed', and no fit, which
  * boardRowToJob renders as the closed page and never as a live one.
  */
+/**
+ * The board rows for a set of job ids, in one query.
+ *
+ * WHY THIS EXISTS. The Opportunities tracker resolved a posting by searching
+ * loadJobs() — the 104-row static design fixture in src/data/jobs.json — while
+ * every posting a member actually clicks comes from this table, which holds
+ * 37,765. So the lookup always missed, and the page told the reader "No
+ * observation of this posting" about postings the sweep verifies nightly, could
+ * not link a card's title back to its job, and fell to the generic follow-up
+ * prompt because it could not read the posting's apply friction. One hole,
+ * four symptoms.
+ *
+ * ONE QUERY, ONLY THE IDS ASKED FOR. Not listBoardAll(): this repo already
+ * fought and won that battle (db/207, desk-agg.ts), taking /desk from 6.72 MB
+ * per request to 121.4 KB by refusing to load a whole board into JS. A tracker
+ * page holds tens of applications, so `= ANY($1)` over their ids is the shape,
+ * and the primary key serves it.
+ *
+ * A killed posting still resolves, through the same LEFT JOIN the slug lookup
+ * uses, because a tracker's whole job is to say what happened to a posting that
+ * is no longer live. An id with no row simply does not come back, and the
+ * caller renders the absence rather than inventing a fate for it.
+ */
+export async function listBoardJobsByIds(ids: readonly string[]): Promise<BoardRow[]> {
+  const wanted = [...new Set(ids.filter((id) => typeof id === 'string' && id !== ''))];
+  if (wanted.length === 0) return [];
+  const { rows } = await db().query<BoardRow>(
+    `SELECT ${BOARD_COLUMNS}, ${KILL_COLUMNS}
+       FROM jobs j LEFT JOIN board_kills k ON k.id = j.kill_id
+      WHERE j.id = ANY($1::text[])`,
+    [wanted]
+  );
+  return rows;
+}
+
 export async function getBoardJobBySlug(slug: string): Promise<BoardRow | null> {
   const { rows } = await db().query<BoardRow>(
     `SELECT ${BOARD_COLUMNS}, ${KILL_COLUMNS}

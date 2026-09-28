@@ -108,6 +108,8 @@ import { withBase } from '../../../site.config.mjs';
 export const prerender = false;
 
 const DESK_PATH = '/desk';
+/** The applications tracker, formerly at /desk. See backTo(). */
+const OPPORTUNITIES_PATH = '/opportunities';
 
 function redirect(path: string): Response {
   return new Response(null, { status: 303, headers: { Location: withBase(path) } });
@@ -169,8 +171,21 @@ function backTo(form: FormData): string {
     const id = applicationId(form);
     if (id !== null) return `/board/${addedSlugFor(id)}`;
   }
+  // THE TRACKER MOVED AND THIS DID NOT FOLLOW IT. Every one of these intents
+  // is posted from the applications tracker, which lived at /desk until it was
+  // renamed and moved to /opportunities. This function kept sending people back
+  // to /desk, so pressing "I applied" saved the answer correctly and then
+  // dropped the reader on a different page — which reads as "the card did not
+  // move", because the page it was on is gone.
+  //
+  // `view` is the tracker's own table/board toggle and NOTHING else posts it:
+  // the four other callers of this endpoint (RoleCard, the job-draft room, /role
+  // and /board detail) post none. So its presence is an exact signal for "this
+  // came from the tracker", and its absence still lands on the Desk, which is
+  // where those four belong.
   const view = form.get('view');
-  return view === 'table' ? `${DESK_PATH}?view=table` : DESK_PATH;
+  if (view !== null) return view === 'table' ? `${OPPORTUNITIES_PATH}?view=table` : OPPORTUNITIES_PATH;
+  return DESK_PATH;
 }
 
 function isAbandonReason(value: unknown): value is AbandonReason {
