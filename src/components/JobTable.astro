@@ -236,7 +236,7 @@ const sweptIso = loadStats().swept_at_utc;
       {/* Presentational. The real names live on each cell, so this row is hidden
           from the accessibility tree rather than read out as six stray words. */}
       <div class="column-labels" aria-hidden="true">
-        {fit && <span>Detail</span>}
+        {fit && <span>Deets</span>}
         <span>Role, as posted</span>
         <span>Pay</span>
         <span>Location</span>
@@ -293,7 +293,7 @@ const sweptIso = loadStats().swept_at_utc;
                   >
                     {fit && (
                       <span class="cell cell-fit">
-                        <span class="visually-hidden">Detail score: how much this posting tells you</span>
+                        <span class="visually-hidden">Deets: how much this posting tells you</span>
                         <FitBadge job={lead} />
                       </span>
                     )}
