@@ -171,6 +171,33 @@ function assertArray(doc: Record<string, unknown>, file: string, key: string, al
 // ---------------------------------------------------------------------------
 // 2. Stale
 // ---------------------------------------------------------------------------
+//
+// OLD DATA IS REPORTED. WRONG DATA STILL REFUSES. Everything else in this file
+// throws, and should: a total that does not reconcile, a kill on the list and
+// absent from the record, a clock that runs backwards. Those are data that is
+// WRONG, and rendering wrong data is the one thing this site cannot do.
+//
+// Age is not wrongness. A sweep from Thursday is a true account of Thursday. It
+// only becomes a lie if the page says "verified last night" over it, and the
+// page already has the answer to that: the assurance band in JobTable.astro
+// reads FRESH_WINDOW_HOURS off its own markup, against the READER'S clock, and
+// past 36 hours replaces the claim with "Last verified 2 days ago. These rows
+// were true at the last sweep and have not been checked since." That band was
+// written to handle exactly this and has never once been able to fire, because
+// assertFresh threw at 48 hours and killed the page before it could run.
+//
+// It threw at REQUEST time, too, not build time: assertDataContract is called
+// at module scope in data.ts, and 66 routes import data.ts. On 2026-09-28 a
+// duplicate slug in the kill archive stopped the mini's export for four nights,
+// stats.json passed 48 hours, and /sign-in returned 500 — a page that renders
+// no sweep number at all, taken down by the age of a number it never shows.
+//
+// So staleness reports here and the band states the age. Nothing gets to
+// publish stale data quietly: the mini's export-site-data.py still refuses to
+// WRITE a night it cannot stand behind, which is the right place to refuse,
+// because that is the only place where re-running the sweep is the fix. Once a
+// deploy is live, the data ages on its own and no refusal can undo that. The
+// page's job then is to say how old it is, not to disappear.
 
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 
@@ -215,10 +242,16 @@ function assertFresh(stats: ContractDocs['stats'], sweptMs: number, report: (lin
     return;
   }
 
-  fail(
-    'src/data/stats.json',
-    `is ${ageHours.toFixed(1)} hours old, past the ${MAX_DATA_AGE_HOURS} hour window.`,
-    'This file does not declare itself a fixture, so it is a push from the machine, and a push this old means the sweep did not run. Publishing it would put "verified last night" over data that is not last night\'s. Re-run the sweep, or label the file _meta.fixture: true if it is a fixture.'
+  // A real push, past the window. Said loudly, every build and every cold
+  // start, and not thrown. See the section header: the sweep did not run, which
+  // is the machine's problem to fix, and the page's problem is only to stop
+  // claiming the data is last night's. The assurance band does that from the
+  // reader's own clock. Killing the render instead takes down /sign-in too, and
+  // a reader who cannot sign in has been told nothing true about the data.
+  report(
+    `${line} This file does not declare itself a fixture, so it is a push from the machine, and a push this old means the sweep did not run. ` +
+      'The site keeps serving and states the age rather than claiming "verified last night": nothing here renders that claim past ' +
+      `${FRESH_WINDOW_HOURS} hours. Re-run the sweep on the mini; that is where this is fixed.`
   );
 }
 

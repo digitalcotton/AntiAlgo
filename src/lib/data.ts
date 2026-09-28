@@ -566,12 +566,18 @@ const factsDoc = rawFacts as unknown as FactsDoc;
 const citationsDoc = rawCitations as unknown as CitationsDoc;
 
 /**
- * The data contract runs before anything is read, so a build against missing,
- * stale or self-contradicting data dies here rather than rendering it.
+ * The data contract runs before anything is read, so missing or
+ * self-contradicting data dies here rather than rendering it.
+ *
+ * STALE DATA NO LONGER DIES HERE. This runs at module scope, and module scope
+ * on this site is per request, not per build: throwing over an age took down
+ * every one of the 66 routes that import this file, sign-in included. Age is
+ * reported now and the page states it. The full reasoning is in
+ * data-contract.ts under "2. Stale". Everything else still throws.
  *
  * The four failure modes and the reasoning behind each are in
  * src/lib/data-contract.ts, and src/data/README.md is the contract in prose.
- * Two things this file used to do and no longer does, both of them wrong:
+ * Three things this file used to do and no longer does, all of them wrong:
  *
  *   1. It threw on an empty `kills` array. An empty kills array is the best
  *      night the machine can have, and the kill list has a designed state that
@@ -579,6 +585,12 @@ const citationsDoc = rawCitations as unknown as CitationsDoc;
  *   2. It checked only the clock's shape. Shape is not freshness, and a
  *      correctly shaped instant from three weeks ago is the one thing a site
  *      claiming "verified last night" cannot publish.
+ *   3. It threw on that instant from three weeks ago. Point 2 is still right
+ *      about the CLAIM and was wrong about the remedy: what a stale sweep
+ *      cannot publish is "verified last night", not the page. Withdrawing the
+ *      claim is the fix, and the assurance band already does that from the
+ *      reader's clock. Taking the site down is not a stronger version of
+ *      honesty; on 2026-09-28 it was four days of nobody being able to sign in.
  */
 const CONTRACT_NOTES = assertDataContract({
   jobs: jobsDoc,
@@ -589,9 +601,18 @@ const CONTRACT_NOTES = assertDataContract({
   prospects: rawProspects as unknown as { _meta?: unknown; prospects?: unknown }
 });
 
-// Printed, not swallowed. Today the only note this can carry is the labelled
-// fixture running past the freshness window, and a build that quietly ignored
-// that would be the first step toward a site that quietly ignores a real one.
+// Printed, not swallowed. These are the conditions the contract states rather
+// than throws on, and since 2026-09-28 that includes a real push past the 48
+// hour window: age is not wrongness, and this module is evaluated per request,
+// so throwing here took /sign-in down over the age of a number it never shows.
+// The reasoning is in data-contract.ts under "2. Stale".
+//
+// This warning is the only server-side signal that the machine has gone quiet,
+// so it has to stay loud. The reader's signal is the assurance band, which
+// reads the age off the reader's own clock. The machine's signal is the alarm
+// in the mini's nightly.sh, which now fires from its exit trap on any failed
+// run. Three independent places, because this is the failure that hid for four
+// nights behind a stage that only logged.
 for (const note of CONTRACT_NOTES) console.warn(note);
 
 /**
