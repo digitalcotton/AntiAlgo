@@ -62,7 +62,7 @@ beforeAll(async () => {
     .filter((r) => r.title)
     .map((r) => {
       const pay = payOf(r.comp_range);
-      const c = (r.fit_components || {}) as Record<string, number>;
+      const c = (r.detail_components || {}) as Record<string, number>;
       return {
         co: r.company,
         title: r.title,
@@ -76,7 +76,7 @@ beforeAll(async () => {
         remote: Boolean(r.remote),
         priced: pay.priced, min: pay.min_k, max: pay.max_k, mid: pay.mid_k,
         age: typeof r.days_up === 'number' ? r.days_up : null,
-        fit: typeof r.fit_total === 'number' ? r.fit_total : 0,
+        fit: typeof r.detail_total === 'number' ? r.detail_total : 0,
         c: {
           title_scope: c.title_scope ?? 0, remote_geo: c.remote_geo ?? 0,
           comp: c.comp ?? 0, freshness: c.freshness ?? 0, apply_friction: c.apply_friction ?? 0

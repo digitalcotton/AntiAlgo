@@ -128,7 +128,7 @@ function oldDesk(
   const lane = laneFor(filtered, allTitles);
   const laneRanked = [...lane].sort(
     (a, b) =>
-      (b.role.fit_total ?? 0) - (a.role.fit_total ?? 0) ||
+      (b.role.detail_total ?? 0) - (a.role.detail_total ?? 0) ||
       (toMs(b.role.first_seen) ?? 0) - (toMs(a.role.first_seen) ?? 0) ||
       // The added tiebreak. See the header.
       a.role.id.localeCompare(b.role.id)
@@ -249,7 +249,7 @@ d('the Desk lane, in SQL, says what the TypeScript reduction said', () => {
       expect(row.ats).toBe(was!.ats);
       expect(row.remote).toBe(was!.remote);
       expect(row.location).toBe(was!.location);
-      expect(row.fit_total).toBe(was!.fit_total);
+      expect(row.detail_total).toBe(was!.detail_total);
       expect(row.comp_range).toEqual(was!.comp_range);
       expect(row.comp_posted).toBe(was!.comp_posted);
       expect(isoDay(row.first_seen)).toBe(isoDay(was!.first_seen));
@@ -308,7 +308,7 @@ d('the one intended difference: a tie now resolves the same way every time', () 
     const lane = laneFor(LIVE, ['engineer']).filter((x) =>
       inDeskWindow(daysBetween(isoDay(x.role.first_seen), SWEEP))
     );
-    const keys = lane.map((x) => `${x.role.fit_total ?? 0}|${toMs(x.role.first_seen) ?? 0}`);
+    const keys = lane.map((x) => `${x.role.detail_total ?? 0}|${toMs(x.role.first_seen) ?? 0}`);
     const ties = keys.length - new Set(keys).size;
     // If this ever hits zero the difference stops mattering, but it is the
     // reason the ORDER BY ends in id ASC, so it is asserted rather than assumed.
