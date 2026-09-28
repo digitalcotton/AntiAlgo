@@ -618,6 +618,15 @@ try {
     if (typeof at === 'string' && !Number.isNaN(Date.parse(at))) stageLog[key] = new Date(at).toISOString();
   }
   const stageLogJson = Object.keys(stageLog).length > 0 ? JSON.stringify(stageLog) : null;
+  // VERIFIED LIVE IS WHAT THE BOARD HOLDS LIVE, NOT WHAT THE SWEEP WROTE. This
+  // was `written`, the row count the upsert loop above ran up, and `written`
+  // counts every row the crawl staged — including the ones the kill join two
+  // steps down then marks 'killed'. So the tile read 37,765 on 2026-09-28 while
+  // the board listed 37,286: 479 killed rows counted as live, on a tile that
+  // sits beside "Kills on the record" and says the word "live". Counted here,
+  // after the marking and inside the same transaction, it is the same number a
+  // reader gets by paging the board with every filter set to All.
+  const { rows: liveRows } = await client.query(`SELECT count(*)::int AS n FROM jobs WHERE status = 'live'`);
   const { rows: killedRows } = await client.query(`SELECT count(*)::int AS n FROM jobs WHERE status = 'killed'`);
   const { rows: byRuleRows } = await client.query(
     `SELECT k.kill_rule, count(*)::int AS n FROM jobs j JOIN board_kills k ON k.id = j.kill_id
@@ -626,6 +635,7 @@ try {
   const { rows: allTimeRows } = await client.query(
     `SELECT count(*)::int AS n FROM board_kills WHERE on_board AND vacated_at IS NULL`
   );
+  const verifiedLive = liveRows[0]?.n ?? 0;
   const killed = killedRows[0]?.n ?? 0;
   const killsByRule = Object.fromEntries(byRuleRows.map((r) => [r.kill_rule, r.n]));
   const killedAllTime = allTimeRows[0]?.n ?? 0;
@@ -637,9 +647,9 @@ try {
        boards_swept = $1, verified_live = $2, killed = $3, killed_by_rule = $4,
        postings_observed = $5, swept_at = $6, kills_by_rule = $7, killed_all_time = $8,
        kills_exported_at = $9, stage_log = $10, ingested_at = now()`,
-    [boardsSwept, written, killed, killed, observed, sweptAt, JSON.stringify(killsByRule), killedAllTime, killsExportedAt, stageLogJson]
+    [boardsSwept, verifiedLive, killed, killed, observed, sweptAt, JSON.stringify(killsByRule), killedAllTime, killsExportedAt, stageLogJson]
   );
-  console.log(`board_stats: boards_swept=${boardsSwept}, verified_live=${written}, killed=${killed} ${JSON.stringify(killsByRule)}, killed_all_time=${killedAllTime}, postings_observed=${observed}`);
+  console.log(`board_stats: boards_swept=${boardsSwept}, verified_live=${verifiedLive} (of ${written} staged), killed=${killed} ${JSON.stringify(killsByRule)}, killed_all_time=${killedAllTime}, postings_observed=${observed}`);
 
   await client.query('COMMIT');
 } catch (error) {
