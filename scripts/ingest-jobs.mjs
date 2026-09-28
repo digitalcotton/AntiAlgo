@@ -281,7 +281,7 @@ function values(j) {
     j.ats, j.posting_id, j.department, j.comp_posted, j.days_up, j.ghost,
     j.first_seen, j.last_seen, j.slug, j.fit_total, JSON.stringify(j.fit_components), j.source,
     j.comp_range ? JSON.stringify(j.comp_range) : null, j.description ?? null,
-    d.derived_tier, d.derived_fam, d.derived_region, d.derived_friction,
+    d.derived_tier, d.derived_fam, d.derived_fam_source, d.derived_region, d.derived_friction,
     d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k
   ];
 }

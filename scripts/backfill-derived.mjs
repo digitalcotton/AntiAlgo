@@ -69,10 +69,12 @@ for (;;) {
   const params = [];
   rows.forEach((r, i) => {
     const d = derivedFor(r);
-    const b = i * 9;
-    holes.push(`($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9})`);
+    const b = i * 10;
+    holes.push(
+      `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10})`
+    );
     params.push(
-      r.id, d.derived_tier, d.derived_fam, d.derived_region, d.derived_friction,
+      r.id, d.derived_tier, d.derived_fam, d.derived_fam_source, d.derived_region, d.derived_friction,
       d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k
     );
   });
@@ -85,17 +87,20 @@ for (;;) {
     `UPDATE jobs j SET
        derived_tier     = v.derived_tier::text,
        derived_fam      = v.derived_fam::text,
+       derived_fam_source = v.derived_fam_source::text,
        derived_region   = v.derived_region::text,
        derived_friction = v.derived_friction::text,
        priced           = v.priced::boolean,
        comp_min_k       = v.comp_min_k::integer,
        comp_max_k       = v.comp_max_k::integer,
        comp_mid_k       = v.comp_mid_k::integer
-     FROM (VALUES ${holes.join(',')}) AS v(id, derived_tier, derived_fam, derived_region,
-                                           derived_friction, priced, comp_min_k, comp_max_k, comp_mid_k)
+     FROM (VALUES ${holes.join(',')}) AS v(id, derived_tier, derived_fam, derived_fam_source,
+                                           derived_region, derived_friction, priced, comp_min_k,
+                                           comp_max_k, comp_mid_k)
      WHERE j.id = v.id
        AND (j.derived_tier     IS DISTINCT FROM v.derived_tier::text
          OR j.derived_fam      IS DISTINCT FROM v.derived_fam::text
+         OR j.derived_fam_source IS DISTINCT FROM v.derived_fam_source::text
          OR j.derived_region   IS DISTINCT FROM v.derived_region::text
          OR j.derived_friction IS DISTINCT FROM v.derived_friction::text
          OR j.priced           IS DISTINCT FROM v.priced::boolean
