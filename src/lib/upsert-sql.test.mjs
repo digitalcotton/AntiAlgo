@@ -18,13 +18,15 @@ import {
 describe('upsertSql', () => {
   // 30 since 2026-09-23: db/207 added the eight derived columns the Jobs Data
   // page filters on, written at ingest by src/lib/jobs-derived.mjs.
-  it('binds 30 placeholders for a single row, starting at $1', () => {
+  // 31 since 2026-09-27: db/212 added derived_fam_source, which says whether
+  // the family came from the employer's department or from reading the title.
+  it('binds 31 placeholders for a single row, starting at $1', () => {
     const sql = upsertSql(1);
     expect(sql).toContain(
       '($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,' +
-      '$21,$22,$23,$24,$25,$26,$27,$28,$29,$30'
+      '$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31'
     );
-    expect(sql).not.toContain('$31');
+    expect(sql).not.toContain('$32');
   });
 
   it('numbers each row consecutively with no gaps or repeats', () => {
@@ -66,7 +68,10 @@ describe('upsertSql', () => {
   });
 
   it('refuses a batch Postgres would reject, before anything is sent', () => {
-    expect(MAX_ROWS_PER_STATEMENT).toBe(2184);
+    // 65535 / 31 columns. It was 2184 at 30 columns; a wider row means fewer
+    // rows fit in one statement, and the ingest's batch size is derived from
+    // this rather than guessed.
+    expect(MAX_ROWS_PER_STATEMENT).toBe(2114);
     expect(() => upsertSql(MAX_ROWS_PER_STATEMENT)).not.toThrow();
     expect(() => upsertSql(MAX_ROWS_PER_STATEMENT + 1)).toThrow(/65535/);
     expect(() => assertBatchFits(10_000)).toThrow(/Lower --batch/);

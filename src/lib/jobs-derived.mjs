@@ -56,6 +56,8 @@ export const FRICTIONS = ['easy', 'hard'];
  * Order matters. "Principal Design Lead" is Lead, not Senior, because the
  * ladder is tested from the top down.
  */
+import { familyOf } from './job-family.mjs';
+
 export function tierFromTitle(title) {
   const t = String(title || '').toLowerCase();
   if (/\b(director|head of|vp|vice president|chief)\b/.test(t)) return 'Director';
@@ -70,14 +72,41 @@ export function tierFromTitle(title) {
 // ---------------------------------------------------------------------------
 
 /**
- * The measured department, verbatim, as the family. Null when the applicant
- * system published none. NOT inferred from the title: the department is a
- * field the employer filled in, and a guess from the title would be a
- * different, weaker claim wearing the same name.
+ * The family the employer's own department string names. Null when the
+ * applicant system published none, or when what it published names no family
+ * (`FLZR`, `Cody Agency`, a bare `Service`).
+ *
+ * IT USED TO RETURN THE DEPARTMENT VERBATIM, which meant `derived_fam` held
+ * 3,350 distinct values and grouped nothing. The clustering lives in
+ * job-family.mjs; this function keeps its department-only contract so the claim
+ * it makes is still "the employer filed this under a role of this kind".
+ *
+ * STILL NOT INFERRED FROM THE TITLE. The original note here was right that a
+ * guess from the title is a weaker claim, and that the danger is it wearing the
+ * same name. Department alone classifies 67.8% of the board and the title
+ * rescues another 7,520 postings, so the answer is to keep BOTH and say which
+ * one you are holding — see derivedFor()'s `derived_fam_source`. What that note
+ * ruled out was an unlabelled blend, and this is not one.
  */
 export function famFromDepartment(department) {
-  const d = String(department == null ? '' : department).trim();
-  return d ? d : null;
+  return familyOf(department, null);
+}
+
+/**
+ * The family, falling back to the title when the department names none.
+ *
+ * Returns the family AND its source, never the family alone, because the two
+ * carry different weight: 'department' is a field an employer filled in,
+ * 'title' is this repo reading a string. A caller that only trusts the stated
+ * one can filter on the source; a caller that wants coverage takes both. The
+ * one thing neither can do is mistake the second for the first.
+ */
+export function familyWithSource(department, title) {
+  const stated = familyOf(department, null);
+  if (stated) return { fam: stated, source: 'department' };
+  const read = familyOf(null, title);
+  if (read) return { fam: read, source: 'title' };
+  return { fam: null, source: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -249,9 +278,11 @@ export function payOf(compRange) {
  */
 export function derivedFor(row) {
   const pay = payOf(row.comp_range);
+  const fam = familyWithSource(row.department, row.title);
   return {
     derived_tier: tierFromTitle(row.title),
-    derived_fam: famFromDepartment(row.department),
+    derived_fam: fam.fam,
+    derived_fam_source: fam.source,
     derived_region: regionOf(row.country || row.location || ''),
     derived_friction: frictionOf(row.ats),
     priced: pay.priced,
