@@ -2312,12 +2312,18 @@ export function facetGroupsFromCounts(
     label: 'Field',
     options: [
       { value: 'all', label: 'All fields', count: familyCounts.all ?? 0 },
-      ...FAMILIES.map((f) => ({ value: f.id, label: f.label, count: familyCounts[f.id] ?? 0 }))
-        .sort((a, b) => b.count - a.count),
-      // Last, and never hidden: 12.3% of the board carries no family, and a
-      // filter that silently swallowed an eighth of the sweep would be the
-      // pre-filtering this product is named for refusing.
-      { value: 'unplaced', label: 'Not placed', count: familyCounts.unplaced ?? 0 }
+      // NOT PLACED SORTS WITH THE REST (2026-09-28). It is never hidden — 12.3%
+      // of the board carries no family, and a filter that silently swallowed an
+      // eighth of the sweep would be the pre-filtering this product is named for
+      // refusing — but it used to be PINNED last, under every family however
+      // small. On a list whose whole promise is "sorted by count", that read as
+      // a broken number: under Location=Remote the options ran 287, 281, 101,
+      // 94 … 3, 2, and then jumped to 140 at the bottom. Its size is the reason
+      // to keep it, so its size is where it goes.
+      ...[
+        ...FAMILIES.map((f) => ({ value: f.id, label: f.label, count: familyCounts[f.id] ?? 0 })),
+        { value: 'unplaced', label: 'Not placed', count: familyCounts.unplaced ?? 0 }
+      ].sort((a, b) => b.count - a.count)
     ]
   };
 

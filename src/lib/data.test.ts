@@ -313,6 +313,23 @@ describe('facetsOf location for a company that has not posted', () => {
 });
 
 describe('facetGroupsFromCounts', () => {
+  it('sorts Not placed by its count, like every other field', async () => {
+    // It used to be pinned last under every family however small, so a list
+    // sorted by count ran 40, 30, 3, 2 and then jumped to 25 at the bottom.
+    const { facetGroupsFromCounts } = await import('./data');
+    const groups = facetGroupsFromCounts(
+      {
+        location: { all: 100 },
+        comp: { all: 100 },
+        freshness: { all: 100 },
+        family: { all: 100, software: 40, design: 30, unplaced: 25, legal: 3, sales: 2 }
+      },
+      { location: 'all', comp: 'all', freshness: 'all', fam: 'all' }
+    );
+    const fam = groups.find((g) => g.key === 'fam');
+    expect(fam?.options.map((o) => o.value)).toEqual(['all', 'software', 'design', 'unplaced', 'legal', 'sales']);
+  });
+
   it('builds the offered groups from counts, drops empty bands, keeps the selected option', async () => {
     const { facetGroupsFromCounts } = await import('./data');
     const groups = facetGroupsFromCounts(
