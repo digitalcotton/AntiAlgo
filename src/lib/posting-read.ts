@@ -54,6 +54,28 @@ export const REQUEST_TIMEOUT_MS = 4_000;
 /** The same ceiling postfetch.py sets, for the same reason: a job posting that
     does not fit in two megabytes is not a job posting. */
 export const MAX_BYTES = 2 * 1024 * 1024;
+/**
+ * The ceiling for a resolver's own endpoint, which is a different kind of
+ * thing and was being measured with the wrong ruler.
+ *
+ * MAX_BYTES is a statement about ONE POSTING. Two of the resolvers do not have
+ * a per-posting endpoint to fetch: Ashby and Workable publish the WHOLE BOARD
+ * and the parser picks the posting out of it. A board is legitimately large --
+ * Ramp's Ashby board measured 2.8MB on 2026-09-29 -- so every Ashby posting on
+ * any employer big enough to be worth pasting was failing the cap, returning
+ * `too_large`, and falling through to the generic page reader. Silently: the
+ * page read usually finds the JSON-LD block and settles, so the posting looked
+ * fine and simply arrived with none of the facts the Ashby payload states and
+ * a `jsonld` source kind. Ashby has the richest payload of the six, and it was
+ * unreachable for exactly the boards people paste from.
+ *
+ * Eight megabytes is chosen against the thing being bought: Ramp at 2.8MB is
+ * one of the larger boards, and this leaves that much room again before the
+ * cap bites. It is still a cap -- the read is in a request, holding a person
+ * still -- and the six second budget remains the real limit, since a board
+ * this side of 8MB that cannot arrive in six seconds times out anyway.
+ */
+export const BOARD_MAX_BYTES = 8 * 1024 * 1024;
 /** postfetch_agent.py's own hop limit. */
 export const MAX_REDIRECTS = 5;
 
@@ -114,7 +136,11 @@ async function guardedFetch(
       leaves room in the budget for the second call most resolver paths make.
       A caller that knows there will be no second call passes the whole
       remaining budget instead -- see `soleRequest` below. */
-  capMs: number = REQUEST_TIMEOUT_MS
+  capMs: number = REQUEST_TIMEOUT_MS,
+  /** How many bytes this response may be. A posting's page gets `MAX_BYTES`;
+      a resolver's endpoint gets `BOARD_MAX_BYTES`, because two of them serve
+      a whole board rather than one posting. */
+  maxBytes: number = MAX_BYTES
 ): Promise<FetchedBody | PostingReadFailure> {
   let current = url;
 
@@ -157,9 +183,9 @@ async function guardedFetch(
 
     const contentType = (response.headers.get('content-type') ?? '').toLowerCase();
     const declared = Number(response.headers.get('content-length') ?? '');
-    if (Number.isFinite(declared) && declared > MAX_BYTES) return failed('too_large', response.status);
+    if (Number.isFinite(declared) && declared > maxBytes) return failed('too_large', response.status);
 
-    const body = await readCapped(response);
+    const body = await readCapped(response, maxBytes);
     if (body === null) return failed('too_large', response.status);
 
     return { body, status: response.status, finalUrl: response.url || current, contentType };
@@ -171,10 +197,10 @@ async function guardedFetch(
 /** The body as text, or null when it runs past MAX_BYTES. Read through the
     stream rather than `response.text()` so an enormous page costs us the cap
     and not its whole length. */
-async function readCapped(response: Response): Promise<string | null> {
+async function readCapped(response: Response, maxBytes: number = MAX_BYTES): Promise<string | null> {
   if (!response.body) {
     const text = await response.text();
-    return text.length > MAX_BYTES ? null : text;
+    return text.length > maxBytes ? null : text;
   }
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -185,7 +211,7 @@ async function readCapped(response: Response): Promise<string | null> {
       if (done) break;
       if (!value) continue;
       total += value.byteLength;
-      if (total > MAX_BYTES) {
+      if (total > maxBytes) {
         await reader.cancel();
         return null;
       }
@@ -259,7 +285,10 @@ export async function readPostingNow(url: string, options: ReadOptions = {}): Pr
   if (resolved) {
     const primary = await guardedFetch(
       resolved.api, fetchImpl, deadline, options.resolver,
-      soleRequest ? options.budgetMs ?? READ_BUDGET_MS : REQUEST_TIMEOUT_MS
+      soleRequest ? options.budgetMs ?? READ_BUDGET_MS : REQUEST_TIMEOUT_MS,
+      // Apple's `api` is the pasted page, so it keeps the posting-sized cap;
+      // every other resolver's is an endpoint that may serve a whole board.
+      soleRequest ? MAX_BYTES : BOARD_MAX_BYTES
     );
     let extraction: PostingExtraction | null = null;
     let status: number | null = null;
@@ -273,7 +302,7 @@ export async function readPostingNow(url: string, options: ReadOptions = {}): Pr
     // Workable's second attempt: the v2 job endpoint 404s often enough that the
     // widget list is a real retry, not an enrichment.
     if (!extraction && resolved.fallback && remaining(deadline) > 0) {
-      const second = await guardedFetch(resolved.fallback.api, fetchImpl, deadline, options.resolver);
+      const second = await guardedFetch(resolved.fallback.api, fetchImpl, deadline, options.resolver, REQUEST_TIMEOUT_MS, BOARD_MAX_BYTES);
       if (!isFailure(second)) {
         status = second.status;
         const parsed = resolved.fallback.parse(second.body);

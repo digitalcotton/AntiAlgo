@@ -500,3 +500,220 @@ describe('parse: apple reads the hydration blob', () => {
     expect(extraction.descriptionHtml).toBeNull();
   });
 });
+
+/* -------------------------------------------------------------------------
+   THE FACTS EACH PAYLOAD STATES.
+
+   Shapes below are trimmed copies of real responses recorded on 2026-09-29,
+   keeping the fields that matter and the exact spellings each platform uses
+   (Ashby's "1 YEAR", Rippling's "HOUR", Lever's epoch-millisecond dates).
+   ------------------------------------------------------------------------- */
+
+describe('facts: a stated string is never a parsed one', () => {
+  it('Apple states its range in a sentence, so it carries words and no numbers', () => {
+    const page = applePage({
+      postingTitle: 'A role',
+      description: 'Body text long enough to keep.',
+      locations: [{ city: 'Culver City', stateProvince: 'California', countryName: 'United States' }],
+      teamNames: ['Design'],
+      employmentType: 'Standard',
+      homeOffice: false,
+      postDateInGMT: '2026-08-26T02:33:27.734+00:00',
+      postingFooters: [{ localizations: { en_US: [{
+        name: 'Pay & Benefits',
+        content: 'The base pay range for this role is between $175,000 and $263,300, and your base pay will depend on your skills.<br><br>Apple employees also have the opportunity to become an Apple shareholder, and receive medical and dental coverage.'
+      }] } }]
+    });
+    const e = ok(resolvePosting(APPLE_URL), page);
+    expect(e.compPosted).toContain('$175,000 and $263,300');
+    // The numbers are RIGHT THERE and are still not taken: the rule is the
+    // mini's, above _comp_job -- a stated string is not a parsed one.
+    expect(e.compMinK).toBeNull();
+    expect(e.compMaxK).toBeNull();
+    // Only the pay paragraph, not the benefits blurb that follows it.
+    expect(e.compPosted).not.toContain('dental');
+    expect(e.location).toBe('Culver City, California, United States');
+    expect(e.country).toBe('United States');
+    expect(e.remote).toBe(false);
+    expect(e.department).toBe('Design');
+    expect(e.employmentType).toBe('Standard');
+    expect(e.published).toBe('2026-08-26T02:33:27.734Z');
+  });
+
+  it('says how many other places a posting names rather than claiming one', () => {
+    const e = ok(resolvePosting(APPLE_URL), applePage({
+      postingTitle: 'A role',
+      description: 'Body text long enough to keep.',
+      locations: [
+        { city: 'Culver City', stateProvince: 'California', countryName: 'United States' },
+        { city: 'Austin', stateProvince: 'Texas', countryName: 'United States' }
+      ]
+    }));
+    expect(e.location).toBe('Culver City, California, United States and 1 more');
+  });
+});
+
+describe('facts: an interval is never assumed', () => {
+  const RIPPLING = 'https://ats.rippling.com/acme/jobs/8b6b1b4e-4a7a-4d6a-9d34-3b2f8c1a0f11';
+  const ripplingBody = (frequency: string) => JSON.stringify({
+    name: 'Intake Specialist',
+    companyName: 'Mindset Care, Inc.',
+    description: { role: 'A body long enough to be worth keeping on this posting.' },
+    workLocations: ['Remote'],
+    department: { name: 'Intake' },
+    employmentType: { id: 'Hourly, full-time', label: 'HOURLY_FT' },
+    createdOn: '2026-08-10T11:43:28.684000-07:00',
+    payRangeDetails: [{ location: 'Remote', currency: 'USD', frequency, rangeStart: 18.0, rangeEnd: 25.0, isRemote: true }]
+  });
+
+  it('refuses an hourly range rather than filing $18/hour as an $18K salary', () => {
+    const e = ok(resolvePosting(RIPPLING), ripplingBody('HOUR'));
+    expect(e.compMinK).toBeNull();
+    expect(e.compMaxK).toBeNull();
+    // Everything else on the payload still lands.
+    expect(e.location).toBe('Remote');
+    expect(e.remote).toBe(true);
+    expect(e.department).toBe('Intake');
+    expect(e.employmentType).toBe('Hourly, full-time');
+    expect(e.published).toBe('2026-08-10T18:43:28.684Z');
+  });
+
+  it('refuses $18-$25 even when the platform calls it annual, rather than storing 0', () => {
+    // The second line of defence, and the one that catches a platform lying
+    // about its own interval: 18 divided into thousands rounds to 0, and a
+    // job filed at 0 is worse than a job filed at nothing.
+    const e = ok(resolvePosting(RIPPLING), ripplingBody('YEAR'));
+    expect(e.compMinK).toBeNull();
+    expect(e.compMaxK).toBeNull();
+  });
+
+  it('takes a real annual range when the platform says it is annual', () => {
+    const body = JSON.parse(ripplingBody('YEAR'));
+    body.payRangeDetails[0].rangeStart = 95000;
+    body.payRangeDetails[0].rangeEnd = 130000;
+    const e = ok(resolvePosting(RIPPLING), JSON.stringify(body));
+    expect(e.compMinK).toBe(95);
+    expect(e.compMaxK).toBe(130);
+  });
+
+  it('treats an interval nobody has seen as unknown, not as annual', () => {
+    const e = ok(resolvePosting(RIPPLING), ripplingBody('FORTNIGHT'));
+    expect(e.compMinK).toBeNull();
+  });
+});
+
+describe('facts: ashby, the richest payload of the six', () => {
+  const ASHBY = 'https://jobs.ashbyhq.com/ramp/34413f8d-26bf-4bbc-8ade-eb309a0e2245';
+  const board = (components: unknown) => JSON.stringify({
+    jobs: [{
+      id: '34413f8d-26bf-4bbc-8ade-eb309a0e2245',
+      title: 'Security Engineer, Cloud',
+      descriptionHtml: '<p>A body long enough to be worth keeping on this posting.</p>',
+      location: 'New York, NY (HQ)',
+      isRemote: true,
+      publishedAt: '2026-04-07T17:12:35.753+00:00',
+      department: 'Engineering',
+      employmentType: 'FullTime',
+      compensation: { compensationTierSummary: '$211.4K – $290.6K • Offers Equity', summaryComponents: components }
+    }]
+  });
+
+  it('reads the annual salary component and rounds to the board\'s thousands', () => {
+    const e = ok(resolvePosting(ASHBY), board([
+      { compensationType: 'EquityPercentage', interval: 'NONE', minValue: null, maxValue: null },
+      { compensationType: 'Salary', interval: '1 YEAR', currencyCode: 'USD', minValue: 211400, maxValue: 290600 }
+    ]));
+    expect(e.compMinK).toBe(211);
+    expect(e.compMaxK).toBe(291);
+    expect(e.compPosted).toBe('$211.4K – $290.6K • Offers Equity');
+    expect(e.location).toBe('New York, NY (HQ)');
+    expect(e.remote).toBe(true);
+    expect(e.department).toBe('Engineering');
+  });
+
+  it('never mistakes the equity component for the salary, whatever its order', () => {
+    const e = ok(resolvePosting(ASHBY), board([
+      { compensationType: 'EquityPercentage', interval: 'NONE', minValue: 5, maxValue: 10 }
+    ]));
+    expect(e.compMinK).toBeNull();
+    expect(e.compMaxK).toBeNull();
+    // The summary Ashby wrote still shows: the words survive a missing number.
+    expect(e.compPosted).toBe('$211.4K – $290.6K • Offers Equity');
+  });
+});
+
+describe('facts: the fields the header said were lost', () => {
+  it("Workday's startDate lands in published, and postedOn prose is not read", () => {
+    const e = ok(
+      resolvePosting('https://nvidia.wd5.myworkdayjobs.com/en-US/NVIDIAExternalCareerSite/job/US-CA-Santa-Clara/X_JR1'),
+      JSON.stringify({ jobPostingInfo: {
+        title: 'PCB Design Layout Engineer',
+        jobDescription: '<p>A body long enough to be worth keeping on this posting.</p>',
+        location: 'US, CA, Santa Clara',
+        startDate: '2026-09-04',
+        postedOn: 'Posted 25 Days Ago',
+        timeType: 'Full time',
+        country: { descriptor: 'United States of America' }
+      } })
+    );
+    expect(e.published).toBe('2026-09-04T00:00:00.000Z');
+    expect(e.location).toBe('US, CA, Santa Clara');
+    expect(e.country).toBe('United States of America');
+    expect(e.employmentType).toBe('Full time');
+  });
+
+  it("Lever's department stops being read and thrown away", () => {
+    const e = ok(
+      resolvePosting('https://jobs.lever.co/spotify/c152d042-642d-4a48-862b-8be8d6cdc819'),
+      JSON.stringify({
+        text: 'Communications Lead',
+        description: 'A body long enough to be worth keeping on this posting.',
+        categories: { commitment: 'Permanent', department: 'Public Affairs', location: 'Dubai', team: 'PR' },
+        country: 'AE',
+        workplaceType: 'onsite',
+        createdAt: 1787579785428
+      })
+    );
+    expect(e.department).toBe('Public Affairs');
+    expect(e.location).toBe('Dubai');
+    expect(e.country).toBe('AE');
+    expect(e.employmentType).toBe('Permanent');
+    // onsite is a stated no, not a silence.
+    expect(e.remote).toBe(false);
+    expect(e.published).toBe('2026-08-24T13:56:25.428Z');
+  });
+
+  it('a workplace type nobody has seen is silence, not an on-site claim', () => {
+    const e = ok(
+      resolvePosting('https://jobs.lever.co/spotify/c152d042-642d-4a48-862b-8be8d6cdc819'),
+      JSON.stringify({ text: 'X', description: 'A body long enough to be worth keeping here.', workplaceType: 'lunar' })
+    );
+    expect(e.remote).toBeNull();
+  });
+});
+
+describe('facts: greenhouse names its own company now', () => {
+  it('reads company_name off the job payload instead of spending a second request', () => {
+    const e = ok(
+      resolvePosting('https://boards.greenhouse.io/figma/jobs/5426468004'),
+      JSON.stringify({
+        title: 'Account Executive, Enterprise',
+        company_name: 'Figma',
+        content: '&lt;p&gt;A body long enough to be worth keeping on this posting.&lt;/p&gt;',
+        location: { name: 'San Francisco, CA • New York, NY' },
+        departments: [{ name: 'Sales' }],
+        first_published: '2025-01-28T18:57:29-05:00',
+        pay_input_ranges: null
+      })
+    );
+    expect(e.company).toBe('Figma');
+    expect(e.location).toBe('San Francisco, CA • New York, NY');
+    expect(e.department).toBe('Sales');
+    expect(e.published).toBe('2025-01-28T23:57:29.000Z');
+  });
+
+  it('still offers the board call, for a board that omits the field', () => {
+    const resolved = resolvePosting('https://boards.greenhouse.io/figma/jobs/5426468004');
+    expect(resolved!.companyApi).toBe('https://boards-api.greenhouse.io/v1/boards/figma');
+  });
+});

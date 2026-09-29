@@ -103,7 +103,8 @@ export type ResolverKind = Extract<SourceKind, 'greenhouse' | 'ashby' | 'lever' 
 /** The shape both readers produce, declared once in posting-extraction.ts —
     see that file's header for why it does not live in either reader. Re-exported
     here so existing importers of this module keep working. */
-import type { PostingExtraction } from './posting-extraction';
+import type { PostingExtraction, PostingFacts } from './posting-extraction';
+import { NO_FACTS } from './posting-extraction';
 
 export type Extraction = PostingExtraction;
 
@@ -271,9 +272,23 @@ function greenhousePlan(board: string, jobId: string, sourceUrl: string): Resolv
     kind: 'greenhouse',
     api: `https://boards-api.greenhouse.io/v1/boards/${board}/jobs/${jobId}`,
     parse: (body) => parseGreenhouse(body, sourceUrl),
-    // The job payload never carries a company name on Greenhouse (see the
-    // header's "CORRECTION" section) -- the board's own name, one more
-    // request, read by the caller only when `parse` came back company-less.
+    /*
+     * THE SECOND REQUEST IS STILL HERE, AND IT IS NOW THE RARE PATH.
+     *
+     * The header's "CORRECTION" section says the job payload NEVER carries the
+     * company's name, and that was the reason this enrichment call exists. It
+     * is no longer true: the per-job endpoint returns `company_name`, checked
+     * on 2026-09-29 against figma, stripe, brex, airbnb and databricks, which
+     * all answered with the employer's real name. `parseGreenhouse` now reads
+     * it, so the common case costs one request instead of two -- worth having
+     * inside a six second budget.
+     *
+     * It is NOT deleted, because "five boards answered" is not "every board
+     * always will", and the caller only spends this when `parse` came back
+     * with no company at all. A board that omits the field still gets its
+     * proper name instead of a title-cased slug; every other board never pays
+     * for the call.
+     */
     companyApi: `https://boards-api.greenhouse.io/v1/boards/${board}`,
     companyParse: parseGreenhouseBoard,
     companyHint: companyHintFor(board)
@@ -308,6 +323,76 @@ function titled(slug: string): string | null {
     fallback rather than an empty string, so a hint is never nothing. */
 function companyHintFor(slug: string): string {
   return titled(slug) ?? slug;
+}
+
+/* -------------------------------------------------------------------------
+   THE FACTS EACH PAYLOAD STATES.
+
+   ONE RULE GOVERNS ALL OF IT, AND IT IS NOT THIS FILE'S INVENTION.
+   `descfill.py` on the mini says it outright, above `_comp_job`: "Never
+   touches comp_range -- a stated string is not a parsed one." So `compPosted`
+   is whatever wording the source published, carried through untouched, and
+   `compMinK`/`compMaxK` come ONLY from a numeric field the platform itself
+   filled in. No regex over prose, ever. Apple states its range in a sentence
+   and therefore gets words and no numbers, which is the honest outcome and
+   not a gap to close later with a parser.
+
+   AND AN INTERVAL IS NOT OPTIONAL TO CHECK. Rippling publishes
+   `{"frequency": "HOUR", "rangeStart": 18.0, "rangeEnd": 25.0}`. Taking those
+   two numbers without reading `frequency` would file an $18-25/hour job as a
+   $18K-$25K salary -- a real posting turned into a wrong one, in the field a
+   person filters on. Every reader below takes a range only when the platform
+   says it is annual.
+   ------------------------------------------------------------------------- */
+
+/** Thousands, the unit `jobs.comp_min_k` uses. Rounds, because a platform that
+    publishes 211400 means $211.4K and the board stores 211. */
+function thousands(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null;
+  // A "salary" under a thousand a year is not a salary; it is an hourly or
+  // daily rate that arrived carrying the wrong interval, and rounding it would
+  // file a real job at 0. Refusing it here means a platform we trusted about
+  // its own interval cannot still hand us a number that is plainly not one.
+  if (value < 1000) return null;
+  const k = Math.round(value / 1000);
+  return k >= 1 && k <= 100_000 ? k : null;
+}
+
+/** A pair, or nothing. Refuses a half-range and a backwards one, the same two
+    things db/216's CHECK refuses, so a bad parse never reaches the insert. */
+function compPair(min: unknown, max: unknown): Pick<PostingFacts, 'compMinK' | 'compMaxK'> {
+  const compMinK = thousands(min);
+  const compMaxK = thousands(max);
+  if (compMinK === null || compMaxK === null || compMinK > compMaxK) {
+    return { compMinK: null, compMaxK: null };
+  }
+  return { compMinK, compMaxK };
+}
+
+/** True when a platform's interval string means "per year". Written as an
+    allowlist rather than "not hourly", so an interval nobody has seen yet is
+    treated as unknown and its numbers are dropped, instead of being assumed
+    annual and quietly mis-filing a job. */
+function isAnnual(interval: unknown): boolean {
+  if (typeof interval !== 'string') return false;
+  const t = interval.toUpperCase().replace(/[\s_-]+/g, '');
+  return t === '1YEAR' || t === 'YEAR' || t === 'YEARLY' || t === 'ANNUAL' || t === 'ANNUALLY' || t === 'PERYEAR';
+}
+
+/** A text fact: collapsed, trimmed, capped, and null when empty. */
+function fact(value: unknown, cap = NAME_MAX_CHARS): string | null {
+  if (typeof value !== 'string') return null;
+  const t = decodeEntities(value).replace(/\s+/g, ' ').trim();
+  return t ? t.slice(0, cap) : null;
+}
+
+/** An ISO instant from whatever a platform dates things with: an ISO string,
+    or epoch milliseconds (Lever). Null on anything unrecognised. */
+function factDate(value: unknown): string | null {
+  const d = typeof value === 'number' ? new Date(value)
+    : typeof value === 'string' && value.trim() ? new Date(value)
+    : null;
+  return d && !Number.isNaN(d.getTime()) ? d.toISOString() : null;
 }
 
 function parseJson(body: string): unknown {
@@ -348,8 +433,21 @@ function capDescription(value: string | null): string | null {
     fallback is the caller's job now, tried only after `companyApi` has also
     had its chance, which is exactly why `companyHint` moved out of this
     function and onto `Resolved` itself. */
-function buildExtraction(kind: ResolverKind, title: unknown, company: unknown, descriptionHtml: string | null, finalUrl: string): Extraction {
+function buildExtraction(
+  kind: ResolverKind,
+  title: unknown,
+  company: unknown,
+  descriptionHtml: string | null,
+  finalUrl: string,
+  /** The facts this payload stated. Defaults to none, so a parser that has
+      not been taught to read them yet says "the source did not say" -- which
+      is wrong but harmless, and the compiler cannot tell the two apart. Every
+      parser below passes them explicitly for that reason. */
+  facts: Partial<PostingFacts> = {}
+): Extraction {
   return {
+    ...NO_FACTS,
+    ...facts,
     kind,
     title: cleanName(title),
     company: cleanName(company),
@@ -410,7 +508,20 @@ function parseGreenhouse(body: string, sourceUrl: string): Extraction | FailureC
   if (!isRecord(json) || !json.title) return 'no_content';
   const raw = json.content;
   const description = typeof raw === 'string' ? decodeEntities(raw) : null;
-  return buildExtraction('greenhouse', json.title, null, description, sourceUrl);
+  const departments = Array.isArray(json.departments) ? json.departments : [];
+  const firstDepartment = departments.find(isRecord);
+  // `pay_input_ranges` is Greenhouse's structured pay. It is null on most
+  // boards -- the employer has to fill it in -- so the common case here is no
+  // pay at all rather than pay we declined to parse.
+  const payRanges = Array.isArray(json.pay_input_ranges) ? json.pay_input_ranges : [];
+  const pay = payRanges.find((entry) => isRecord(entry) && isAnnual(entry.interval));
+  return buildExtraction('greenhouse', json.title, json.company_name, description, sourceUrl, {
+    location: fact(isRecord(json.location) ? json.location.name : null),
+    published: factDate(json.first_published),
+    department: fact(firstDepartment?.name),
+    compPosted: fact(isRecord(pay) ? (pay.title ?? null) : null, 1000),
+    ...compPair(isRecord(pay) ? pay.min_cents : null, isRecord(pay) ? pay.max_cents : null)
+  });
 }
 
 /** The board's own display name, off the board-list endpoint `companyApi`
@@ -428,10 +539,30 @@ function parseAshby(body: string, pid: string, sourceUrl: string): Extraction | 
   if (!Array.isArray(jobs)) return 'no_content';
   for (const job of jobs) {
     if (isRecord(job) && String(job.id ?? '').toLowerCase() === pid) {
-      return buildExtraction('ashby', job.title, null, typeof job.descriptionHtml === 'string' ? job.descriptionHtml : null, sourceUrl);
+      return buildExtraction('ashby', job.title, null, typeof job.descriptionHtml === 'string' ? job.descriptionHtml : null, sourceUrl, ashbyFacts(job));
     }
   }
   return 'no_content';
+}
+
+/** Ashby states every fact this file collects, and states its pay in numbers:
+    `summaryComponents` carries one entry per kind of compensation, and the one
+    that matters is the Salary component with an annual interval. Equity rides
+    in the same array with null values, and taking the array's first entry
+    would read an equity grant as a salary. */
+function ashbyFacts(job: Record<string, unknown>): Partial<PostingFacts> {
+  const comp = isRecord(job.compensation) ? job.compensation : null;
+  const components = comp && Array.isArray(comp.summaryComponents) ? comp.summaryComponents : [];
+  const salary = components.find((c) => isRecord(c) && c.compensationType === 'Salary' && isAnnual(c.interval));
+  return {
+    location: fact(job.location),
+    remote: typeof job.isRemote === 'boolean' ? job.isRemote : null,
+    published: factDate(job.publishedAt),
+    department: fact(job.department),
+    employmentType: fact(job.employmentType),
+    compPosted: fact(comp?.compensationTierSummary ?? comp?.scrapeableCompensationSalarySummary, 1000),
+    ...compPair(isRecord(salary) ? salary.minValue : null, isRecord(salary) ? salary.maxValue : null)
+  };
 }
 
 /** Reassembles the three parts a Lever posting's body is split across:
@@ -460,7 +591,29 @@ function parseLever(body: string, sourceUrl: string): Extraction | FailureCode {
   }
   if (typeof json.additional === 'string') parts.push(json.additional);
   const description = parts.join('\n') || null;
-  return buildExtraction('lever', json.text, null, description, sourceUrl);
+
+  // `categories.team` used to be read here and thrown away, because the only
+  // field it could have gone in was `company` and a department name there is
+  // worse than the org slug (the header's own note says so). `department` is
+  // a real field now, so the value has somewhere true to go.
+  const categories = isRecord(json.categories) ? json.categories : null;
+  const salary = isRecord(json.salaryRange) ? json.salaryRange : null;
+  const annual = salary && isAnnual(salary.interval) ? salary : null;
+  return buildExtraction('lever', json.text, null, description, sourceUrl, {
+    location: fact(categories?.location),
+    country: fact(json.country, 200),
+    // Lever says onsite/remote/hybrid. Only "remote" is a remote job, and an
+    // unrecognised value is "did not say" rather than false.
+    remote: typeof json.workplaceType === 'string'
+      ? (json.workplaceType.toLowerCase() === 'remote' ? true
+        : ['onsite', 'on-site', 'hybrid'].includes(json.workplaceType.toLowerCase()) ? false : null)
+      : null,
+    published: factDate(json.createdAt),
+    department: fact(categories?.department),
+    employmentType: fact(categories?.commitment, 200),
+    compPosted: fact(json.salaryDescriptionPlain ?? json.salaryDescription, 1000),
+    ...compPair(annual?.min, annual?.max)
+  });
 }
 
 /** The v2 per-job endpoint. Company is never on this payload; falls to
@@ -474,7 +627,27 @@ function parseWorkable(body: string, sourceUrl: string): Extraction | FailureCod
     if (value) parts.push(String(value));
   }
   const description = parts.join('\n') || null;
-  return buildExtraction('workable', json.title, null, description, sourceUrl);
+  return buildExtraction('workable', json.title, null, description, sourceUrl, workableFacts(json));
+}
+
+/** Workable spreads its location across `location`, and states remote as
+    `telecommuting`. Its pay object is `salary`, whose interval Workable calls
+    `salary_time_unit`. */
+function workableFacts(json: Record<string, unknown>): Partial<PostingFacts> {
+  const loc = isRecord(json.location) ? json.location : null;
+  const salary = isRecord(json.salary) ? json.salary : null;
+  const annual = salary && isAnnual(salary.salary_time_unit ?? salary.interval) ? salary : null;
+  const place = [loc?.city, loc?.region, loc?.country].filter((v): v is string => typeof v === 'string' && v.trim() !== '');
+  return {
+    location: fact(place.length ? place.join(', ') : (typeof json.location === 'string' ? json.location : null)),
+    country: fact(loc?.country ?? null, 200),
+    remote: typeof loc?.telecommuting === 'boolean' ? loc.telecommuting
+      : typeof json.telecommuting === 'boolean' ? json.telecommuting : null,
+    published: factDate(json.published_on ?? json.created_at),
+    department: fact(json.department),
+    employmentType: fact(json.employment_type, 200),
+    ...compPair(annual?.salary_from, annual?.salary_to)
+  };
 }
 
 /** The v1 board-wide widget list, `resolvePosting`'s `fallback` for
@@ -517,7 +690,26 @@ function parseRippling(body: string, sourceUrl: string): Extraction | FailureCod
   } else {
     description = typeof desc === 'string' ? desc : null;
   }
-  return buildExtraction('rippling', json.name, json.companyName, description, sourceUrl);
+  // payRangeDetails is per location and carries its own `frequency`. The
+  // observed value on a real posting was {"frequency": "HOUR", "rangeStart":
+  // 18, "rangeEnd": 25} -- an $18/hour job that would have been filed as an
+  // $18K salary by anything that read the numbers without the frequency.
+  const ranges = Array.isArray(json.payRangeDetails) ? json.payRangeDetails : [];
+  const annual = ranges.find((r) => isRecord(r) && isAnnual(r.frequency));
+  const anyRange = ranges.find(isRecord);
+  const locations = Array.isArray(json.workLocations)
+    ? json.workLocations.filter((v): v is string => typeof v === 'string')
+    : [];
+  const department = isRecord(json.department) ? json.department.name : null;
+  const employment = isRecord(json.employmentType) ? (json.employmentType.id ?? json.employmentType.label) : json.employmentType;
+  return buildExtraction('rippling', json.name, json.companyName, description, sourceUrl, {
+    location: fact(locations.join(', ')),
+    remote: isRecord(anyRange) && typeof anyRange.isRemote === 'boolean' ? anyRange.isRemote : null,
+    published: factDate(json.createdOn),
+    department: fact(department),
+    employmentType: fact(employment, 200),
+    ...compPair(annual?.rangeStart, annual?.rangeEnd)
+  });
 }
 
 function parseWorkday(body: string, sourceUrl: string): Extraction | FailureCode {
@@ -525,7 +717,18 @@ function parseWorkday(body: string, sourceUrl: string): Extraction | FailureCode
   const info = isRecord(json) ? json.jobPostingInfo : null;
   if (!isRecord(info) || !info.title) return 'no_content';
   const description = typeof info.jobDescription === 'string' ? info.jobDescription : null;
-  return buildExtraction('workday', info.title, null, description, sourceUrl);
+  // `startDate` is the field this file's header named as dropped and "named so
+  // it is not silently lost", because `Extraction` had nowhere to put a date.
+  // `published` is that somewhere. `postedOn` is prose ("Posted 25 Days Ago")
+  // and is deliberately not read: it is a rendering of the same fact, relative
+  // to a day we do not know.
+  const country = isRecord(info.country) ? info.country.descriptor : null;
+  return buildExtraction('workday', info.title, null, description, sourceUrl, {
+    location: fact(info.location),
+    country: fact(country, 200),
+    published: factDate(info.startDate),
+    employmentType: fact(info.timeType, 200)
+  });
 }
 
 /**
@@ -595,7 +798,76 @@ function parseApple(body: string, sourceUrl: string): Extraction | FailureCode {
   const description = parts.join('\n') || null;
   // Company is deliberately left for `companyHint`: the payload never names the
   // employer, because on Apple's own job site there is only one.
-  return buildExtraction('apple', data.postingTitle, null, description, sourceUrl);
+  return buildExtraction('apple', data.postingTitle, null, description, sourceUrl, appleFacts(data));
+}
+
+/**
+ * Apple's stated facts. Everything here is a field in the payload except the
+ * pay, which is the one Apple states only in a sentence.
+ *
+ * THE PAY RANGE ARRIVES AS PROSE AND STAYS PROSE. `postingFooters` carries a
+ * "Pay & Benefits" section whose content reads "The base pay range for this
+ * role is between $175,000 and $263,300, and your base pay will depend on your
+ * skills, qualifications, experience, and location." The numbers are in there
+ * and a regular expression would find them, and this file does not do that:
+ * the rule the mini states above `_comp_job` is that a stated string is not a
+ * parsed one. So the sentence becomes `compPosted`, `compMinK`/`compMaxK` stay
+ * null, and an Apple posting sorts with the other unpriced ones while still
+ * showing a member the range Apple actually published. If Apple ever publishes
+ * the numbers as numbers, they land here and nothing else changes.
+ *
+ * Only the pay section is taken, by name, out of a footer array that also holds
+ * Apple's EEO and accommodation boilerplate -- the chrome every reader in this
+ * codebase works to exclude.
+ */
+function appleFacts(data: Record<string, unknown>): Partial<PostingFacts> {
+  const locations = Array.isArray(data.locations) ? data.locations.filter(isRecord) : [];
+  const first = locations[0];
+  const place = first
+    ? [first.city, first.stateProvince, first.countryName].filter((v): v is string => typeof v === 'string' && v.trim() !== '')
+    : [];
+  const teams = Array.isArray(data.teamNames) ? data.teamNames.filter((v): v is string => typeof v === 'string') : [];
+
+  return {
+    // More than one location is stated as the count rather than a list, so the
+    // field never claims a single place a posting did not name.
+    location: fact(place.length
+      ? (locations.length > 1 ? `${place.join(', ')} and ${locations.length - 1} more` : place.join(', '))
+      : null),
+    country: fact(first?.countryName ?? null, 200),
+    remote: typeof data.homeOffice === 'boolean' ? data.homeOffice : null,
+    published: factDate(data.postDateInGMT ?? data.postingDate),
+    department: fact(teams[0] ?? null),
+    employmentType: fact(data.employmentType, 200),
+    compPosted: applePayText(data)
+  };
+}
+
+/** The "Pay & Benefits" footer's content, tags stripped, or null. Matched on
+    Apple's own label so a change of footer order cannot hand back the EEO
+    paragraph instead. */
+function applePayText(data: Record<string, unknown>): string | null {
+  const footers = Array.isArray(data.postingFooters) ? data.postingFooters.filter(isRecord) : [];
+  for (const footer of footers) {
+    const localizations = isRecord(footer.localizations) ? footer.localizations : null;
+    for (const entries of Object.values(localizations ?? {})) {
+      if (!Array.isArray(entries)) continue;
+      for (const entry of entries) {
+        if (!isRecord(entry) || typeof entry.content !== 'string') continue;
+        if (!/pay|compensation|salary/i.test(String(entry.name ?? ''))) continue;
+        // The FIRST paragraph only. Apple's pay footer opens with the range
+        // and then runs on into stock plans, medical cover and tuition
+        // reimbursement -- a thousand characters of benefits blurb in a field
+        // that is meant to say what the job pays. The paragraphs are separated
+        // by <br><br> in Apple's own markup, and the range is always in the
+        // first one.
+        const [firstParagraph] = entry.content.split(/(?:<br\s*\/?>\s*){2,}/i);
+        const text = fact((firstParagraph ?? '').replace(/<[^>]*>/g, ' '), 1000);
+        if (text) return text;
+      }
+    }
+  }
+  return null;
 }
 
 /** The posting's sections in the order Apple's own page shows them, each with

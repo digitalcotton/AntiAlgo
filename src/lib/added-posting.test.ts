@@ -29,6 +29,8 @@ const ROW: StoredPostingFetch = {
   finalUrl: null,
   httpStatus: 200,
   failureCode: null,
+  location: null, country: null, remote: null, published: null, department: null,
+  employmentType: null, compPosted: null, compMinK: null, compMaxK: null,
   fetchedAt: new Date('2026-09-10T10:00:00.000Z'),
   claimedAt: new Date('2026-09-10T09:59:59.000Z'),
   completedAt: new Date('2026-09-10T10:00:01.000Z'),

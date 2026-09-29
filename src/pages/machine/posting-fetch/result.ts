@@ -38,6 +38,7 @@ import {
 } from '../../../lib/posting-fetch-store';
 import { settlePostingAndFillSnapshot } from '../../../lib/posting-settle';
 import { sanitizeCrawledHtml } from '../../../lib/description';
+import type { PostingFacts } from '../../../lib/posting-extraction';
 
 export const prerender = false;
 
@@ -62,6 +63,52 @@ function httpsUrl(value: unknown): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The facts the mini says the posting stated (db/216), validated the same way
+ * everything else on this endpoint is: anything not the right shape becomes
+ * null rather than an error, because a mini that learns a new field before the
+ * site does must not start failing its own results.
+ *
+ * SNAKE CASE ON THE WIRE, CAMEL IN THE APP. The mini writes Python and posts
+ * `comp_min_k`; the app reads `compMinK`. The translation happens here, once,
+ * at the boundary, rather than either side bending to the other's spelling.
+ *
+ * THE PAY RANGE IS REFUSED UNLESS IT IS WHOLE AND THE RIGHT WAY ROUND. db/216
+ * has a CHECK saying the same thing, and this is the polite half of it: a
+ * half-filled or backwards range arrives as no range at all, and the posted
+ * WORDING still survives, because a number we distrust is not a reason to
+ * throw away a sentence the employer published.
+ */
+function factsFrom(body: Record<string, unknown>): Partial<PostingFacts> {
+  const text = (value: unknown, cap: number): string | null => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.replace(/\s+/g, ' ').trim();
+    return trimmed ? trimmed.slice(0, cap) : null;
+  };
+  const thousands = (value: unknown): number | null =>
+    Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 100_000 ? (value as number) : null;
+
+  const publishedMs = typeof body.published === 'string' ? Date.parse(body.published) : Number.NaN;
+  let compMinK = thousands(body.comp_min_k);
+  let compMaxK = thousands(body.comp_max_k);
+  if (compMinK === null || compMaxK === null || compMinK > compMaxK) {
+    compMinK = null;
+    compMaxK = null;
+  }
+
+  return {
+    location: text(body.location, 500),
+    country: text(body.country, 200),
+    remote: typeof body.remote === 'boolean' ? body.remote : null,
+    published: Number.isNaN(publishedMs) ? null : new Date(publishedMs).toISOString(),
+    department: text(body.department, 500),
+    employmentType: text(body.employment_type, 200),
+    compPosted: text(body.comp_posted, 1000),
+    compMinK,
+    compMaxK
+  };
 }
 
 export async function POST(context: APIContext): Promise<Response> {
@@ -111,7 +158,8 @@ export async function POST(context: APIContext): Promise<Response> {
     httpStatus,
     failureCode,
     fetchedAt,
-    machineNotes: { ...machineNotes, reader: 'mini' }
+    machineNotes: { ...machineNotes, reader: 'mini' },
+    facts: factsFrom(body)
   });
   if (!settled) return json({ accepted: false, reason: 'already-settled' });
 

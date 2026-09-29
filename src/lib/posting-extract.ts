@@ -71,7 +71,8 @@
 import { DESCRIPTION_MAX_CHARS, NAME_MAX_CHARS } from './posting-fetch-store';
 import type { FailureCode, SourceKind } from './posting-fetch-store';
 import { sanitizeCrawledHtml } from './description';
-import type { PostingExtraction } from './posting-extraction';
+import type { PostingExtraction, PostingFacts } from './posting-extraction';
+import { NO_FACTS } from './posting-extraction';
 
 /** A page that reads shorter than this has nothing worth calling a posting. */
 export const MIN_TEXT_CHARS = 200;
@@ -414,10 +415,20 @@ interface RawFound {
   title: string | null;
   company: string | null;
   descriptionHtml: string | null;
+  /** The facts the source stated, where it states any. Absent on the prose
+      fallback, which by definition found no structure to read them out of --
+      it picked the biggest paragraph on a page nobody marked up. */
+  facts?: Partial<PostingFacts>;
 }
 
-function buildFound(kind: SourceKind, rawTitle: unknown, rawCompany: unknown, descriptionHtml: string | null): RawFound {
-  return { kind, title: cleanName(rawTitle), company: cleanName(rawCompany), descriptionHtml };
+function buildFound(
+  kind: SourceKind,
+  rawTitle: unknown,
+  rawCompany: unknown,
+  descriptionHtml: string | null,
+  facts?: Partial<PostingFacts>
+): RawFound {
+  return { kind, title: cleanName(rawTitle), company: cleanName(rawCompany), descriptionHtml, facts };
 }
 
 /**
@@ -430,6 +441,81 @@ function buildFound(kind: SourceKind, rawTitle: unknown, rawCompany: unknown, de
  * `JobPosting` and getting a different one on a multi-posting blob would be a
  * silent behavioural drift from the system this is a port of.
  */
+/**
+ * The facts a schema.org `JobPosting` states.
+ *
+ * WHY THIS IS WORTH HAVING. This is the reader for everything nobody wrote an
+ * adapter for -- "most of the rest of the internet", as this file's header puts
+ * it -- and an employer who bothered to mark up a JobPosting usually marked up
+ * the whole of it, not just the title. `datePosted`, `jobLocation`,
+ * `employmentType` and `baseSalary` are all standard properties, so a page with
+ * structured data can carry as much as an ATS adapter does.
+ *
+ * `baseSalary` IS A NUMERIC FIELD, SO ITS NUMBERS COUNT. The rule the resolvers
+ * keep -- a stated string is not a parsed one -- is about not regexing prose.
+ * schema.org's `baseSalary.value` is a `QuantitativeValue` with `minValue`,
+ * `maxValue` and a `unitText`, which is the employer publishing numbers as
+ * numbers. It is read the same way Ashby's is, and for the same reason it is
+ * read only when `unitText` says YEAR: the same object is used for hourly pay,
+ * and 18 to 25 an hour must never be filed as an $18K salary.
+ */
+function jsonldFacts(item: Record<string, unknown>): Partial<PostingFacts> {
+  const rec = (value: unknown): Record<string, unknown> | null =>
+    value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  const first = (value: unknown): unknown => (Array.isArray(value) ? value[0] : value);
+  const text = (value: unknown, cap = NAME_MAX_CHARS): string | null => {
+    if (typeof value !== 'string') return null;
+    const t = decodeHtmlEntities(value).replace(/\s+/g, ' ').trim();
+    return t ? t.slice(0, cap) : null;
+  };
+
+  const place = rec(first(item.jobLocation));
+  const address = place ? rec(place.address) : null;
+  const where = address
+    ? [address.addressLocality, address.addressRegion, address.addressCountry]
+        .map((v) => (typeof v === 'string' ? v : rec(v)?.name))
+        .filter((v): v is string => typeof v === 'string' && v.trim() !== '')
+    : [];
+  const country = address
+    ? (typeof address.addressCountry === 'string' ? address.addressCountry : rec(address.addressCountry)?.name)
+    : null;
+
+  const salary = rec(item.baseSalary);
+  const value = salary ? rec(salary.value) : null;
+  const annualUnit = value && typeof value.unitText === 'string' && /^year(ly)?$/i.test(value.unitText.trim());
+  const minK = annualUnit ? toThousands(value?.minValue) : null;
+  const maxK = annualUnit ? toThousands(value?.maxValue) : null;
+
+  const posted = typeof item.datePosted === 'string' ? new Date(item.datePosted) : null;
+  const employment = first(item.employmentType);
+
+  return {
+    location: text(where.length ? where.join(', ') : null),
+    country: text(typeof country === 'string' ? country : null, 200),
+    // schema.org marks a remote job with jobLocationType "TELECOMMUTE". Absent
+    // means the page did not say, not that the job is on-site.
+    remote: typeof item.jobLocationType === 'string'
+      ? /telecommute/i.test(item.jobLocationType)
+      : null,
+    published: posted && !Number.isNaN(posted.getTime()) ? posted.toISOString() : null,
+    employmentType: text(typeof employment === 'string' ? employment : null, 200),
+    compMinK: minK !== null && maxK !== null && minK <= maxK ? minK : null,
+    compMaxK: minK !== null && maxK !== null && minK <= maxK ? maxK : null
+  };
+}
+
+/** Thousands, matching the board's unit and the resolvers' own rounding. */
+function toThousands(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null;
+  // A "salary" under a thousand a year is not a salary; it is an hourly or
+  // daily rate that arrived carrying the wrong interval, and rounding it would
+  // file a real job at 0. Refusing it here means a platform we trusted about
+  // its own interval cannot still hand us a number that is plainly not one.
+  if (value < 1000) return null;
+  const k = Math.round(value / 1000);
+  return k >= 1 && k <= 100_000 ? k : null;
+}
+
 function extractJsonld(blobs: string[]): RawFound | null {
   for (const blob of blobs) {
     let parsed: unknown;
@@ -468,7 +554,7 @@ function extractJsonld(blobs: string[]): RawFound | null {
         }
         descriptionHtml = d;
       }
-      return buildFound('jsonld', item.title, company, descriptionHtml);
+      return buildFound('jsonld', item.title, company, descriptionHtml, jsonldFacts(item));
     }
   }
   return null;
@@ -574,6 +660,8 @@ export function extractPosting(html: string, finalUrl: string): Extraction | Fai
   if (found.kind === 'page' && textLength < SHELL_TEXT_CHARS) return 'no_content';
 
   return {
+    ...NO_FACTS,
+    ...(found.facts ?? {}),
     kind: found.kind,
     title: found.title,
     company: found.company,

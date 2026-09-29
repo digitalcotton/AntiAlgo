@@ -9,6 +9,8 @@ function row(over: Partial<StoredPostingFetch> = {}): StoredPostingFetch {
     id: 'x', applicationId: 42, url: 'https://jobs.ashbyhq.com/writer/1234', urlKey: 'https://jobs.ashbyhq.com/writer/1234',
     status: 'pending', origin: null, sourceKind: null, title: 'Designer', company: 'Writer', descriptionHtml: null,
     finalUrl: null, httpStatus: null, failureCode: null, fetchedAt: null, claimedAt: null, completedAt: null,
+    location: null, country: null, remote: null, published: null, department: null,
+    employmentType: null, compPosted: null, compMinK: null, compMaxK: null,
     createdAt: new Date(T0), machineNotes: {}, ...over
   };
 }

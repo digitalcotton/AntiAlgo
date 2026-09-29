@@ -16,6 +16,16 @@
  */
 import { randomUUID } from 'node:crypto';
 import { db } from './db';
+/** TYPE-ONLY, AND THAT IS WHAT KEEPS THIS HONEST. posting-extraction.ts imports
+    `SourceKind` from this file, so a value import back the other way would be a
+    runtime cycle. Both directions are `import type` and are erased at build, so
+    there is no cycle in the emitted graph -- only the two files agreeing on one
+    declaration of a shape instead of keeping two that can drift, which is the
+    whole reason posting-extraction.ts exists. The layering still reads the way
+    its header states it: this file owns the row's vocabulary, that file owns
+    what a reader found, and `SettleInput` is where a reader's finding is handed
+    to a row. */
+import type { PostingFacts } from './posting-extraction';
 
 export type FetchStatus = 'pending' | 'claimed' | 'ready' | 'unreadable' | 'pasted';
 export type FetchOrigin = 'machine' | 'pasted';
@@ -118,6 +128,17 @@ export interface PostingFetchRow {
   final_url: string | null;
   http_status: number | null;
   failure_code: FailureCode | null;
+  // The facts the posting states (db/216). Every one nullable: NULL is
+  // "the source did not say", never "we did not look".
+  location: string | null;
+  country: string | null;
+  remote: boolean | null;
+  published: Date | string | null;
+  department: string | null;
+  employment_type: string | null;
+  comp_posted: string | null;
+  comp_min_k: number | null;
+  comp_max_k: number | null;
   fetched_at: Date | string | null;
   claimed_at: Date | string | null;
   completed_at: Date | string | null;
@@ -140,6 +161,18 @@ export interface StoredPostingFetch {
   finalUrl: string | null;
   httpStatus: number | null;
   failureCode: FailureCode | null;
+  /** The facts the posting states (db/216), in the reader's own vocabulary.
+      `published` is a Date here and a string on `PostingFacts`, because a
+      reader reports the source's own text and a row holds an instant. */
+  location: string | null;
+  country: string | null;
+  remote: boolean | null;
+  published: Date | null;
+  department: string | null;
+  employmentType: string | null;
+  compPosted: string | null;
+  compMinK: number | null;
+  compMaxK: number | null;
   fetchedAt: Date | null;
   claimedAt: Date | null;
   completedAt: Date | null;
@@ -206,6 +239,15 @@ export function rowToStoredPostingFetch(row: PostingFetchRow): StoredPostingFetc
     finalUrl: row.final_url,
     httpStatus: row.http_status,
     failureCode: row.failure_code,
+    location: row.location ?? null,
+    country: row.country ?? null,
+    remote: row.remote ?? null,
+    published: row.published === null || row.published === undefined ? null : toDate(row.published),
+    department: row.department ?? null,
+    employmentType: row.employment_type ?? null,
+    compPosted: row.comp_posted ?? null,
+    compMinK: row.comp_min_k ?? null,
+    compMaxK: row.comp_max_k ?? null,
     fetchedAt: row.fetched_at === null ? null : toDate(row.fetched_at),
     claimedAt: row.claimed_at === null ? null : toDate(row.claimed_at),
     completedAt: row.completed_at === null ? null : toDate(row.completed_at),
@@ -422,6 +464,39 @@ export interface SettleInput {
   fetchedAt: Date;
   /** Already allowlisted by the route; stored only on ready. */
   machineNotes: MachineNotes;
+  /** The facts the posting stated (db/216). Optional so a caller that predates
+      them still compiles and simply stores nothing, which is the truth about
+      what it read. Stored only on `ready`, for the same reason the body is:
+      an unreadable row asserts nothing about the posting. */
+  facts?: Partial<PostingFacts>;
+}
+
+/**
+ * The nine fact columns, in the order the UPDATE above binds them.
+ *
+ * Spelled out as a list rather than built from `Object.values()`, because the
+ * order of the parameters and the order of the columns have to agree and an
+ * object's key order is not a thing to bet a silent column swap on. A missing
+ * `facts` gives nine nulls, which is what a reader that stated nothing read.
+ *
+ * `compMinK`/`compMaxK` are passed through as the reader gave them: db/216's
+ * CHECK refuses a half-filled or backwards range, so a parser that went wrong
+ * fails loudly at the write instead of storing a range nobody published.
+ */
+function factColumns(facts: Partial<PostingFacts> | undefined): Array<string | number | boolean | Date | null> {
+  const f = facts ?? {};
+  const published = f.published ? new Date(f.published) : null;
+  return [
+    f.location ?? null,
+    f.country ?? null,
+    f.remote ?? null,
+    published && !Number.isNaN(published.getTime()) ? published : null,
+    f.department ?? null,
+    f.employmentType ?? null,
+    f.compPosted ?? null,
+    f.compMinK ?? null,
+    f.compMaxK ?? null
+  ];
 }
 
 /** Settles a claimed row. Returns the full row (with its owner, for the draft
@@ -433,7 +508,9 @@ export async function settlePostingFetch(id: string, input: SettleInput): Promis
     `UPDATE desk_posting_fetch
         SET status = $2, origin = $3, source_kind = $4, title = $5, company = $6, description_html = $7,
             final_url = $8, http_status = $9, failure_code = $10, fetched_at = $11, completed_at = now(),
-            machine_notes = $12
+            machine_notes = $12,
+            location = $13, country = $14, remote = $15, published = $16, department = $17,
+            employment_type = $18, comp_posted = $19, comp_min_k = $20, comp_max_k = $21
       WHERE id = $1 AND status = 'claimed'
       RETURNING *`,
     [
@@ -448,7 +525,8 @@ export async function settlePostingFetch(id: string, input: SettleInput): Promis
       input.httpStatus,
       ready ? null : input.failureCode,
       input.fetchedAt,
-      ready && Object.keys(input.machineNotes).length ? JSON.stringify(input.machineNotes) : null
+      ready && Object.keys(input.machineNotes).length ? JSON.stringify(input.machineNotes) : null,
+      ...factColumns(ready ? input.facts : undefined)
     ]
   );
   const row = rows[0];
