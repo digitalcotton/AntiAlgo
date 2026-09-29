@@ -145,7 +145,13 @@ describe('the title is the fallback, and null is a real answer', () => {
  */
 describe('coverage against the real corpus', () => {
   const CORPUS = 'src/data/board-latest.json.gz';
-  const FLOOR = 0.84;
+  // RATCHETED 0.84 -> 0.90 on 2026-09-28, when the long-tail block took the
+  // corpus from 87.77% to 92.93%. It sits below the measured number on
+  // purpose: the floor's job is to catch a rule that BREAKS classification, not
+  // to pin a figure that moves a little every night as the crawl reaches new
+  // employers. Raise it when a block of terms earns it; never lower it to make
+  // a red build green.
+  const FLOOR = 0.9;
 
   /**
    * READ AND CLASSIFY ONCE. Both cases below need the same 37,765 rows, and the

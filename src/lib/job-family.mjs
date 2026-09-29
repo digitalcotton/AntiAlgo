@@ -275,6 +275,111 @@ const RULES = [
     'clerk', 'clerical', 'reception', 'secretary', 'business support', 'program analysis',
     'project management', 'program management', 'projektmanagement', 'verwaltung',
     'general business', 'business', 'corporate', 'consulting', 'strategy'
+  ]],
+
+  // -------------------------------------------------------------------------
+  // THE LONG TAIL, CLAIMED LAST (2026-09-28). 12.3% of the board carried no
+  // family, and the top of that pile was not unclassifiable work — it was
+  // vocabulary these rules had not been taught. Sjuksköterska, Ärzteteam,
+  // Küche, Rakennusala, Correctional Officer, Materials Handler, Loan
+  // Specialist. The module already committed to being multilingual; this is
+  // the next two hundred words of that commitment, mined from the rows nothing
+  // above claimed and measured against the whole corpus one term at a time.
+  //
+  // WHY THE BLOCK IS LAST AND NOT MERGED UP. Order is the algorithm here, and
+  // a term placed inside its family's existing group would be reached BEFORE
+  // the more specific rules above it. Measured: a bare `financial` re-files
+  // 107 already-placed rows from here, against 16 at the end; `aviation`
+  // re-files 26 there against 0. Sitting last, a term can only place a row
+  // that is currently unplaced, or re-file one whose DEPARTMENT (not title)
+  // names it, because familyOf reads the department first.
+  //
+  // Coverage 87.8% -> 92.8% on the committed corpus. Twelve already-placed
+  // rows move, and three of those are pre-existing mis-files this fixes:
+  // "Firefighter (Paramedic)" was health, "Mobiler Autoglasmonteur" was
+  // software (the `mobile` term prefix-matched `mobiler`), and a
+  // "Chef d'équipe Fibre Optique" was hospitality because of `chef`.
+  //
+  // The rest stays null on purpose: unsolicited applications, student and
+  // intern postings, and titles in non-Latin scripts, which normalise() cannot
+  // reach at all. Null is a real answer here and always has been.
+  // -------------------------------------------------------------------------
+  ['health', [
+    'sjukskoterska', 'vardbitrade', 'vardcentral', 'lakare', 'arzt', 'arzte', 'facharzt',
+    'medico', 'medici', 'medisch', 'speech pathology', 'orthotist', 'ophthalmology',
+    'dermatolog', 'anaesthesi', 'advanced practice provider', 'lpn', 'veterin', 'tierarzt',
+    'tiermedizin', 'dierenarts', 'verpleegkund', 'verzorgende', 'helpende', 'somatiek',
+    'dementie', 'ouderenzorg', 'apothek', 'farmaceut', 'fisioterap', 'sundhed', 'sykepleier',
+    'klinik'
+  ]],
+  ['social-care', [
+    'personlig', 'bpa', 'hjemmehjelper', 'gehandicaptenzorg', 'begeleider', 'hulpverlening',
+    'betreuung', 'case manager', 'social services', 'live in care', 'visiting care'
+  ]],
+  ['education', [
+    'lehrkraft', 'fahrlehrer', 'schule', 'training instruction'
+  ]],
+  ['public-safety', [
+    'luchtmacht', 'explosives safety',
+    // Both re-file already-placed rows, and every one of those is a fix: a
+    // Correctional Officer was unplaced, and `fire protection` takes
+    // "Firefighter (Paramedic)" back off health, where `paramedic` had it.
+    'correctional officer', 'fire protection'
+  ]],
+  ['sales', [
+    'account manager', 'account partner', 'account director', 'deal desk', 'saljare',
+    'forsaljning', 'myynti', 'ventes', 'leasing consultant', 'leasing professional', 'lettings'
+  ]],
+  ['marketing', [
+    'public affairs', 'media optimization', 'paid search', 'community manager'
+  ]],
+  ['customer', [
+    'call center', 'kundtjanst', 'kundendienst', 'customer outcomes'
+  ]],
+  ['finance', [
+    'loan', 'transaction services', 'restructuring', 'valuation', 'ekonom', 'economist',
+    'jahresabschluss', 'steuerfach', 'steuerberat', 'lohn', 'kyriba', 'cfo', 'teller',
+    'actuarial', 'underwriting', 'underwriter', 'purchasing', 'financial management',
+    'financial aid', 'financial analysis', 'financial analyst', 'asset management',
+    'portfolio management', 'capital markets'
+  ]],
+  ['people', [
+    'employee relations', 'equal employment opportunity', 'benefits specialist'
+  ]],
+  ['operations', [
+    'materials handler', 'general supply', 'traffic management', 'dispatching', 'dispatcher',
+    'cdl', 'truck driving', 'forklift', 'kommissionierer', 'chauffor', 'budbil', 'bargare',
+    'autoredder', 'logistiek', 'logistica', 'logistique', 'helicopter pilot', 'airplane pilot',
+    'aviation', 'bodenpersonal', 'schiffsbetrieb', 'ship operating', 'deckhand',
+    'small craft operating', 'tools and parts', 'parts advisor'
+  ]],
+  ['trades', [
+    'anlaggning', 'rakennus', 'bouw', 'dachdecker', 'werkstatt', 'lackiererei', 'peinture',
+    'installatietechniek', 'hitsaaja', 'pipefitt', 'painting', 'painter', 'concrete',
+    'insulating', 'plastering', 'scaffold', 'crane operat', 'heavy equipment', 'shipfitting',
+    'woodwork', 'utility systems operating',
+    // `monteur` re-files 8 placed rows and all 8 are fixes: "Mobiler
+    // Autoglasmonteur" is a mobile auto-glass fitter, filed as software
+    // because `mobile` prefix-matches `mobiler`.
+    'monteur'
+  ]],
+  ['manufacturing', [
+    'sewing machine', 'fabric working', 'fabricating', 'cnc', 'printer operator', 'prepress',
+    'print shop'
+  ]],
+  ['hospitality', [
+    'verkaufer', 'verkaufsberater', 'kundenberater', 'fachberater', 'food preparation',
+    'food and beverage', 'beverage', 'kuche', 'cuisine', 'waiter', 'servitor', 'kock',
+    'souschef', 'barkeeper', 'bartending', 'barman', 'culinary', 'restaurang', 'butik',
+    'gouvernante', 'servicekraft', 'housekeeper', 'cafe', 'bakery'
+  ]],
+  ['science', [
+    'meteorology', 'physics', 'hydrology', 'biolog', 'microbiology', 'cartography',
+    'environmental protection', 'ecologie', 'industrial hygiene'
+  ]],
+  ['admin', [
+    'linguistic', 'project manager', 'program manager', 'projectleider', 'administrator',
+    'administratif', 'secretarieel'
   ]]
 ];
 
