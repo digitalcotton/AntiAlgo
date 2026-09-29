@@ -17,7 +17,7 @@
  * Gate 3: no em dash, no en dash, no curly quotes.
  */
 
-import { TIERS } from './jobs-derived.mjs';
+import { SENIORITY_LADDER } from './jobs-derived.mjs';
 
 /** Where the role sits. */
 export const WHERES = ['anywhere', 'remote only', 'in office'] as const;
@@ -74,7 +74,7 @@ export interface Filters {
   floor: number;
   priced: PricedFilter;
   age: number;
-  /** A seniority from TIERS, or 'any'. */
+  /** A seniority from SENIORITY_LADDER, or 'any'. */
   level: string;
   /** A raw applicant-system key as stored in jobs.ats, or 'any'. */
   ats: string;
@@ -157,8 +157,8 @@ export function parseFilters(params: URLSearchParams): Filters {
   const level = (() => {
     const raw = params.get('level');
     if (raw === null || raw === '') return 'any';
-    if (raw === 'any' || (TIERS as readonly string[]).includes(raw)) return raw;
-    throw new FilterError('level', raw, ['any', ...TIERS]);
+    if (raw === 'any' || (SENIORITY_LADDER as readonly string[]).includes(raw)) return raw;
+    throw new FilterError('level', raw, ['any', ...SENIORITY_LADDER]);
   })();
 
   // ats is checked against the systems the crawl actually holds, which the

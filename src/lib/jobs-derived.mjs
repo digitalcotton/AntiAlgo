@@ -29,9 +29,23 @@
  * Gate 3: no em dash, no en dash, no curly quotes.
  */
 
-/** The seniority ladder, lowest to highest. Order is load bearing: the pay
- *  ladder chart draws in this order and reads the step between neighbours. */
-export const TIERS = ['Senior', 'Staff', 'Lead', 'Director'];
+/**
+ * The seniority ladder, lowest to highest. Order is load bearing: the pay
+ * ladder chart draws in this order and reads the step between neighbours.
+ *
+ * ONE DECLARATION, AND IT LIVES HERE because it sits beside tierFromTitle, the
+ * only thing that produces these four strings. It was declared four times —
+ * again as LADDER in jobs-data-agg.ts, again as the RoleTier type in data.ts,
+ * and again as a browser fallback in ledger-v4-app.js — with nothing testing
+ * that the four agreed.
+ *
+ * IT IS NOT CALLED `TIERS` ANY MORE, on purpose. `TIERS` also means the ACCOUNT
+ * tier (tiers.config.mjs: public / waitlisted / member / paid / internal), and
+ * two exported constants with the same name and unrelated meanings is a trap
+ * for whoever next reaches for the wrong import. The browser payload key stays
+ * `TIERS` because check-dom-contracts.mjs asserts on that name.
+ */
+export const SENIORITY_LADDER = /** @type {const} */ (['Senior', 'Staff', 'Lead', 'Director']);
 
 /** Every region regionOf can answer. 'Unknown' is a real answer, not a gap:
  *  it means the posting printed a location this rule does not recognise. */

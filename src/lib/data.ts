@@ -32,6 +32,7 @@
  */
 
 import { FAMILIES } from './job-family.mjs';
+import { SENIORITY_LADDER } from './jobs-derived.mjs';
 import rawJobs from '../data/jobs.json';
 import rawProspects from '../data/prospects.json';
 import rawKills from '../data/kills.json';
@@ -201,7 +202,7 @@ export interface JobWindow {
 export type RoleFamily = (typeof FAMILIES)[number]['id'];
 /** The seniority bucket a posting was tagged with. Null when no seniority signal
  *  was read; never defaulted to Senior. */
-export type RoleTier = 'Senior' | 'Staff' | 'Lead' | 'Director';
+export type RoleTier = (typeof SENIORITY_LADDER)[number];
 
 export interface Job {
   id: string;

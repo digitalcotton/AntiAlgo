@@ -41,12 +41,16 @@ import { GROUP_DEFS, type Filters } from './jobs-data-filters';
 
 /** The pay axis the page draws, in thousands. Fixed, so the axis does not
     move under the reader between two cuts. */
+import { SENIORITY_LADDER } from './jobs-derived.mjs';
+
 export const PAY_LO = 110;
 export const PAY_HI = 360;
 /** The longest standing time the kill-life axis draws, in days. */
 export const LIFE_HI = 44;
-/** Seniority, in ladder order. */
-export const LADDER = ['Senior', 'Staff', 'Lead', 'Director'] as const;
+/** Seniority, in ladder order. Re-exported, not re-declared: the words live
+ *  once, beside tierFromTitle which is the only thing that writes them
+ *  (jobs-derived.mjs SENIORITY_LADDER). This was a second copy. */
+export const LADDER = SENIORITY_LADDER;
 /** The published kill rules, in the order the archive views draw them. */
 export const RULE_KEYS = [
   'repost_churn', 'touched_not_refreshed', 'misrepresented', 'zombie', 'phantom'

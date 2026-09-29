@@ -96,3 +96,24 @@ describe('the Jobs Data filter allowlist', () => {
     expect(cacheKey(a)).toBe(cacheKey(b));
   });
 });
+
+
+describe('the ladder is declared once', () => {
+  // It was declared four times — jobs-derived.mjs, jobs-data-agg.ts, data.ts's
+  // RoleTier and a browser fallback — with nothing testing that the four
+  // agreed. These pin the two that are now re-exports, and the one hand-typed
+  // list left in the repo.
+  it('jobs-data-agg LADDER IS jobs-derived SENIORITY_LADDER', async () => {
+    const { LADDER } = await import('./jobs-data-agg');
+    const { SENIORITY_LADDER } = await import('./jobs-derived.mjs');
+    expect(LADDER).toBe(SENIORITY_LADDER);
+  });
+
+  it('every tier a watched group names is a real rung', async () => {
+    const { GROUP_DEFS } = await import('./jobs-data-filters');
+    const { SENIORITY_LADDER } = await import('./jobs-derived.mjs');
+    for (const group of GROUP_DEFS) {
+      for (const tier of group.tiers) expect(SENIORITY_LADDER).toContain(tier);
+    }
+  });
+});

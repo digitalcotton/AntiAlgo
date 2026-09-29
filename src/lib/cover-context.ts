@@ -89,7 +89,19 @@ export function classifyField(text: string): CoverField {
    Situation detection.
    ------------------------------------------------------------------------- */
 
-const SENIOR_TITLE = /\b(chief|c[eft]o|ceo|cfo|coo|cto|cio|vp|vice president|head of|president|managing director|partner|principal|senior director|director)\b/i;
+/**
+ * DELIBERATELY NOT THE POSTING LADDER. Renamed from SENIOR_TITLE on 2026-09-28
+ * so nobody "unifies" it with jobs-derived.mjs's SENIORITY_LADDER, which would
+ * be wrong in both directions.
+ *
+ * It asks a different question: does this PERSON's record contain an executive
+ * role, which tightens the cover letter's word band. tierFromTitle classifies a
+ * POSTING for filtering and pay charts, returns null for CEO, CTO, Partner and
+ * President, and maps `principal` to Lead — so a Team Lead would come back an
+ * executive. This list also carries none of `senior`, `staff` or `lead`, which
+ * the ladder is mostly made of.
+ */
+const EXECUTIVE_TITLE = /\b(chief|c[eft]o|ceo|cfo|coo|cto|cio|vp|vice president|head of|president|managing director|partner|principal|senior director|director)\b/i;
 
 const CURRENT_YEAR = 2026;
 
@@ -133,7 +145,7 @@ export function detectSituation(
   }
 
   const roles = entries.filter((e) => e.kind === 'role_held');
-  const hasSeniorRole = roles.some((e) => SENIOR_TITLE.test(e.officialTitle));
+  const hasSeniorRole = roles.some((e) => EXECUTIVE_TITLE.test(e.officialTitle));
   if (hasSeniorRole) return 'executive';
 
   const hasRecentEducation = entries.some((e) => e.kind === 'education' && isRecent(e.end));
