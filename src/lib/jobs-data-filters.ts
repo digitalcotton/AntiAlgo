@@ -39,25 +39,79 @@ export type RecordFilter = (typeof RECORDS)[number];
 
 /**
  * THE WATCHED TITLE GROUPS. A group is a named predicate over the measured
- * department and the title-derived seniority; the page's title search and its
- * "titles in the cut" shelf both read them.
+ * family, the title-derived seniority and, where a family alone cannot tell two
+ * groups apart, a list of title words. The page's title search and its "titles
+ * in the cut" shelf both read them.
  *
- * MOVED HERE FROM THE BROWSER UNCHANGED, CASE AND ALL. These lived in
- * public/scripts/ledger-v4-app.js as GROUP_TESTS, comparing the department
- * against lowercase words. The measured departments are capitalised at the
- * source ("Product", "Brand"), so every one of these groups matches zero rows
- * today. That is a defect, and it is reproduced here exactly rather than fixed,
- * because the parity check this build has to pass compares against the old
- * numbers. Fixing it is a one-word change (a lower() on both sides) and a
- * separate decision, since it would move counts on the page.
+ * FIXED 2026-09-28. These were carried over from the browser unchanged and
+ * tested `derived_fam` against `'product'`, `'design engineering'`, `'brand'`
+ * and `'design systems'` — a vocabulary from data.ts's RoleFamily, which no
+ * migration ever created and nothing ever wrote. The header here used to say
+ * every group matched zero rows, that this was reproduced deliberately for a
+ * parity check pinned to the old numbers, and that the fix was "a one-word
+ * change (a lower() on both sides)". All three claims were wrong by the time
+ * anyone read them:
+ *
+ *   - Not every group matched zero. db/212 changed derived_fam from the raw
+ *     crawled department to the 22 closed ids, and 'product' happens to be one
+ *     of them, so Product Designer silently went 0 -> 218 — a paid page's
+ *     headline number moved because a migration did not know this column was
+ *     read this way. Worse, those 218 were mostly product MANAGERS.
+ *   - lower() would not have fixed the rest. 'brand', 'design engineering' and
+ *     'design systems' are not family ids in any casing. The nearest real id is
+ *     'design', which holds all four of these as one field.
+ *   - And no baseline was pinned to the old numbers. jobs-data-agg.test.ts
+ *     imports GROUP_DEFS and recomputes its oracle from it, so the parity check
+ *     moves with this file. Nothing in the repo recorded a count.
+ *
+ * AND DESIGN LEADERSHIP HAD NO FAMILY TEST AT ALL, so on a page about design
+ * titles it was matching every Lead or Director on the board in every field —
+ * 2,830 rows, Directors of Nursing included.
+ *
+ * WHY `words` HAD TO BE ADDED. All four Senior/Staff groups live in one family,
+ * `design`, so family plus tier cannot separate them: boardFacts assigns each
+ * row to the FIRST matching group, and without a title test one group would
+ * take all 80 rows and the other three would read zero — the same defect in a
+ * new coat. Each is defined by the words its own titles actually use.
+ *
+ * ORDER IS MOST SPECIFIC FIRST, and that is load bearing for the same
+ * first-match-wins reason: "Senior Brand Design Engineer" belongs to Design
+ * Engineer, not Brand. It is also the order the page lists them in.
+ *
+ * A design role matching none of the four (motion, content, research,
+ * copywriting — 29 rows) is in no group, which is honest. The board's own
+ * Field filter still holds all of Design.
  */
 export const GROUP_DEFS = [
-  { title: 'Product Designer', fam: 'product', tiers: ['Senior', 'Staff'] },
-  { title: 'Design Engineer', fam: 'design engineering', tiers: ['Senior', 'Staff'] },
-  { title: 'Brand Designer', fam: 'brand', tiers: ['Senior', 'Staff'] },
-  { title: 'Design Systems Designer', fam: 'design systems', tiers: ['Senior', 'Staff'] },
-  { title: 'Design Leadership', fam: null, tiers: ['Lead', 'Director'] }
+  { title: 'Design Systems Designer', fam: 'design', tiers: ['Senior', 'Staff'], words: ['design system'] },
+  {
+    title: 'Design Engineer',
+    fam: 'design',
+    tiers: ['Senior', 'Staff'],
+    words: ['design engineer', 'ux engineer', 'design technologist', 'creative technologist']
+  },
+  { title: 'Brand Designer', fam: 'design', tiers: ['Senior', 'Staff'], words: ['brand', 'visual identity', 'graphic'] },
+  {
+    title: 'Product Designer',
+    fam: 'design',
+    tiers: ['Senior', 'Staff'],
+    words: ['product design', 'ux design', 'ui design', 'interaction design', 'experience design', 'digital design']
+  },
+  // Leadership needs no words: family and tier already separate it from the
+  // four above, and design leadership titles vary too much to list (Director of
+  // Design, Head of Design, Creative Director, VP Design).
+  { title: 'Design Leadership', fam: 'design', tiers: ['Lead', 'Director'], words: [] }
 ] as const;
+
+/**
+ * A group's title words as one case-insensitive POSIX pattern, or null where a
+ * group has none. The words are repo constants, never reader input, and
+ * jobs-data-filters.test.ts pins them to [a-z ] so neither the bound use in
+ * marks() nor the interpolated use in boardFacts can carry a metacharacter.
+ */
+export function groupTitlePattern(words: readonly string[]): string | null {
+  return words.length === 0 ? null : `(${words.join('|')})`;
+}
 
 const GROUP_TITLES = GROUP_DEFS.map((g) => g.title) as readonly string[];
 

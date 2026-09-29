@@ -16,9 +16,9 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { liveAggregates, killAggregates, boardFacts, LADDER } from './jobs-data-agg';
-import { NO_FILTERS, GROUP_DEFS, type Filters } from './jobs-data-filters';
+import { NO_FILTERS, GROUP_DEFS, groupTitlePattern, type Filters } from './jobs-data-filters';
 import { listBoardAll, listAllKills } from './job-store';
-import { tierFromTitle, famFromDepartment, regionOf, payOf, frictionOf } from './jobs-derived.mjs';
+import { tierFromTitle, derivedFor, regionOf, payOf, frictionOf } from './jobs-derived.mjs';
 
 const HAVE_DB = Boolean(process.env.DATABASE_URL || process.env.DATABASE_URL_UNPOOLED);
 const d = HAVE_DB ? describe : describe.skip;
@@ -70,7 +70,14 @@ beforeAll(async () => {
         // label; the filter compares whatever it held, so the key is what both
         // sides compare now. Same partition either way.
         ats: r.ats,
-        fam: famFromDepartment(r.department),
+        // derivedFor, not famFromDepartment: derived_fam falls back to the
+        // TITLE when the department yields nothing (jobs-derived.mjs
+        // familyWithSource), and the SQL side reads that column. Reading only
+        // the department here made the oracle disagree with the query on the
+        // rows classified by title — 28 of design's Lead/Director alone. It
+        // never showed because Design Leadership had no family test to
+        // disagree about until 2026-09-28.
+        fam: derivedFor(r).derived_fam,
         tier: tierFromTitle(r.title),
         region: regionOf(r.country || r.location || ''),
         remote: Boolean(r.remote),
@@ -108,6 +115,9 @@ function oldPasses(r: OldRow, s: Filters): boolean {
       if (!def) return false;
       if (!(def.tiers as readonly string[]).includes(r.tier || '')) return false;
       if (def.fam !== null && r.fam !== def.fam) return false;
+      // The title words, mirroring marks() and boardFacts' groupCase.
+      const pattern = groupTitlePattern(def.words);
+      if (pattern !== null && !new RegExp(pattern, 'i').test(r.title)) return false;
       return w.off.indexOf(r.title) === -1;
     });
     if (!ok) return false;

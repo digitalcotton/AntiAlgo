@@ -37,7 +37,7 @@
  */
 
 import { db } from './db';
-import { GROUP_DEFS, type Filters } from './jobs-data-filters';
+import { GROUP_DEFS, type Filters, groupTitlePattern } from './jobs-data-filters';
 
 /** The pay axis the page draws, in thousands. Fixed, so the axis does not
     move under the reader between two cuts. */
@@ -168,6 +168,12 @@ function marks(f: Filters, b: Binder): Record<Dimension, string> {
       if (!def) return 'FALSE';
       const tests: string[] = [`j.derived_tier = ANY(${b.p(def.tiers.slice())})`];
       if (def.fam !== null) tests.push(`j.derived_fam = ${b.p(def.fam)}`);
+      // The title words, where the group has them. This MUST be applied here
+      // and in boardFacts' groupCase together: applying it in one and not the
+      // other makes the "titles in the cut" shelf and the cut itself disagree
+      // about what a group contains.
+      const pattern = groupTitlePattern(def.words);
+      if (pattern !== null) tests.push(`j.title ~* ${b.p(pattern)}`);
       if (w.off.length) tests.push(`NOT (j.title = ANY(${b.p(w.off)}))`);
       return '(' + tests.join(' AND ') + ')';
     });
@@ -636,9 +642,19 @@ export interface BoardFacts {
  * reads them once per crawl and the filtered endpoint never recomputes them.
  */
 export async function boardFacts(): Promise<BoardFacts> {
+  // FIRST MATCH WINS, so GROUP_DEFS' most-specific-first order is load bearing
+  // here: all four Senior/Staff groups sit in the one `design` family, and
+  // without the title words one of them would take every row and the other
+  // three would read zero. Same predicate as marks() above, and the two are
+  // pinned to each other by test.
+  //
+  // The values interpolated here are repo constants, never reader input, and
+  // jobs-data-filters.test.ts holds the words to [a-z ].
   const groupCase = GROUP_DEFS.map((g) => {
     const tests = [`derived_tier = ANY(ARRAY[${g.tiers.map((t) => `'${t}'`).join(',')}])`];
     if (g.fam !== null) tests.push(`derived_fam = '${g.fam}'`);
+    const pattern = groupTitlePattern(g.words);
+    if (pattern !== null) tests.push(`title ~* '${pattern}'`);
     return `WHEN ${tests.join(' AND ')} THEN '${g.title}'`;
   }).join('\n         ');
 
