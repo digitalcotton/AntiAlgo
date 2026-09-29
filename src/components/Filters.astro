@@ -7,13 +7,19 @@ import { withBase } from '../../site.config.mjs';
  * dimmer (MASTER-SPEC F10) beside it. Applied rows are tagged, never hidden
  * (owner decision, 2026-09-19; see the script's applied-tag section).
  *
- * WHY THE CANVAS'S FOUR GROUPS ARE THREE HERE. The canvas draws "Role family:
- * All" and the data carries no role family. Deriving one by reading job titles
- * would mean this repository inventing a classification and presenting it as
- * the machine's finding, which is the same objection that blocked the kill
- * list's reason taxonomy: the field is emitted upstream by the sweep, or the
- * filter does not ship. What ships is Location, Comp and Freshness, each of
- * which is a field the record actually holds. See DECISIONS.md.
+ * THE CANVAS'S FOURTH GROUP SHIPS NOW, AS "FIELD". This said the data carried
+ * no role family, and that deriving one by reading job titles would mean this
+ * repository inventing a classification and presenting it as the machine's
+ * finding. That objection held the filter back until the answer was built
+ * rather than asserted: src/lib/job-family.mjs is an ordered table of word
+ * tests a reader can read, reproduce and argue with — no model, nothing in the
+ * nightly ingest path — and db/212 stores the verdict in derived_fam next to
+ * the department word it was read from. A posting it cannot place is null and
+ * shows as "Not placed", never as an invented bucket.
+ *
+ * Freshness went the other way and no longer ships (2026-09-28): the board
+ * already said a posting's age three other ways. So the strip is Field,
+ * Location and Comp. See DECISIONS.md.
  *
  * WHY NATIVE SELECTS RATHER THAN THE CANVAS'S DROPDOWN BUTTONS. A custom
  * dropdown is a listbox, a focus trap, a set of arrow key handlers and a

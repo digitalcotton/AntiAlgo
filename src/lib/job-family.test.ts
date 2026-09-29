@@ -201,3 +201,23 @@ describe('coverage against the real corpus', () => {
     expect(n / total, `${biggest} claims ${((n / total) * 100).toFixed(1)}% of the board`).toBeLessThan(0.5);
   });
 });
+
+describe('the published contract names the same families the code does', () => {
+  // THE GUARD THAT WOULD HAVE CAUGHT THIS. schemas/jobs.schema.json carried a
+  // four-value design vocabulary (product / design_engineering / brand /
+  // design_systems) that nothing wrote, for long enough that /jobs-data's
+  // watched groups were built against it and matched zero rows. Two lists of
+  // family names with no test between them is how that happens.
+  it('the jobs schema role_family enum IS FAMILY_IDS, in order', () => {
+    const schema = JSON.parse(readFileSync('schemas/jobs.schema.json', 'utf8'));
+    const prop = schema.$defs?.job?.properties?.role_family ?? schema.properties?.job?.properties?.role_family;
+    const branch = (prop.oneOf as { enum?: string[] }[]).find((b) => Array.isArray(b.enum));
+    expect(branch?.enum).toEqual([...FAMILY_IDS]);
+  });
+
+  it('a kill carries no family, because board_kills has no column for one', () => {
+    for (const file of ['schemas/kills.schema.json', 'schemas/kills-archive.schema.json']) {
+      expect(readFileSync(file, 'utf8')).not.toContain('role_family');
+    }
+  });
+});

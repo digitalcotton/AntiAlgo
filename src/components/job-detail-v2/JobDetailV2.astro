@@ -55,6 +55,7 @@ import { expiryOf } from '../job-detail/detail';
 import { compShort, formatDate, daysBetween, sweepDate, sweptAt, sourceLabel } from '../../lib/data';
 import { routeFor } from '../../data/nav';
 import { withBase } from '../../../site.config.mjs';
+import { familyLabel } from '../../lib/job-family.mjs';
 import type { Job } from '../../lib/data';
 
 interface Props {
@@ -96,6 +97,21 @@ const {
   backHref = null,
   backLabel = null
 } = Astro.props;
+
+/**
+ * THE FIELD THE BOARD FILED THIS UNDER. The page showed no field at all, while
+ * the board's own Field control narrows by it and /board/[slug]'s closed-record
+ * variant printed the raw crawled department under the label "Team" — the same
+ * 3,335-value column that holds FLZR and SSAs. So a reader could filter to
+ * Design, open a posting, and find nothing on the page telling them why it was
+ * in Design.
+ *
+ * It is the site's own classification, not the employer's words, so it says so.
+ * A posting the classifier could not place shows no cell rather than an
+ * invented one; that is 12.3% of the board and it is a gap, not an "Other".
+ */
+const fieldLabel = familyLabel(job.role_family ?? null);
+const fieldFrom = job.role_family_source === 'department' ? 'read from the posted department' : job.role_family_source === 'title' ? 'read from the title' : null;
 
 const isClosed = job.status === 'closed';
 const ats = sourceLabel(job);
@@ -277,6 +293,12 @@ const saveNote = applyTrack
           <div class="jd-stat">
             <dt>Deets</dt>
             <dd class="jd-stat-muted"><a href={signInHref}>Sign in</a></dd>
+          </div>
+        )}
+        {fieldLabel && (
+          <div class="jd-stat">
+            <dt>Field</dt>
+            <dd class="jd-stat-field" title={fieldFrom ?? undefined}>{fieldLabel}</dd>
           </div>
         )}
         <div class="jd-stat">
@@ -494,6 +516,9 @@ const saveNote = applyTrack
   .jd-stat dd { margin: 0; font-family: var(--font-family-mono); font-size: var(--size-200); font-weight: var(--weight-semibold, 600); }
   .jd-stat-fit span { color: var(--color-muted); font-weight: 400; font-size: var(--size-100); }
   .jd-stat-muted { font-family: var(--font-family-sans); font-size: var(--size-100); font-weight: var(--weight-regular); }
+  /* A long family label ('Administration & Business Support') must not stretch
+     the stats row; the flex line wraps and the cell caps. */
+  .jd-stat-field { max-width: 22ch; }
   .jd-stat-muted a { color: var(--color-foreground); text-decoration: underline; text-underline-offset: var(--text-underline-offset); }
 
   .jd-dates-line { margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-200); color: var(--color-foreground); font-family: var(--font-family-mono); font-size: var(--size-100); font-weight: var(--weight-regular); }

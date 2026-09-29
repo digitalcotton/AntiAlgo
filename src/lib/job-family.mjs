@@ -50,7 +50,7 @@
  * Social & Community Care because a psychologist and a nurse share almost
  * nothing but a building.
  */
-export const FAMILIES = [
+export const FAMILIES = /** @type {const} */ ([
   { id: 'software', label: 'Software Engineering' },
   { id: 'data-ai', label: 'Data & AI' },
   { id: 'it-infra', label: 'IT & Infrastructure' },
@@ -73,7 +73,7 @@ export const FAMILIES = [
   { id: 'public-safety', label: 'Public Safety & Defence' },
   { id: 'science', label: 'Science & Research' },
   { id: 'admin', label: 'Administration & Business Support' }
-];
+]);
 
 export const FAMILY_IDS = FAMILIES.map((f) => f.id);
 const LABEL_BY_ID = new Map(FAMILIES.map((f) => [f.id, f.label]));

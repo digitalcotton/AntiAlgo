@@ -176,10 +176,29 @@ export interface JobWindow {
   day: number;
 }
 
-/** The design family a posting was tagged with by the sweep. Closed vocabulary;
- *  see the exporter field contract. A posting the sweep could not place is null,
- *  never guessed. */
-export type RoleFamily = 'product' | 'design_engineering' | 'brand' | 'design_systems';
+/**
+ * The occupational family a posting was placed in. A posting the classifier
+ * could not place is null, never guessed.
+ *
+ * IT IS THE REAL VOCABULARY NOW (2026-09-28). This read
+ * `'product' | 'design_engineering' | 'brand' | 'design_systems'` — four
+ * snake_case design values waiting on an exporter that never shipped. No
+ * migration ever created the column, nothing in the repo ever assigned to it,
+ * and no code ever read it; it existed in TypeScript and in three JSON Schemas
+ * and nowhere else.
+ *
+ * An empty second vocabulary is not free. It is what /jobs-data's GROUP_DEFS
+ * was written against, which is why three of its five watched groups have been
+ * testing `derived_fam = 'design engineering'` and matching zero rows. So this
+ * is not deleted and it is not left empty: it is pointed at the classifier that
+ * actually runs (src/lib/job-family.mjs, db/212's derived_fam), and derived
+ * from FAMILIES so the two cannot drift.
+ *
+ * Note what changed in the process: `design_engineering` and `design_systems`
+ * are one family, `design`; `brand` had no counterpart at all; and the ids are
+ * kebab-case because that is what the column holds.
+ */
+export type RoleFamily = (typeof FAMILIES)[number]['id'];
 /** The seniority bucket a posting was tagged with. Null when no seniority signal
  *  was read; never defaulted to Senior. */
 export type RoleTier = 'Senior' | 'Staff' | 'Lead' | 'Director';
@@ -197,16 +216,24 @@ export interface Job {
    */
   title: string | null;
   /**
-   * The design family and seniority the sweep tagged this posting with, from the
-   * ATS department or the title, per the exporter field contract. Measured
-   * upstream, never parsed at render. Null is an honest absence: the Ledger draws
-   * a gap and never buckets a null by inference. Absent on every row until the
-   * exporter emits them, which reads as null here.
+   * The occupational family and the seniority the sweep placed this posting in,
+   * read from the crawled department and, failing that, the title. Measured at
+   * ingest (jobs-derived.mjs), never parsed at render. Null is an honest
+   * absence: a gap is drawn as a gap and nothing is bucketed by inference.
+   *
+   * Filled for every board row since 2026-09-28 (boardRowToJob maps
+   * derived_fam/derived_tier onto them). Still null on the static design
+   * fixture and on a pre-posting row, which have no classifier behind them.
    */
   role_family?: RoleFamily | null;
   tier?: RoleTier | null;
-  role_family_source?: 'ats_department' | 'title' | null;
-  tier_source?: 'ats_level' | 'title' | null;
+  /** Which field the family was read from, matching db/212's CHECK exactly.
+   *  This said 'ats_department'; the column says 'department'. */
+  role_family_source?: 'department' | 'title' | null;
+  /** Seniority is only ever read from the title — tierFromTitle is the only
+   *  writer and no applicant system's level field is consulted — so the
+   *  'ats_level' this used to allow could never have been true. */
+  tier_source?: 'title' | null;
   /** Which population this row came from. See OpportunityKind. */
   kind: OpportunityKind;
   /** Present only on a pre-posting row. Null on every posted one. */
@@ -468,9 +495,11 @@ export interface KillRecord extends Kill {
   /** Nights this rule has fired on this posting. One finding, observed n times. */
   times_fired?: number;
   pipeline?: 'sweep' | 'crawl';
-  /** The design family and seniority the sweep tagged this killed posting with,
-   *  per the exporter field contract. Null until the exporter emits them. */
-  role_family?: RoleFamily | null;
+  /** The seniority the sweep placed this killed posting in (board_kills
+   *  carries derived_tier). There is deliberately NO family here: board_kills
+   *  has no derived_fam column, so a role_family on a kill could only ever be
+   *  null, and a field that can only be null is a promise the record cannot
+   *  keep. It was one until 2026-09-28. */
   tier?: RoleTier | null;
 }
 
@@ -2255,18 +2284,20 @@ export function facetsOf(job: Job): JobFacets {
 /**
  * The filter groups, derived from the rows themselves.
  *
- * Three groups, not the canvas's four. The canvas draws a "Role family" filter
- * and the data carries no role family: deriving one by reading job titles would
- * mean this repository inventing a classification and presenting it as the
- * machine's finding, which is the same objection that blocked the kill list's
- * reason taxonomy. The field is emitted upstream or the filter does not ship.
- * See DECISIONS.md.
+ * THE CANVAS'S FOURTH GROUP EXISTS NOW. This said "the data carries no role
+ * family", and that deriving one by reading job titles would mean inventing a
+ * classification and presenting it as the machine's finding. The objection was
+ * right and it was answered rather than ignored: src/lib/job-family.mjs is a
+ * table of word tests a reader can check, not a model, and db/212 stores its
+ * verdict in derived_fam beside the department it was read from. The SQL board
+ * offers it as Field (facetGroupsFromCounts). This static path still has three
+ * groups, because the design fixture it draws has no classifier behind it.
  *
- * Every option label describes exactly what the field holds. "Remote" means the
- * posting's own location text says remote, not merely that the board set a
- * remote flag: the flag disagrees with the words on more than half the board,
- * so the words win. See workplaceOf() and facetsOf() for the evidence-first
- * rule the filter and the per-row workplace label now share.
+ * Every option label describes exactly what the field holds. "Remote" means
+ * the employer said remote — in the location text, or in the applicant
+ * system's own flag, which is a different statement and not a competing guess
+ * (see workplaceOf). Hybrid and Not stated are their own answers rather than
+ * being folded into On-site.
  */
 /**
  * The same three groups, built from counts the store computed in SQL over the

@@ -24,7 +24,8 @@ import { FAMILY_IDS } from './job-family.mjs';
  * the ingest from board_kills (db/030, db/031).
  */
 const BOARD_COLUMNS = `j.id, j.slug, j.company, j.title, j.url, j.location, j.country, j.remote, j.published, j.ats,
-  j.posting_id, j.department, j.comp_posted, j.comp_range, j.days_up, j.first_seen, j.last_seen,
+  j.posting_id, j.department, j.derived_fam, j.derived_fam_source,
+  j.comp_posted, j.comp_range, j.days_up, j.first_seen, j.last_seen,
   j.detail_total, j.detail_components, j.source, j.description, j.status, j.kill_id`;
 
 /**
@@ -34,7 +35,8 @@ const BOARD_COLUMNS = `j.id, j.slug, j.company, j.title, j.url, j.location, j.co
  * this list would drift from it the first time a column was added.
  */
 export const BOARD_LIST_COLUMNS = `j.id, j.slug, j.company, j.title, j.url, j.location, j.country, j.remote, j.published, j.ats,
-  j.posting_id, j.department, j.comp_posted, j.comp_range, j.days_up, j.first_seen, j.last_seen,
+  j.posting_id, j.department, j.derived_fam, j.derived_fam_source,
+  j.comp_posted, j.comp_range, j.days_up, j.first_seen, j.last_seen,
   j.detail_total, j.detail_components, j.source, NULL::text AS description, j.status, j.kill_id`;
 
 /**
