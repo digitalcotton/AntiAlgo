@@ -29,7 +29,8 @@
     "routes:census": "node scripts/route-census.mjs",
     "db:test:reset": "node scripts/test-db.mjs reset",
     "db:test:seed": "node scripts/test-db.mjs seed",
-    "db:test:url": "node scripts/test-db.mjs url"
+    "db:test:url": "node scripts/test-db.mjs url",
+    "build:suggestions": "node scripts/build-search-suggestions.mjs"
   },
   "dependencies": {
     "@astrojs/vercel": "^9.0.5",

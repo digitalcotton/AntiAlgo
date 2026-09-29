@@ -1,4 +1,5 @@
 ---
+import SEARCH_SUGGESTIONS from '../data/search-suggestions.json';
 import type { FilterGroup } from '../lib/data';
 import { withBase } from '../../site.config.mjs';
 
@@ -168,12 +169,44 @@ const widest = (group: FilterGroup): string =>
         data-job-search
         name={serverMode ? 'q' : undefined}
         value={serverMode ? query : undefined}
-        placeholder="Title or company"
+        placeholder="Title, company or field"
         autocomplete="off"
+        list={serverMode ? 'board-suggest' : undefined}
         spellcheck="false"
         enterkeyhint="search"
       />
     </label>
+    {/*
+      THE SUGGESTIONS. A native datalist, so the browser draws and filters it
+      and there is no combobox to get wrong — this repo has already paid for a
+      custom one once (a dropdown press that blurred its own field in Safari
+      and Firefox; see the mousedown refusal below).
+
+      IT IS A SET OF SHORTCUTS, NOT A CATALOGUE, and must never be read as one:
+      22,978 of the board's 26,385 distinct titles occur exactly once, so no
+      fixed list can describe this corpus. What it does is meet the reader who
+      types "des" or "nurse" with phrases that actually return rows, on a
+      control that until now offered no vocabulary at all while the Field
+      select beside it offered a closed one.
+
+      The count on each option is what the SEARCH returns, not how many rows
+      carry that exact title. On this board those differ by two orders of
+      magnitude — "Software Engineer" is 12 rows by exact title and 1,276 by
+      search — and a suggestion that promises 12 and delivers 1,276 is worse
+      than none. Built by scripts/build-search-suggestions.mjs.
+
+      The 22 field names are in the list too, and they are the one kind of
+      entry that is not a search: board.astro resolves an exact field name to
+      the Field control instead (familyFromSearch), because "Healthcare &
+      Medicine" as a substring returns nothing.
+    */}
+    {serverMode && (
+      <datalist id="board-suggest">
+        {SEARCH_SUGGESTIONS.map((s) => (
+          <option value={s.t} label={s.k === 'f' ? `field · ${s.n.toLocaleString()}` : `${s.n.toLocaleString()}`} />
+        ))}
+      </datalist>
+    )}
     {/*
       THE TITLE MENU (owner decision, 2026-09-19). The board is never
       pre-filtered; instead a member who named titles on The Desk gets a

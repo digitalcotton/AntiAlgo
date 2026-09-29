@@ -88,6 +88,35 @@ export function familyLabel(id) {
 }
 
 /**
+ * The family a reader NAMED, as opposed to one the classifier derived.
+ *
+ * The search box is a substring match over title and company, so a reader who
+ * types the name of a field gets almost none of it: "Healthcare" returned 169
+ * rows against a Healthcare field of 4,430, and "Marketing" 583 against 868.
+ * Typing the name of a field is the most natural thing a person will do with a
+ * box that sits next to a control called Field, and it was the worst thing they
+ * could do.
+ *
+ * So a search that IS a field name is read as choosing that field. Exact match
+ * on the label only, case and surrounding space ignored — never a substring,
+ * because "design" must stay a search for the word design (676 rows across
+ * software, marketing and design) rather than being silently turned into the
+ * Design field (313). Only the whole label, which nobody types by accident.
+ *
+ * @param {string | null | undefined} q
+ * @returns {string | null} a family id, or null when the text names no field
+ */
+export function familyFromSearch(q) {
+  if (typeof q !== 'string') return null;
+  const wanted = q.trim().toLowerCase();
+  if (!wanted) return null;
+  for (const family of FAMILIES) {
+    if (family.label.toLowerCase() === wanted) return family.id;
+  }
+  return null;
+}
+
+/**
  * The rules, in precedence order. Each term is matched as a whole word against
  * a normalised string, so `art` does not match `smart` and `ops` does not match
  * `shops`.

@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
-import { familyOf, familyLabel, FAMILIES, FAMILY_IDS } from './job-family.mjs';
+import { familyOf, familyLabel, familyFromSearch, FAMILIES, FAMILY_IDS } from './job-family.mjs';
 
 describe('the family list', () => {
   it('has unique ids and a label for each', () => {
@@ -219,5 +219,53 @@ describe('the published contract names the same families the code does', () => {
     for (const file of ['schemas/kills.schema.json', 'schemas/kills-archive.schema.json']) {
       expect(readFileSync(file, 'utf8')).not.toContain('role_family');
     }
+  });
+});
+
+describe('familyFromSearch: a search that names a field chooses it', () => {
+  it('matches a whole label, case and space ignored', () => {
+    expect(familyFromSearch('Healthcare & Medicine')).toBe('health');
+    expect(familyFromSearch('  software engineering ')).toBe('software');
+    expect(familyFromSearch('DESIGN')).toBe('design');
+  });
+
+  it('never matches a substring, so a word stays a search', () => {
+    // "design" is the whole Design label, so it resolves. "designer" is not,
+    // and must stay a search for the word — the board holds 676 rows matching
+    // it across software, marketing and design against a Design field of 313.
+    expect(familyFromSearch('designer')).toBeNull();
+    expect(familyFromSearch('Healthcare')).toBeNull();
+    expect(familyFromSearch('nurse')).toBeNull();
+    expect(familyFromSearch('senior product designer')).toBeNull();
+  });
+
+  it('is null for nothing at all', () => {
+    expect(familyFromSearch('')).toBeNull();
+    expect(familyFromSearch('   ')).toBeNull();
+    expect(familyFromSearch(null)).toBeNull();
+    expect(familyFromSearch(undefined)).toBeNull();
+  });
+
+  it('every label resolves to its own id', () => {
+    for (const family of FAMILIES) expect(familyFromSearch(family.label)).toBe(family.id);
+  });
+});
+
+describe('the suggestion list', () => {
+  it('offers every field, and its ids are real', async () => {
+    const list = JSON.parse(readFileSync('src/data/search-suggestions.json', 'utf8')) as {
+      t: string; k: string; id?: string; n: number;
+    }[];
+    const fields = list.filter((e) => e.k === 'f');
+    expect(fields).toHaveLength(FAMILIES.length);
+    for (const f of fields) expect(FAMILY_IDS).toContain(f.id);
+    // Every field entry must be resolvable by the rule board.astro applies,
+    // or the option would run as a substring search and return nothing.
+    for (const f of fields) expect(familyFromSearch(f.t)).toBe(f.id);
+  });
+
+  it('stays small enough to inline', () => {
+    const bytes = readFileSync('src/data/search-suggestions.json').byteLength;
+    expect(bytes).toBeLessThan(24_000);
   });
 });
