@@ -113,7 +113,7 @@ function oldPasses(r: OldRow, s: Filters): boolean {
     const ok = s.watches.some((w) => {
       const def = GROUP_DEFS.find((g) => g.title === w.title);
       if (!def) return false;
-      if (!(def.tiers as readonly string[]).includes(r.tier || '')) return false;
+      if (def.tiers !== null && !(def.tiers as readonly string[]).includes(r.tier || '')) return false;
       if (def.fam !== null && r.fam !== def.fam) return false;
       // The title words, mirroring marks() and boardFacts' groupCase.
       const pattern = groupTitlePattern(def.words);
@@ -154,7 +154,11 @@ const CASES: { name: string; f: Filters }[] = [
   { name: 'remote only', f: { ...NO_FILTERS, where: 'remote only' } },
   { name: 'Senior, priced, 14 days', f: { ...NO_FILTERS, level: 'Senior', priced: 'priced', age: 14 } },
   { name: 'ashby with a pay floor', f: { ...NO_FILTERS, ats: 'ashby', floor: 200 } },
-  { name: 'a watched title group', f: { ...NO_FILTERS, watches: [{ title: 'Design Leadership', off: [] }] } },
+  // A big family and a small one: the parity oracle and the SQL must agree on
+  // both, and Healthcare is the case the old five design groups could never
+  // have exercised.
+  { name: 'a watched field', f: { ...NO_FILTERS, watches: [{ title: 'Healthcare & Medicine', off: [] }] } },
+  { name: 'a small watched field', f: { ...NO_FILTERS, watches: [{ title: 'Design', off: [] }] } },
   { name: 'clean issuers, in office', f: { ...NO_FILTERS, record: 'clean', where: 'in office' } }
 ];
 

@@ -24,7 +24,7 @@
 
 import { getBoardStats } from './job-store';
 import { liveAggregates, killAggregates, boardFacts, type Aggregates, type KillAggregates, type BoardFacts } from './jobs-data-agg';
-import { cacheKey, isUnfiltered, type Filters } from './jobs-data-filters';
+import { cacheKey, isUnfiltered, GROUP_DEFS, type Filters } from './jobs-data-filters';
 
 /** The most filter combinations held at once. Each is a few tens of kilobytes,
     so this is a bounded, small amount of memory per instance. */
@@ -119,7 +119,18 @@ async function build(f: Filters, stamp: string): Promise<JobsDataView> {
     .map((w) => index.find((t) => t.title === w.title))
     .filter((t): t is NonNullable<typeof t> => Boolean(t));
   const fams = [...new Set(watched.flatMap((t) => t.fams))];
-  const tiers = [...new Set(watched.flatMap((t) => t.tiers))];
+  // THE RESTRICTION, NOT THE OBSERVATION. This read the tiers the watched
+  // groups had been seen matching, which is not what the archive should be cut
+  // by: a group that restricts no seniority would hand over a list of the
+  // levels its rows happened to print, and every kill whose own tier is NULL
+  // (most of them) would fall outside it. Null here means "these groups do not
+  // narrow by seniority", which is true of all 22 families.
+  const defs = f.watches
+    .map((w) => GROUP_DEFS.find((g) => g.title === w.title))
+    .filter((g): g is NonNullable<typeof g> => Boolean(g));
+  const tiers = defs.some((g) => g.tiers === null)
+    ? null
+    : [...new Set(defs.flatMap((g) => [...(g.tiers ?? [])]))];
 
   const [live, kills] = await Promise.all([
     liveAggregates(f),

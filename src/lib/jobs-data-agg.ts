@@ -43,6 +43,25 @@ import { GROUP_DEFS, type Filters, groupTitlePattern } from './jobs-data-filters
     move under the reader between two cuts. */
 import { SENIORITY_LADDER } from './jobs-derived.mjs';
 
+/**
+ * The most matched titles a group ships to the browser.
+ *
+ * WHY THERE IS A CAP AT ALL. `variants` is the distinct titles a group matched,
+ * and it used to be ALL of them. That was survivable while the page watched
+ * five design groups holding 111 rows between them; the groups are the 22
+ * occupational families now and they cover 34,600 postings with roughly 24,000
+ * distinct titles, which is the whole board in the page's payload. The
+ * jobs-data-payload test caught it, which is what it is for, and this repo has
+ * already paid for the same mistake once (db/207, desk-agg.ts: /desk went from
+ * 6.72 MB to 121.4 KB per request by refusing to load a board into JS).
+ *
+ * The head is taken IN SQL, not in JS, so the rows never leave Postgres. The
+ * group's own total and its distinct-title count are aggregates and stay exact,
+ * so the page can say "the 40 commonest of 3,412" instead of implying the head
+ * is the list.
+ */
+const VARIANT_HEAD = 40;
+
 export const PAY_LO = 110;
 export const PAY_HI = 360;
 /** The longest standing time the kill-life axis draws, in days. */
@@ -166,7 +185,13 @@ function marks(f: Filters, b: Binder): Record<Dimension, string> {
     const parts = f.watches.map((w) => {
       const def = GROUP_DEFS.find((g) => g.title === w.title);
       if (!def) return 'FALSE';
-      const tests: string[] = [`j.derived_tier = ANY(${b.p(def.tiers.slice())})`];
+      // NULL TIERS MEANS EVERY SENIORITY, including the 79.6% of the board
+      // that prints no level word at all. A group that always applied a tier
+      // test would silently narrow "Healthcare & Medicine" to the senior fifth
+      // of healthcare; seniority is the `level` filter's job, where a reader
+      // can see it.
+      const tests: string[] = [];
+      if (def.tiers !== null) tests.push(`j.derived_tier = ANY(${b.p(def.tiers.slice())})`);
       if (def.fam !== null) tests.push(`j.derived_fam = ${b.p(def.fam)}`);
       // The title words, where the group has them. This MUST be applied here
       // and in boardFacts' groupCase together: applying it in one and not the
@@ -175,7 +200,10 @@ function marks(f: Filters, b: Binder): Record<Dimension, string> {
       const pattern = groupTitlePattern(def.words);
       if (pattern !== null) tests.push(`j.title ~* ${b.p(pattern)}`);
       if (w.off.length) tests.push(`NOT (j.title = ANY(${b.p(w.off)}))`);
-      return '(' + tests.join(' AND ') + ')';
+      // A group with no test at all would be TRUE, which reads as "the whole
+      // board", and that is exactly what watching a group that restricts
+      // nothing should mean.
+      return tests.length === 0 ? 'TRUE' : '(' + tests.join(' AND ') + ')';
     });
     m.watch = '(' + parts.join(' OR ') + ')';
   }
@@ -552,7 +580,13 @@ function rankIssuers(rows: any[]): IssuerAgg[] {
 export async function killAggregates(
   f: Filters,
   watchedFams: string[],
-  watchedTiers: string[]
+  /** The seniorities the watched groups RESTRICT to, or null where they put no
+   *  restriction on it — which is every group since the page became the 22
+   *  families. It used to be the tiers the groups had been OBSERVED matching,
+   *  and that is a different thing: derived_tier is NULL on most of the board,
+   *  NULL never satisfies `= ANY(...)`, so passing observed tiers would have
+   *  emptied the archive again through the back door this just closed. */
+  watchedTiers: string[] | null
 ): Promise<KillAggregates> {
   const b = new Binder();
   const parts = ["vacated_at IS NULL"];
@@ -572,7 +606,7 @@ export async function killAggregates(
     // is NULL everywhere and this behaves exactly as it did before, which is
     // why the migration is additive and safe to land ahead of the backfill.
     cutParts.push(`derived_fam = ANY(${b.p(watchedFams)})`);
-    cutParts.push(`derived_tier = ANY(${b.p(watchedTiers)})`);
+    if (watchedTiers !== null) cutParts.push(`derived_tier = ANY(${b.p(watchedTiers)})`);
   }
   if (f.level !== 'any') cutParts.push(`derived_tier = ${b.p(f.level)}`);
   const cut = cutParts.join(' AND ');
@@ -660,7 +694,8 @@ export async function boardFacts(): Promise<BoardFacts> {
   // The values interpolated here are repo constants, never reader input, and
   // jobs-data-filters.test.ts holds the words to [a-z ].
   const groupCase = GROUP_DEFS.map((g) => {
-    const tests = [`derived_tier = ANY(ARRAY[${g.tiers.map((t) => `'${t}'`).join(',')}])`];
+    const tests: string[] = [];
+    if (g.tiers !== null) tests.push(`derived_tier = ANY(ARRAY[${g.tiers.map((t) => `'${t}'`).join(',')}])`);
     if (g.fam !== null) tests.push(`derived_fam = '${g.fam}'`);
     const pattern = groupTitlePattern(g.words);
     if (pattern !== null) tests.push(`title ~* '${pattern}'`);
@@ -678,17 +713,28 @@ SELECT (SELECT count(*)::int FROM live) AS live_n,
        (SELECT count(*) FILTER (WHERE ats IS NULL OR ats = '')::int FROM live) AS custom_n,
        (SELECT COALESCE(json_agg(json_build_object('key', ats, 'n', n) ORDER BY n DESC, ats), '[]'::json)
           FROM (SELECT ats, count(*)::int AS n FROM live GROUP BY ats) a) AS ats_options,
-       (SELECT COALESCE(json_agg(json_build_object('grp', grp, 'title', title, 'n', n, 'fam', fam, 'tier', tier)), '[]'::json)
-          FROM (SELECT grp, title, fam, tier, count(*)::int AS n
-                  FROM grouped WHERE grp IS NOT NULL GROUP BY 1, 2, 3, 4) g) AS group_rows`);
+       (SELECT COALESCE(json_agg(json_build_object(
+                 'grp', grp, 'n', n, 'variants', variants, 'variant_total', variant_total,
+                 'fams', fams, 'tiers', tiers)), '[]'::json)
+          FROM (
+            SELECT t.grp, t.n, t.variant_total, t.fams, t.tiers,
+                   (SELECT COALESCE(json_agg(json_build_array(v.title, v.n) ORDER BY v.n DESC, v.title), '[]'::json)
+                      FROM (SELECT title, count(*)::int AS n
+                              FROM grouped WHERE grp = t.grp AND title IS NOT NULL
+                             GROUP BY title ORDER BY count(*) DESC, title
+                             LIMIT ${VARIANT_HEAD}) v) AS variants
+              FROM (SELECT grp,
+                           count(*)::int AS n,
+                           count(DISTINCT title)::int AS variant_total,
+                           COALESCE(array_agg(DISTINCT fam)  FILTER (WHERE fam  IS NOT NULL), '{}') AS fams,
+                           COALESCE(array_agg(DISTINCT tier) FILTER (WHERE tier IS NOT NULL), '{}') AS tiers
+                      FROM grouped WHERE grp IS NOT NULL GROUP BY grp) t
+          ) g) AS group_rows`);
 
   const r = rows[0] || {};
   const liveN = Number(r.live_n ?? 0);
-  const byGroup = new Map<string, any[]>();
-  for (const g of (r.group_rows || [])) {
-    if (!byGroup.has(g.grp)) byGroup.set(g.grp, []);
-    byGroup.get(g.grp)!.push(g);
-  }
+  const byGroup = new Map<string, any>();
+  for (const g of (r.group_rows || [])) byGroup.set(g.grp, g);
 
   return {
     liveN,
@@ -696,19 +742,17 @@ SELECT (SELECT count(*)::int FROM live) AS live_n,
     customLivePct: liveN ? Math.round((Number(r.custom_n ?? 0) / liveN) * 100) : 0,
     atsOptions: r.ats_options || [],
     titleIndex: GROUP_DEFS.map((def) => {
-      const rows2 = byGroup.get(def.title) || [];
-      const counts = new Map<string, number>();
-      const fams = new Set<string>();
-      const tiers = new Set<string>();
-      let n = 0;
-      for (const g of rows2) {
-        counts.set(g.title, (counts.get(g.title) || 0) + g.n);
-        if (g.fam) fams.add(g.fam);
-        if (g.tier) tiers.add(g.tier);
-        n += g.n;
-      }
-      const variants = [...counts.entries()].sort((a, b) => b[1] - a[1]) as [string, number][];
-      return { title: def.title, n, variants, fams: [...fams], tiers: [...tiers] };
+      const g = byGroup.get(def.title);
+      return {
+        title: def.title,
+        n: Number(g?.n ?? 0),
+        variants: ((g?.variants ?? []) as [string, number][]),
+        /** How many distinct titles the group actually matched, so the page can
+            say "40 of 3,412" rather than implying the head is the whole list. */
+        variantTotal: Number(g?.variant_total ?? 0),
+        fams: (g?.fams ?? []) as string[],
+        tiers: (g?.tiers ?? []) as string[]
+      };
     })
   };
 }
