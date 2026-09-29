@@ -31,7 +31,7 @@ describe('listBoardFiltered', () => {
     expect(pageSql).toContain('LIMIT $13 OFFSET $14');
     expect(pageSql).toContain('ORDER BY detail_total DESC, company ASC, title ASC, id ASC');
     expect(result.total).toBe(3);
-    expect(result.counts.location).toEqual({ all: 3, remote: 1, onsite: 2 });
+    expect(result.counts.location).toEqual({ all: 3, remote: 1, hybrid: 0, onsite: 2, unstated: 0 });
   });
   it('narrows to the watched titles by whole-phrase match, in count and page alike', async () => {
     await listBoardFiltered({ ...FILTER, titles: ['Product Designer'] });
@@ -91,8 +91,12 @@ describe('listBoardFiltered', () => {
   it('mirrors the TypeScript facet rules in SQL', async () => {
     await listBoardFiltered(FILTER);
     const sql = query.mock.calls[1][0] as string;
-    expect(sql).toContain(String.raw`j.location ~* '\yhybrid\y' THEN 'onsite'`);
-    expect(sql).toContain(String.raw`j.location ~* '\yremote\y' THEN 'remote'`);
+    // Four answers, and the remote flag is READ. A regression here is the
+    // 2,650-row hole this fixed: the text test alone filed every posting whose
+    // applicant system flagged it remote while naming a city as on-site.
+    expect(sql).toContain(String.raw`j.location ~* '\yhybrid\y' THEN 'hybrid'`);
+    expect(sql).toContain(String.raw`j.remote OR j.location ~* '\yremote\y' THEN 'remote'`);
+    expect(sql).toContain("btrim(j.location) = '' THEN 'unstated'");
     expect(sql).toContain("jsonb_typeof(j.comp_range->'min') IS DISTINCT FROM 'number'");
     expect(sql).toContain("(j.comp_range->>'min')::numeric < 150000 THEN 'under-150'");
     expect(sql).toContain("ELSE '300-plus'");

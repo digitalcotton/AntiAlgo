@@ -22,7 +22,13 @@ export const PER_PAGE_OPTIONS = [5, 10, 25, 50, 100] as const;
 export const DEFAULT_PER_PAGE = 5;
 export const QUERY_MAX_CHARS = 120;
 
-export const LOCATION_FACETS = ['all', 'remote', 'onsite'] as const;
+/** Where the work happens. `hybrid` and `unstated` were split out of `onsite`
+    on 2026-09-28 (see facet_location in job-store.ts): hybrid was being folded
+    into on-site by an explicit branch, and a row with no location at all was
+    being called an office. Appending them is safe for every link already in the
+    world — an address carrying `location=onsite` still reads as on-site, and
+    parseBoardQuery falls back to `all` for anything it does not recognise. */
+export const LOCATION_FACETS = ['all', 'remote', 'hybrid', 'onsite', 'unstated'] as const;
 export const FRESHNESS_FACETS = ['all', 'fresh', 'older', 'unknown'] as const;
 export const COMP_FACETS = ['all', ...COMP_BANDS.map((band) => band.key), 'not-listed'] as const;
 

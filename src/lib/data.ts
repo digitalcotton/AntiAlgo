@@ -2135,7 +2135,7 @@ export interface JobFacets {
    * workplace yet, so the Location filter cannot apply to it and JobTable
    * exempts it. Never used for a posting; a posting is one of the other two.
    */
-  location: 'remote' | 'onsite' | 'unknown';
+  location: 'remote' | 'hybrid' | 'onsite' | 'unstated' | 'unknown';
   /** A pay band key, or 'not-listed' where the board published no numbers. */
   comp: string;
   freshness: 'fresh' | 'older' | 'unknown';
@@ -2194,24 +2194,58 @@ export function compBandOf(job: Job): string | null {
   return band ? band.key : null;
 }
 
+/**
+ * The Location facet for one posting, drawn from workplaceOf() so the badge a
+ * reader sees on the row and the option they filtered by can never disagree.
+ * Null from workplaceOf means the posting named no place at all, which is
+ * 'unstated' rather than an office. The SQL board draws the same four lines in
+ * facet_location (job-store.ts); this is the static path, for /prelist and the
+ * design fixture.
+ */
+function locationFacetOf(job: Job): JobFacets['location'] {
+  switch (workplaceOf(job)) {
+    case 'Remote':
+      return 'remote';
+    case 'Hybrid':
+      return 'hybrid';
+    case 'On-site':
+      return 'onsite';
+    default:
+      return 'unstated';
+  }
+}
+
 export function facetsOf(job: Job): JobFacets {
   const age = ageOf(job);
   return {
-    // REMOTE MEANS THE POSTING SAYS REMOTE, NOT THAT A FLAG WAS SET. The board's
-    // own `remote` boolean is true on 37 of 63 postings whose location text names
-    // an office or a city ("SF Office", "New York"), so filtering on the flag put
-    // those under Remote, and a reader who chose Remote got a deskful of offices.
-    // The facet now agrees with workplaceOf(): a posting is 'remote' only where
-    // its own words say remote. Everything else, including a posting flagged
-    // remote whose location names a place, is 'onsite', the same set the
-    // "On-site or hybrid" option already hedges. See workplaceOf() for the rule.
+    // THE FLAG IS READ AGAIN (2026-09-28), REVERSING THE 2026-09-10 CALL.
+    // This used to say "remote means the posting SAYS remote, not that a flag
+    // was set", because the flag was true on 37 of the 63 fixture postings
+    // whose location text named an office, and trusting it gave a reader who
+    // chose Remote "a deskful of offices".
+    //
+    // That was decided on 63 static rows without asking the applicant system
+    // what its boolean meant. Asked now: Ashby's posting API returns
+    // isRemote:true for OpenAI's "Account Director, Startups", location
+    // "São Paulo". The flag is not our inference about the text, it is the
+    // employer's own answer to a different question — the text says where the
+    // office is, the flag says whether you have to be in it. Reading only the
+    // text was filing 2,650 live rows as on-site against their employer's
+    // word, and hiding 64% of the remote board.
+    //
+    // A reader who picks Remote still SEES the city, in the location column
+    // next to the Remote badge, so the office is never concealed — which was
+    // the real worry behind the original call.
+    //
+    // Hybrid and unstated are their own facets now rather than being swept
+    // into 'onsite'; workplaceOf() draws the same four lines.
     //
     // A COMPANY THAT HAS NOT POSTED YET HAS NO WORKPLACE. Until 2026-09-10 a
     // Pre-List row was 'onsite' by default, so a Location filter saved on the
     // Board ("Remote") carried over to Newly Funded and emptied it: 374 rows,
     // zero matches, and nothing on the page said why. 'unknown' is the honest
     // facet, and JobTable lets it through whatever Location is selected.
-    location: job.kind === 'pre_posting' ? 'unknown' : workplaceOf(job) === 'Remote' ? 'remote' : 'onsite',
+    location: job.kind === 'pre_posting' ? 'unknown' : locationFacetOf(job),
     comp: compBandOf(job) ?? 'not-listed',
     freshness: age === null ? 'unknown' : age.days <= FRESH_WINDOW_DAYS ? 'fresh' : 'older',
     stage: job.kind
@@ -2293,10 +2327,17 @@ export function facetGroupsFromCounts(
       {
         key: 'location',
         label: 'Location',
+        // FOUR ANSWERS, NOT TWO (2026-09-28). "On-site or hybrid" was one cell
+        // holding three different facts — an office, a split week, and a
+        // posting that named no place at all — because facet_location folded
+        // hybrid into onsite and swept every unstated row in after it. Each is
+        // now its own option, and keep() below drops any that no row carries.
         options: [
           { value: 'all', label: 'All', count: counts.location.all ?? 0 },
           { value: 'remote', label: 'Remote', count: counts.location.remote ?? 0 },
-          { value: 'onsite', label: 'On-site or hybrid', count: counts.location.onsite ?? 0 }
+          { value: 'hybrid', label: 'Hybrid', count: counts.location.hybrid ?? 0 },
+          { value: 'onsite', label: 'On-site', count: counts.location.onsite ?? 0 },
+          { value: 'unstated', label: 'Not stated', count: counts.location.unstated ?? 0 }
         ]
       },
       selected.location
@@ -2362,9 +2403,20 @@ export function filterGroups(jobs: readonly Job[]): FilterGroup[] {
       key: 'location',
       label: 'Location',
       options: [
+        // The same four answers the SQL board offers (facetGroupsFromCounts),
+        // so a reader moving between the two boards meets one vocabulary. An
+        // option no row carries is dropped rather than shown dead.
         { value: 'all', label: 'All', count: jobs.length },
-        { value: 'remote', label: 'Remote', count: count((facet) => facet.location === 'remote') },
-        { value: 'onsite', label: 'On-site or hybrid', count: count((facet) => facet.location === 'onsite') }
+        ...(
+          [
+            ['remote', 'Remote'],
+            ['hybrid', 'Hybrid'],
+            ['onsite', 'On-site'],
+            ['unstated', 'Not stated']
+          ] as const
+        )
+          .map(([value, label]) => ({ value, label, count: count((facet) => facet.location === value) }))
+          .filter((option) => option.count > 0)
       ]
     },
     {
@@ -2739,12 +2791,29 @@ export const atsLabel = (ats: string | null | undefined): string => {
  *   - not flagged remote, and the text names a place with no remote or hybrid
  *     word -> On-site. A physical location and no signal otherwise is the one
  *     reading the data supports.
- *   - flagged remote but the location names an office or city with no "remote"
- *     or "hybrid" word -> null. The flag and the text disagree and neither is
- *     explicit enough to win, so the row says nothing rather than pick one. A
- *     reliable answer for these would need a structured workplace field in
- *     the published files; the machine is frozen and none is coming, so
- *     silence is the honest label.
+ *   - flagged remote, and the location names a city -> Remote (2026-09-28).
+ *     THIS USED TO RETURN NULL, on the reasoning that the flag and the text
+ *     disagreed, that neither was explicit enough to win, and that a reliable
+ *     answer "would need a structured workplace field in the published files;
+ *     the machine is frozen and none is coming".
+ *
+ *     That last clause was wrong, and it is the whole reason this changed.
+ *     There IS a structured field and the crawl has been carrying it all
+ *     along: `remote` on the row is copied verbatim from the applicant
+ *     system's own boolean. Checked at the source rather than assumed —
+ *     Ashby's posting API returns isRemote:true for OpenAI's "Account
+ *     Director, Startups" with location "São Paulo", which is exactly the
+ *     shape this branch was calling a contradiction. It is not a
+ *     contradiction; it is an employer saying "this job is remote, and here
+ *     is the office it reports to".
+ *
+ *     So the flag is not a competing guess, it is the explicit statement the
+ *     comment above said was missing, and silence was costing 2,650 live rows
+ *     their workplace. The city still shows in the location column beside it.
+ *     Not every applicant system fills the field — Greenhouse, Workday,
+ *     Rippling and Personio only ever put it in the text, and Amazon and
+ *     USAJOBS fill neither — so the text test above stays and does the work
+ *     for them.
  *
  * A pre-posting row has no posting to describe and returns null, the same way
  * it renders no comp and no age.
@@ -2755,9 +2824,9 @@ export function workplaceOf(job: Job): Workplace | null {
   if (job.kind === 'pre_posting') return null;
   const text = typeof job.location === 'string' ? job.location : '';
   if (/\bhybrid\b/i.test(text)) return 'Hybrid';
-  if (/\bremote\b/i.test(text)) return 'Remote';
-  if (!job.remote) return 'On-site';
-  return null;
+  if (/\bremote\b/i.test(text) || job.remote) return 'Remote';
+  if (!text.trim()) return null;
+  return 'On-site';
 }
 
 // ---------------------------------------------------------------------------

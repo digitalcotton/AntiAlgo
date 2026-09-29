@@ -104,7 +104,7 @@ function countFacets(base: readonly Job[]): ProspectCounts {
 
   return {
     total: base.length,
-    location: tally((f) => f.location, ['remote', 'onsite']),
+    location: tally((f) => f.location, ['remote', 'hybrid', 'onsite', 'unstated']),
     comp: tally((f) => f.comp, [...COMP_BANDS.map((b) => b.key), 'not-listed']),
     freshness: tally((f) => f.freshness, ['fresh', 'older', 'unknown'])
   };

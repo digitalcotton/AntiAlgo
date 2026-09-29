@@ -217,8 +217,29 @@ WITH base AS (
          j.detail_total, j.detail_components, j.source, NULL::text AS description, j.status, j.kill_id,
          j.derived_fam, j.derived_fam_source,
          ${KILL_COLUMNS},
-         CASE WHEN j.location ~* '\\yhybrid\\y' THEN 'onsite'
-              WHEN j.location ~* '\\yremote\\y' THEN 'remote'
+         -- WHERE THE WORK HAPPENS. This read the location TEXT only, and the
+         -- text is not where most applicant systems put the answer: the crawl
+         -- already records the source's own structured flag in j.remote, and
+         -- 2,650 live rows carried it while naming a city, so they were filed
+         -- as on-site. The Remote filter was hiding 64% of the remote board
+         -- (1,469 shown of 4,177 real). Ashby, Breezy, Lever, iCIMS and
+         -- Teamtailor state it structurally; Greenhouse, Workday, Rippling and
+         -- Personio only ever put it in the text, where the regex still finds
+         -- it. Reading both is the only way to get one answer.
+         --
+         -- HYBRID IS ITS OWN ANSWER (2026-09-28). It was folded into 'onsite'
+         -- by an explicit first branch, so a reader who wanted hybrid could not
+         -- ask and a reader who wanted on-site was handed it anyway. It stays
+         -- FIRST, ahead of remote, because a posting that says hybrid and also
+         -- carries the remote flag is telling you the more specific of the two.
+         --
+         -- AND A MISSING LOCATION IS NOT AN OFFICE. 192 live rows carry no
+         -- location string at all; the bare ELSE was claiming them for a
+         -- place the employer never named. Same rule the family states for a
+         -- department it cannot read: the gap is shown as a gap.
+         CASE WHEN j.location ~* '\\yhybrid\\y' THEN 'hybrid'
+              WHEN j.remote OR j.location ~* '\\yremote\\y' THEN 'remote'
+              WHEN j.location IS NULL OR btrim(j.location) = '' THEN 'unstated'
               ELSE 'onsite' END AS facet_location,
          CASE WHEN jsonb_typeof(j.comp_range->'min') IS DISTINCT FROM 'number'
                 OR (j.comp_range->>'min')::numeric <= 0 THEN 'not-listed'
@@ -283,7 +304,9 @@ function facetCountSql(titleClause: string): string {
     `${on('match_q AND match_location AND match_comp AND match_freshness')} AS total`,
     `${on('match_q AND match_comp AND match_freshness')} AS location_all`,
     `${on('match_q AND match_comp AND match_freshness', " AND facet_location = 'remote'")} AS location_remote`,
+    `${on('match_q AND match_comp AND match_freshness', " AND facet_location = 'hybrid'")} AS location_hybrid`,
     `${on('match_q AND match_comp AND match_freshness', " AND facet_location = 'onsite'")} AS location_onsite`,
+    `${on('match_q AND match_comp AND match_freshness', " AND facet_location = 'unstated'")} AS location_unstated`,
     `${on('match_q AND match_location AND match_freshness')} AS comp_all`,
     ...COMP_BAND_SQL.map(
       (b) => `${on('match_q AND match_location AND match_freshness', ` AND facet_comp = '${b.key}'`)} AS "comp_${b.key}"`
@@ -361,7 +384,13 @@ export async function listBoardFiltered(opts: BoardFilter): Promise<BoardFiltere
   const c = countRows[0] ?? {};
   const counts: FacetCounts = {
     total: c.total ?? 0,
-    location: { all: c.location_all ?? 0, remote: c.location_remote ?? 0, onsite: c.location_onsite ?? 0 },
+    location: {
+      all: c.location_all ?? 0,
+      remote: c.location_remote ?? 0,
+      hybrid: c.location_hybrid ?? 0,
+      onsite: c.location_onsite ?? 0,
+      unstated: c.location_unstated ?? 0
+    },
     comp: Object.fromEntries([...COMP_BAND_SQL.map((b) => b.key), 'not-listed', 'all'].map((k) => [k, c[`comp_${k}`] ?? 0])),
     freshness: { all: c.freshness_all ?? 0, fresh: c.freshness_fresh ?? 0, older: c.freshness_older ?? 0, unknown: c.freshness_unknown ?? 0 },
     family: Object.fromEntries([

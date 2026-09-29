@@ -265,13 +265,50 @@ describe('locationDisplay(): drops the redundant home country, keeps everything 
   });
 });
 
+describe('workplaceOf reads the applicant system\'s own remote flag', () => {
+  // The 2026-09-28 reversal. This returned null for a posting flagged remote
+  // whose location named a city, on the reasoning that the flag and the text
+  // disagreed. They do not disagree: checked against Ashby's posting API, the
+  // flag is the employer's answer to "must you be in the office" and the text
+  // is where the office is. 2,650 live rows were being called on-site.
+  const posting = (over: Record<string, unknown>) =>
+    ({ kind: 'posted', slug: 's', company: 'c', title: 't', location: null, remote: false, ...over }) as never;
+
+  it('is Remote when the flag is set and the text names a city', async () => {
+    const { workplaceOf } = await import('./data');
+    expect(workplaceOf(posting({ location: 'São Paulo', remote: true }))).toBe('Remote');
+  });
+
+  it('still reads the text when no flag is set', async () => {
+    const { workplaceOf } = await import('./data');
+    expect(workplaceOf(posting({ location: 'Remote - US', remote: false }))).toBe('Remote');
+  });
+
+  it('lets hybrid win over the flag, because it is the more specific word', async () => {
+    const { workplaceOf } = await import('./data');
+    expect(workplaceOf(posting({ location: 'Berlin (hybrid)', remote: true }))).toBe('Hybrid');
+  });
+
+  it('is On-site for a place with no flag and no word', async () => {
+    const { workplaceOf } = await import('./data');
+    expect(workplaceOf(posting({ location: 'Kalamazoo, MI', remote: false }))).toBe('On-site');
+  });
+
+  it('says nothing at all when the employer named no place', async () => {
+    const { workplaceOf } = await import('./data');
+    expect(workplaceOf(posting({ location: '  ', remote: false }))).toBeNull();
+    expect(workplaceOf(posting({ location: null, remote: false }))).toBeNull();
+  });
+});
+
 describe('facetsOf location for a company that has not posted', () => {
   it('is unknown for a pre_posting row and never for a posting', async () => {
     const { facetsOf, prospectRows, verifiedJobs } = await import('./data');
     const prospects = prospectRows();
     expect(prospects.length).toBeGreaterThan(0);
     for (const row of prospects) expect(facetsOf(row).location).toBe('unknown');
-    for (const job of verifiedJobs()) expect(['remote', 'onsite']).toContain(facetsOf(job).location);
+    for (const job of verifiedJobs())
+      expect(['remote', 'hybrid', 'onsite', 'unstated']).toContain(facetsOf(job).location);
   });
 });
 
