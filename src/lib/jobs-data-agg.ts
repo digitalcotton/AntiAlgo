@@ -558,15 +558,24 @@ export async function killAggregates(
   const parts = ["vacated_at IS NULL"];
   const cutParts = ['TRUE'];
   if (f.watches.length > 0) {
-    // A kill carries no measured department under crawl coverage, so this is
-    // NULL for every archive row and the archive empties whenever a title is
-    // watched. That is the existing behaviour, reproduced rather than papered
-    // over: the fix is a department on the archive, not a looser test here.
-    cutParts.push(`derived_fam_placeholder = ANY(${b.p(watchedFams)})`);
+    // THE ARCHIVE HAS A FAMILY NOW (db/214). This read a column that did not
+    // exist and was rewritten to NULL::text a few lines below, so
+    // `NULL = ANY(...)` was never true and the archive emptied the moment any
+    // title was watched — under a panel the browser labelled "archive cut to
+    // your families". The comment here said the fix was "a department on the
+    // archive, not a looser test", and that is what db/214 is: board_kills
+    // carries derived_fam, read from the title by the same classifier the live
+    // rows use, because a kill has no department to prefer over it.
+    //
+    // A kill the classifier could not place is outside every chosen family, the
+    // same rule the live board states. On an un-backfilled database the column
+    // is NULL everywhere and this behaves exactly as it did before, which is
+    // why the migration is additive and safe to land ahead of the backfill.
+    cutParts.push(`derived_fam = ANY(${b.p(watchedFams)})`);
     cutParts.push(`derived_tier = ANY(${b.p(watchedTiers)})`);
   }
   if (f.level !== 'any') cutParts.push(`derived_tier = ${b.p(f.level)}`);
-  const cut = cutParts.join(' AND ').split('derived_fam_placeholder').join('NULL::text');
+  const cut = cutParts.join(' AND ');
 
   const churnDefs: [number, number][] = [[1, 1], [2, 2], [3, 3], [4, 5], [6, 9], [10, 15], [16, 28]];
   const lifeDays = "(killed_on::date - first_published::date)";
@@ -574,7 +583,7 @@ export async function killAggregates(
   const sql = `
 WITH standing AS (
   SELECT company, title, COALESCE(ats, '') AS ats, kill_rule, times_fired,
-         derived_tier, killed_on, first_published,
+         derived_tier, derived_fam, killed_on, first_published,
          CASE WHEN killed_on IS NOT NULL AND first_published IS NOT NULL
               THEN ${lifeDays} END AS life,
          (${cut}) AS pass

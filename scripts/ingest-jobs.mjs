@@ -551,12 +551,12 @@ try {
   const KILL_UPSERT = `
     INSERT INTO board_kills (id, slug, url, company, title, ats, kill_rule, reason, evidence, killed_on,
                              first_killed_at_utc, last_fired_on, times_fired, first_published, pipeline,
-                             derived_tier, vacated_at, updated_at)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16, NULL, now())
+                             derived_tier, derived_fam, vacated_at, updated_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, NULL, now())
     ON CONFLICT (id) DO UPDATE SET
       slug=$2, url=$3, company=$4, title=$5, ats=$6, kill_rule=$7, reason=$8, evidence=$9, killed_on=$10,
       first_killed_at_utc=$11, last_fired_on=$12, times_fired=$13, first_published=$14, pipeline=$15,
-      derived_tier=$16, vacated_at=NULL, updated_at=now()`;
+      derived_tier=$16, derived_fam=$17, vacated_at=NULL, updated_at=now()`;
   const killIds = [];
   for (const k of killRows) {
     if (!k.id || !k.url || !k.company || !k.title || !k.kill_rule || !k.reason) continue;
@@ -568,7 +568,11 @@ try {
       Number.isFinite(k.times_fired) ? k.times_fired : 1, k.first_published ?? null, k.pipeline || 'sweep',
       // Same definition as the live rows use, so a kill and a posting with the
       // same title are read at the same seniority.
-      tierFromTitle(cleanText(k.title))
+      tierFromTitle(cleanText(k.title)),
+      // And the same for the family (db/214). A kill carries no department, so
+      // this is the title-only branch of the classifier; null where it cannot
+      // place the title, which is a gap and not an "Other".
+      familyOf(null, cleanText(k.title))
     ]);
   }
   const vacated = await client.query(

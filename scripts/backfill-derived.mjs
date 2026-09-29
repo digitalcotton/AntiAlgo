@@ -28,6 +28,7 @@
  */
 import pg from 'pg';
 import { derivedFor, tierFromTitle, isMeasuredAts } from '../src/lib/jobs-derived.mjs';
+import { familyOf } from '../src/lib/job-family.mjs';
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(name);
@@ -125,13 +126,22 @@ process.stderr.write('\n');
     const holes = [];
     const params = [];
     slice.forEach((r, n) => {
-      holes.push(`($${n * 2 + 1},$${n * 2 + 2})`);
-      params.push(r.id, tierFromTitle(r.title));
+      holes.push(`($${n * 3 + 1},$${n * 3 + 2},$${n * 3 + 3})`);
+      // A kill has no department — board_kills holds the title and nothing
+      // else the classifier can read — so the family comes from the title
+      // alone, through the same function the live rows use (db/214). Expect
+      // more nulls here than on the board: a title places less than a title
+      // plus a department does.
+      params.push(r.id, tierFromTitle(r.title), familyOf(null, r.title));
     });
     const res = await client.query(
-      `UPDATE board_kills k SET derived_tier = v.derived_tier::text
-         FROM (VALUES ${holes.join(',')}) AS v(id, derived_tier)
-        WHERE k.id = v.id AND k.derived_tier IS DISTINCT FROM v.derived_tier::text`,
+      `UPDATE board_kills k SET
+         derived_tier = v.derived_tier::text,
+         derived_fam  = v.derived_fam::text
+         FROM (VALUES ${holes.join(',')}) AS v(id, derived_tier, derived_fam)
+        WHERE k.id = v.id
+          AND (k.derived_tier IS DISTINCT FROM v.derived_tier::text
+            OR k.derived_fam  IS DISTINCT FROM v.derived_fam::text)`,
       params
     );
     killsChanged += res.rowCount || 0;
