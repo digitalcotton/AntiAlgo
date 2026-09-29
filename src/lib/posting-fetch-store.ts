@@ -139,6 +139,7 @@ export interface PostingFetchRow {
   comp_posted: string | null;
   comp_min_k: number | null;
   comp_max_k: number | null;
+  comp_currency: string | null;
   fetched_at: Date | string | null;
   claimed_at: Date | string | null;
   completed_at: Date | string | null;
@@ -173,6 +174,7 @@ export interface StoredPostingFetch {
   compPosted: string | null;
   compMinK: number | null;
   compMaxK: number | null;
+  compCurrency: string | null;
   fetchedAt: Date | null;
   claimedAt: Date | null;
   completedAt: Date | null;
@@ -248,6 +250,7 @@ export function rowToStoredPostingFetch(row: PostingFetchRow): StoredPostingFetc
     compPosted: row.comp_posted ?? null,
     compMinK: row.comp_min_k ?? null,
     compMaxK: row.comp_max_k ?? null,
+    compCurrency: row.comp_currency ?? null,
     fetchedAt: row.fetched_at === null ? null : toDate(row.fetched_at),
     claimedAt: row.claimed_at === null ? null : toDate(row.claimed_at),
     completedAt: row.completed_at === null ? null : toDate(row.completed_at),
@@ -495,7 +498,10 @@ function factColumns(facts: Partial<PostingFacts> | undefined): Array<string | n
     f.employmentType ?? null,
     f.compPosted ?? null,
     f.compMinK ?? null,
-    f.compMaxK ?? null
+    f.compMaxK ?? null,
+    // The CHECK refuses a currency with no range to count, so it is dropped
+    // rather than stored whenever the numbers did not survive.
+    f.compMinK == null ? null : (f.compCurrency ?? null)
   ];
 }
 
@@ -510,7 +516,7 @@ export async function settlePostingFetch(id: string, input: SettleInput): Promis
             final_url = $8, http_status = $9, failure_code = $10, fetched_at = $11, completed_at = now(),
             machine_notes = $12,
             location = $13, country = $14, remote = $15, published = $16, department = $17,
-            employment_type = $18, comp_posted = $19, comp_min_k = $20, comp_max_k = $21
+            employment_type = $18, comp_posted = $19, comp_min_k = $20, comp_max_k = $21, comp_currency = $22
       WHERE id = $1 AND status = 'claimed'
       RETURNING *`,
     [

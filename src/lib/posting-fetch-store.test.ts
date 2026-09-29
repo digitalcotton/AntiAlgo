@@ -42,6 +42,7 @@ const ROW: PostingFetchRow = {
   comp_posted: null,
   comp_min_k: null,
   comp_max_k: null,
+  comp_currency: null,
   fetched_at: null,
   claimed_at: null,
   completed_at: null,

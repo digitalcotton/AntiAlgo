@@ -500,7 +500,11 @@ function jsonldFacts(item: Record<string, unknown>): Partial<PostingFacts> {
     published: posted && !Number.isNaN(posted.getTime()) ? posted.toISOString() : null,
     employmentType: text(typeof employment === 'string' ? employment : null, 200),
     compMinK: minK !== null && maxK !== null && minK <= maxK ? minK : null,
-    compMaxK: minK !== null && maxK !== null && minK <= maxK ? maxK : null
+    compMaxK: minK !== null && maxK !== null && minK <= maxK ? maxK : null,
+    compCurrency: minK !== null && maxK !== null && minK <= maxK
+      && typeof salary?.currency === 'string' && /^[A-Za-z]{3}$/.test(salary.currency.trim())
+      ? salary.currency.trim().toUpperCase()
+      : null
   };
 }
 

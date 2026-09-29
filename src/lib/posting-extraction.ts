@@ -94,6 +94,10 @@ export interface PostingFacts {
       case for a posting that says "competitive", and is not a failure. */
   compMinK: number | null;
   compMaxK: number | null;
+  /** ISO 4217, upper case, for the two numbers above. Without it `compShort()`
+      falls back to a dollar sign, so a EUR range would render as USD -- a
+      wrong number stated confidently. Null exactly when there is no range. */
+  compCurrency: string | null;
 }
 
 /** Every fact absent. The starting point for a reader whose source states
@@ -107,7 +111,8 @@ export const NO_FACTS: PostingFacts = {
   employmentType: null,
   compPosted: null,
   compMinK: null,
-  compMaxK: null
+  compMaxK: null,
+  compCurrency: null
 };
 
 export interface PostingExtraction extends PostingFacts {

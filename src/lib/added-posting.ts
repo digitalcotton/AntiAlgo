@@ -62,18 +62,49 @@ export function addedPostingToJob(row: StoredPostingFetch): Job {
     title: row.title,
     kind: 'posted',
     prospect: null,
-    comp_posted: null,
-    comp_range: null,
-    published_at: null,
-    location: 'Not stated',
-    remote: false,
+    // THE FACTS THE POSTING STATED (db/216, db/217). These were five hardcoded
+    // blanks until 2026-09-29, which is why an added posting rendered thinner
+    // than a board job carrying the same information from the same platform:
+    // the reader now has them, and this is a `Job` like any other, so every
+    // renderer downstream -- the summary line, the pay cell, the location --
+    // lights up without being told about added postings at all.
+    comp_posted: row.compPosted,
+    // Numbers only where a platform published numbers. `comp_range.min` is in
+    // whole currency units (compShort divides by a thousand), and the row
+    // stores thousands to match `jobs.comp_min_k`, so it is multiplied back.
+    // `interval` is stated as the year it was checked to be: nothing reaches
+    // this field unless the platform said annual.
+    comp_range: row.compMinK !== null && row.compMaxK !== null
+      ? {
+          min: row.compMinK * 1000,
+          max: row.compMaxK * 1000,
+          currency: row.compCurrency,
+          interval: 'YEAR',
+          source: 'ats'
+        }
+      : null,
+    published_at: row.published ? row.published.toISOString() : null,
+    // 'Not stated' is the right words for a posting that did not say, and now
+    // it is only ever used when that is actually true.
+    location: row.location ?? 'Not stated',
+    // `Job.remote` is a boolean and the row's is three-valued, so a posting
+    // that did not say becomes false here. That is the pre-existing shape of
+    // `Job`, not a claim this function is making: `row.remote` keeps the
+    // difference between "said no" and "did not say" for anything that asks.
+    remote: row.remote ?? false,
     source_system: 'custom',
     source_url: row.url,
     apply_url: row.url,
     first_observed: null,
     last_verified: verifiedAt.toISOString(),
-    published_date: null,
-    age_days: null,
+    published_date: row.published ? row.published.toISOString().slice(0, 10) : null,
+    // Days since the source published it. Derived rather than stored, because
+    // it is arithmetic on `published` against today and a stored copy goes
+    // stale the next morning. Null when the posting stated no date -- never 0,
+    // which would read as "posted today".
+    age_days: row.published
+      ? Math.max(0, Math.floor((Date.now() - row.published.getTime()) / 86_400_000))
+      : null,
     status: 'live',
     window: null,
     risk: 'LOW',

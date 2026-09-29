@@ -441,3 +441,23 @@ describe('compTop(): the comp sort key agrees with what the cell displays', () =
     }
   });
 });
+
+describe('compShortFromText: the "and" range', () => {
+  it('reads the range Apple states in a sentence', () => {
+    expect(compShortFromText('The base pay range for this role is between $113,200 and $201,100, and your base pay will depend on your skills.')).toBe('$113K-$201K');
+  });
+  it('never turns years of experience into a salary', () => {
+    // The reason "and" is not simply added to the separator list: the main
+    // pattern's currency symbol is optional, so a bare "5 and 10" would read
+    // as pay. The stricter pattern demands a symbol, which years never carry.
+    expect(compShortFromText('We are looking for between 5 and 10 years of experience.')).toBeNull();
+    expect(compShortFromText('You will manage 3 and 4 direct reports.')).toBeNull();
+  });
+  it('keeps the currency the employer wrote', () => {
+    expect(compShortFromText('The range is between £90,000 and £120,000 per year.')).toBe('£90K-£120K');
+  });
+  it('still prefers the ordinary dash and "to" forms', () => {
+    expect(compShortFromText('$175,000 - $263,300')).toBe('$175K-$263K');
+    expect(compShortFromText('$175,000 to $263,300')).toBe('$175K-$263K');
+  });
+});

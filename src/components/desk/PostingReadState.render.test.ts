@@ -10,7 +10,7 @@ function row(over: Partial<StoredPostingFetch> = {}): StoredPostingFetch {
     status: 'pending', origin: null, sourceKind: null, title: null, company: null, descriptionHtml: null,
     finalUrl: null, httpStatus: null, failureCode: null, fetchedAt: null, claimedAt: null, completedAt: null,
     location: null, country: null, remote: null, published: null, department: null,
-    employmentType: null, compPosted: null, compMinK: null, compMaxK: null,
+    employmentType: null, compPosted: null, compMinK: null, compMaxK: null, compCurrency: null,
     createdAt: new Date(T0), machineNotes: {}, ...over
   };
 }

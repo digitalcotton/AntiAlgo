@@ -242,7 +242,13 @@ export async function POST(context: APIContext): Promise<Response> {
             httpStatus: read.httpStatus,
             failureCode: null,
             fetchedAt: new Date(),
-            machineNotes: { reader: 'site' }
+            machineNotes: { reader: 'site' },
+            // The facts the posting stated. `PostingExtraction` extends
+            // `PostingFacts`, so the extraction IS the facts plus the title,
+            // company and body -- passing it whole means a field added to
+            // `PostingFacts` reaches the row without this call site changing
+            // again, and `factColumns` picks out the nine it stores.
+            facts: read.extraction
           })
         : null;
 

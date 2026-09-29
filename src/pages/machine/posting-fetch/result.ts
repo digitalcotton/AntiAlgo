@@ -107,7 +107,11 @@ function factsFrom(body: Record<string, unknown>): Partial<PostingFacts> {
     employmentType: text(body.employment_type, 200),
     compPosted: text(body.comp_posted, 1000),
     compMinK,
-    compMaxK
+    compMaxK,
+    compCurrency: compMinK === null ? null
+      : (typeof body.comp_currency === 'string' && /^[A-Za-z]{3}$/.test(body.comp_currency.trim())
+        ? body.comp_currency.trim().toUpperCase()
+        : null)
   };
 }
 

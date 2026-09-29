@@ -146,17 +146,53 @@ const backToListing = boardReturnLink(Astro.request.headers.get('referer'), Astr
 const postingAction = routeFor('desk-posting');
 const statusUrl = `${jobDraftPath(slug)}/status`;
 const host = fetchRow ? hostnameOf(fetchRow.url) : '';
+/** The pay for an added posting, through the board's own reader so the two
+    pages never disagree about the same numbers. */
+const addedPay = fetchRow && job ? compShort(job) : null;
 // A notice the posting route sent back with the redirect (an incomplete paste).
 const noticeKey = Astro.url.searchParams.get('posting');
 const noticeText = noticeKey ? (POSTING_NOTICES[noticeKey] ?? null) : null;
 
-// The added page's facts: what the row holds and where it came from. Never a
-// posted date, a location or a source system: the page did not read those, and
-// "Not stated" would claim a reading that never happened.
+/**
+ * The added page's facts: what the row holds and where it came from.
+ *
+ * THIS LIST USED TO SAY IT COULD NEVER CARRY A LOCATION OR A POSTED DATE,
+ * because "the page did not read those, and 'Not stated' would claim a reading
+ * that never happened". True until 2026-09-29, when the readers started
+ * keeping the facts their payloads had always contained (db/216, db/217). The
+ * reasoning still holds and is what shapes the code below: a fact is printed
+ * only when the row actually has one.
+ *
+ * ABSENT FACTS ARE OMITTED, NOT PRINTED AS "Not stated". A row settled before
+ * those migrations has nulls because nothing looked; a row settled after has
+ * nulls because the source stayed silent. The page cannot tell those apart and
+ * must not claim the second, so a missing fact simply does not appear. Title
+ * and Company keep their `absence` wording, because those two were always read
+ * and a blank there really does mean the page had none.
+ */
+const statedFacts: KeyValueRow[] = fetchRow
+  ? ([
+      fetchRow.location ? { key: 'Location', value: fetchRow.location } : null,
+      fetchRow.remote === true ? { key: 'Remote', value: 'Yes, as posted' } : null,
+      fetchRow.department ? { key: 'Team', value: fetchRow.department } : null,
+      fetchRow.employmentType ? { key: 'Employment', value: fetchRow.employmentType } : null,
+      fetchRow.published
+        ? { key: 'Posted', value: formatDate(fetchRow.published.toISOString().slice(0, 10)) }
+        : null,
+      // The pay a person sees: the structured range where the platform gave
+      // one, and otherwise the employer's own sentence read for a figure by
+      // compShort's documented, display-only fallback. Both come through the
+      // same Job the board renders, so this row says exactly what the board
+      // would say about the same posting.
+      addedPay ? { key: 'Pay', value: addedPay } : null
+    ].filter(Boolean) as KeyValueRow[])
+  : [];
+
 const addedFacts: KeyValueRow[] = fetchRow
   ? [
       { key: 'Title', value: fetchRow.title, absence: 'Not found on the page' },
       { key: 'Company', value: fetchRow.company, absence: 'Not found on the page' },
+      ...statedFacts,
       { key: 'Source', value: host },
       { key: 'Added', value: formatDate(fetchRow.createdAt.toISOString().slice(0, 10)) },
       fetchRow.origin === 'pasted'

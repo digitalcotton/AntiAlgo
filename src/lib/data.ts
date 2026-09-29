@@ -1919,7 +1919,23 @@ export function compShortFromText(text: string | null): string | null {
   const NUM = '(\\d[\\d,]*(?:\\.\\d+)?)';
   const SYM = '([$\\u20AC\\u00A3])?';
   const pattern = new RegExp(`${SYM}\\s?${NUM}\\s?(k)?\\s?${SEP}\\s?${SYM}\\s?${NUM}\\s?(k)?\\s?(USD|CAD|AUD|EUR|GBP)?`, 'i');
-  const match = pattern.exec(text);
+  /*
+   * A SECOND, STRICTER ATTEMPT FOR THE EMPLOYERS WHO WRITE "and".
+   *
+   * Apple states its range as "The base pay range for this role is between
+   * $113,200 and $201,100" -- a real range, in a real posting, that the
+   * separators above do not recognise, so the pay cell sat empty on a posting
+   * that plainly states its pay.
+   *
+   * "and" is NOT added to SEP, because SEP's currency symbol is optional and a
+   * posting saying "between 5 and 10 years of experience" would then render as
+   * "$5K-$10K" -- prose turned into a wrong salary, which is the whole reason
+   * this file avoids reading numbers out of sentences. This pattern demands a
+   * currency symbol or code on the FIRST number, which years of experience
+   * never carry, so it can only match something an employer wrote as money.
+   */
+  const AND = new RegExp(`([$\\u20AC\\u00A3])\\s?${NUM}\\s?(k)?\\s+and\\s+${SYM}\\s?${NUM}\\s?(k)?\\s?(USD|CAD|AUD|EUR|GBP)?`, 'i');
+  const match = pattern.exec(text) ?? AND.exec(text);
   if (!match) return null;
   const scale = (raw: string, k?: string): number => {
     const value = Number(raw.replace(/,/g, ''));

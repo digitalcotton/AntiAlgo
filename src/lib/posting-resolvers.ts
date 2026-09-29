@@ -360,13 +360,16 @@ function thousands(value: unknown): number | null {
 
 /** A pair, or nothing. Refuses a half-range and a backwards one, the same two
     things db/216's CHECK refuses, so a bad parse never reaches the insert. */
-function compPair(min: unknown, max: unknown): Pick<PostingFacts, 'compMinK' | 'compMaxK'> {
+function compPair(min: unknown, max: unknown, currency?: unknown): Pick<PostingFacts, 'compMinK' | 'compMaxK' | 'compCurrency'> {
   const compMinK = thousands(min);
   const compMaxK = thousands(max);
   if (compMinK === null || compMaxK === null || compMinK > compMaxK) {
-    return { compMinK: null, compMaxK: null };
+    return { compMinK: null, compMaxK: null, compCurrency: null };
   }
-  return { compMinK, compMaxK };
+  const code = typeof currency === 'string' && /^[A-Za-z]{3}$/.test(currency.trim())
+    ? currency.trim().toUpperCase()
+    : null;
+  return { compMinK, compMaxK, compCurrency: code };
 }
 
 /** True when a platform's interval string means "per year". Written as an
@@ -520,7 +523,7 @@ function parseGreenhouse(body: string, sourceUrl: string): Extraction | FailureC
     published: factDate(json.first_published),
     department: fact(firstDepartment?.name),
     compPosted: fact(isRecord(pay) ? (pay.title ?? null) : null, 1000),
-    ...compPair(isRecord(pay) ? pay.min_cents : null, isRecord(pay) ? pay.max_cents : null)
+    ...compPair(isRecord(pay) ? pay.min_cents : null, isRecord(pay) ? pay.max_cents : null, isRecord(pay) ? pay.currency_type : null)
   });
 }
 
@@ -561,7 +564,7 @@ function ashbyFacts(job: Record<string, unknown>): Partial<PostingFacts> {
     department: fact(job.department),
     employmentType: fact(job.employmentType),
     compPosted: fact(comp?.compensationTierSummary ?? comp?.scrapeableCompensationSalarySummary, 1000),
-    ...compPair(isRecord(salary) ? salary.minValue : null, isRecord(salary) ? salary.maxValue : null)
+    ...compPair(isRecord(salary) ? salary.minValue : null, isRecord(salary) ? salary.maxValue : null, isRecord(salary) ? salary.currencyCode : null)
   };
 }
 
@@ -612,7 +615,7 @@ function parseLever(body: string, sourceUrl: string): Extraction | FailureCode {
     department: fact(categories?.department),
     employmentType: fact(categories?.commitment, 200),
     compPosted: fact(json.salaryDescriptionPlain ?? json.salaryDescription, 1000),
-    ...compPair(annual?.min, annual?.max)
+    ...compPair(annual?.min, annual?.max, annual?.currency)
   });
 }
 
@@ -646,7 +649,7 @@ function workableFacts(json: Record<string, unknown>): Partial<PostingFacts> {
     published: factDate(json.published_on ?? json.created_at),
     department: fact(json.department),
     employmentType: fact(json.employment_type, 200),
-    ...compPair(annual?.salary_from, annual?.salary_to)
+    ...compPair(annual?.salary_from, annual?.salary_to, annual?.salary_currency ?? json.salary_currency)
   };
 }
 
@@ -708,7 +711,7 @@ function parseRippling(body: string, sourceUrl: string): Extraction | FailureCod
     published: factDate(json.createdOn),
     department: fact(department),
     employmentType: fact(employment, 200),
-    ...compPair(annual?.rangeStart, annual?.rangeEnd)
+    ...compPair(annual?.rangeStart, annual?.rangeEnd, annual?.currency)
   });
 }
 
