@@ -94,11 +94,11 @@
 import type { FailureCode, SourceKind } from './posting-fetch-store';
 import { DESCRIPTION_MAX_CHARS, NAME_MAX_CHARS } from './posting-fetch-store';
 
-/** The six board systems this pass reads through their own JSON API. Kept as
-    a subset of the store's own `SourceKind` rather than a fresh literal
-    union, so a source kind this file can produce is always one the store
-    already knows how to persist. */
-export type ResolverKind = Extract<SourceKind, 'greenhouse' | 'ashby' | 'lever' | 'workable' | 'rippling' | 'workday'>;
+/** The board systems this file reads through their own endpoint, plus the one
+    employer (Apple) that runs its own. Kept as a subset of the store's own
+    `SourceKind` rather than a fresh literal union, so a source kind this file
+    can produce is always one the store already knows how to persist. */
+export type ResolverKind = Extract<SourceKind, 'greenhouse' | 'ashby' | 'lever' | 'workable' | 'rippling' | 'workday' | 'apple'>;
 
 /** The shape both readers produce, declared once in posting-extraction.ts —
     see that file's header for why it does not live in either reader. Re-exported
@@ -227,6 +227,22 @@ export function resolvePosting(url: string): Resolved | null {
       api: `https://api.rippling.com/platform/api/ats/v1/board/${org}/jobs/${segs[2].toLowerCase()}`,
       parse: (body) => parseRippling(body, url),
       companyHint: companyHintFor(org)
+    };
+  }
+
+  // Apple: jobs.apple.com/<locale>/details/<jobNumber>[/<slug>]. The one
+  // employer in this file rather than a board system, and the one resolver
+  // whose `api` is the pasted page itself rather than a JSON endpoint -- see
+  // `parseApple` for why that is the right call and not a shortcut. The
+  // pasted URL is used verbatim: the slug-less form 301s, and a hop is a
+  // third of the inline read's whole budget.
+  if (host === 'jobs.apple.com' && segs.length >= 3 && segs[1] === 'details'
+      && /^[a-z]{2}-[a-z]{2}$/.test(segs[0]) && /^\d{6,}(?:-\d+)?$/.test(segs[2])) {
+    return {
+      kind: 'apple',
+      api: url,
+      parse: (body) => parseApple(body, url),
+      companyHint: 'Apple'
     };
   }
 
@@ -510,4 +526,162 @@ function parseWorkday(body: string, sourceUrl: string): Extraction | FailureCode
   if (!isRecord(info) || !info.title) return 'no_content';
   const description = typeof info.jobDescription === 'string' ? info.jobDescription : null;
   return buildExtraction('workday', info.title, null, description, sourceUrl);
+}
+
+/**
+ * Apple, read out of the page's own hydration blob.
+ *
+ * WHY APPLE IS IN A FILE ABOUT BOARD SYSTEMS. It is not a board system; it is
+ * one employer big enough to be worth an adapter, and it is here rather than in
+ * posting-extract.ts because that file's header says every employer- and
+ * ATS-specific parser belongs on this side of the seam. The URL shape above is
+ * recognised the same way every other resolver's is, and the extraction it
+ * produces is the same shape. Only the transport differs.
+ *
+ * WHY `api` IS THE PAGE AND NOT A JSON ENDPOINT. There is no public JSON
+ * endpoint: /api/role/detail/<id> 301s to Apple's page-not-found. What there is
+ * instead is a server-rendered React Router payload, `window.
+ * __staticRouterHydrationData`, carrying the whole posting in the FIRST
+ * response — title, body, responsibilities, both qualification lists, the
+ * posting date, the locations. So one plain GET is enough and no browser is
+ * needed, which is the entire point: this is the layer that exists so the
+ * common case does not go to the queue.
+ *
+ * WHY THE GENERIC EXTRACTOR CANNOT DO IT. That reader parses `<script>` bodies
+ * as raw, undecoded text and never looks inside them, deliberately, and Apple
+ * publishes no JSON-LD `JobPosting`. Strip the scripts and the whole page is
+ * about three thousand characters of Apple's nav and its EEO footer, all of it
+ * inside tags the extractor skips — so it returned 'no_content' on every Apple
+ * link a member ever pasted, and the mini's browser tail was the only thing
+ * standing between that and a dead read.
+ *
+ * THE FIVE FIELDS ARE PROSE, NOT MARKUP, AND ARE WRAPPED DIFFERENTLY. Apple
+ * ships them as plain text. `jobSummary` and `description` are hard-wrapped at
+ * about eighty-five columns with real paragraph breaks between, so a single
+ * newline there is a wrap to join and a blank line is a paragraph; the three
+ * list fields put one whole item per line and are not wrapped at all, so a
+ * newline there is an item. Getting that backwards would either run every
+ * bullet into one paragraph or break every sentence into its own bullet, which
+ * is why the two shapes are rendered by two functions rather than one. Every
+ * piece is escaped on the way in: it is prose from a page on the internet, and
+ * `parseLever` sets the same precedent for the same reason.
+ *
+ * THE HEADINGS COME FROM THE PAYLOAD. `jobsData.translations[selectedLocale]`
+ * carries Apple's own label for each section, so a de-de posting gets German
+ * headings over German prose instead of English ones. The English text below is
+ * the fallback for a payload that stops carrying them, not the normal path.
+ *
+ * WHAT IS LEFT OUT. `postingFooters` holds the pay range and Apple's EEO and
+ * accommodation boilerplate as HTML. The pay range is worth having and
+ * `Extraction` has nowhere to put it (the same wall `parseWorkday`'s startDate
+ * hit); the boilerplate is exactly the chrome every other reader in this
+ * codebase works to exclude, and it would end up quoted back at Apple through
+ * `tailor.ts`. Both are dropped together rather than taking the legal text to
+ * get the number. Add a field to `Extraction` if the range is ever wanted.
+ */
+function parseApple(body: string, sourceUrl: string): Extraction | FailureCode {
+  const data = appleJobsData(appleHydrationData(body));
+  if (!data) return 'no_content';
+
+  const label = appleLabels(data);
+  const parts: string[] = [];
+  for (const [field, key, fallback, shape] of APPLE_SECTIONS) {
+    const value = data[field];
+    if (typeof value !== 'string' || !value.trim()) continue;
+    const rendered = shape === 'prose' ? appleProse(value) : appleList(value);
+    if (rendered) parts.push(`<h3>${escapeHtml(label(key, fallback))}</h3>${rendered}`);
+  }
+
+  const description = parts.join('\n') || null;
+  // Company is deliberately left for `companyHint`: the payload never names the
+  // employer, because on Apple's own job site there is only one.
+  return buildExtraction('apple', data.postingTitle, null, description, sourceUrl);
+}
+
+/** The posting's sections in the order Apple's own page shows them, each with
+    the translation key for its heading, the English fallback, and which of the
+    two wrappings its text takes. */
+const APPLE_SECTIONS: ReadonlyArray<readonly [string, string, string, 'prose' | 'list']> = [
+  ['jobSummary', 'jobsite.jobdetails.summary', 'Summary', 'prose'],
+  ['description', 'jobsite.jobdetails.description', 'Description', 'prose'],
+  ['responsibilities', 'jobsite.jobdetails.responsibilities', 'Responsibilities', 'list'],
+  ['minimumQualifications', 'jobsite.jobdetails.minimumQualifications', 'Minimum Qualifications', 'list'],
+  ['preferredQualifications', 'jobsite.jobdetails.preferredQualifications', 'Preferred Qualifications', 'list']
+];
+
+/**
+ * The object behind `window.__staticRouterHydrationData = JSON.parse("...")`,
+ * or null.
+ *
+ * Two decodes, because the page holds two encodings: a JavaScript string
+ * literal whose contents are JSON. The literal is walked a character at a time
+ * rather than matched with a regular expression, because a posting that
+ * contains a quotation mark carries a `\"` and a lazy `"(.*?)"` would stop on
+ * it and hand back a truncated document. Nothing here evaluates the script; it
+ * is read as the two pieces of data it is.
+ */
+function appleHydrationData(body: string): unknown {
+  const marker = body.indexOf('window.__staticRouterHydrationData');
+  if (marker < 0) return null;
+  const open = body.indexOf('JSON.parse("', marker);
+  if (open < 0) return null;
+
+  let at = open + 'JSON.parse("'.length;
+  const start = at;
+  for (; at < body.length; at += 1) {
+    const ch = body[at];
+    if (ch === '\\') { at += 1; continue; }
+    if (ch === '"') break;
+  }
+  if (at >= body.length) return null;
+
+  try {
+    return JSON.parse(JSON.parse(`"${body.slice(start, at)}"`) as string);
+  } catch {
+    return null;
+  }
+}
+
+/** The posting inside that payload. `loaderData` is keyed by route id, so the
+    route is found by the shape of what it carries rather than by its name --
+    one rename on Apple's side should not cost us the read. */
+function appleJobsData(json: unknown): Record<string, unknown> | null {
+  const loader = isRecord(json) ? json.loaderData : null;
+  if (!isRecord(loader)) return null;
+  for (const route of Object.values(loader)) {
+    const data = isRecord(route) ? route.jobsData : null;
+    if (isRecord(data) && typeof data.postingTitle === 'string' && data.postingTitle.trim()) return data;
+  }
+  return null;
+}
+
+/** Apple's own label for a section heading, in the posting's own locale, with
+    the English wording as the fallback. */
+function appleLabels(data: Record<string, unknown>): (key: string, fallback: string) => string {
+  const all = isRecord(data.translations) ? data.translations : null;
+  const locale = typeof data.selectedLocale === 'string' ? data.selectedLocale : '';
+  const table = all && isRecord(all[locale]) ? (all[locale] as Record<string, unknown>) : null;
+  return (key, fallback) => {
+    const value = table ? table[key] : null;
+    return typeof value === 'string' && value.trim() ? value : fallback;
+  };
+}
+
+/** Hard-wrapped prose: a blank line starts a paragraph, a single newline is a
+    wrap to undo. */
+function appleProse(value: string): string | null {
+  const paragraphs = value
+    .split(/\n[ \t]*\n+/)
+    .map((para) => escapeHtml(para.replace(/\s*\n\s*/g, ' ').trim()))
+    .filter(Boolean);
+  return paragraphs.length ? paragraphs.map((para) => `<p>${para}</p>`).join('') : null;
+}
+
+/** One item per line, not wrapped. */
+function appleList(value: string): string | null {
+  const items = value
+    .split(/\n+/)
+    .map((line) => escapeHtml(line.trim()))
+    .filter(Boolean);
+  return items.length ? `<ul>${items.map((item) => `<li>${item}</li>`).join('')}</ul>` : null;
 }

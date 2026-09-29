@@ -7,7 +7,7 @@
  * three readers it calls.
  */
 import { describe, expect, it } from 'vitest';
-import { readPostingNow, MAX_BYTES } from './posting-read';
+import { readPostingNow, MAX_BYTES, REQUEST_TIMEOUT_MS, type FetchLike } from './posting-read';
 
 /** Every host resolves to one ordinary public address unless a test says
     otherwise. The guard has its own suite; here it is a collaborator. */
@@ -223,4 +223,100 @@ describe('readPostingNow: the refusals', () => {
     if (result.ok) return;
     expect(result.failureCode).toBe('fetch_error');
   });
+});
+
+describe('readPostingNow: apple, the one resolver whose endpoint is the page', () => {
+  const APPLE_URL = 'https://jobs.apple.com/en-us/details/200680033-0670/product-designer-design-systems?team=DESGN';
+
+  /** Apple's own encoding: a JavaScript string literal holding JSON. */
+  function applePage(jobsData: unknown): string {
+    const payload = JSON.stringify({ loaderData: { jobDetails: { jobsData } } });
+    return `<!doctype html><html><head><title>Jobs at Apple</title></head><body><nav>Apple nav</nav>`
+      + `<script nonce="abc">window.__staticRouterHydrationData = JSON.parse(${JSON.stringify(payload)});</script>`
+      + `<footer>Apple is an equal opportunity employer.</footer></body></html>`;
+  }
+
+  const page = applePage({
+    postingTitle: 'Product Designer, Design Systems',
+    description: 'The Services Design Systems team is seeking an experienced systems designer to shape\nour Media Tools design system.',
+    responsibilities: 'Design, build, and maintain design system components.',
+    selectedLocale: 'en_US',
+    translations: {}
+  });
+
+  it('settles on the first response, with no second request and no browser', async () => {
+    const { impl, calls } = fakeFetch({ [APPLE_URL]: { body: page, headers: { 'content-type': 'text/html' } } });
+
+    const result = await readPostingNow(APPLE_URL, { fetchImpl: impl, resolver: publicResolver });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.via).toBe('resolver');
+    expect(result.extraction.kind).toBe('apple');
+    expect(result.extraction.title).toBe('Product Designer, Design Systems');
+    // No company on the payload; the hint is what a person sees.
+    expect(result.extraction.company).toBe('Apple');
+    expect(result.extraction.descriptionHtml).toContain('Media Tools design system');
+    // One request. The whole point: this is the page, so there is no page read
+    // to follow it, and the mini is never woken.
+    expect(calls).toEqual([APPLE_URL]);
+  });
+
+  it('sanitises the body it builds, the same as every other resolver path', async () => {
+    const hostile = applePage({
+      postingTitle: 'A role',
+      description: 'Ship it.',
+      responsibilities: 'Handle <img src=x onerror=alert(1)> carefully, and mind the deadline.'
+    });
+    const { impl } = fakeFetch({ [APPLE_URL]: { body: hostile, headers: { 'content-type': 'text/html' } } });
+
+    const result = await readPostingNow(APPLE_URL, { fetchImpl: impl, resolver: publicResolver });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // The tag never becomes a tag: the parser escapes Apple's prose on the way
+    // in, so what arrives is text that READS like markup and is inert. The
+    // assertion is about the angle brackets, not the word, because the word
+    // itself is allowed to be in a posting.
+    expect(result.extraction.descriptionHtml).not.toContain('<img');
+    expect(result.extraction.descriptionHtml).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(result.extraction.descriptionHtml).toContain('mind the deadline');
+  });
+
+  it('falls through to the mini when Apple stops carrying the blob, and never refetches the same page to find out', async () => {
+    const shell = '<!doctype html><html><body><nav>Apple nav</nav><div id="jobdetails-wrapper"></div></body></html>';
+    const { impl, calls } = fakeFetch({ [APPLE_URL]: { body: shell, headers: { 'content-type': 'text/html' } } });
+
+    const result = await readPostingNow(APPLE_URL, { fetchImpl: impl, resolver: publicResolver });
+
+    // The read fails and desk/posting.ts queues it for the mini's browser --
+    // but on ONE request. The page branch would have fetched this same
+    // address a second time for bytes it already had.
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failureCode).toBe('no_content');
+    expect(calls).toEqual([APPLE_URL]);
+  });
+
+  it('gives the sole request the whole budget instead of the per-request ceiling', async () => {
+    // Apple's own server sits near the budget: a page that answers after the
+    // per-request ceiling but inside the budget used to fail twice over, once
+    // in each branch. Now there is one request and it may use the lot.
+    const slow: FetchLike = async (url, init) => {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(resolve, REQUEST_TIMEOUT_MS + 500);
+        init.signal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(Object.assign(new Error('aborted'), { name: 'TimeoutError' }));
+        });
+      });
+      return new Response(page, { status: 200, headers: { 'content-type': 'text/html' } });
+    };
+
+    const result = await readPostingNow(APPLE_URL, { fetchImpl: slow, resolver: publicResolver });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.extraction.kind).toBe('apple');
+  }, 20_000);
 });

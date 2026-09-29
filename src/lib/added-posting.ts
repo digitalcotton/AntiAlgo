@@ -103,6 +103,13 @@ export const POSTING_NOTICES: Readonly<Record<string, string>> = {
  * what the machine did. Eightfold is here and not in SOURCE_KINDS because the
  * mini reports an Eightfold read as kind 'page' (the API is fetched through
  * the page plan); readThrough() names it from the URL instead.
+ *
+ * Apple is NOT here, although 'apple' is a SOURCE_KINDS value, and that is the
+ * point: this map mirrors board_of, the mini has no Apple adapter, and Apple is
+ * one employer's own job site rather than a board system anything else posts
+ * on. readThrough() names it in its own words below; the waiting-room plan this
+ * map also feeds says "reading the page itself", which is what the mini would
+ * in fact do with an Apple link.
  */
 export const BOARD_SYSTEMS = {
   greenhouse: 'Greenhouse',
@@ -156,6 +163,7 @@ export function readThrough(row: Pick<StoredPostingFetch, 'sourceKind' | 'url'>)
   if (kind === null || kind === 'pasted') return null;
   if (kind === 'jsonld') return 'the page\'s own structured data';
   if (kind === 'browser') return 'a rendered copy of the page';
+  if (kind === 'apple') return 'Apple\'s own job site';
   if (kind === 'page') {
     return postingSource(row.url)?.ats === 'eightfold' ? 'Eightfold\'s board' : 'the page itself';
   }

@@ -350,3 +350,153 @@ describe('DESCRIPTION_MAX_CHARS and NAME_MAX_CHARS caps', () => {
     expect(found.descriptionHtml?.length).toBe(120_000);
   });
 });
+
+/** A jobs.apple.com page carrying the payload the way Apple carries it: a
+    JavaScript string literal whose contents are JSON, so `JSON.stringify` of
+    the JSON text produces exactly the `\"`-escaped literal the real page has.
+    Everything outside the script is the shell the generic extractor sees --
+    and finds nothing in, which is why this resolver exists. */
+function applePage(jobsData: unknown, routeId = 'jobDetails'): string {
+  const payload = JSON.stringify({ loaderData: { root: { locale: 'en-us' }, [routeId]: { jobsData } } });
+  return [
+    '<!doctype html><html lang="en-US"><head><title data-rh="true">Jobs at Apple</title></head>',
+    '<body><nav>Apple nav</nav><div id="jobdetails-wrapper"></div>',
+    `<script nonce="DOmQh3DqQ9CMYXLiNrVf9g==">window.__staticRouterHydrationData = JSON.parse(${JSON.stringify(payload)});</script>`,
+    '<footer>Apple is an equal opportunity employer.</footer></body></html>'
+  ].join('');
+}
+
+const APPLE_URL = 'https://jobs.apple.com/en-us/details/200680033-0670/product-designer-design-systems?team=DESGN';
+
+describe('resolvePosting: apple', () => {
+  it('resolves a posting URL to the page itself, since there is no JSON endpoint', () => {
+    const resolved = resolvePosting(APPLE_URL);
+    expect(resolved).not.toBeNull();
+    expect(resolved!.kind).toBe('apple');
+    expect(resolved!.api).toBe(APPLE_URL);
+    // Verbatim: the slug-less form 301s, and a hop is a third of the budget.
+    expect(resolved!.companyHint).toBe('Apple');
+    expect(resolved!.fallback).toBeUndefined();
+    expect(resolved!.companyApi).toBeUndefined();
+  });
+
+  it('resolves a posting with no slug on the end, and a non-English locale', () => {
+    expect(resolvePosting('https://jobs.apple.com/de-de/details/200680033-0670')!.kind).toBe('apple');
+  });
+
+  const notPostings = [
+    'https://jobs.apple.com/en-us/search?team=DESGN',
+    'https://jobs.apple.com/en-us/details',
+    'https://jobs.apple.com/en-us/details/not-a-number/some-role',
+    'https://jobs.apple.com/details/200680033-0670/some-role',
+    'https://www.apple.com/en-us/details/200680033-0670/some-role'
+  ];
+  for (const url of notPostings) {
+    it(`does not claim ${url}`, () => {
+      expect(resolvePosting(url)).toBeNull();
+    });
+  }
+});
+
+describe('parse: apple reads the hydration blob', () => {
+  const jobsData = {
+    postingTitle: 'Product Designer, Design Systems',
+    // Hard-wrapped at ~85 columns, with a real paragraph break, exactly as
+    // Apple ships it.
+    jobSummary: 'Apple Services: App Store, Apple Music, Apple TV, and many more\nare among the most exciting in the world.',
+    description: 'The Services Design Systems team is seeking an experienced systems designer to shape\nour design system.\n\nThe position requires deliverables under tight deadlines.',
+    // One whole item per line, not wrapped.
+    responsibilities: 'Design, build, and maintain design system components.\nPartner closely with design and engineering teams.',
+    minimumQualifications: '7+ years of design experience.\nA portfolio of work that showcases excellence.',
+    preferredQualifications: 'Able to work independently and in a team environment.',
+    postingFooters: [{ localizations: { en_US: [{ name: 'Pay & Benefits', content: 'The base pay range is between $175,000 and $263,300.<br>Apple is an equal opportunity employer.' }] } }],
+    selectedLocale: 'en_US',
+    translations: { en_US: { 'jobsite.jobdetails.summary': 'Summary', 'jobsite.jobdetails.responsibilities': 'Responsibilities' } }
+  };
+
+  it('builds the five sections in the order the page shows them', () => {
+    const extraction = ok(resolvePosting(APPLE_URL), applePage(jobsData));
+    expect(extraction.kind).toBe('apple');
+    expect(extraction.title).toBe('Product Designer, Design Systems');
+    // The payload never names the employer; `companyHint` is the caller's job.
+    expect(extraction.company).toBeNull();
+    const html = extraction.descriptionHtml!;
+    const order = ['Summary', 'Description', 'Responsibilities', 'Minimum Qualifications', 'Preferred Qualifications']
+      .map((heading) => html.indexOf(`<h3>${heading}</h3>`));
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it('undoes the hard wrap in prose and keeps the paragraph break', () => {
+    const html = ok(resolvePosting(APPLE_URL), applePage(jobsData)).descriptionHtml!;
+    expect(html).toContain('<p>Apple Services: App Store, Apple Music, Apple TV, and many more are among the most exciting in the world.</p>');
+    expect(html).toContain('<p>The Services Design Systems team is seeking an experienced systems designer to shape our design system.</p>');
+    expect(html).toContain('<p>The position requires deliverables under tight deadlines.</p>');
+  });
+
+  it('makes one list item per line in the three list fields, and never a paragraph', () => {
+    const html = ok(resolvePosting(APPLE_URL), applePage(jobsData)).descriptionHtml!;
+    expect(html).toContain('<ul><li>Design, build, and maintain design system components.</li><li>Partner closely with design and engineering teams.</li></ul>');
+    expect(html).toContain('<ul><li>7+ years of design experience.</li><li>A portfolio of work that showcases excellence.</li></ul>');
+    expect(html).toContain('<ul><li>Able to work independently and in a team environment.</li></ul>');
+  });
+
+  it("leaves out the pay-and-benefits footer, boilerplate and range together", () => {
+    const html = ok(resolvePosting(APPLE_URL), applePage(jobsData)).descriptionHtml!;
+    expect(html).not.toContain('equal opportunity');
+    expect(html).not.toContain('263,300');
+  });
+
+  it('takes each heading from the payload and falls back to English for the rest', () => {
+    const html = ok(resolvePosting(APPLE_URL), applePage({
+      ...jobsData,
+      selectedLocale: 'de_DE',
+      translations: { de_DE: { 'jobsite.jobdetails.summary': 'Zusammenfassung' } }
+    })).descriptionHtml!;
+    expect(html).toContain('<h3>Zusammenfassung</h3>');
+    expect(html).toContain('<h3>Description</h3>');
+  });
+
+  it('survives a quotation mark in the body, which a lazy regex would truncate on', () => {
+    const extraction = ok(resolvePosting(APPLE_URL), applePage({
+      ...jobsData,
+      description: 'We call it "the system" here.',
+      preferredQualifications: 'A last field, after the quote.'
+    }));
+    expect(extraction.descriptionHtml).toContain('We call it &quot;the system&quot; here.');
+    expect(extraction.descriptionHtml).toContain('A last field, after the quote.');
+  });
+
+  it('escapes the prose rather than trusting it as markup', () => {
+    const html = ok(resolvePosting(APPLE_URL), applePage({
+      ...jobsData,
+      responsibilities: 'Ship <script>alert(1)</script> safely.'
+    })).descriptionHtml!;
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).not.toContain('<script>');
+  });
+
+  it('finds the posting by the shape of the route data, not by the route id', () => {
+    const extraction = ok(resolvePosting(APPLE_URL), applePage(jobsData, 'routes/details-renamed'));
+    expect(extraction.title).toBe('Product Designer, Design Systems');
+  });
+
+  it('fails with no_content on a page with no hydration blob', () => {
+    expect(fail(resolvePosting(APPLE_URL), '<!doctype html><html><body><p>Nothing here.</p></body></html>')).toBe('no_content');
+  });
+
+  it('fails with no_content when the blob carries no posting', () => {
+    expect(fail(resolvePosting(APPLE_URL), applePage({ postingTitle: '' }))).toBe('no_content');
+    expect(fail(resolvePosting(APPLE_URL), '<script>window.__staticRouterHydrationData = JSON.parse("{ not json");</script>')).toBe('no_content');
+  });
+
+  it('reports a title with no readable section as an extraction with no description, not a failure', () => {
+    // The convention every parser in this file keeps, stated in
+    // posting-extraction.ts: a reader says what the source said, and the
+    // caller decides a body-less posting is not worth settling on
+    // (`usable()` in posting-read.ts, which falls through to the mini).
+    const extraction = ok(resolvePosting(APPLE_URL), applePage({ postingTitle: 'A role', description: '   ' }));
+    expect(extraction.title).toBe('A role');
+    expect(extraction.descriptionHtml).toBeNull();
+  });
+});

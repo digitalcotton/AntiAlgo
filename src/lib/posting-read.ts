@@ -109,7 +109,12 @@ async function guardedFetch(
   url: string,
   fetchImpl: FetchLike,
   deadline: number,
-  resolver?: (host: string) => Promise<string[]>
+  resolver?: (host: string) => Promise<string[]>,
+  /** The ceiling on THIS request. `REQUEST_TIMEOUT_MS` by default, which
+      leaves room in the budget for the second call most resolver paths make.
+      A caller that knows there will be no second call passes the whole
+      remaining budget instead -- see `soleRequest` below. */
+  capMs: number = REQUEST_TIMEOUT_MS
 ): Promise<FetchedBody | PostingReadFailure> {
   let current = url;
 
@@ -125,7 +130,7 @@ async function guardedFetch(
       response = await fetchImpl(current, {
         method: 'GET',
         redirect: 'manual',
-        signal: AbortSignal.timeout(Math.min(left, REQUEST_TIMEOUT_MS)),
+        signal: AbortSignal.timeout(Math.min(left, capMs)),
         headers: {
           // Say who we are. A board that wants to refuse us should be able to.
           'User-Agent': 'AntiAlgoBot/1.0 (+https://www.antialgo.ai/colophon)',
@@ -219,6 +224,11 @@ export interface ReadOptions {
  * extractor. A resolver that matches but comes back empty still falls through
  * to the page read, because a board that changed its payload shape should cost
  * us a slower read, not a failed one.
+ *
+ * The one exception is a resolver whose endpoint IS the pasted page (Apple).
+ * There the page read would refetch the identical address inside the same
+ * budget, so it is skipped and the single request gets the whole budget
+ * instead of the per-request ceiling. See `soleRequest` below.
  */
 export async function readPostingNow(url: string, options: ReadOptions = {}): Promise<PostingReadResult> {
   const fetchImpl = options.fetchImpl ?? ((target, init) => fetch(target, init));
@@ -226,8 +236,31 @@ export async function readPostingNow(url: string, options: ReadOptions = {}): Pr
 
   const resolved = resolvePosting(url);
 
+  /**
+   * True when the resolver's endpoint IS the page the person pasted, so this
+   * read will make exactly one request no matter what happens.
+   *
+   * Apple is the case that made this explicit: its posting lives in the page's
+   * own hydration blob, so `api` is the pasted URL. Without this the same
+   * address was fetched twice inside one budget -- once by the resolver,
+   * once by the page branch below -- and each got the per-request ceiling
+   * rather than the budget, so a page answering in four and a half seconds
+   * failed twice over instead of succeeding once. The second read could never
+   * have added anything either: the bytes would have been identical, and the
+   * generic extractor has already been shown to find nothing in them.
+   *
+   * So a sole request gets the whole remaining budget, and the page branch is
+   * skipped. Every other resolver is untouched: their `api` is an ATS endpoint
+   * on another host, the pasted page is genuinely a second thing to try, and
+   * the two-call ceiling is what makes room for it.
+   */
+  const soleRequest = resolved !== null && resolved.api === url && !resolved.fallback;
+
   if (resolved) {
-    const primary = await guardedFetch(resolved.api, fetchImpl, deadline, options.resolver);
+    const primary = await guardedFetch(
+      resolved.api, fetchImpl, deadline, options.resolver,
+      soleRequest ? options.budgetMs ?? READ_BUDGET_MS : REQUEST_TIMEOUT_MS
+    );
     let extraction: PostingExtraction | null = null;
     let status: number | null = null;
 
@@ -276,7 +309,12 @@ export async function readPostingNow(url: string, options: ReadOptions = {}): Pr
         return { ok: true, extraction, via: 'resolver', httpStatus: status ?? 200 };
       }
     }
-    // Fell through on purpose: try the page the person actually pasted.
+    // Fell through on purpose: try the page the person actually pasted --
+    // unless that is the address we just read, in which case there is nothing
+    // left to try here and the mini's browser is the next real layer.
+    if (soleRequest) {
+      return isFailure(primary) ? primary : failed('no_content', primary.status);
+    }
   }
 
   const page = await guardedFetch(url, fetchImpl, deadline, options.resolver);

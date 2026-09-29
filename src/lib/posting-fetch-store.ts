@@ -19,7 +19,7 @@ import { db } from './db';
 
 export type FetchStatus = 'pending' | 'claimed' | 'ready' | 'unreadable' | 'pasted';
 export type FetchOrigin = 'machine' | 'pasted';
-export const SOURCE_KINDS = ['greenhouse', 'ashby', 'lever', 'workable', 'rippling', 'workday', 'jsonld', 'page', 'browser', 'pasted'] as const;
+export const SOURCE_KINDS = ['greenhouse', 'ashby', 'lever', 'workable', 'rippling', 'workday', 'apple', 'jsonld', 'page', 'browser', 'pasted'] as const;
 export type SourceKind = (typeof SOURCE_KINDS)[number];
 export const FAILURE_CODES = ['refused_url', 'http_error', 'timeout', 'too_large', 'not_html', 'no_content', 'fetch_error'] as const;
 export type FailureCode = (typeof FAILURE_CODES)[number];

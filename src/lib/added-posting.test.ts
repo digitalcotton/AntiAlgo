@@ -108,6 +108,11 @@ describe('readThrough', () => {
     expect(readThrough({ ...ROW, sourceKind: 'page' })).toBe('the page itself');
     expect(readThrough({ ...ROW, sourceKind: 'browser' })).toBe('a rendered copy of the page');
   });
+  it('names Apple in its own words, since it is an employer and not a board anything else posts on', () => {
+    expect(
+      readThrough({ sourceKind: 'apple', url: 'https://jobs.apple.com/en-us/details/200680033-0670/product-designer-design-systems' })
+    ).toBe('Apple\'s own job site');
+  });
   it('an Eightfold read is reported as a page read by the mini and named from the URL', () => {
     expect(
       readThrough({ sourceKind: 'page', url: 'https://explore.jobs.netflix.net/careers/job/790298014263-x?domain=netflix.com' })
