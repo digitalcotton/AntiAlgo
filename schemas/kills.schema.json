@@ -41,10 +41,8 @@
         },
         "company": { "type": "string", "minLength": 1 },
         "title": { "type": "string", "minLength": 1 },
-        "role_family": { "oneOf": [{ "enum": ["product", "design_engineering", "brand", "design_systems"] }, { "type": "null" }] },
         "tier": { "oneOf": [{ "enum": ["Senior", "Staff", "Lead", "Director"] }, { "type": "null" }] },
-        "role_family_source": { "oneOf": [{ "enum": ["ats_department", "title"] }, { "type": "null" }] },
-        "tier_source": { "oneOf": [{ "enum": ["ats_level", "title"] }, { "type": "null" }] },
+        "tier_source": { "oneOf": [{ "enum": ["title"] }, { "type": "null" }], "description": "Seniority is only ever read from the title (tierFromTitle is the only writer), so the ats_level this used to allow could never be true." },
         "reason": {
           "type": "string",
           "minLength": 1,

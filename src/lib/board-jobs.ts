@@ -53,6 +53,11 @@ export interface BoardRow {
   ats: string;
   posting_id: string | null;
   department: string | null;
+  /** The occupational family (src/lib/job-family.mjs, db/212) and which field
+   *  it was read from. Null where the classifier could not place the posting;
+   *  that null is shown as a gap, never as an "Other" bucket. */
+  derived_fam?: string | null;
+  derived_fam_source?: string | null;
   comp_posted: string | null;
   comp_range: { min: number; max: number | null; currency: string | null; interval: string | null; source: string | null } | null;
   days_up: number | null;
@@ -141,6 +146,13 @@ export function boardRowToJob(row: BoardRow): Job {
     title: row.title,
     kind: 'posted',
     prospect: null,
+    // THE FAMILY TRAVELS WITH THE ROW (2026-09-28). Job.role_family was
+    // declared and never written by anything, so every reader of it was dark
+    // while the board filtered on the same fact in SQL. It carries the measured
+    // value now. Null where the classifier could not place the posting, which
+    // is 12.3% of the board and is shown as a gap.
+    role_family: (row.derived_fam ?? null) as Job['role_family'],
+    role_family_source: (row.derived_fam_source ?? null) as Job['role_family_source'],
     comp_posted: row.comp_posted,
     // Job.comp_range.max is a number; where the ATS gave a floor and no ceiling
     // the floor stands in, so a single-ended range still sorts and bands.

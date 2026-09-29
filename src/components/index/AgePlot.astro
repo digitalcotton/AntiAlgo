@@ -54,10 +54,21 @@ interface Props {
   range?: { min: number | null; max: number | null };
   /** The board address for a range. Present only where the address is the state. */
   hrefFor?: (min: number | null, max: number | null) => string;
+  /**
+   * True when a filter OTHER than the age range is narrowing the board, so the
+   * kicker stops claiming to be every verified role.
+   *
+   * The strip used to be drawn over the whole sweep whatever the reader had
+   * chosen (job-store.ts listBoardAgeHistogram took the sweep date and nothing
+   * else), which put "Showing 36,457 of 36,457 roles" above a Field dropdown
+   * counting 1,463. It takes the reader's filters now, and this makes the
+   * heading say so.
+   */
+  narrowed?: boolean;
   class?: string;
 }
 
-const { histogram: histogramIn, range, hrefFor, class: className } = Astro.props as Props;
+const { histogram: histogramIn, range, hrefFor, narrowed = false, class: className } = Astro.props as Props;
 const histogram = await histogramIn;
 
 /** One mark: an age, how many roles sit at it, and where it sits on the axis. */
@@ -176,7 +187,7 @@ const ticksHtml = ticks
       data-total={total}
     >
       <figcaption class="head">
-        <span class="kicker mono-label">Age of every verified role</span>
+        <span class="kicker mono-label">{narrowed ? 'Age of every role in this filter' : 'Age of every verified role'}</span>
         {interactive ? (
           <span class="status mono-label">
             <span data-age-status>

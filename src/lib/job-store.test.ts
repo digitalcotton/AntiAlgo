@@ -31,7 +31,7 @@ describe('listBoardFiltered', () => {
     expect(pageSql).toContain('LIMIT $13 OFFSET $14');
     expect(pageSql).toContain('ORDER BY detail_total DESC, company ASC, title ASC, id ASC');
     expect(result.total).toBe(3);
-    expect(result.counts.location).toEqual({ all: 3, remote: 1, onsite: 2 });
+    expect(result.counts.location).toEqual({ all: 3, remote: 1, hybrid: 0, onsite: 2, unstated: 0 });
   });
   it('narrows to the watched titles by whole-phrase match, in count and page alike', async () => {
     await listBoardFiltered({ ...FILTER, titles: ['Product Designer'] });
@@ -91,8 +91,12 @@ describe('listBoardFiltered', () => {
   it('mirrors the TypeScript facet rules in SQL', async () => {
     await listBoardFiltered(FILTER);
     const sql = query.mock.calls[1][0] as string;
-    expect(sql).toContain(String.raw`j.location ~* '\yhybrid\y' THEN 'onsite'`);
-    expect(sql).toContain(String.raw`j.location ~* '\yremote\y' THEN 'remote'`);
+    // Four answers, and the remote flag is READ. A regression here is the
+    // 2,650-row hole this fixed: the text test alone filed every posting whose
+    // applicant system flagged it remote while naming a city as on-site.
+    expect(sql).toContain(String.raw`j.location ~* '\yhybrid\y' THEN 'hybrid'`);
+    expect(sql).toContain(String.raw`j.remote OR j.location ~* '\yremote\y' THEN 'remote'`);
+    expect(sql).toContain("btrim(j.location) = '' THEN 'unstated'");
     expect(sql).toContain("jsonb_typeof(j.comp_range->'min') IS DISTINCT FROM 'number'");
     expect(sql).toContain("(j.comp_range->>'min')::numeric < 150000 THEN 'under-150'");
     expect(sql).toContain("ELSE '300-plus'");
@@ -128,30 +132,66 @@ describe('listBoardFiltered', () => {
 });
 
 describe('listBoardAgeHistogram', () => {
+  const AGE: Parameters<typeof listBoardAgeHistogram>[0] = {
+    q: '',
+    location: 'all',
+    comp: 'all',
+    freshness: 'all',
+    sweepDate: '2026-09-18'
+  };
+
   it('asks the database for the distribution, not the rows', async () => {
     // The plot is a histogram; the old query read every row (13,302 / 4.8 MB)
     // to build it. This asks Postgres to GROUP BY age and never selects a row's
     // heavy columns or, indeed, the rows.
     query.mockResolvedValue({ rows: [] });
-    await listBoardAgeHistogram('2026-09-18');
+    await listBoardAgeHistogram(AGE);
     const [sql, params] = query.mock.calls[0];
     expect(sql).toContain('GROUP BY days');
     expect(sql).not.toMatch(/\bj\.description\b/);
     expect(sql).not.toContain('LIMIT');
     // The sweep day is the "to" end of every age, bound not interpolated.
-    expect(params).toEqual(['2026-09-18']);
+    expect((params as unknown[])[0]).toBe('2026-09-18');
+  });
+
+  it('is drawn over the reader\'s board, not over the whole sweep', async () => {
+    // The 2026-09-28 fix. The strip used to take the sweep date and nothing
+    // else, so it said "36,457 of 36,457" above a Field dropdown counting
+    // 1,463. Every narrowing the rows get, it gets.
+    query.mockResolvedValue({ rows: [] });
+    await listBoardAgeHistogram({ ...AGE, location: 'remote', families: ['design'], q: 'nurse' });
+    const [sql, params] = query.mock.calls[0];
+    for (const clause of ['match_q', 'match_location', 'match_comp', 'match_freshness', 'match_family', 'match_live']) {
+      expect(sql).toContain(clause);
+    }
+    expect(params).toContain('remote');
+    expect(params).toContainEqual(['design']);
+    expect(params).toContain('%nurse%');
+  });
+
+  it('does NOT apply the age range, because the strip is what sets it', async () => {
+    // Applying its own selection would collapse the plot to the chosen band
+    // and leave no handle to widen it again.
+    query.mockResolvedValue({ rows: [] });
+    await listBoardAgeHistogram(AGE);
+    const [sql, params] = query.mock.calls[0];
+    const measured = String(sql).slice(String(sql).indexOf(', measured AS ('));
+    expect(measured).not.toContain('match_age');
+    // $7 and $8 are the range, bound null.
+    expect((params as unknown[])[6]).toBeNull();
+    expect((params as unknown[])[7]).toBeNull();
   });
 
   it('mirrors ageOf: killed rows age to their kill date, and the strict first-seen guard', async () => {
     query.mockResolvedValue({ rows: [] });
-    await listBoardAgeHistogram('2026-09-18');
+    await listBoardAgeHistogram(AGE);
     const [sql] = query.mock.calls[0];
     expect(sql).toContain("j.status = 'killed'");
     expect(sql).toContain('k.killed_on::date');
-    // And the plot reads live rows only (2026-09-20).
-    expect(sql).toContain("WHERE j.status <> 'killed'");
     expect(sql).toContain('k.first_published::date');
-    expect(sql).toContain('j.first_seen::date < $1::date');
+    expect(sql).toContain('j.first_seen < $1::date');
+    // Live rows only: it is the board's own match_live now, not a hard WHERE.
+    expect(sql).toContain("NOT $10::boolean OR status = 'live'");
   });
 
   it('reads the buckets and the axis max out of one result set', async () => {
@@ -163,7 +203,7 @@ describe('listBoardAgeHistogram', () => {
         { days: null, rows: 0, rep_company: null, rep_title: null, rep_published_at: null, axis_max: 900 }
       ]
     });
-    const hist = await listBoardAgeHistogram('2026-09-18');
+    const hist = await listBoardAgeHistogram(AGE);
     expect(hist.byDay).toHaveLength(2);
     expect(hist.byDay[0]).toMatchObject({ days: 2, rows: 3, repCompany: 'Acme', repTitle: 'Engineer' });
     expect(hist.axisMax).toBe(900);

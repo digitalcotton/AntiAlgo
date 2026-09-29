@@ -32,6 +32,7 @@
  */
 
 import { FAMILIES } from './job-family.mjs';
+import { SENIORITY_LADDER } from './jobs-derived.mjs';
 import rawJobs from '../data/jobs.json';
 import rawProspects from '../data/prospects.json';
 import rawKills from '../data/kills.json';
@@ -176,13 +177,32 @@ export interface JobWindow {
   day: number;
 }
 
-/** The design family a posting was tagged with by the sweep. Closed vocabulary;
- *  see the exporter field contract. A posting the sweep could not place is null,
- *  never guessed. */
-export type RoleFamily = 'product' | 'design_engineering' | 'brand' | 'design_systems';
+/**
+ * The occupational family a posting was placed in. A posting the classifier
+ * could not place is null, never guessed.
+ *
+ * IT IS THE REAL VOCABULARY NOW (2026-09-28). This read
+ * `'product' | 'design_engineering' | 'brand' | 'design_systems'` — four
+ * snake_case design values waiting on an exporter that never shipped. No
+ * migration ever created the column, nothing in the repo ever assigned to it,
+ * and no code ever read it; it existed in TypeScript and in three JSON Schemas
+ * and nowhere else.
+ *
+ * An empty second vocabulary is not free. It is what /jobs-data's GROUP_DEFS
+ * was written against, which is why three of its five watched groups have been
+ * testing `derived_fam = 'design engineering'` and matching zero rows. So this
+ * is not deleted and it is not left empty: it is pointed at the classifier that
+ * actually runs (src/lib/job-family.mjs, db/212's derived_fam), and derived
+ * from FAMILIES so the two cannot drift.
+ *
+ * Note what changed in the process: `design_engineering` and `design_systems`
+ * are one family, `design`; `brand` had no counterpart at all; and the ids are
+ * kebab-case because that is what the column holds.
+ */
+export type RoleFamily = (typeof FAMILIES)[number]['id'];
 /** The seniority bucket a posting was tagged with. Null when no seniority signal
  *  was read; never defaulted to Senior. */
-export type RoleTier = 'Senior' | 'Staff' | 'Lead' | 'Director';
+export type RoleTier = (typeof SENIORITY_LADDER)[number];
 
 export interface Job {
   id: string;
@@ -197,16 +217,24 @@ export interface Job {
    */
   title: string | null;
   /**
-   * The design family and seniority the sweep tagged this posting with, from the
-   * ATS department or the title, per the exporter field contract. Measured
-   * upstream, never parsed at render. Null is an honest absence: the Ledger draws
-   * a gap and never buckets a null by inference. Absent on every row until the
-   * exporter emits them, which reads as null here.
+   * The occupational family and the seniority the sweep placed this posting in,
+   * read from the crawled department and, failing that, the title. Measured at
+   * ingest (jobs-derived.mjs), never parsed at render. Null is an honest
+   * absence: a gap is drawn as a gap and nothing is bucketed by inference.
+   *
+   * Filled for every board row since 2026-09-28 (boardRowToJob maps
+   * derived_fam/derived_tier onto them). Still null on the static design
+   * fixture and on a pre-posting row, which have no classifier behind them.
    */
   role_family?: RoleFamily | null;
   tier?: RoleTier | null;
-  role_family_source?: 'ats_department' | 'title' | null;
-  tier_source?: 'ats_level' | 'title' | null;
+  /** Which field the family was read from, matching db/212's CHECK exactly.
+   *  This said 'ats_department'; the column says 'department'. */
+  role_family_source?: 'department' | 'title' | null;
+  /** Seniority is only ever read from the title — tierFromTitle is the only
+   *  writer and no applicant system's level field is consulted — so the
+   *  'ats_level' this used to allow could never have been true. */
+  tier_source?: 'title' | null;
   /** Which population this row came from. See OpportunityKind. */
   kind: OpportunityKind;
   /** Present only on a pre-posting row. Null on every posted one. */
@@ -468,9 +496,11 @@ export interface KillRecord extends Kill {
   /** Nights this rule has fired on this posting. One finding, observed n times. */
   times_fired?: number;
   pipeline?: 'sweep' | 'crawl';
-  /** The design family and seniority the sweep tagged this killed posting with,
-   *  per the exporter field contract. Null until the exporter emits them. */
-  role_family?: RoleFamily | null;
+  /** The seniority the sweep placed this killed posting in (board_kills
+   *  carries derived_tier). There is deliberately NO family here: board_kills
+   *  has no derived_fam column, so a role_family on a kill could only ever be
+   *  null, and a field that can only be null is a promise the record cannot
+   *  keep. It was one until 2026-09-28. */
   tier?: RoleTier | null;
 }
 
@@ -2135,7 +2165,7 @@ export interface JobFacets {
    * workplace yet, so the Location filter cannot apply to it and JobTable
    * exempts it. Never used for a posting; a posting is one of the other two.
    */
-  location: 'remote' | 'onsite' | 'unknown';
+  location: 'remote' | 'hybrid' | 'onsite' | 'unstated' | 'unknown';
   /** A pay band key, or 'not-listed' where the board published no numbers. */
   comp: string;
   freshness: 'fresh' | 'older' | 'unknown';
@@ -2194,24 +2224,58 @@ export function compBandOf(job: Job): string | null {
   return band ? band.key : null;
 }
 
+/**
+ * The Location facet for one posting, drawn from workplaceOf() so the badge a
+ * reader sees on the row and the option they filtered by can never disagree.
+ * Null from workplaceOf means the posting named no place at all, which is
+ * 'unstated' rather than an office. The SQL board draws the same four lines in
+ * facet_location (job-store.ts); this is the static path, for /prelist and the
+ * design fixture.
+ */
+function locationFacetOf(job: Job): JobFacets['location'] {
+  switch (workplaceOf(job)) {
+    case 'Remote':
+      return 'remote';
+    case 'Hybrid':
+      return 'hybrid';
+    case 'On-site':
+      return 'onsite';
+    default:
+      return 'unstated';
+  }
+}
+
 export function facetsOf(job: Job): JobFacets {
   const age = ageOf(job);
   return {
-    // REMOTE MEANS THE POSTING SAYS REMOTE, NOT THAT A FLAG WAS SET. The board's
-    // own `remote` boolean is true on 37 of 63 postings whose location text names
-    // an office or a city ("SF Office", "New York"), so filtering on the flag put
-    // those under Remote, and a reader who chose Remote got a deskful of offices.
-    // The facet now agrees with workplaceOf(): a posting is 'remote' only where
-    // its own words say remote. Everything else, including a posting flagged
-    // remote whose location names a place, is 'onsite', the same set the
-    // "On-site or hybrid" option already hedges. See workplaceOf() for the rule.
+    // THE FLAG IS READ AGAIN (2026-09-28), REVERSING THE 2026-09-10 CALL.
+    // This used to say "remote means the posting SAYS remote, not that a flag
+    // was set", because the flag was true on 37 of the 63 fixture postings
+    // whose location text named an office, and trusting it gave a reader who
+    // chose Remote "a deskful of offices".
+    //
+    // That was decided on 63 static rows without asking the applicant system
+    // what its boolean meant. Asked now: Ashby's posting API returns
+    // isRemote:true for OpenAI's "Account Director, Startups", location
+    // "São Paulo". The flag is not our inference about the text, it is the
+    // employer's own answer to a different question — the text says where the
+    // office is, the flag says whether you have to be in it. Reading only the
+    // text was filing 2,650 live rows as on-site against their employer's
+    // word, and hiding 64% of the remote board.
+    //
+    // A reader who picks Remote still SEES the city, in the location column
+    // next to the Remote badge, so the office is never concealed — which was
+    // the real worry behind the original call.
+    //
+    // Hybrid and unstated are their own facets now rather than being swept
+    // into 'onsite'; workplaceOf() draws the same four lines.
     //
     // A COMPANY THAT HAS NOT POSTED YET HAS NO WORKPLACE. Until 2026-09-10 a
     // Pre-List row was 'onsite' by default, so a Location filter saved on the
     // Board ("Remote") carried over to Newly Funded and emptied it: 374 rows,
     // zero matches, and nothing on the page said why. 'unknown' is the honest
     // facet, and JobTable lets it through whatever Location is selected.
-    location: job.kind === 'pre_posting' ? 'unknown' : workplaceOf(job) === 'Remote' ? 'remote' : 'onsite',
+    location: job.kind === 'pre_posting' ? 'unknown' : locationFacetOf(job),
     comp: compBandOf(job) ?? 'not-listed',
     freshness: age === null ? 'unknown' : age.days <= FRESH_WINDOW_DAYS ? 'fresh' : 'older',
     stage: job.kind
@@ -2221,18 +2285,20 @@ export function facetsOf(job: Job): JobFacets {
 /**
  * The filter groups, derived from the rows themselves.
  *
- * Three groups, not the canvas's four. The canvas draws a "Role family" filter
- * and the data carries no role family: deriving one by reading job titles would
- * mean this repository inventing a classification and presenting it as the
- * machine's finding, which is the same objection that blocked the kill list's
- * reason taxonomy. The field is emitted upstream or the filter does not ship.
- * See DECISIONS.md.
+ * THE CANVAS'S FOURTH GROUP EXISTS NOW. This said "the data carries no role
+ * family", and that deriving one by reading job titles would mean inventing a
+ * classification and presenting it as the machine's finding. The objection was
+ * right and it was answered rather than ignored: src/lib/job-family.mjs is a
+ * table of word tests a reader can check, not a model, and db/212 stores its
+ * verdict in derived_fam beside the department it was read from. The SQL board
+ * offers it as Field (facetGroupsFromCounts). This static path still has three
+ * groups, because the design fixture it draws has no classifier behind it.
  *
- * Every option label describes exactly what the field holds. "Remote" means the
- * posting's own location text says remote, not merely that the board set a
- * remote flag: the flag disagrees with the words on more than half the board,
- * so the words win. See workplaceOf() and facetsOf() for the evidence-first
- * rule the filter and the per-row workplace label now share.
+ * Every option label describes exactly what the field holds. "Remote" means
+ * the employer said remote — in the location text, or in the applicant
+ * system's own flag, which is a different statement and not a competing guess
+ * (see workplaceOf). Hybrid and Not stated are their own answers rather than
+ * being folded into On-site.
  */
 /**
  * The same three groups, built from counts the store computed in SQL over the
@@ -2278,12 +2344,18 @@ export function facetGroupsFromCounts(
     label: 'Field',
     options: [
       { value: 'all', label: 'All fields', count: familyCounts.all ?? 0 },
-      ...FAMILIES.map((f) => ({ value: f.id, label: f.label, count: familyCounts[f.id] ?? 0 }))
-        .sort((a, b) => b.count - a.count),
-      // Last, and never hidden: 12.3% of the board carries no family, and a
-      // filter that silently swallowed an eighth of the sweep would be the
-      // pre-filtering this product is named for refusing.
-      { value: 'unplaced', label: 'Not placed', count: familyCounts.unplaced ?? 0 }
+      // NOT PLACED SORTS WITH THE REST (2026-09-28). It is never hidden — 12.3%
+      // of the board carries no family, and a filter that silently swallowed an
+      // eighth of the sweep would be the pre-filtering this product is named for
+      // refusing — but it used to be PINNED last, under every family however
+      // small. On a list whose whole promise is "sorted by count", that read as
+      // a broken number: under Location=Remote the options ran 287, 281, 101,
+      // 94 … 3, 2, and then jumped to 140 at the bottom. Its size is the reason
+      // to keep it, so its size is where it goes.
+      ...[
+        ...FAMILIES.map((f) => ({ value: f.id, label: f.label, count: familyCounts[f.id] ?? 0 })),
+        { value: 'unplaced', label: 'Not placed', count: familyCounts.unplaced ?? 0 }
+      ].sort((a, b) => b.count - a.count)
     ]
   };
 
@@ -2293,10 +2365,17 @@ export function facetGroupsFromCounts(
       {
         key: 'location',
         label: 'Location',
+        // FOUR ANSWERS, NOT TWO (2026-09-28). "On-site or hybrid" was one cell
+        // holding three different facts — an office, a split week, and a
+        // posting that named no place at all — because facet_location folded
+        // hybrid into onsite and swept every unstated row in after it. Each is
+        // now its own option, and keep() below drops any that no row carries.
         options: [
           { value: 'all', label: 'All', count: counts.location.all ?? 0 },
           { value: 'remote', label: 'Remote', count: counts.location.remote ?? 0 },
-          { value: 'onsite', label: 'On-site or hybrid', count: counts.location.onsite ?? 0 }
+          { value: 'hybrid', label: 'Hybrid', count: counts.location.hybrid ?? 0 },
+          { value: 'onsite', label: 'On-site', count: counts.location.onsite ?? 0 },
+          { value: 'unstated', label: 'Not stated', count: counts.location.unstated ?? 0 }
         ]
       },
       selected.location
@@ -2362,9 +2441,20 @@ export function filterGroups(jobs: readonly Job[]): FilterGroup[] {
       key: 'location',
       label: 'Location',
       options: [
+        // The same four answers the SQL board offers (facetGroupsFromCounts),
+        // so a reader moving between the two boards meets one vocabulary. An
+        // option no row carries is dropped rather than shown dead.
         { value: 'all', label: 'All', count: jobs.length },
-        { value: 'remote', label: 'Remote', count: count((facet) => facet.location === 'remote') },
-        { value: 'onsite', label: 'On-site or hybrid', count: count((facet) => facet.location === 'onsite') }
+        ...(
+          [
+            ['remote', 'Remote'],
+            ['hybrid', 'Hybrid'],
+            ['onsite', 'On-site'],
+            ['unstated', 'Not stated']
+          ] as const
+        )
+          .map(([value, label]) => ({ value, label, count: count((facet) => facet.location === value) }))
+          .filter((option) => option.count > 0)
       ]
     },
     {
@@ -2739,12 +2829,29 @@ export const atsLabel = (ats: string | null | undefined): string => {
  *   - not flagged remote, and the text names a place with no remote or hybrid
  *     word -> On-site. A physical location and no signal otherwise is the one
  *     reading the data supports.
- *   - flagged remote but the location names an office or city with no "remote"
- *     or "hybrid" word -> null. The flag and the text disagree and neither is
- *     explicit enough to win, so the row says nothing rather than pick one. A
- *     reliable answer for these would need a structured workplace field in
- *     the published files; the machine is frozen and none is coming, so
- *     silence is the honest label.
+ *   - flagged remote, and the location names a city -> Remote (2026-09-28).
+ *     THIS USED TO RETURN NULL, on the reasoning that the flag and the text
+ *     disagreed, that neither was explicit enough to win, and that a reliable
+ *     answer "would need a structured workplace field in the published files;
+ *     the machine is frozen and none is coming".
+ *
+ *     That last clause was wrong, and it is the whole reason this changed.
+ *     There IS a structured field and the crawl has been carrying it all
+ *     along: `remote` on the row is copied verbatim from the applicant
+ *     system's own boolean. Checked at the source rather than assumed —
+ *     Ashby's posting API returns isRemote:true for OpenAI's "Account
+ *     Director, Startups" with location "São Paulo", which is exactly the
+ *     shape this branch was calling a contradiction. It is not a
+ *     contradiction; it is an employer saying "this job is remote, and here
+ *     is the office it reports to".
+ *
+ *     So the flag is not a competing guess, it is the explicit statement the
+ *     comment above said was missing, and silence was costing 2,650 live rows
+ *     their workplace. The city still shows in the location column beside it.
+ *     Not every applicant system fills the field — Greenhouse, Workday,
+ *     Rippling and Personio only ever put it in the text, and Amazon and
+ *     USAJOBS fill neither — so the text test above stays and does the work
+ *     for them.
  *
  * A pre-posting row has no posting to describe and returns null, the same way
  * it renders no comp and no age.
@@ -2755,9 +2862,9 @@ export function workplaceOf(job: Job): Workplace | null {
   if (job.kind === 'pre_posting') return null;
   const text = typeof job.location === 'string' ? job.location : '';
   if (/\bhybrid\b/i.test(text)) return 'Hybrid';
-  if (/\bremote\b/i.test(text)) return 'Remote';
-  if (!job.remote) return 'On-site';
-  return null;
+  if (/\bremote\b/i.test(text) || job.remote) return 'Remote';
+  if (!text.trim()) return null;
+  return 'On-site';
 }
 
 // ---------------------------------------------------------------------------

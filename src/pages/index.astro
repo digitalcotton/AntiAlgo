@@ -71,7 +71,7 @@ if (isConfigured()) {
   } catch (error) {
     console.error('home board: the job store did not answer; rendering an empty board.', error);
   }
-  try { bAgeHistogram = await listBoardAgeHistogram(sweepDate()); } catch (error) { console.error('home board: age plot could not read the store.', error); }
+  try { bAgeHistogram = await listBoardAgeHistogram({ sweepDate: sweepDate() }); } catch (error) { console.error('home board: age plot could not read the store.', error); }
   try { bStats = await getBoardStats(); } catch (error) { console.error('home board: stats row could not be read.', error); }
 }
 const bJobs = bServed.rows.map(boardRowToJob);

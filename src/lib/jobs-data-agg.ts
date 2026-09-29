@@ -37,16 +37,20 @@
  */
 
 import { db } from './db';
-import { GROUP_DEFS, type Filters } from './jobs-data-filters';
+import { GROUP_DEFS, type Filters, groupTitlePattern } from './jobs-data-filters';
 
 /** The pay axis the page draws, in thousands. Fixed, so the axis does not
     move under the reader between two cuts. */
+import { SENIORITY_LADDER } from './jobs-derived.mjs';
+
 export const PAY_LO = 110;
 export const PAY_HI = 360;
 /** The longest standing time the kill-life axis draws, in days. */
 export const LIFE_HI = 44;
-/** Seniority, in ladder order. */
-export const LADDER = ['Senior', 'Staff', 'Lead', 'Director'] as const;
+/** Seniority, in ladder order. Re-exported, not re-declared: the words live
+ *  once, beside tierFromTitle which is the only thing that writes them
+ *  (jobs-derived.mjs SENIORITY_LADDER). This was a second copy. */
+export const LADDER = SENIORITY_LADDER;
 /** The published kill rules, in the order the archive views draw them. */
 export const RULE_KEYS = [
   'repost_churn', 'touched_not_refreshed', 'misrepresented', 'zombie', 'phantom'
@@ -164,6 +168,12 @@ function marks(f: Filters, b: Binder): Record<Dimension, string> {
       if (!def) return 'FALSE';
       const tests: string[] = [`j.derived_tier = ANY(${b.p(def.tiers.slice())})`];
       if (def.fam !== null) tests.push(`j.derived_fam = ${b.p(def.fam)}`);
+      // The title words, where the group has them. This MUST be applied here
+      // and in boardFacts' groupCase together: applying it in one and not the
+      // other makes the "titles in the cut" shelf and the cut itself disagree
+      // about what a group contains.
+      const pattern = groupTitlePattern(def.words);
+      if (pattern !== null) tests.push(`j.title ~* ${b.p(pattern)}`);
       if (w.off.length) tests.push(`NOT (j.title = ANY(${b.p(w.off)}))`);
       return '(' + tests.join(' AND ') + ')';
     });
@@ -548,15 +558,24 @@ export async function killAggregates(
   const parts = ["vacated_at IS NULL"];
   const cutParts = ['TRUE'];
   if (f.watches.length > 0) {
-    // A kill carries no measured department under crawl coverage, so this is
-    // NULL for every archive row and the archive empties whenever a title is
-    // watched. That is the existing behaviour, reproduced rather than papered
-    // over: the fix is a department on the archive, not a looser test here.
-    cutParts.push(`derived_fam_placeholder = ANY(${b.p(watchedFams)})`);
+    // THE ARCHIVE HAS A FAMILY NOW (db/214). This read a column that did not
+    // exist and was rewritten to NULL::text a few lines below, so
+    // `NULL = ANY(...)` was never true and the archive emptied the moment any
+    // title was watched — under a panel the browser labelled "archive cut to
+    // your families". The comment here said the fix was "a department on the
+    // archive, not a looser test", and that is what db/214 is: board_kills
+    // carries derived_fam, read from the title by the same classifier the live
+    // rows use, because a kill has no department to prefer over it.
+    //
+    // A kill the classifier could not place is outside every chosen family, the
+    // same rule the live board states. On an un-backfilled database the column
+    // is NULL everywhere and this behaves exactly as it did before, which is
+    // why the migration is additive and safe to land ahead of the backfill.
+    cutParts.push(`derived_fam = ANY(${b.p(watchedFams)})`);
     cutParts.push(`derived_tier = ANY(${b.p(watchedTiers)})`);
   }
   if (f.level !== 'any') cutParts.push(`derived_tier = ${b.p(f.level)}`);
-  const cut = cutParts.join(' AND ').split('derived_fam_placeholder').join('NULL::text');
+  const cut = cutParts.join(' AND ');
 
   const churnDefs: [number, number][] = [[1, 1], [2, 2], [3, 3], [4, 5], [6, 9], [10, 15], [16, 28]];
   const lifeDays = "(killed_on::date - first_published::date)";
@@ -564,7 +583,7 @@ export async function killAggregates(
   const sql = `
 WITH standing AS (
   SELECT company, title, COALESCE(ats, '') AS ats, kill_rule, times_fired,
-         derived_tier, killed_on, first_published,
+         derived_tier, derived_fam, killed_on, first_published,
          CASE WHEN killed_on IS NOT NULL AND first_published IS NOT NULL
               THEN ${lifeDays} END AS life,
          (${cut}) AS pass
@@ -632,9 +651,19 @@ export interface BoardFacts {
  * reads them once per crawl and the filtered endpoint never recomputes them.
  */
 export async function boardFacts(): Promise<BoardFacts> {
+  // FIRST MATCH WINS, so GROUP_DEFS' most-specific-first order is load bearing
+  // here: all four Senior/Staff groups sit in the one `design` family, and
+  // without the title words one of them would take every row and the other
+  // three would read zero. Same predicate as marks() above, and the two are
+  // pinned to each other by test.
+  //
+  // The values interpolated here are repo constants, never reader input, and
+  // jobs-data-filters.test.ts holds the words to [a-z ].
   const groupCase = GROUP_DEFS.map((g) => {
     const tests = [`derived_tier = ANY(ARRAY[${g.tiers.map((t) => `'${t}'`).join(',')}])`];
     if (g.fam !== null) tests.push(`derived_fam = '${g.fam}'`);
+    const pattern = groupTitlePattern(g.words);
+    if (pattern !== null) tests.push(`title ~* '${pattern}'`);
     return `WHEN ${tests.join(' AND ')} THEN '${g.title}'`;
   }).join('\n         ');
 

@@ -141,3 +141,16 @@ describe('packGuidanceText: the house-rules block', () => {
     expect(text).toMatch(/strongest number/i);
   });
 });
+
+
+describe('EXECUTIVE_TITLE is not the posting ladder', () => {
+  // The two were nearly unified. They must not be: tierFromTitle maps
+  // `principal` to Lead and returns null for CEO, so swapping one for the
+  // other would call a Team Lead an executive and a CEO nothing at all.
+  it('a senior, staff or lead title is not an executive', () => {
+    for (const officialTitle of ['Senior Product Designer', 'Staff Engineer', 'Team Lead']) {
+      const record = [entry({ officialTitle, employerOrInstitution: 'Elsewhere' })];
+      expect(detectSituation(record, 'tech', 'Northwind')).not.toBe('executive');
+    }
+  });
+});

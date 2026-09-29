@@ -1,4 +1,5 @@
 ---
+import SEARCH_SUGGESTIONS from '../data/search-suggestions.json';
 import type { FilterGroup } from '../lib/data';
 import { withBase } from '../../site.config.mjs';
 
@@ -7,13 +8,19 @@ import { withBase } from '../../site.config.mjs';
  * dimmer (MASTER-SPEC F10) beside it. Applied rows are tagged, never hidden
  * (owner decision, 2026-09-19; see the script's applied-tag section).
  *
- * WHY THE CANVAS'S FOUR GROUPS ARE THREE HERE. The canvas draws "Role family:
- * All" and the data carries no role family. Deriving one by reading job titles
- * would mean this repository inventing a classification and presenting it as
- * the machine's finding, which is the same objection that blocked the kill
- * list's reason taxonomy: the field is emitted upstream by the sweep, or the
- * filter does not ship. What ships is Location, Comp and Freshness, each of
- * which is a field the record actually holds. See DECISIONS.md.
+ * THE CANVAS'S FOURTH GROUP SHIPS NOW, AS "FIELD". This said the data carried
+ * no role family, and that deriving one by reading job titles would mean this
+ * repository inventing a classification and presenting it as the machine's
+ * finding. That objection held the filter back until the answer was built
+ * rather than asserted: src/lib/job-family.mjs is an ordered table of word
+ * tests a reader can read, reproduce and argue with — no model, nothing in the
+ * nightly ingest path — and db/212 stores the verdict in derived_fam next to
+ * the department word it was read from. A posting it cannot place is null and
+ * shows as "Not placed", never as an invented bucket.
+ *
+ * Freshness went the other way and no longer ships (2026-09-28): the board
+ * already said a posting's age three other ways. So the strip is Field,
+ * Location and Comp. See DECISIONS.md.
  *
  * WHY NATIVE SELECTS RATHER THAN THE CANVAS'S DROPDOWN BUTTONS. A custom
  * dropdown is a listbox, a focus trap, a set of arrow key handlers and a
@@ -162,12 +169,44 @@ const widest = (group: FilterGroup): string =>
         data-job-search
         name={serverMode ? 'q' : undefined}
         value={serverMode ? query : undefined}
-        placeholder="Title or company"
+        placeholder="Title, company or field"
         autocomplete="off"
+        list={serverMode ? 'board-suggest' : undefined}
         spellcheck="false"
         enterkeyhint="search"
       />
     </label>
+    {/*
+      THE SUGGESTIONS. A native datalist, so the browser draws and filters it
+      and there is no combobox to get wrong — this repo has already paid for a
+      custom one once (a dropdown press that blurred its own field in Safari
+      and Firefox; see the mousedown refusal below).
+
+      IT IS A SET OF SHORTCUTS, NOT A CATALOGUE, and must never be read as one:
+      22,978 of the board's 26,385 distinct titles occur exactly once, so no
+      fixed list can describe this corpus. What it does is meet the reader who
+      types "des" or "nurse" with phrases that actually return rows, on a
+      control that until now offered no vocabulary at all while the Field
+      select beside it offered a closed one.
+
+      The count on each option is what the SEARCH returns, not how many rows
+      carry that exact title. On this board those differ by two orders of
+      magnitude — "Software Engineer" is 12 rows by exact title and 1,276 by
+      search — and a suggestion that promises 12 and delivers 1,276 is worse
+      than none. Built by scripts/build-search-suggestions.mjs.
+
+      The 22 field names are in the list too, and they are the one kind of
+      entry that is not a search: board.astro resolves an exact field name to
+      the Field control instead (familyFromSearch), because "Healthcare &
+      Medicine" as a substring returns nothing.
+    */}
+    {serverMode && (
+      <datalist id="board-suggest">
+        {SEARCH_SUGGESTIONS.map((s) => (
+          <option value={s.t} label={s.k === 'f' ? `field · ${s.n.toLocaleString()}` : `${s.n.toLocaleString()}`} />
+        ))}
+      </datalist>
+    )}
     {/*
       THE TITLE MENU (owner decision, 2026-09-19). The board is never
       pre-filtered; instead a member who named titles on The Desk gets a

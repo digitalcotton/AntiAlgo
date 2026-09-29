@@ -48,6 +48,7 @@
  */
 export const prerender = false;
 
+import { familyLabel } from '../../lib/job-family.mjs';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ClosedHistory from '../../components/job-detail/ClosedHistory.astro';
 import ClosureRecord from '../../components/job-detail/ClosureRecord.astro';
@@ -178,6 +179,10 @@ const summary = job ? summaryParts({ ...job, comp_posted: pay }, null) : [];
 
 // The facts, as posted: /role's five rows in /role's order, with the Team row
 // appended where the tracker holds one, so the shared fields never move.
+// The family the sweep placed this posting in (db/212, src/lib/job-family.mjs).
+const famLabel = familyLabel(row?.derived_fam ?? null);
+const famSource = row?.derived_fam_source === 'department' ? 'department' : row?.derived_fam_source === 'title' ? 'title' : null;
+
 const facts: KeyValueRow[] = job
   ? [
       { key: 'Title', value: job.title },
@@ -193,6 +198,22 @@ const facts: KeyValueRow[] = job
         absence: `${ABSENCE.date} at source`
       },
       { key: 'Source system', value: source },
+      // FIELD IS OURS, TEAM IS THEIRS, AND THE PAGE SAYS WHICH IS WHICH.
+      // Until 2026-09-28 this printed the raw crawled department under the
+      // label "Team" and nothing else — the same 3,335-value column that holds
+      // FLZR, Scaling and SSAs, and the exact value job-family.mjs was written
+      // to replace. So the board filtered by the clean taxonomy while the job
+      // page showed the dirty one, on the same posting, and a reader had no way
+      // to know which field the Field control had put this role in.
+      //
+      // Both are shown now. Field is the family the site derived and the one
+      // the filter uses, with the word it was read from named; Team is the
+      // employer's own department string, unedited, because that is what they
+      // published. A posting the classifier could not place shows no Field row
+      // rather than an invented one.
+      ...(famLabel
+        ? [{ key: 'Field', value: famSource ? `${famLabel}, from the ${famSource}` : famLabel }]
+        : []),
       ...(row?.department ? [{ key: 'Team', value: row.department }] : [])
     ]
   : [];

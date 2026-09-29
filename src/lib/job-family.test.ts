@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
-import { familyOf, familyLabel, FAMILIES, FAMILY_IDS } from './job-family.mjs';
+import { familyOf, familyLabel, familyFromSearch, FAMILIES, FAMILY_IDS } from './job-family.mjs';
 
 describe('the family list', () => {
   it('has unique ids and a label for each', () => {
@@ -145,7 +145,13 @@ describe('the title is the fallback, and null is a real answer', () => {
  */
 describe('coverage against the real corpus', () => {
   const CORPUS = 'src/data/board-latest.json.gz';
-  const FLOOR = 0.84;
+  // RATCHETED 0.84 -> 0.90 on 2026-09-28, when the long-tail block took the
+  // corpus from 87.77% to 92.93%. It sits below the measured number on
+  // purpose: the floor's job is to catch a rule that BREAKS classification, not
+  // to pin a figure that moves a little every night as the crawl reaches new
+  // employers. Raise it when a block of terms earns it; never lower it to make
+  // a red build green.
+  const FLOOR = 0.9;
 
   /**
    * READ AND CLASSIFY ONCE. Both cases below need the same 37,765 rows, and the
@@ -178,7 +184,12 @@ describe('coverage against the real corpus', () => {
     }
   }, 60_000);
 
-  it.skipIf(!existsSync(CORPUS))('classifies at least 84% of the board', () => {
+  // IT SKIPS WHEN THE CORPUS IS NOT COMMITTED, and that is worth knowing before
+  // trusting a green run: the nightly data commits ADD board-latest.json.gz with
+  // the board and REMOVE it with the stats a few hours later (72ec490 adds,
+  // d174e28 deletes), so on most commits this ratchet is not running at all.
+  // Measure a rules change against the database when the file is absent.
+  it.skipIf(!existsSync(CORPUS))(`classifies at least ${Math.round(FLOOR * 100)}% of the board`, () => {
     const share = classified / total;
     const worst = [...unmapped]
       .sort((a, b) => b[1] - a[1])
@@ -199,5 +210,73 @@ describe('coverage against the real corpus', () => {
     // classified, and all of it is wrong. This is the guard for that.
     const [biggest, n] = [...counts].sort((a, b) => b[1] - a[1])[0];
     expect(n / total, `${biggest} claims ${((n / total) * 100).toFixed(1)}% of the board`).toBeLessThan(0.5);
+  });
+});
+
+describe('the published contract names the same families the code does', () => {
+  // THE GUARD THAT WOULD HAVE CAUGHT THIS. schemas/jobs.schema.json carried a
+  // four-value design vocabulary (product / design_engineering / brand /
+  // design_systems) that nothing wrote, for long enough that /jobs-data's
+  // watched groups were built against it and matched zero rows. Two lists of
+  // family names with no test between them is how that happens.
+  it('the jobs schema role_family enum IS FAMILY_IDS, in order', () => {
+    const schema = JSON.parse(readFileSync('schemas/jobs.schema.json', 'utf8'));
+    const prop = schema.$defs?.job?.properties?.role_family ?? schema.properties?.job?.properties?.role_family;
+    const branch = (prop.oneOf as { enum?: string[] }[]).find((b) => Array.isArray(b.enum));
+    expect(branch?.enum).toEqual([...FAMILY_IDS]);
+  });
+
+  it('a kill carries no family, because board_kills has no column for one', () => {
+    for (const file of ['schemas/kills.schema.json', 'schemas/kills-archive.schema.json']) {
+      expect(readFileSync(file, 'utf8')).not.toContain('role_family');
+    }
+  });
+});
+
+describe('familyFromSearch: a search that names a field chooses it', () => {
+  it('matches a whole label, case and space ignored', () => {
+    expect(familyFromSearch('Healthcare & Medicine')).toBe('health');
+    expect(familyFromSearch('  software engineering ')).toBe('software');
+    expect(familyFromSearch('DESIGN')).toBe('design');
+  });
+
+  it('never matches a substring, so a word stays a search', () => {
+    // "design" is the whole Design label, so it resolves. "designer" is not,
+    // and must stay a search for the word — the board holds 676 rows matching
+    // it across software, marketing and design against a Design field of 313.
+    expect(familyFromSearch('designer')).toBeNull();
+    expect(familyFromSearch('Healthcare')).toBeNull();
+    expect(familyFromSearch('nurse')).toBeNull();
+    expect(familyFromSearch('senior product designer')).toBeNull();
+  });
+
+  it('is null for nothing at all', () => {
+    expect(familyFromSearch('')).toBeNull();
+    expect(familyFromSearch('   ')).toBeNull();
+    expect(familyFromSearch(null)).toBeNull();
+    expect(familyFromSearch(undefined)).toBeNull();
+  });
+
+  it('every label resolves to its own id', () => {
+    for (const family of FAMILIES) expect(familyFromSearch(family.label)).toBe(family.id);
+  });
+});
+
+describe('the suggestion list', () => {
+  it('offers every field, and its ids are real', async () => {
+    const list = JSON.parse(readFileSync('src/data/search-suggestions.json', 'utf8')) as {
+      t: string; k: string; id?: string; n: number;
+    }[];
+    const fields = list.filter((e) => e.k === 'f');
+    expect(fields).toHaveLength(FAMILIES.length);
+    for (const f of fields) expect(FAMILY_IDS).toContain(f.id);
+    // Every field entry must be resolvable by the rule board.astro applies,
+    // or the option would run as a substring search and return nothing.
+    for (const f of fields) expect(familyFromSearch(f.t)).toBe(f.id);
+  });
+
+  it('stays small enough to inline', () => {
+    const bytes = readFileSync('src/data/search-suggestions.json').byteLength;
+    expect(bytes).toBeLessThan(24_000);
   });
 });

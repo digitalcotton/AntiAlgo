@@ -9,6 +9,7 @@ import { boardRowToJob } from '../lib/board-jobs';
 import { listWatches } from '../lib/ledger-watch-store';
 import { isPaidViewer } from '../lib/ledger-access';
 import { boardHref, clampPage, parseBoardQuery } from '../lib/board-query';
+import { familyFromSearch } from '../lib/job-family.mjs';
 import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
 import { isOn } from '../lib/flags';
 import { routeFor } from '../data/nav';
@@ -57,6 +58,26 @@ const parsed = parseBoardQuery(Astro.url.searchParams);
 // /board is public, so the middleware writes no verdict here; it resolves a
 // viewer only when the request carries a session cookie (src/middleware.ts,
 // SESSION_IF_COOKIE), which is the one fact this page needs.
+// A SEARCH THAT IS THE NAME OF A FIELD CHOOSES THAT FIELD. The search box is
+// a substring match over title and company, so typing the name of a field got
+// a reader almost none of it — "Healthcare & Medicine" returns 0 rows as a
+// search term while the field holds 4,430. It is the most natural thing to type
+// into a box sitting beside a control called Field, and it was the worst thing
+// to type. The board answers by setting the control instead, so the reader can
+// see what happened and undo it.
+//
+// EXACT LABEL ONLY, never a substring: "design" must stay a search for the word
+// design (676 rows, across software, marketing and design) rather than being
+// quietly turned into the Design field (313). Nobody types a whole label such
+// as "Customer Support & Success" by accident.
+const namedFamily = familyFromSearch(parsed.q);
+if (namedFamily && parsed.families.length === 0) {
+  return Astro.redirect(
+    boardHref(boardPath, { ...parsed, q: '', families: [namedFamily] }, { page: 1 }),
+    302
+  );
+}
+
 const viewer = Astro.locals.viewer;
 const signedIn = Boolean(viewer && viewer.emailVerified);
 /* The Board / Newly funded switch advertises the Pre-List, which is paid, so
@@ -101,8 +122,22 @@ const EMPTY_PAGE: BoardFilteredResult = { rows: [], total: 0, counts: EMPTY_COUN
 // attached at creation so the unresolved promise can be handed to a body
 // component (Board -> AgePlot) without ever rejecting unhandled: the head can
 // stream before this settles.
+// THE STRIP IS DRAWN OVER THE READER'S BOARD, not over the whole sweep
+// (2026-09-28). It took only the sweep date, so "Showing 36,457 of 36,457
+// roles" sat above a Field dropdown counting 1,463 and a table showing 59 —
+// three denominators on one screen, none of them saying so. It gets the same
+// narrowing the rows and the counts get; the age RANGE is the one thing it
+// does not take, because the strip is the control that sets it.
 const ageHistogramP: Promise<AgeHistogram> = isConfigured()
-  ? listBoardAgeHistogram(sweepDate()).catch((error) => {
+  ? listBoardAgeHistogram({
+      q: query.q,
+      location: query.location,
+      comp: query.comp,
+      freshness: query.freshness,
+      sweepDate: sweepDate(),
+      titles: pickedTitles.length > 0 ? pickedTitles : undefined,
+      families: query.families.length > 0 ? [...query.families] : undefined
+    }).catch((error) => {
       console.error('board: the age plot could not read the store; rendering without it.', error);
       return EMPTY_AGE_HISTOGRAM;
     })

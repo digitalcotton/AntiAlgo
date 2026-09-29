@@ -28,7 +28,7 @@ const GROUPS: FilterGroup[] = [
     options: [
       { value: 'all', label: 'All', count: 3 },
       { value: 'remote', label: 'Remote', count: 2 },
-      { value: 'onsite', label: 'On-site or hybrid', count: 1 }
+      { value: 'onsite', label: 'On-site', count: 1 }
     ]
   },
   {

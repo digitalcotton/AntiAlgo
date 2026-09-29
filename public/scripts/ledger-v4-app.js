@@ -50,7 +50,12 @@
   var INDUSTRY = DATA.INDUSTRY || [];
   var TEAM = DATA.TEAM || [];
   var SIGNALS = DATA.SIGNALS || [];
-  var TIERS = DATA.TIERS || ['Senior', 'Staff', 'Lead', 'Director'];
+  // The ladder comes from the payload (jobs-data-page.ts TIERS, itself
+  // jobs-derived.mjs SENIORITY_LADDER). The fallback used to re-list the four
+  // words here, which made this a fourth copy nothing tested; the payload
+  // always carries them (check-dom-contracts.mjs asserts on the key), so an
+  // empty fallback is honest and cannot drift.
+  var TIERS = DATA.TIERS || [];
   var RULES = DATA.RULES || [];
   var RULE_KEYS = DATA.RULE_KEYS || [];
   var PAY_LO = DATA.PAY_LO, PAY_HI = DATA.PAY_HI, LIFE_HI = DATA.LIFE_HI;
@@ -525,7 +530,9 @@
         { label: 'where', chips: ['anywhere', 'remote only', 'in office'].map(function (c) { return chip(c, st.where === c, 'set-where', c, facet('where', c)); }) },
         { label: 'pay printed', chips: [['any', 'any'], ['priced', 'range printed'], ['unpriced', 'no range']].map(function (c) { return chip(c[1], st.priced === c[0], 'set-priced', c[0], facet('priced', c[0])); }) },
         { label: 'posted within', chips: [[0, 'any'], [2, '48h'], [4, '96h'], [7, '7d'], [14, '14d']].map(function (c) { return chip(c[1], st.age === c[0], 'set-age', c[0], facet('age', c[0])); }) },
-        { label: 'level', chips: [['any', 'any'], ['Senior', 'Senior'], ['Staff', 'Staff'], ['Lead', 'Lead'], ['Director', 'Director']].map(function (c) { return chip(c[1], st.level === c[0], 'set-level', c[0], facet('level', c[0])); }) },
+        // Built from TIERS rather than hand-listed: this was a FIFTH copy of the
+        // ladder, 475 lines below the one the payload delivers.
+        { label: 'level', chips: [['any', 'any']].concat(TIERS.map(function (t) { return [t, t]; })).map(function (c) { return chip(c[1], st.level === c[0], 'set-level', c[0], facet('level', c[0])); }) },
         // The applicant-system buttons are the systems the crawl actually holds,
         // commonest first, rather than a hand-written list. The old list named
         // Ashby, Greenhouse and a "custom page" button that matched nothing,
