@@ -184,7 +184,12 @@ describe('coverage against the real corpus', () => {
     }
   }, 60_000);
 
-  it.skipIf(!existsSync(CORPUS))('classifies at least 84% of the board', () => {
+  // IT SKIPS WHEN THE CORPUS IS NOT COMMITTED, and that is worth knowing before
+  // trusting a green run: the nightly data commits ADD board-latest.json.gz with
+  // the board and REMOVE it with the stats a few hours later (72ec490 adds,
+  // d174e28 deletes), so on most commits this ratchet is not running at all.
+  // Measure a rules change against the database when the file is absent.
+  it.skipIf(!existsSync(CORPUS))(`classifies at least ${Math.round(FLOOR * 100)}% of the board`, () => {
     const share = classified / total;
     const worst = [...unmapped]
       .sort((a, b) => b[1] - a[1])
