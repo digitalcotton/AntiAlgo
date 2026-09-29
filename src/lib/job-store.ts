@@ -484,28 +484,32 @@ import { FRESH_WINDOW_DAYS as FRESH_WINDOW_DAYS_SQL } from './data';
  * come back from one statement: the bucket rows, then a final rollup row
  * (days IS NULL) carrying the axis max.
  */
-const AGE_MEASURED_CTE = `
-  WITH measured AS (
-    SELECT
-      j.title AS title,
-      j.company AS company,
-      j.published AS published_at,
-      CASE
-        WHEN COALESCE(j.published::date, k.first_published::date) IS NOT NULL
-          THEN (CASE WHEN j.status = 'killed' THEN k.killed_on::date ELSE $1::date END)
-               - COALESCE(j.published::date, k.first_published::date)
-        WHEN j.first_seen::date < $1::date
-          THEN (CASE WHEN j.status = 'killed' THEN k.killed_on::date ELSE $1::date END)
-               - j.first_seen::date
-        ELSE NULL
-      END AS days
-    FROM jobs j
-    LEFT JOIN board_kills k ON k.id = j.kill_id
-    -- Live rows only (2026-09-20): the plot is titled "age of every verified
-    -- role", and a killed row is not one. The killed branch of the CASE stays
-    -- for the day a caller wants the record's ages.
-    WHERE j.status <> 'killed'
-  )`;
+/**
+ * THE STRIP RESPECTS THE READER'S FILTERS (2026-09-28). It did not, and that
+ * was the loudest of the three disagreeing numbers on the board: the tiles said
+ * 37,286, the strip said "Showing 36,457 of 36,457 roles", and the Field
+ * dropdown said 1,463 — three denominators on one screen with nothing saying
+ * they were different. The strip was the odd one out, because it took the sweep
+ * date and nothing else.
+ *
+ * It is built on the board's own CTE now, so "every verified role" means every
+ * role the reader is actually looking at, and the count under the strip can be
+ * checked against the count in the table.
+ *
+ * EVERY FILTER EXCEPT ITS OWN. match_age is deliberately left out: the strip IS
+ * the age control. Applying the range it sets would collapse the plot to the
+ * selection and leave no handle to widen it again.
+ */
+function ageHistogramSql(titleClause: string): string {
+  return `${BOARD_FACET_CTE}
+, measured AS (
+  SELECT title, company, published AS published_at, age_days AS days
+    FROM matched
+   WHERE match_q AND match_location AND match_comp AND match_freshness
+     AND match_country AND match_live AND match_comp_present AND match_family
+     AND ${titleClause}
+)`;
+}
 
 interface AgeRow {
   days: number | null;
@@ -525,9 +529,30 @@ function instantString(value: Date | string | null): string | null {
   return Number.isNaN(ms) ? null : new Date(ms).toISOString();
 }
 
-export async function listBoardAgeHistogram(sweepDate: string): Promise<AgeHistogram> {
+/** What the strip is drawn over: the board's filters, minus the age range the
+    strip itself sets, and minus paging and sort (a histogram has neither).
+
+    The four narrowing values are optional here and default to "everything", so
+    a caller that draws the strip over the whole sweep — the home page teaser —
+    passes the sweep date alone. */
+export type AgeHistogramFilter = Omit<
+  BoardFilter,
+  'page' | 'perPage' | 'sort' | 'ageMin' | 'ageMax' | 'q' | 'location' | 'comp' | 'freshness'
+> &
+  Partial<Pick<BoardFilter, 'q' | 'location' | 'comp' | 'freshness'>>;
+
+export async function listBoardAgeHistogram(opts: AgeHistogramFilter): Promise<AgeHistogram> {
+  const shared: unknown[] = [
+    opts.sweepDate, FRESH_WINDOW_DAYS_SQL, likePattern(opts.q ?? ''), opts.location ?? 'all',
+    opts.comp ?? 'all', opts.freshness ?? 'all',
+    // The age range is null on purpose: see ageHistogramSql.
+    null, null,
+    opts.country ?? null, opts.liveOnly ?? true, opts.hasComp ?? false,
+    opts.families && opts.families.length > 0 ? opts.families : null
+  ];
+  const { clause: titleClause, params: titleParams } = titleKeepClause(opts.titles, shared.length + 1);
   const { rows } = await db().query<AgeRow>(
-    `${AGE_MEASURED_CTE}
+    `${ageHistogramSql(titleClause)}
      SELECT days,
             count(*)::int AS rows,
             (array_agg(company     ORDER BY published_at ASC NULLS LAST))[1] AS rep_company,
@@ -542,7 +567,7 @@ export async function listBoardAgeHistogram(sweepDate: string): Promise<AgeHisto
             max(days) FILTER (WHERE days IS NOT NULL)::int AS axis_max
        FROM measured
       ORDER BY days ASC NULLS LAST`,
-    [sweepDate]
+    [...shared, ...titleParams]
   );
 
   let axisMax = 0;

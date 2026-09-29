@@ -101,8 +101,22 @@ const EMPTY_PAGE: BoardFilteredResult = { rows: [], total: 0, counts: EMPTY_COUN
 // attached at creation so the unresolved promise can be handed to a body
 // component (Board -> AgePlot) without ever rejecting unhandled: the head can
 // stream before this settles.
+// THE STRIP IS DRAWN OVER THE READER'S BOARD, not over the whole sweep
+// (2026-09-28). It took only the sweep date, so "Showing 36,457 of 36,457
+// roles" sat above a Field dropdown counting 1,463 and a table showing 59 —
+// three denominators on one screen, none of them saying so. It gets the same
+// narrowing the rows and the counts get; the age RANGE is the one thing it
+// does not take, because the strip is the control that sets it.
 const ageHistogramP: Promise<AgeHistogram> = isConfigured()
-  ? listBoardAgeHistogram(sweepDate()).catch((error) => {
+  ? listBoardAgeHistogram({
+      q: query.q,
+      location: query.location,
+      comp: query.comp,
+      freshness: query.freshness,
+      sweepDate: sweepDate(),
+      titles: pickedTitles.length > 0 ? pickedTitles : undefined,
+      families: query.families.length > 0 ? [...query.families] : undefined
+    }).catch((error) => {
       console.error('board: the age plot could not read the store; rendering without it.', error);
       return EMPTY_AGE_HISTOGRAM;
     })

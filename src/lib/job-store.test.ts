@@ -132,30 +132,66 @@ describe('listBoardFiltered', () => {
 });
 
 describe('listBoardAgeHistogram', () => {
+  const AGE: Parameters<typeof listBoardAgeHistogram>[0] = {
+    q: '',
+    location: 'all',
+    comp: 'all',
+    freshness: 'all',
+    sweepDate: '2026-09-18'
+  };
+
   it('asks the database for the distribution, not the rows', async () => {
     // The plot is a histogram; the old query read every row (13,302 / 4.8 MB)
     // to build it. This asks Postgres to GROUP BY age and never selects a row's
     // heavy columns or, indeed, the rows.
     query.mockResolvedValue({ rows: [] });
-    await listBoardAgeHistogram('2026-09-18');
+    await listBoardAgeHistogram(AGE);
     const [sql, params] = query.mock.calls[0];
     expect(sql).toContain('GROUP BY days');
     expect(sql).not.toMatch(/\bj\.description\b/);
     expect(sql).not.toContain('LIMIT');
     // The sweep day is the "to" end of every age, bound not interpolated.
-    expect(params).toEqual(['2026-09-18']);
+    expect((params as unknown[])[0]).toBe('2026-09-18');
+  });
+
+  it('is drawn over the reader\'s board, not over the whole sweep', async () => {
+    // The 2026-09-28 fix. The strip used to take the sweep date and nothing
+    // else, so it said "36,457 of 36,457" above a Field dropdown counting
+    // 1,463. Every narrowing the rows get, it gets.
+    query.mockResolvedValue({ rows: [] });
+    await listBoardAgeHistogram({ ...AGE, location: 'remote', families: ['design'], q: 'nurse' });
+    const [sql, params] = query.mock.calls[0];
+    for (const clause of ['match_q', 'match_location', 'match_comp', 'match_freshness', 'match_family', 'match_live']) {
+      expect(sql).toContain(clause);
+    }
+    expect(params).toContain('remote');
+    expect(params).toContainEqual(['design']);
+    expect(params).toContain('%nurse%');
+  });
+
+  it('does NOT apply the age range, because the strip is what sets it', async () => {
+    // Applying its own selection would collapse the plot to the chosen band
+    // and leave no handle to widen it again.
+    query.mockResolvedValue({ rows: [] });
+    await listBoardAgeHistogram(AGE);
+    const [sql, params] = query.mock.calls[0];
+    const measured = String(sql).slice(String(sql).indexOf(', measured AS ('));
+    expect(measured).not.toContain('match_age');
+    // $7 and $8 are the range, bound null.
+    expect((params as unknown[])[6]).toBeNull();
+    expect((params as unknown[])[7]).toBeNull();
   });
 
   it('mirrors ageOf: killed rows age to their kill date, and the strict first-seen guard', async () => {
     query.mockResolvedValue({ rows: [] });
-    await listBoardAgeHistogram('2026-09-18');
+    await listBoardAgeHistogram(AGE);
     const [sql] = query.mock.calls[0];
     expect(sql).toContain("j.status = 'killed'");
     expect(sql).toContain('k.killed_on::date');
-    // And the plot reads live rows only (2026-09-20).
-    expect(sql).toContain("WHERE j.status <> 'killed'");
     expect(sql).toContain('k.first_published::date');
-    expect(sql).toContain('j.first_seen::date < $1::date');
+    expect(sql).toContain('j.first_seen < $1::date');
+    // Live rows only: it is the board's own match_live now, not a hard WHERE.
+    expect(sql).toContain("NOT $10::boolean OR status = 'live'");
   });
 
   it('reads the buckets and the axis max out of one result set', async () => {
@@ -167,7 +203,7 @@ describe('listBoardAgeHistogram', () => {
         { days: null, rows: 0, rep_company: null, rep_title: null, rep_published_at: null, axis_max: 900 }
       ]
     });
-    const hist = await listBoardAgeHistogram('2026-09-18');
+    const hist = await listBoardAgeHistogram(AGE);
     expect(hist.byDay).toHaveLength(2);
     expect(hist.byDay[0]).toMatchObject({ days: 2, rows: 3, repCompany: 'Acme', repTitle: 'Engineer' });
     expect(hist.axisMax).toBe(900);

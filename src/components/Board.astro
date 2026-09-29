@@ -148,6 +148,19 @@ const clearHref = serverMode
 const ageHref = serverMode
   ? (min: number | null, max: number | null) => boardHref(boardPath, q, { ageMin: min, ageMax: max })
   : undefined;
+// Is anything OTHER than the age range narrowing this board? The age strip is
+// drawn over the reader's filters now, so its heading stops calling itself
+// "every verified role" the moment it is not. The range itself is excluded:
+// the strip sets that one, and it already prints it in the status line.
+const narrowedBeyondAge =
+  serverMode &&
+  (Boolean(q.q) ||
+    q.location !== 'all' ||
+    q.comp !== 'all' ||
+    q.freshness !== 'all' ||
+    q.families.length > 0 ||
+    q.titles.length > 0);
+
 ---
 
 <section class="board" aria-label={ariaLabel} data-board-mode={mode}>
@@ -171,6 +184,7 @@ const ageHref = serverMode
       histogram={ageHistogram ?? ageHistogramFromJobs(jobs)}
       range={serverMode ? { min: q.ageMin, max: q.ageMax } : undefined}
       hrefFor={ageHref}
+      narrowed={narrowedBeyondAge}
     />
 
     {/* The control strip is the last band before the table, directly above
