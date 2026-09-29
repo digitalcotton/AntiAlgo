@@ -21,10 +21,23 @@
 > `node scripts/backfill-derived.mjs --all` once, or the board filters on
 > yesterday's classification until the next nightly ingest.
 >
-> **Still open, on the mini and not in this repo:** Workday sends no department
-> (3,522 rows), USAJOBS' `RemoteIndicator` is unread (9,940 rows, 20 remote),
-> Amazon reports no remote at all (2,846 rows). Those three fix more numbers
-> than anything in the site code.
+> **The "crawl gaps" were mostly not gaps. CORRECTED 2026-09-28.** This
+> document claimed USAJOBS' remote indicator was unread and that Amazon
+> reporting zero remote was "false on its face", and called the three crawl
+> fixes bigger than anything in the site code. That was asserted from general
+> knowledge, not measured. Measured now, through the descriptions the crawl
+> already stores: only **52 of 9,940** USAJOBS postings and **6 of 2,846**
+> Amazon postings use remote language anywhere in their text. They are on-site
+> jobs — federal postings here are mostly facility, trades, healthcare and
+> security roles tied to a place, and the Amazon board is warehouse and
+> operations. Capturing every one would move the Remote board from 4,176 to
+> about 4,230, roughly 1%.
+>
+> What was real is already fixed: Ashby, Breezy, Lever, iCIMS and Teamtailor do
+> send a structured flag and the site was discarding it (2,650 rows).
+>
+> Workday's missing department (3,522 rows) is real but small in effect: the
+> title fallback places all but 243 of them.
 >
 > **Not done, and a product question rather than a bug:** `/jobs-data` is still
 > five design groups on a board that now covers 22 families and every kind of
@@ -124,8 +137,11 @@ it separately from the location string:
 The bottom two rows are their own finding. USAJOBS is 26.7% of this board and
 publishes a `RemoteIndicator`; we record 20 remote federal jobs out of 9,940.
 Amazon is 2,846 rows and we record zero remote, which is false on its face.
-Those are crawl gaps on the mini, not site bugs, but they are the reason a
-reader who filters to Remote sees a board that looks like it only has startups.
+Those two looked like crawl gaps on the mini. They are not — see the correction
+at the top of this file. Their postings really are on-site, and the reason a
+Remote reader used to see a board of startups was the discarded flag above,
+which the startups' applicant systems (Ashby, Breezy, Lever) happen to send and
+the enterprise ones do not.
 
 ### What the reader loses, by field
 
@@ -447,9 +463,9 @@ Add the next ~100 terms to `RULES` against the unplaced corpus (§4). The test
 harness already ratchets coverage at a FLOOR of 0.84 with a
 no-family-above-half guard, so this is safe, measurable work. Target: 92%+.
 
-Separately, on the mini: capture Workday's department, USAJOBS' `RemoteIndicator`
-and whatever Amazon exposes for remote. Those three fix more numbers than
-anything in the site code.
+Separately, on the mini: capture Workday's department (3,522 rows carry none).
+The USAJOBS and Amazon remote fields that used to sit here were struck after
+measurement — see the correction at the top.
 
 ### F. Delete or wire the dead vocabulary
 
