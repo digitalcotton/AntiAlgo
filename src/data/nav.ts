@@ -69,6 +69,7 @@ export const ROUTES = [
   // code copied in verbatim, same reasoning as 'index' above.
   { key: 'manifesto', pattern: '/not-here', kind: 'static', note: "Alias of 'not-here' for board code copied from the Index.", sitemap: false },
   { key: 'methodology', pattern: '/methodology', kind: 'static', note: 'How the machine works, the kill rules, the rubric and its weights, the legend.', sitemap: true },
+  { key: 'bot', pattern: '/bot', kind: 'static', note: 'What our crawler is: the exact User-Agent tokens it sends, what it reads, what it never touches, and the robots.txt lines that stop it. The URL both agents advertise.', sitemap: true },
   { key: 'colophon', pattern: '/colophon', kind: 'static', note: 'The stack, the gates, the conformance run, the decision log. How this was built is the argument.', sitemap: true },
   { key: 'data', pattern: '/data', kind: 'static', note: 'What the dataset is: method, coverage by population, history length, the kill rules link, the free monthly analysis, and two calls to action.', sitemap: true },
   { key: 'covenant', pattern: '/covenant', kind: 'static', note: 'The covenant: nine promises about money and observation, each marked checkable today or written before the feature.', sitemap: true },

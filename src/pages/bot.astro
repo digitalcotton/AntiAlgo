@@ -1,0 +1,291 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SITE } from '../data/site';
+import { withBase } from '../../site.config.mjs';
+
+/**
+ * /bot: what our crawler is, for the people whose servers it asks.
+ *
+ * WHY THIS PAGE EXISTS. Both of our fetchers announce a URL in their
+ * User-Agent, the way a well-behaved crawler is supposed to, and until
+ * 2026-09-29 that URL pointed at /colophon — a page about how this site was
+ * built, which says nothing about the crawler. So a server operator who saw
+ * our requests, followed the link we gave them, and wanted to know who we were
+ * or how to stop us, found a page about our test gates. The convention is not
+ * "put a URL in the string"; it is "put a URL that answers the question the
+ * operator has". This is that page.
+ *
+ * IT IS ALSO THE SIDE OF THE ARGUMENT WE ARE USUALLY ON. /terms asks the people
+ * who use this site not to scrape it. A product that asks for that and does not
+ * publish how to refuse its own crawler is arguing one way on Tuesday and the
+ * other way on Wednesday. Everything on this page is checkable from a server
+ * log: the exact tokens we send, what we ask for, how often, and the two lines
+ * of robots.txt that stop us.
+ *
+ * KEEP IT TRUE. Every claim here is a claim about code that exists — the
+ * nightly sweep's User-Agent is config.USER_AGENT on the machine, and the
+ * on-request reader's is the literal in src/lib/posting-read.ts. If either
+ * changes, this page changes in the same commit, or it becomes the same kind of
+ * stale signpost it was written to replace.
+ */
+const UPDATED = 'September 29, 2026';
+const contact = SITE.contact;
+const termsHref = withBase('/terms');
+const privacyHref = withBase('/privacy');
+
+/** The two tokens, exactly as they go out. Anything else in a log is not us. */
+const AGENTS = [
+  {
+    token: 'AntiAlgoBot',
+    full: 'AntiAlgoBot/1.0 (+https://antialgo.ai/bot; contact Ryan@digitalcotton.com)',
+    what: 'The nightly sweep. Reads public job postings from employer career sites and applicant tracking systems, once a night, on a schedule.'
+  },
+  {
+    token: 'AntiAlgoReader',
+    full: 'AntiAlgoReader/1.0 (+https://antialgo.ai/bot; contact Ryan@digitalcotton.com)',
+    what: 'A single page, fetched because a person signed in here pasted its address and is looking at it. No schedule, no crawl, no links followed.'
+  }
+];
+
+const title = 'Our crawler';
+const description =
+  'What our crawler is, the exact User-Agent strings it sends, what it reads and how often, what it never touches, and the two lines of robots.txt that stop it.';
+---
+
+<BaseLayout active="bot" title={title} description={description} noindex={false}>
+  <div class="shell legal">
+    <header class="head">
+      <p class="stamp mono-label">Our crawler</p>
+      <h1 class="head-title">What our machine is, and how to stop it</h1>
+      <p class="updated mono-label">Last updated {UPDATED}</p>
+    </header>
+
+    <aside class="summary" aria-label="Plain-words summary">
+      <p class="summary-label mono-label">Plain words, short version</p>
+      <p class="summary-body">
+        We read public job postings so people can see whether a role is real and still open. We identify ourselves in
+        every request and we obey robots.txt. If you do not want us on your site, two lines below will stop us, and
+        you can also just email and ask — we will stop, and we do not require a reason.
+      </p>
+    </aside>
+
+    <div class="clauses">
+      <section class="clause">
+        <h2 class="clause-label mono-label">01 / The two agents, exactly as they arrive</h2>
+        <div class="clause-body">
+          <p>
+            Two different things fetch pages here, and they are deliberately named differently so you can allow one
+            and refuse the other. If a request claims to be us and does not match one of these, it is not us.
+          </p>
+          {AGENTS.map((agent) => (
+            <>
+              <p><code>{agent.full}</code></p>
+              <p>{agent.what}</p>
+            </>
+          ))}
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">02 / What we read</h2>
+        <div class="clause-body">
+          <p>
+            Public job postings, and only what the posting itself states: the role title, the company, the location,
+            whether it says remote, the date it says it was posted, the team, the employment type, the pay range where
+            one is published, and the description as written. We keep the link back to your own application page and
+            we send applicants to it.
+          </p>
+          <p>
+            We also record when a posting appeared and when it stopped appearing, because that is the product: a job
+            seeker cannot currently tell a live role from one that closed months ago.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">03 / What we never do</h2>
+        <div class="clause-body">
+          <p>
+            We do not read anything behind a login, and we do not have accounts on your site. We do not collect
+            personal data about anyone — not candidates, not recruiters, not employees. We do not submit forms or
+            applications. We do not attempt to reach anything a site has not made public, and we do not work around
+            a block, a rate limit, a login wall or a bot check. If a site's terms forbid automated reading, we do not
+            read it, whatever robots.txt happens to permit.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">04 / How often, and how heavy</h2>
+        <div class="clause-body">
+          <p>
+            The sweep runs once a night. Requests to any one host are paced with a delay between them, and it prefers
+            a board's own JSON endpoint over rendering pages, because that is one small request instead of many large
+            ones. It re-reads a posting only when the source says the posting changed.
+          </p>
+          <p>
+            If that is still more than you want, tell us a rate and we will use it.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">05 / How to stop us</h2>
+        <div class="clause-body">
+          <p>We read robots.txt on every run and we obey it. To refuse both agents:</p>
+          <p><code>User-agent: AntiAlgoBot<br />Disallow: /<br /><br />User-agent: AntiAlgoReader<br />Disallow: /</code></p>
+          <p>
+            To refuse only the nightly sweep and still allow the single page a signed-in person asked to read, name
+            <code>AntiAlgoBot</code> alone. A <code>Disallow</code> takes effect on our next run, which is the same
+            night.
+          </p>
+          <p>
+            You do not have to edit a file. Email <a class="text-link" href={`mailto:${contact}`}>{contact}</a> and
+            say stop, and we will stop, permanently, without asking why.
+          </p>
+        </div>
+      </section>
+
+      <section class="clause">
+        <h2 class="clause-label mono-label">06 / Something looks wrong</h2>
+        <div class="clause-body">
+          <p>
+            If you see traffic claiming to be us that does not match section 01, if we have got a posting wrong, or if
+            we are reading something you did not mean to publish, write to
+            <a class="text-link" href={`mailto:${contact}`}>{contact}</a>. A posting we should not be showing comes
+            down on request.
+          </p>
+          <p>
+            Our own terms are at <a class="text-link" href={termsHref}>terms of use</a>, and what we do with data
+            about people is at <a class="text-link" href={privacyHref}>privacy</a>.
+          </p>
+        </div>
+      </section>
+    </div>
+  </div>
+</BaseLayout>
+
+<!--
+  The legal-page styles, the same block terms.astro and privacy.astro each
+  carry. Astro scopes a page's <style> to that page, so the class names alone
+  buy nothing: without this, /bot rendered with the right markup and none of
+  the rhythm, which is exactly how it looked before this block was added.
+
+  Copied rather than extracted into a shared partial ON PURPOSE. Two pages
+  already keep their own identical copy, so this follows the pattern the
+  codebase set instead of refactoring two working legal pages in a commit about
+  a User-Agent string. If a third reason to duplicate ever appears, that is the
+  moment to lift all four into one place.
+-->
+<style>
+  .legal {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-700);
+    padding-block: var(--space-700) var(--space-900);
+  }
+
+  .head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-300);
+  }
+
+  .stamp {
+    color: var(--color-muted);
+  }
+
+  .head-title {
+    max-width: 18ch;
+  }
+
+  .updated {
+    color: var(--color-muted);
+  }
+
+  .summary {
+    display: grid;
+    grid-template-columns: 14rem minmax(0, 1fr);
+    column-gap: var(--space-600);
+    max-width: var(--layout-measure);
+    border-left: var(--border-hairline) solid var(--color-line);
+    padding-left: var(--space-500);
+  }
+
+  .summary-label {
+    grid-column: 1;
+    color: var(--color-muted);
+  }
+
+  .summary-body {
+    grid-column: 2;
+    margin: 0;
+    font-size: var(--size-300);
+    line-height: var(--leading-normal);
+    color: var(--color-foreground);
+    font-weight: var(--weight-medium);
+  }
+
+  .clauses {
+    display: grid;
+    gap: var(--space-500);
+    max-width: var(--layout-measure);
+  }
+
+  .clause {
+    display: grid;
+    grid-template-columns: 14rem minmax(0, 1fr);
+    column-gap: var(--space-600);
+    align-items: start;
+    border-top: var(--border-hairline) solid var(--color-line);
+    padding-top: var(--space-400);
+  }
+
+  .clause-label {
+    grid-column: 1;
+    color: var(--color-muted);
+    align-self: start;
+  }
+
+  .clause-body {
+    grid-column: 2;
+    display: grid;
+    gap: var(--space-300);
+  }
+
+  .clause-body p {
+    margin: 0;
+    font-size: var(--size-200);
+    line-height: var(--leading-normal);
+    color: var(--color-muted);
+    text-wrap: pretty;
+  }
+
+  .legal-link {
+    color: var(--color-foreground);
+    text-decoration: underline;
+    text-underline-offset: var(--text-underline-offset);
+  }
+
+  .legal-link:hover {
+    color: var(--color-muted);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .legal-link {
+      transition: color var(--motion-duration-instant) var(--motion-easing-standard);
+    }
+  }
+
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .legal {
+      gap: var(--space-600);
+      padding-block: var(--space-600) var(--space-800);
+    }
+    .summary,
+    .clause {
+      grid-template-columns: 1fr;
+      row-gap: var(--space-300);
+    }
+  }
+</style>

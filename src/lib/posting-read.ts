@@ -158,8 +158,14 @@ async function guardedFetch(
         redirect: 'manual',
         signal: AbortSignal.timeout(Math.min(left, capMs)),
         headers: {
-          // Say who we are. A board that wants to refuse us should be able to.
-          'User-Agent': 'AntiAlgoBot/1.0 (+https://www.antialgo.ai/colophon)',
+          // Say who we are, and mean it. This is the ON-REQUEST reader -- one
+          // page, because a signed-in person pasted its address and is looking
+          // at it -- so it is named apart from the nightly sweep (AntiAlgoBot
+          // on the machine) and a site can refuse one without the other. The
+          // URL used to point at /colophon, which is about this site's build
+          // and says nothing about a crawler; an operator who followed it
+          // learned nothing. /bot answers the question they actually have.
+          'User-Agent': 'AntiAlgoReader/1.0 (+https://antialgo.ai/bot; contact Ryan@digitalcotton.com)',
           Accept: 'application/json, text/html;q=0.9, */*;q=0.8'
         }
       });
