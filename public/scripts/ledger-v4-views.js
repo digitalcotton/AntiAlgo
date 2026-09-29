@@ -99,12 +99,12 @@
   
         ${vm.watchOpen ? `
         <div id="watch-body">
-          <h2 style="margin:20px 0 0;font-weight:600;font-size:clamp(1.4rem,3vw,2.1rem);line-height:1.08;letter-spacing:-0.025em;max-width:28ch;text-wrap:pretty;">Name a title. Every view on this page re-cuts to it.</h2>
-          <p style="margin:12px 0 0;font-size:0.95rem;line-height:1.55;color:var(--color-muted);max-width:64ch;">There is no category list to pick from, because no list survives ${vm.observedN} postings a night. You type what you do, or what you want to do next. The board tells you what that title is called on the rows it read, and every cross-cut below follows your cut.</p>
+          <h2 style="margin:20px 0 0;font-weight:600;font-size:clamp(1.4rem,3vw,2.1rem);line-height:1.08;letter-spacing:-0.025em;max-width:28ch;text-wrap:pretty;">Pick your field. Every view on this page re-cuts to it.</h2>
+          <p style="margin:12px 0 0;font-size:0.95rem;line-height:1.55;color:var(--color-muted);max-width:64ch;">Twenty-two fields, covering every kind of work the sweep reads — not a shortlist of the ones we expected you to want. Search for what you do and take the field it sits in, or take several. The board tells you what each one is called on the rows it actually read, and every cross-cut below follows your cut.</p>
   
           <div style="margin-top:22px;border:1px solid var(--color-line-strong);background:var(--color-surface-raised);">
             <div style="padding:14px 16px;border-bottom:1px solid var(--color-line);display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-              <input value="${vm.query}" data-act="query" placeholder="product designer, design engineer, brand, design systems" aria-label="Search the board's titles" style="flex:1;min-width:220px;min-height:44px;padding:11px 14px;border:1px solid var(--color-line-strong);background:var(--color-surface);color:var(--color-foreground);font-family:var(--font-family-mono);font-size:0.88rem;border-radius:var(--radius);">
+              <input value="${vm.query}" data-act="query" placeholder="nurse, welder, paralegal, product designer" aria-label="Search the board's titles" style="flex:1;min-width:220px;min-height:44px;padding:11px 14px;border:1px solid var(--color-line-strong);background:var(--color-surface);color:var(--color-foreground);font-family:var(--font-family-mono);font-size:0.88rem;border-radius:var(--radius);">
               <span style="font-family:var(--font-family-mono);font-size:0.7rem;color:var(--color-muted);white-space:nowrap;">${vm.searchNote}</span>
             </div>
             ${vm.hasResults ? `

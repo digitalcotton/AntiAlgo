@@ -79,7 +79,7 @@ describe('the Jobs Data filter allowlist', () => {
   it('caps how many groups and switched-off titles one request may carry', () => {
     const many = Array.from({ length: 9 }, () => 'watch=Design+Leadership').join('&');
     expect(() => parseFilters(q(many))).toThrow(FilterError);
-    const off = ['Design Leadership'].concat(Array.from({ length: 201 }, (_, i) => 't' + i)).join('\t');
+    const off = ['Healthcare & Medicine'].concat(Array.from({ length: 201 }, (_, i) => 't' + i)).join('\t');
     expect(() => parseFilters(q('watch=' + encodeURIComponent(off)))).toThrow(FilterError);
   });
 
@@ -91,8 +91,8 @@ describe('the Jobs Data filter allowlist', () => {
   });
 
   it('gives the same cache key for the same switched-off titles in any order', () => {
-    const a = parseFilters(q('watch=' + encodeURIComponent('Design Leadership\tHead of Design\tVP Design')));
-    const b = parseFilters(q('watch=' + encodeURIComponent('Design Leadership\tVP Design\tHead of Design')));
+    const a = parseFilters(q('watch=' + encodeURIComponent('Healthcare & Medicine\tStaff Nurse\tWard Sister')));
+    const b = parseFilters(q('watch=' + encodeURIComponent('Healthcare & Medicine\tWard Sister\tStaff Nurse')));
     expect(cacheKey(a)).toBe(cacheKey(b));
   });
 });
@@ -113,7 +113,7 @@ describe('the ladder is declared once', () => {
     const { GROUP_DEFS } = await import('./jobs-data-filters');
     const { SENIORITY_LADDER } = await import('./jobs-derived.mjs');
     for (const group of GROUP_DEFS) {
-      for (const tier of group.tiers) expect(SENIORITY_LADDER).toContain(tier);
+      for (const tier of group.tiers ?? []) expect(SENIORITY_LADDER).toContain(tier);
     }
   });
 });
@@ -142,7 +142,7 @@ describe('the watched groups name families that exist', () => {
     const { GROUP_DEFS } = await import('./jobs-data-filters');
     const seen = new Map<string, number>();
     for (const g of GROUP_DEFS) {
-      const key = `${g.fam}|${[...g.tiers].sort().join(',')}`;
+      const key = `${g.fam}|${[...(g.tiers ?? ['any'])].sort().join(',')}`;
       seen.set(key, (seen.get(key) ?? 0) + 1);
       // Only the single occupant of a (family, tiers) pair may go wordless;
       // otherwise boardFacts' first-match-wins gives one group every row.
@@ -151,7 +151,7 @@ describe('the watched groups name families that exist', () => {
     for (const [key, n] of seen) {
       if (n > 1) {
         const wordless = GROUP_DEFS.filter(
-          (g) => `${g.fam}|${[...g.tiers].sort().join(',')}` === key && g.words.length === 0
+          (g) => `${g.fam}|${[...(g.tiers ?? ['any'])].sort().join(',')}` === key && g.words.length === 0
         );
         expect(wordless, `${key} has a wordless group beside ${n - 1} others`).toHaveLength(0);
       }
@@ -164,5 +164,36 @@ describe('the watched groups name families that exist', () => {
     // is what makes both safe.
     const { GROUP_DEFS } = await import('./jobs-data-filters');
     for (const g of GROUP_DEFS) for (const w of g.words) expect(w).toMatch(/^[a-z ]+$/);
+  });
+});
+
+
+describe('/jobs-data covers every field, not just design', () => {
+  // It was five design titles — Product Designer, Design Engineer, Brand
+  // Designer, Design Systems Designer, Design Leadership — on a board of
+  // 37,286 postings across every kind of work. A nurse could pay for this page
+  // and find nothing on it to watch.
+  it('there is one group per family, and nothing else', async () => {
+    const { GROUP_DEFS } = await import('./jobs-data-filters');
+    const { FAMILIES } = await import('./job-family.mjs');
+    expect(GROUP_DEFS.map((g) => g.fam)).toEqual(FAMILIES.map((f) => f.id));
+    expect(GROUP_DEFS.map((g) => g.title)).toEqual(FAMILIES.map((f) => f.label));
+  });
+
+  it('no group narrows by seniority', async () => {
+    // derived_tier is NULL on 79.6% of the board, so a tier test would drop
+    // four rows in five before looking at the field. Seniority is the `level`
+    // filter's job, where a reader can see it and turn it off.
+    const { GROUP_DEFS } = await import('./jobs-data-filters');
+    for (const g of GROUP_DEFS) expect(g.tiers).toBeNull();
+  });
+
+  it('watching every group is inside the request cap', async () => {
+    // "Watch all" sends one watch per group; a cap below the group count would
+    // 400 the button.
+    const { GROUP_DEFS, parseFilters } = await import('./jobs-data-filters');
+    const params = new URLSearchParams();
+    for (const g of GROUP_DEFS) params.append('watch', g.title);
+    expect(() => parseFilters(params)).not.toThrow();
   });
 });

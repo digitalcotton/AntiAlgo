@@ -240,15 +240,30 @@
     var watchView = function (wch) {
       var idx = indexFor(wch.title);
       var variants = idx ? idx.variants : [];
-      var on = variants.filter(function (v) { return wch.off.indexOf(v[0]) === -1; });
-      var live = on.reduce(function (a, v) { return a + v[1]; }, 0);
+      // THE WHOLE FIELD, NOT THE HEAD. `variants` is the 40 commonest titles
+      // the field matched; `variantTotal` is how many it actually has (4,338
+      // for Software Engineering), and `n` is the field's real row count. The
+      // live number must come from `n` minus what the reader switched off, or
+      // a field of 5,448 postings would report the 40-title head's total and
+      // read as broken.
+      var total = idx ? idx.variantTotal : 0;
+      var offRows = variants.reduce(function (a, v) { return a + (wch.off.indexOf(v[0]) === -1 ? 0 : v[1]); }, 0);
+      var live = idx ? idx.n - offRows : 0;
+      var shown = variants.filter(function (v) { return wch.off.indexOf(v[0]) === -1; }).length;
       return {
         id: wch.id, title: wch.title, shelf: wch.shelf,
-        liveNote: idx ? live + ' live · ' + on.length + ' of ' + variants.length + ' titles' : 'not read yet · joins tonight',
+        liveNote: idx
+          ? live.toLocaleString() + ' live · ' +
+            (total > variants.length
+              ? shown + ' of the ' + variants.length + ' commonest titles, ' + total.toLocaleString() + ' in all'
+              : shown + ' of ' + total + ' titles')
+          : 'not read yet · joins tonight',
         coverInk: idx ? 'var(--color-muted)' : 'var(--accent)',
         hasVariants: variants.length > 0, noVariants: variants.length === 0,
         expanded: wch.expanded && variants.length > 0,
-        expandLabel: wch.expanded ? 'Hide matched titles' : variants.length + ' matched titles',
+        expandLabel: wch.expanded
+          ? 'Hide matched titles'
+          : (total > variants.length ? variants.length + ' commonest of ' + total.toLocaleString() + ' titles' : total + ' matched titles'),
         variants: variants.map(function (v) {
           var isOn = wch.off.indexOf(v[0]) === -1;
           return { s: v[0], n: v[1], onStr: isOn ? 'true' : 'false', mark: isOn ? 'on' : 'off',
@@ -266,7 +281,11 @@
       return t.title.toLowerCase().indexOf(q) > -1 || t.variants.some(function (v) { return v[0].toLowerCase().indexOf(q) > -1; });
     }).map(function (t) {
       return { title: t.title, n: t.n,
-        variantNote: 'reads as ' + t.variants.length + ' strings on the board, ' + (t.variants[0] ? t.variants[0][0] : 'none') + ' and ' + Math.max(0, t.variants.length - 1) + ' more' };
+        // variantTotal, not variants.length: the payload carries the 40
+        // commonest, and saying "reads as 40 strings" about a field with 4,338
+        // of them is a number that is simply wrong.
+        variantNote: 'reads as ' + t.variantTotal.toLocaleString() + ' strings on the board, ' +
+          (t.variants[0] ? t.variants[0][0] : 'none') + ' and ' + Math.max(0, t.variantTotal - 1).toLocaleString() + ' more' };
     });
 
     // ---- cross cut 1: pay ladder
@@ -817,7 +836,11 @@
       case 'toggle-named': state.named = !state.named; break;
       case 'watch-all':
         state.watches = TITLE_INDEX.map(function (t, i) {
-          return { id: 'a' + i, title: t.title, shelf: t.title === 'Design Leadership' ? 'stretch' : 'core', off: [], expanded: false };
+          // Every field goes on the core shelf. This used to put 'Design
+          // Leadership' on stretch by name, and there is no leadership group
+          // any more: the groups are the 22 occupational families, and none of
+          // them is a seniority.
+          return { id: 'a' + i, title: t.title, shelf: 'core', off: [], expanded: false };
         });
         break;
       case 'clear-filters':

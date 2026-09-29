@@ -18,6 +18,7 @@
  */
 
 import { SENIORITY_LADDER } from './jobs-derived.mjs';
+import { FAMILIES } from './job-family.mjs';
 
 /** Where the role sits. */
 export const WHERES = ['anywhere', 'remote only', 'in office'] as const;
@@ -38,70 +39,42 @@ export type FrictionFilter = (typeof FRICTIONS)[number];
 export type RecordFilter = (typeof RECORDS)[number];
 
 /**
- * THE WATCHED TITLE GROUPS. A group is a named predicate over the measured
- * family, the title-derived seniority and, where a family alone cannot tell two
- * groups apart, a list of title words. The page's title search and its "titles
- * in the cut" shelf both read them.
+ * THE WATCHED GROUPS: one per occupational family, every field the board holds.
  *
- * FIXED 2026-09-28. These were carried over from the browser unchanged and
- * tested `derived_fam` against `'product'`, `'design engineering'`, `'brand'`
- * and `'design systems'` — a vocabulary from data.ts's RoleFamily, which no
- * migration ever created and nothing ever wrote. The header here used to say
- * every group matched zero rows, that this was reproduced deliberately for a
- * parity check pinned to the old numbers, and that the fix was "a one-word
- * change (a lower() on both sides)". All three claims were wrong by the time
- * anyone read them:
+ * THIS PAGE USED TO BE FIVE DESIGN TITLES. Product Designer, Design Engineer,
+ * Brand Designer, Design Systems Designer, Design Leadership — a closed list
+ * written when AntiAlgo was a design board, kept after the board grew to 37,286
+ * postings across every kind of work. A nurse, a welder or a paralegal could pay
+ * for this page and find nothing on it to watch. That is the pre-filtering this
+ * product is named for refusing, applied to its own customers.
  *
- *   - Not every group matched zero. db/212 changed derived_fam from the raw
- *     crawled department to the 22 closed ids, and 'product' happens to be one
- *     of them, so Product Designer silently went 0 -> 218 — a paid page's
- *     headline number moved because a migration did not know this column was
- *     read this way. Worse, those 218 were mostly product MANAGERS.
- *   - lower() would not have fixed the rest. 'brand', 'design engineering' and
- *     'design systems' are not family ids in any casing. The nearest real id is
- *     'design', which holds all four of these as one field.
- *   - And no baseline was pinned to the old numbers. jobs-data-agg.test.ts
- *     imports GROUP_DEFS and recomputes its oracle from it, so the parity check
- *     moves with this file. Nothing in the repo recorded a count.
+ * So the groups ARE the families now (src/lib/job-family.mjs), derived from
+ * FAMILIES rather than listed again, so a family added there appears here
+ * without anyone remembering to. 22 groups, covering 92.9% of the board; the
+ * rest carries no family and is watched by watching nothing.
  *
- * AND DESIGN LEADERSHIP HAD NO FAMILY TEST AT ALL, so on a page about design
- * titles it was matching every Lead or Director on the board in every field —
- * 2,830 rows, Directors of Nursing included.
+ * NO SENIORITY RESTRICTION, and that is the load-bearing half of this change.
+ * The five design groups each demanded Senior/Staff or Lead/Director, and
+ * derived_tier is NULL on 79.6% of the board because most postings do not print
+ * a level word. A group that required a tier would have excluded four rows in
+ * five before it looked at the field at all — it would have made "Healthcare &
+ * Medicine" mean "the senior fifth of healthcare" without saying so. Seniority
+ * is a filter this page already offers separately (`level`), where a reader can
+ * see it and turn it off.
  *
- * WHY `words` HAD TO BE ADDED. All four Senior/Staff groups live in one family,
- * `design`, so family plus tier cannot separate them: boardFacts assigns each
- * row to the FIRST matching group, and without a title test one group would
- * take all 80 rows and the other three would read zero — the same defect in a
- * new coat. Each is defined by the words its own titles actually use.
- *
- * ORDER IS MOST SPECIFIC FIRST, and that is load bearing for the same
- * first-match-wins reason: "Senior Brand Design Engineer" belongs to Design
- * Engineer, not Brand. It is also the order the page lists them in.
- *
- * A design role matching none of the four (motion, content, research,
- * copywriting — 29 rows) is in no group, which is honest. The board's own
- * Field filter still holds all of Design.
+ * `words` stays in the shape for the day two groups share a family and need
+ * telling apart by title. Every group is wordless today because each family
+ * appears exactly once, which jobs-data-filters.test.ts enforces.
  */
-export const GROUP_DEFS = [
-  { title: 'Design Systems Designer', fam: 'design', tiers: ['Senior', 'Staff'], words: ['design system'] },
-  {
-    title: 'Design Engineer',
-    fam: 'design',
-    tiers: ['Senior', 'Staff'],
-    words: ['design engineer', 'ux engineer', 'design technologist', 'creative technologist']
-  },
-  { title: 'Brand Designer', fam: 'design', tiers: ['Senior', 'Staff'], words: ['brand', 'visual identity', 'graphic'] },
-  {
-    title: 'Product Designer',
-    fam: 'design',
-    tiers: ['Senior', 'Staff'],
-    words: ['product design', 'ux design', 'ui design', 'interaction design', 'experience design', 'digital design']
-  },
-  // Leadership needs no words: family and tier already separate it from the
-  // four above, and design leadership titles vary too much to list (Director of
-  // Design, Head of Design, Creative Director, VP Design).
-  { title: 'Design Leadership', fam: 'design', tiers: ['Lead', 'Director'], words: [] }
-] as const;
+export const GROUP_DEFS = FAMILIES.map((family) => ({
+  title: family.label,
+  fam: family.id,
+  /** Null means every seniority, including the rows that print no level word. */
+  tiers: null as readonly string[] | null,
+  words: [] as readonly string[]
+}));
+
+const GROUP_TITLES = GROUP_DEFS.map((g) => g.title) as readonly string[];
 
 /**
  * A group's title words as one case-insensitive POSIX pattern, or null where a
@@ -113,7 +86,6 @@ export function groupTitlePattern(words: readonly string[]): string | null {
   return words.length === 0 ? null : `(${words.join('|')})`;
 }
 
-const GROUP_TITLES = GROUP_DEFS.map((g) => g.title) as readonly string[];
 
 /** One watched group, with the exact titles the reader switched off inside it. */
 export interface Watch {
@@ -188,8 +160,13 @@ function oneNumberOf(
   throw new FilterError(key, raw, allowed);
 }
 
-/** The most watched groups one request may carry. The page offers five. */
-const MAX_WATCHES = 8;
+/**
+ * The most watched groups one request may carry: every group there is, so
+ * "watch all" cannot 400. It was 8 when the page offered five design titles.
+ * The bound still matters — each watch is an OR arm carrying up to MAX_OFF
+ * switched-off titles — so it tracks the group count rather than being removed.
+ */
+const MAX_WATCHES = GROUP_DEFS.length;
 /** The most switched-off titles inside one group. A group's variant list is
     the distinct titles it matched, so this is generous, not tight. */
 const MAX_OFF = 200;

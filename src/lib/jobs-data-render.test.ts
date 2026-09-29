@@ -113,5 +113,28 @@ d('the Jobs Data client renders every view from the payload', () => {
     expect(opened, 'the measured friction levels').toContain('account needed');
     expect(opened.includes('data-act="set-risk"'), 'the undefined kill-risk filter is still drawn').toBe(false);
     expect(opened.includes('undefined'), 'a field reached the opened markup as "undefined"').toBe(false);
+
+    // WATCHING A FIELD, which nothing here used to do — so every string the
+    // watch panel builds went unrendered by this suite while it claimed to
+    // draw every view.
+    //
+    // The numbers matter more than usual now. `variants` is the 40 commonest
+    // titles a field matched, not all of them, so a note built from
+    // variants.length would tell a reader Software Engineering "reads as 40
+    // strings" when it reads as 4,338, and a live count summed from the head
+    // would report a few hundred rows for a field holding five thousand.
+    const biggest = [...payload.FACTS.titleIndex].sort((a: any, b: any) => b.n - a.n)[0] as any;
+    LEDGER.state.watches = [{ id: 'w1', title: biggest.title, shelf: 'core', off: [], expanded: true }];
+    LEDGER.render();
+    const watched = String(mount.innerHTML);
+    expect(watched, 'the watched field is named').toContain(biggest.title);
+    expect(watched, 'the live count is the field, not the 40-title head')
+      .toContain(biggest.n.toLocaleString());
+    if (biggest.variantTotal > biggest.variants.length) {
+      expect(watched, 'the note admits the head is not the whole list')
+        .toContain(biggest.variantTotal.toLocaleString() + ' in all');
+    }
+    expect(watched.includes('undefined'), 'a field reached the watch panel as "undefined"').toBe(false);
+    expect(watched.includes('NaN'), 'an arithmetic hole reached the watch panel as NaN').toBe(false);
   }, 180_000);
 });
