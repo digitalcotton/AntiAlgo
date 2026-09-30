@@ -119,12 +119,25 @@ async function checkMigrations(): Promise<Invariant> {
 }
 
 /**
- * Invariants 3 and 4: the board is not silently empty, and its sweep is not
- * silently old. FRESH_WINDOW_HOURS is the exact number src/lib/data-contract.ts
- * defines as "the window the READER is promised" and board.astro already reads
- * it for the same board_stats row — this endpoint asks the question that
- * board.astro's own reader-facing staleness note answers visually, so a
- * monitor learns about a missed sweep the same moment a visitor would start to.
+ * Invariants 3 and 4: the board is not silently empty, and its rows are not
+ * silently old.
+ *
+ * THIS IS THE ONE PLACE board_stats.swept_at IS READ AS A FRESHNESS SIGNAL, and
+ * it is deliberate. That stamp is not the sweep instant: it is when the crawled
+ * rows were loaded into Postgres by "jm publish everything", which runs after a
+ * ~2.5 hour crawl, so it normally trails stats.swept_at_utc by hours and trails
+ * it by days on a night the crawl fails while the sweep succeeds.
+ *
+ * No page stamps it. The comment here used to claim board.astro read "the same
+ * board_stats row" for its staleness note; it did not, and the home page's
+ * data-swept did, which is how / and /board came to make two different claims
+ * about the same moment (2026-09-30: 36.1 hours versus 4 minutes). Check 7 in
+ * scripts/gate-invariants.mjs now holds every page to sweptAt().
+ *
+ * So a lagging crawl shows up HERE, to an operator, under its own name, rather
+ * than as an amber eyebrow on the marketing page that says "verified" about a
+ * verification pass that did in fact run. FRESH_WINDOW_HOURS is still the
+ * window, because the reader's patience is the same either way.
  */
 async function checkBoard(): Promise<Invariant[]> {
   try {

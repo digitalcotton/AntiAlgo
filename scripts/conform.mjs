@@ -68,7 +68,7 @@ const FAST = [
   },
   {
     id: 'invariants',
-    what: 'the six structural invariants: the root api/ shadow, route policies, gate runners, orphan partials, the registry, and no test file Astro would build as a route',
+    what: 'the seven structural invariants: the root api/ shadow, route policies, gate runners, orphan partials, the registry, no test file Astro would build as a route, and one sweep clock behind every data-swept stamp',
     argv: ['node', 'scripts/gate-invariants.mjs']
   },
   {

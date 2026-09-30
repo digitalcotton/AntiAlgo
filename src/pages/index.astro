@@ -11,7 +11,7 @@ import { LAUNCH_LABEL, daysToLaunch, withBase } from '../../site.config.mjs';
 import Board from '../components/Board.astro';
 import { boardRowToJob } from '../lib/board-jobs';
 import { getBoardStats, listBoardFiltered, listBoardAgeHistogram } from '../lib/job-store';
-import { EMPTY_AGE_HISTOGRAM, facetGroupsFromCounts, prospectRows, sweepDate, sweptStamp as boardSweptStamp, type AgeHistogram, type Job } from '../lib/data';
+import { EMPTY_AGE_HISTOGRAM, facetGroupsFromCounts, prospectRows, sweepDate, sweptAt, sweptStamp as boardSweptStamp, type AgeHistogram, type Job } from '../lib/data';
 import { parseBoardQuery } from '../lib/board-query';
 import { isConfigured } from '../lib/db';
 import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
@@ -165,7 +165,24 @@ const REFUSALS = [
         teaser={true}
         ariaLabel="This sweep"
       >
-        <p slot="stamp" class="index-eyebrow mono" data-swept={bStats?.swept_at} data-fresh-hours={FRESH_WINDOW_HOURS}>
+        {/* ONE CLOCK, AND THIS ELEMENT USED TO CARRY TWO.
+            The visible text is the sweep instant (boardSweptStamp, from
+            stats.json). data-swept was board_stats.swept_at, which is a
+            different fact: when the ~23k crawled rows were loaded into
+            Postgres, written by "jm publish everything" AFTER a ~2.5 hour
+            crawl. So the number the reader saw and the number the staleness
+            script measured were hours apart on a good night, and days apart on
+            a night the crawl failed while the sweep succeeded -- on 2026-09-30
+            this page claimed 36.1 hours while /board claimed 4 minutes, same
+            site, same moment.
+            data.ts says it in one line: "The one instant. Every timestamp
+            anywhere on the site is this string." /board already obeyed that.
+            This is the page that did not. The row-load instant is still
+            checked, deliberately and under its own name, by
+            board_sweep_fresh in src/lib/health.ts, which is where a lagging
+            crawl belongs -- it is an operator's fact, not a claim about
+            whether a posting was verified. */}
+        <p slot="stamp" class="index-eyebrow mono" data-swept={sweptAt()} data-fresh-hours={FRESH_WINDOW_HOURS}>
           <span data-assurance-text>Verified this sweep · {bSweepLabel}</span>
         </p>
       </Board>
