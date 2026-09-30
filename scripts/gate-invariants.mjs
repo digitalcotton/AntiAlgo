@@ -685,6 +685,53 @@ function checkOneSweepClock() {
   };
 }
 
+function checkSweepMarker() {
+  const lines = [];
+  const violations = [];
+
+  // The mini proves a deploy by fetching the public URL and looking for the
+  // sweep instant verbatim (nightly.sh, "publish check"). That marker has to
+  // live somewhere deliberate. It used to be borrowed from the board's
+  // data-swept attribute, and on 2026-09-30 that attribute correctly changed
+  // meaning -- it labels the crawl's rows now -- which silently removed the
+  // only machine-readable copy of the sweep instant from every page. The
+  // deploy was healthy; its proof had moved. This check exists so that cannot
+  // happen quietly again.
+  const LAYOUT = join(REPO, 'src', 'layouts', 'BaseLayout.astro');
+  const rel = relative(REPO, LAYOUT);
+
+  if (!existsSync(LAYOUT)) {
+    violations.push(`${rel} is missing, so no page can carry the sweep marker.`);
+  } else {
+    const src = readFileSync(LAYOUT, 'utf8');
+    const hasMeta = /<meta\s+name="sweep-instant"\s+content=\{sweptAt\(\)\}\s*\/>/.test(src);
+    const imports = /import\s*\{[^}]*\bsweptAt\b[^}]*\}\s*from\s*'\.\.\/lib\/data'/.test(src);
+    if (!hasMeta) {
+      violations.push(
+        `${rel} no longer emits <meta name="sweep-instant" content={sweptAt()} />. ` +
+          `That tag is how the mini's nightly publish check proves the site is serving ` +
+          `tonight's sweep: it fetches the public URL and greps the body for the instant ` +
+          `out of stats.json. Without it the check finds nothing, alarms, and reports a ` +
+          `broken deploy on a night when the deploy was fine -- the most expensive kind ` +
+          `of false alarm, because it is the one that teaches you to ignore the real one.`
+      );
+    }
+    if (hasMeta && !imports) {
+      violations.push(`${rel} emits the sweep marker but no longer imports sweptAt from ../lib/data.`);
+    }
+    if (hasMeta && imports) lines.push(`${rel} emits <meta name="sweep-instant"> from sweptAt().`);
+  }
+
+  return {
+    id: 8,
+    name: "every page carries the sweep instant the machine greps for",
+    status: violations.length === 0 ? EXIT.PASS : EXIT.FAIL,
+    measured: 1,
+    lines,
+    violations
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Run every check, print the summary block, decide the exit code
 // ---------------------------------------------------------------------------
@@ -710,7 +757,8 @@ async function main() {
     checkNoOrphanPartials(),
     await checkNavAgreesWithRealFiles(),
     checkNoTestFilesUnderPages(),
-    checkOneSweepClock()
+    checkOneSweepClock(),
+    checkSweepMarker()
   ];
 
   console.log('gate-invariants: filesystem and source checks, no browser, no database, no network.\n');

@@ -3,6 +3,7 @@ import globalCss from '../styles/global.css?inline';
 import SiteHeader from '../components/SiteHeader.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import { SITE } from '../data/site';
+import { sweptAt } from '../lib/data';
 import { publicAsset } from '../data/nav';
 
 /** The Latin woff2 subsets in public/fonts, by a short key. A page names the
@@ -159,6 +160,22 @@ const robots = noindex ? 'noindex, follow' : 'index, follow, max-image-preview:l
     <meta name="description" content={description} />
     <meta name="author" content={SITE.author.name} />
     <meta name="robots" content={robots} />
+
+    {/* WHICH SWEEP THIS BUILD WAS MADE FROM. Machine-readable, on every page.
+        The mini's nightly publish check asks the one question nothing else
+        asks -- "is the site actually serving tonight's work?" -- by fetching
+        the public URL and looking for the sweep instant verbatim. It used to
+        find it in the board's data-swept attribute. On 2026-09-30 that
+        attribute correctly became the CRAWL's instant instead (it labels the
+        crawl's rows), and the sweep instant stopped appearing anywhere on the
+        page in machine-readable form. The check would have raised a false
+        alarm on the next run: the deploy was fine, its marker had moved.
+        So the marker is explicit now rather than borrowed from whatever
+        element happens to render a date. A design decision about an eyebrow
+        must not be able to silently break the machine's proof of deploy.
+        scripts/gate-invariants.mjs check 8 fails the build if it goes
+        missing. */}
+    <meta name="sweep-instant" content={sweptAt()} />
     {!noindex && <link rel="canonical" href={canonical} />}
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
