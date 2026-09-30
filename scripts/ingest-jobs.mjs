@@ -44,6 +44,15 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { assertBatchFits, upsertSql } from '../src/lib/upsert-sql.mjs';
 import { derivedFor, tierFromTitle } from '../src/lib/jobs-derived.mjs';
+// familyOf, for the kill rows below. It was called at the kill-archive insert
+// from 9e1b95a (2026-09-28) and never imported, so every board load since has
+// died with "familyOf is not defined" AFTER staging all 52,739 rows and rolling
+// back. It went unseen for two nights because the runs on 09-29 and 09-30 both
+// failed earlier in the chain and never reached this step; the first run that
+// got here was 2026-09-30T11:55Z, by which point the board rows a reader sees
+// were 44 hours old. src/lib/jobs-derived.mjs imports it from the same place
+// for the live rows, which is why the posting path worked and only kills broke.
+import { familyOf } from '../src/lib/job-family.mjs';
 
 const { Client } = pg;
 const here = dirname(fileURLToPath(import.meta.url));
