@@ -144,7 +144,37 @@ describe('the title is the fallback, and null is a real answer', () => {
  * shape.
  */
 describe('coverage against the real corpus', () => {
-  const CORPUS = 'src/data/board-latest.json.gz';
+  /**
+   * WHERE THE CORPUS COMES FROM, AND WHY THERE ARE TWO.
+   *
+   * This read only src/data/board-latest.json.gz, which is the live board — and
+   * that file is committed only when something has gone WRONG. The nightly
+   * loads the board into Postgres and `jm publish everything` then `git rm`s
+   * it; it appears in the tree only on a night the database load failed and the
+   * board had to travel by git. So the ratchet ran when the pipeline was broken
+   * and skipped on every healthy commit, which is exactly backwards, and it is
+   * why coverage drifted from 92.93% to 88.97% over two days with a green
+   * suite the whole way.
+   *
+   * So the fixture is the default and the test never skips. It is the same
+   * board, reduced to what this test actually reads: distinct department/title
+   * pairs with a count, which makes weighted coverage identical to the row by
+   * row number (verified at capture: 47,735/52,739 = 90.5118% both ways) at
+   * 516 KB instead of 44 MB. No urls, no companies, no pay.
+   *
+   * The live board still wins when it is present, so a night that leaves one
+   * behind is measured against the real thing rather than a snapshot.
+   *
+   * REFRESHING IT is a deliberate act, not a chore: the fixture is a 2026-09-30
+   * photograph of the board, so it catches a rule that breaks classification
+   * forever, and it cannot catch the board changing shape underneath the rules.
+   * That second question belongs to the machine, which has the live data —
+   * `jm rehearse everything` reports it. Rebuild this file when a tail block is
+   * added, and say in the commit what the number moved from and to.
+   */
+  const LIVE_CORPUS = 'src/data/board-latest.json.gz';
+  const FIXTURE = 'test/fixtures/family-corpus.json.gz';
+  const CORPUS = existsSync(LIVE_CORPUS) ? LIVE_CORPUS : FIXTURE;
   // RATCHETED 0.84 -> 0.90 on 2026-09-28, when the long-tail block took the
   // corpus from 87.77% to 92.93%. It sits below the measured number on
   // purpose: the floor's job is to catch a rule that BREAKS classification, not
@@ -166,30 +196,35 @@ describe('coverage against the real corpus', () => {
   const counts = new Map<string, number>();
 
   beforeAll(() => {
-    if (!existsSync(CORPUS)) return;
-    const rows = JSON.parse(gunzipSync(readFileSync(CORPUS)).toString()).jobs as ReadonlyArray<{
-      department?: string | null;
-      title?: string | null;
-    }>;
-    total = rows.length;
+    const doc = JSON.parse(gunzipSync(readFileSync(CORPUS)).toString()) as {
+      jobs?: ReadonlyArray<{ department?: string | null; title?: string | null }>;
+      pairs?: ReadonlyArray<readonly [string | null, string | null, number]>;
+    };
+    // The live board lists every posting; the fixture lists each distinct
+    // department/title once with the number of postings behind it. Both are
+    // read as a weight, so the two produce the same percentage.
+    const rows: ReadonlyArray<{ department?: string | null; title?: string | null; weight: number }> =
+      doc.pairs
+        ? doc.pairs.map(([department, title, weight]) => ({ department, title, weight }))
+        : (doc.jobs ?? []).map((r) => ({ ...r, weight: 1 }));
+    total = rows.reduce((n, r) => n + r.weight, 0);
     for (const r of rows) {
       const f = familyOf(r.department ?? null, r.title ?? null);
       if (f) {
-        classified += 1;
-        counts.set(f, (counts.get(f) ?? 0) + 1);
+        classified += r.weight;
+        counts.set(f, (counts.get(f) ?? 0) + r.weight);
       } else {
         const k = (r.department ?? '').trim() || '(no department)';
-        unmapped.set(k, (unmapped.get(k) ?? 0) + 1);
+        unmapped.set(k, (unmapped.get(k) ?? 0) + r.weight);
       }
     }
   }, 60_000);
 
-  // IT SKIPS WHEN THE CORPUS IS NOT COMMITTED, and that is worth knowing before
-  // trusting a green run: the nightly data commits ADD board-latest.json.gz with
-  // the board and REMOVE it with the stats a few hours later (72ec490 adds,
-  // d174e28 deletes), so on most commits this ratchet is not running at all.
-  // Measure a rules change against the database when the file is absent.
-  it.skipIf(!existsSync(CORPUS))(`classifies at least ${Math.round(FLOOR * 100)}% of the board`, () => {
+  // IT ALWAYS RUNS NOW. It used to skip unless the live board happened to be
+  // committed, which only happens when the database load has failed — so the
+  // one check on classification ran on broken nights and skipped on healthy
+  // ones. See the CORPUS comment above.
+  it(`classifies at least ${Math.round(FLOOR * 100)}% of the board`, () => {
     const share = classified / total;
     const worst = [...unmapped]
       .sort((a, b) => b[1] - a[1])
