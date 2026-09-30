@@ -2,9 +2,10 @@
 import AccountCta from '../components/AccountCta.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Board from '../components/Board.astro';
-import { EMPTY_AGE_HISTOGRAM, facetGroupsFromCounts, loadStats, prospectRows, sweepDate, sweptAt, sweptStamp, type AgeHistogram, type Job } from '../lib/data';
+import { EMPTY_AGE_HISTOGRAM, facetGroupsFromCounts, loadStats, prospectRows, sweepDate, sweptAt, type AgeHistogram, type Job } from '../lib/data';
+import { sweptStamp as stampOf } from '../lib/stats';
 import { isConfigured } from '../lib/db';
-import { getBoardStats, listBoardAgeHistogram, listBoardFiltered, type BoardFilteredResult, type FacetCounts } from '../lib/job-store';
+import { boardRowsLoadedAt, getBoardStats, listBoardAgeHistogram, listBoardFiltered, type BoardFilteredResult, type FacetCounts } from '../lib/job-store';
 import { boardRowToJob } from '../lib/board-jobs';
 import { listWatches } from '../lib/ledger-watch-store';
 import { isPaidViewer } from '../lib/ledger-access';
@@ -187,19 +188,25 @@ const groups = facetGroupsFromCounts(served.counts, { ...query, fam: query.famil
 // size, so it always matches what a reader can count.
 const verifiedCount = boardStats?.verified_live ?? served.total;
 
-const sweepLabel = sweptStamp();
 // THE STALENESS LINE LIVES IN THE HEADER NOW. The table's assurance band is
 // gone (2026-09-11), but the reader-facing half of the staleness pair is not:
-// this eyebrow carries the sweep instant and the window, and JobTable's inline
-// script turns it amber and rewrites it ("Last verified N hours ago") when a
-// night is missed.
+// this eyebrow carries an instant and the window, and JobTable's inline script
+// turns it amber and rewrites it ("Last verified N hours ago") when the number
+// goes past FRESH_WINDOW_HOURS on the reader's own clock.
 //
-// The instant is read inline as sweptAt() rather than held in a local, so that
-// every page stamping data-swept writes the same three characters. Check 7 in
-// scripts/gate-invariants.mjs greps for exactly that expression: the home page
-// spent an unknown number of nights stamping board_stats.swept_at here instead,
-// which is a different fact and hours further behind, and a local named
-// sweptIso is how that difference stays invisible in review.
+// WHICH INSTANT: the one belonging to what the eyebrow sits above. Board.astro
+// puts this stamp directly over StatTiles and the table, and both of those are
+// the crawl's output — ~1,666 boards and ~37,000 rows out of Postgres, not the
+// 45 boards and 77 postings of stats.json. So it reads the crawl's load
+// instant. It said sweptAt() for part of 2026-09-30 and that was a claim the
+// page could not support: four minutes old, over rows loaded two days earlier.
+//
+// Both pages name this local boardRowsAt, and check 7 in
+// scripts/gate-invariants.mjs holds every data-swept stamp to that one
+// expression. The fallback is the sweep instant, used only when the board_stats
+// row cannot be read at all: a stamp that is absent silently disables the
+// staleness warning, which is worse than a degraded one that is visibly there.
+const boardRowsAt = boardRowsLoadedAt(boardStats) ?? sweptAt();
 const prospectCount = prospectRows().length;
 ---
 
@@ -238,8 +245,8 @@ const prospectCount = prospectRows().length;
           slot). It is still the reader-facing half of the staleness pair:
           data-swept and data-assurance-text are what the table's inline script
           and scripts/prove-staleness-pair.mjs read, wherever the element sits. */}
-      <p slot="stamp" class="index-eyebrow mono" data-swept={sweptAt()} data-fresh-hours={FRESH_WINDOW_HOURS}>
-        <span data-assurance-text>Verified this sweep · {sweepLabel}</span>
+      <p slot="stamp" class="index-eyebrow mono" data-swept={boardRowsAt} data-fresh-hours={FRESH_WINDOW_HOURS}>
+        <span data-assurance-text>Verified this sweep · {stampOf(boardRowsAt)}</span>
       </p>
     </Board>
 

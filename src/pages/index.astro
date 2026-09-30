@@ -10,8 +10,8 @@ import { LAUNCH_LABEL, daysToLaunch, withBase } from '../../site.config.mjs';
 // The live board, the same component /board renders, now on the home page.
 import Board from '../components/Board.astro';
 import { boardRowToJob } from '../lib/board-jobs';
-import { getBoardStats, listBoardFiltered, listBoardAgeHistogram } from '../lib/job-store';
-import { EMPTY_AGE_HISTOGRAM, facetGroupsFromCounts, prospectRows, sweepDate, sweptAt, sweptStamp as boardSweptStamp, type AgeHistogram, type Job } from '../lib/data';
+import { boardRowsLoadedAt, getBoardStats, listBoardFiltered, listBoardAgeHistogram } from '../lib/job-store';
+import { EMPTY_AGE_HISTOGRAM, facetGroupsFromCounts, prospectRows, sweepDate, sweptAt, type AgeHistogram, type Job } from '../lib/data';
 import { parseBoardQuery } from '../lib/board-query';
 import { isConfigured } from '../lib/db';
 import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
@@ -78,7 +78,7 @@ const bJobs = bServed.rows.map(boardRowToJob);
 const bGroups = facetGroupsFromCounts(bServed.counts, bq);
 const bPages = Math.max(1, Math.ceil(bServed.total / HOME_ROWS));
 const bVerified = bStats?.verified_live ?? bServed.total;
-const bSweepLabel = boardSweptStamp();
+const boardRowsAt = boardRowsLoadedAt(bStats) ?? sweptAt();
 
 // Data for the research table.
 const RESEARCH = [
@@ -165,25 +165,21 @@ const REFUSALS = [
         teaser={true}
         ariaLabel="This sweep"
       >
-        {/* ONE CLOCK, AND THIS ELEMENT USED TO CARRY TWO.
-            The visible text is the sweep instant (boardSweptStamp, from
-            stats.json). data-swept was board_stats.swept_at, which is a
-            different fact: when the ~23k crawled rows were loaded into
-            Postgres, written by "jm publish everything" AFTER a ~2.5 hour
-            crawl. So the number the reader saw and the number the staleness
-            script measured were hours apart on a good night, and days apart on
-            a night the crawl failed while the sweep succeeded -- on 2026-09-30
-            this page claimed 36.1 hours while /board claimed 4 minutes, same
-            site, same moment.
-            data.ts says it in one line: "The one instant. Every timestamp
-            anywhere on the site is this string." /board already obeyed that.
-            This is the page that did not. The row-load instant is still
-            checked, deliberately and under its own name, by
-            board_sweep_fresh in src/lib/health.ts, which is where a lagging
-            crawl belongs -- it is an operator's fact, not a claim about
-            whether a posting was verified. */}
-        <p slot="stamp" class="index-eyebrow mono" data-swept={sweptAt()} data-fresh-hours={FRESH_WINDOW_HOURS}>
-          <span data-assurance-text>Verified this sweep · {bSweepLabel}</span>
+        {/* THE TIME HERE IS THE TIME THE ROWS BELOW WERE READ.
+            This element carried two different instants at once: the visible
+            text was the sweep (stats.json, 45 boards, 77 live) while data-swept
+            — the attribute the staleness script measures — was the crawl.
+            Making them agree was not enough on its own, because the two are not
+            interchangeable: the tiles and table under this stamp are the
+            crawl's ~1,666 boards and ~37,306 rows, so the sweep's instant is
+            the wrong one to print over them however consistently it is printed.
+            On 2026-09-30 that had this page claiming rows were verified four
+            minutes ago when they had been loaded two days earlier.
+            boardRowsLoadedAt() is the crawl's own instant, normalised to ISO;
+            src/lib/health.ts checks the same column as board_sweep_fresh, and
+            the hero line above already pairs the crawl's numbers with it. */}
+        <p slot="stamp" class="index-eyebrow mono" data-swept={boardRowsAt} data-fresh-hours={FRESH_WINDOW_HOURS}>
+          <span data-assurance-text>Verified this sweep · {sweptStamp(boardRowsAt)}</span>
         </p>
       </Board>
       <p class="board-more"><a href={boardPath}>Open the full board</a></p>

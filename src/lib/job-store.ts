@@ -69,6 +69,37 @@ export interface BoardStats {
  * tiles read this rather than the design sweep's stats.json, so every number
  * over the board is the board's own and updates with the nightly ingest.
  */
+/**
+ * WHEN THE BOARD'S ROWS WERE LOADED, as an ISO instant, or null when the row
+ * cannot say.
+ *
+ * This is NOT the sweep instant, and the difference is the whole reason this
+ * function exists rather than a `.swept_at` read at each call site. Two
+ * pipelines feed this site. The nightly sweep reads 45 curated boards and
+ * writes stats.json (src/lib/data.ts's sweptAt(), ~77 live). The all-boards
+ * crawl reads ~1,666 boards and loads ~37,000 rows into Postgres, stamping
+ * board_stats.swept_at, and it finishes hours later because it runs after the
+ * sweep, not with it.
+ *
+ * The board tiles and the board table are the crawl's output, so the stamp
+ * above them has to be the crawl's instant. On 2026-09-30 the home page
+ * claimed its 37,306 rows were verified four minutes earlier when they had been
+ * loaded two days before, because the stamp read sweptAt() while the rows did
+ * not.
+ *
+ * It normalises because the pg driver hands back a Date for a timestamp column
+ * and a string when the row came from JSON — the home page rendered
+ * `data-swept="Mon Sep 28 2026 13:43:00 GMT+0000 (Coordinated Universal Time)"`
+ * for exactly that reason, which parses but is not the ISO string every other
+ * timestamp on this site is written in.
+ */
+export function boardRowsLoadedAt(stats: BoardStats | null): string | null {
+  const raw = stats?.swept_at;
+  if (!raw) return null;
+  const iso = raw instanceof Date ? raw.toISOString() : String(raw);
+  return Number.isNaN(Date.parse(iso)) ? null : iso;
+}
+
 export async function getBoardStats(): Promise<BoardStats | null> {
   const { rows } = await db().query<BoardStats>(
     `SELECT boards_swept, verified_live, killed, killed_by_rule, postings_observed, swept_at,

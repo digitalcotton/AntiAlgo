@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const query = vi.fn();
 vi.mock('./db', () => ({ db: () => ({ query }) }));
 
-import { likePattern, listBoardAgeHistogram, listBoardFiltered } from './job-store';
+import { boardRowsLoadedAt, likePattern, listBoardAgeHistogram, listBoardFiltered } from './job-store';
 
 beforeEach(() => {
   query.mockReset();
@@ -208,5 +208,43 @@ describe('listBoardAgeHistogram', () => {
     expect(hist.byDay[0]).toMatchObject({ days: 2, rows: 3, repCompany: 'Acme', repTitle: 'Engineer' });
     expect(hist.axisMax).toBe(900);
     expect(hist.total).toBe(4);
+  });
+});
+
+describe('boardRowsLoadedAt', () => {
+  // The board's rows and the nightly sweep are two different clocks, and the
+  // stamp above the table has to be the rows' one. See the function's own
+  // header; these are the shapes that actually reach it.
+  const row = (swept_at: unknown) =>
+    ({ boards_swept: 1666, verified_live: 37306, killed: 0, killed_by_rule: 0, postings_observed: 39306, swept_at }) as never;
+
+  it('hands back an ISO instant when the driver returns a Date', () => {
+    // node-postgres maps a timestamp column to a Date. Left alone it
+    // stringifies into the attribute as "Mon Sep 28 2026 13:43:00 GMT+0000
+    // (Coordinated Universal Time)", which is what the home page shipped.
+    expect(boardRowsLoadedAt(row(new Date('2026-09-28T13:43:00Z')))).toBe('2026-09-28T13:43:00.000Z');
+  });
+
+  it('passes an ISO string through unchanged', () => {
+    expect(boardRowsLoadedAt(row('2026-09-28T13:43:00Z'))).toBe('2026-09-28T13:43:00Z');
+  });
+
+  it('is null when there is no row, no stamp, or an unparseable one', () => {
+    // Null rather than a fallback instant: the caller decides what to do
+    // without an answer, and this function never invents one. A wrong
+    // timestamp here reads as fresh, which is the failure being prevented.
+    expect(boardRowsLoadedAt(null)).toBeNull();
+    expect(boardRowsLoadedAt(row(null))).toBeNull();
+    expect(boardRowsLoadedAt(row(''))).toBeNull();
+    expect(boardRowsLoadedAt(row('not a date'))).toBeNull();
+  });
+
+  it('never returns the sweep instant in place of the rows instant', () => {
+    // The regression in one line: these two are both real and both parse, and
+    // for part of 2026-09-30 the pages printed the sweep's over the crawl's.
+    const rowsInstant = '2026-09-28T13:43:00Z';
+    const sweepInstant = '2026-09-30T01:23:55Z';
+    expect(boardRowsLoadedAt(row(rowsInstant))).toBe(rowsInstant);
+    expect(boardRowsLoadedAt(row(rowsInstant))).not.toBe(sweepInstant);
   });
 });

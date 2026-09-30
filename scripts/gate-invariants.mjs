@@ -610,10 +610,12 @@ function checkOneSweepClock() {
   const lines = [];
   const violations = [];
 
-  // The one expression a page is allowed to stamp. Not a regex over "anything
-  // that looks like an instant": the whole failure being prevented here is a
-  // plausible-looking identifier holding the WRONG true instant.
-  const ALLOWED = 'sweptAt()';
+  // The one expression a page is allowed to stamp, and the one helper it may
+  // come from. Not a regex over "anything that looks like an instant": the
+  // whole failure being prevented here is a plausible-looking identifier
+  // holding the WRONG true instant. Both of the site's instants are real and
+  // both parse; only one of them belongs above the board's rows.
+  const ALLOWED = 'boardRowsAt';
 
   const PAGES_DIR = join(REPO, 'src', 'pages');
   const pages = walk(PAGES_DIR).filter((f) => f.endsWith('.astro'));
@@ -626,19 +628,29 @@ function checkOneSweepClock() {
       const rel = relative(REPO, f);
       const line = src.slice(0, m.index).split('\n').length;
       stamps.push({ rel, line, expr });
+      if (expr === ALLOWED && !src.includes('boardRowsLoadedAt(')) {
+        violations.push(
+          `${rel}:${line} stamps data-swept={${ALLOWED}} but never calls boardRowsLoadedAt(), ` +
+            `so that local is being built some other way. The point of the helper is that the ` +
+            `normalisation lives in one place: board_stats.swept_at comes back as a Date from ` +
+            `the pg driver and as a string from JSON, and the raw Date stringifies to ` +
+            `"Mon Sep 28 2026 13:43:00 GMT+0000 (Coordinated Universal Time)" in the attribute.`
+        );
+      }
       if (expr !== ALLOWED) {
         violations.push(
           `${rel}:${line} stamps data-swept={${expr}}, not {${ALLOWED}}. ` +
-            `Every freshness stamp on this site reads ONE instant -- stats.swept_at_utc, ` +
-            `via sweptAt() in src/lib/data.ts, which that file calls "the one instant" in ` +
-            `as many words. The expression that keeps getting written here instead is ` +
-            `board_stats.swept_at, which is when the crawled rows were loaded into ` +
-            `Postgres: a real fact, a different fact, and normally a few hours further ` +
-            `behind because "jm publish everything" runs after a ~2.5 hour crawl. On ` +
-            `2026-09-30 that had / claiming 36.1 hours old while /board claimed 4 minutes, ` +
-            `same site, same moment, and the reader had no way to know which to believe. ` +
-            `A lagging crawl is an operator's fact: board_sweep_fresh in src/lib/health.ts ` +
-            `is where it is checked, under its own name.`
+            `This stamp sits above StatTiles and the board table, and both of those are the ` +
+            `CRAWL's output -- ~1,666 boards and ~37,000 rows out of Postgres. So it has to ` +
+            `carry the crawl's own load instant, which is what boardRowsLoadedAt() in ` +
+            `src/lib/job-store.ts returns and what both pages hold as boardRowsAt. The ` +
+            `expression that keeps getting written here instead is sweptAt(): the nightly ` +
+            `sweep of 45 curated boards and ~77 postings, a real instant and a true one, ` +
+            `about a different and much smaller population. It runs hours BEFORE the crawl ` +
+            `finishes, so printing it over these rows overstates their freshness -- on ` +
+            `2026-09-30 by two days, the page saying rows were verified four minutes ` +
+            `earlier than they had in fact been loaded. Both instants parse and neither ` +
+            `looks wrong in review, which is exactly why this is a gate and not a comment.`
         );
       }
     }
@@ -665,7 +677,7 @@ function checkOneSweepClock() {
 
   return {
     id: 7,
-    name: 'every data-swept stamp reads the one sweep instant, sweptAt()',
+    name: 'every data-swept stamp reads the instant of the rows it sits above',
     status: violations.length === 0 ? EXIT.PASS : EXIT.FAIL,
     measured: stamps.length,
     lines,
