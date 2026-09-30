@@ -476,13 +476,21 @@ async function seedFixtures(client) {
            department, comp_posted, comp_range, days_up, ghost, first_seen, last_seen,
            slug, fit_total, fit_components, source, status, description,
            derived_tier, derived_fam, derived_region, derived_friction,
-           priced, comp_min_k, comp_max_k, comp_mid_k
+           priced, comp_min_k, comp_max_k, comp_mid_k,
+           -- Appended rather than slotted next to derived_fam so the $1..$27
+           -- above keep their numbers. db/212 made a family without a source
+           -- a constraint violation and this fixture was never updated, so
+           -- test-db.mjs reset has been failing at seed since 2026-09-27,
+           -- found on 2026-09-30 by the first reset since. The value comes
+           -- from the same derivedFor() the ingest uses, so the test database
+           -- says what production would say.
+           derived_fam_source
          ) VALUES (
            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
            $11, $12, $13, $14, false, $15, $16,
            $17, $18, $19, 'tracked', 'live', NULL,
            $20, $21, $22, $23,
-           $24, $25, $26, $27
+           $24, $25, $26, $27, $28
          )`,
         [
           raw.id, raw.company, raw.title, raw.url, raw.location, raw.country, raw.remote,
@@ -491,7 +499,8 @@ async function seedFixtures(client) {
           raw.days_up, raw.first_seen, raw.last_seen,
           slug, raw.fit_total, JSON.stringify(raw.fit_components),
           d.derived_tier, d.derived_fam, d.derived_region, d.derived_friction,
-          d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k
+          d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k,
+          d.derived_fam_source ?? null
         ]
       );
     }

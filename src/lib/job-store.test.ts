@@ -25,10 +25,10 @@ describe('listBoardFiltered', () => {
     // NULL for an unnarrowed board). liveOnly defaults to TRUE (2026-09-20): a
     // browsed list never carries a killed row. No watched titles, so nothing
     // binds past them.
-    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, null]);
-    expect(pageParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, null, 50, 50]);
+    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, null, 'all']);
+    expect(pageParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, null, 'all', 50, 50]);
     expect(countSql).toContain('FILTER (WHERE match_age AND');
-    expect(pageSql).toContain('LIMIT $13 OFFSET $14');
+    expect(pageSql).toContain('LIMIT $14 OFFSET $15');   // +1 since db/218
     expect(pageSql).toContain('ORDER BY detail_total DESC, company ASC, title ASC, id ASC');
     expect(result.total).toBe(3);
     expect(result.counts.location).toEqual({ all: 3, remote: 1, hybrid: 0, onsite: 2, unstated: 0 });
@@ -37,22 +37,23 @@ describe('listBoardFiltered', () => {
     await listBoardFiltered({ ...FILTER, titles: ['Product Designer'] });
     const [countSql, countParams] = query.mock.calls[0];
     const [pageSql, pageParams] = query.mock.calls[1];
-    // The title normalises to ONE phrase param, bound after the twelve shared ($13).
-    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, null, 'product designer']);
+    // The title normalises to ONE phrase param, bound after the thirteen shared
+    // params ($14 since db/218 appended the pipeline filter).
+    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, null, 'all', 'product designer']);
     // Then limit and offset shift past the phrase.
     expect(pageParams.slice(-2)).toEqual([50, 50]);
-    expect(pageSql).toContain('LIMIT $14 OFFSET $15');
+    expect(pageSql).toContain('LIMIT $15 OFFSET $16');   // +1 since db/218
     // A normalised, padded whole-phrase LIKE (mirroring ledger-titles.matchesTitle),
     // applied to the facet counts too, so the counts describe the narrowed board.
     expect(pageSql).toContain(String.raw`regexp_replace(lower(title), '[^a-z0-9]+', ' ', 'g')`);
-    expect(pageSql).toContain(`LIKE ('% ' || $13 || ' %')`);
-    expect(countSql).toContain(`LIKE ('% ' || $13 || ' %')`);
+    expect(pageSql).toContain(`LIKE ('% ' || $14 || ' %')`);
+    expect(countSql).toContain(`LIKE ('% ' || $14 || ' %')`);
   });
   it('leaves the board unnarrowed when no titles are watched', async () => {
     await listBoardFiltered({ ...FILTER, titles: [] });
     const [, countParams] = query.mock.calls[0];
-    expect(countParams).toHaveLength(12);
-    expect(query.mock.calls[1][0]).toContain('LIMIT $13 OFFSET $14');
+    expect(countParams).toHaveLength(13);   // 13 since db/218 appended the pipeline filter
+    expect(query.mock.calls[1][0]).toContain('LIMIT $14 OFFSET $15');   // +1 since db/218
   });
   it('narrows to the chosen families, and treats unplaced as the absence it is', async () => {
     await listBoardFiltered({ ...FILTER, families: ['design', 'unplaced'] });
@@ -60,7 +61,7 @@ describe('listBoardFiltered', () => {
     // The families bind as ONE array param at $12, so the shape does not change
     // with how many are picked and nothing shifts behind them.
     expect(countParams[11]).toEqual(['design', 'unplaced']);
-    expect(countParams).toHaveLength(12);
+    expect(countParams).toHaveLength(13);   // 13 since db/218 appended the pipeline filter
     // 'unplaced' is not a family id: it is matched against a NULL derived_fam,
     // never looked up, so picking it alongside Design returns both.
     expect(countSql).toContain("derived_fam = ANY($12::text[])");
@@ -246,5 +247,53 @@ describe('boardRowsLoadedAt', () => {
     const sweepInstant = '2026-09-30T01:23:55Z';
     expect(boardRowsLoadedAt(row(rowsInstant))).toBe(rowsInstant);
     expect(boardRowsLoadedAt(row(rowsInstant))).not.toBe(sweepInstant);
+  });
+});
+
+describe('the pipeline filter (db/218)', () => {
+  // Evergreen talent pools. Nothing reads this off the URL yet; these tests are
+  // what make it safe to start.
+  const run = async (pipeline?: 'all' | 'only' | 'exclude') => {
+    query.mockReset();
+    query.mockResolvedValue({ rows: [{ total: 0, location_all: 0, location_remote: 0, location_onsite: 0 }] });
+    await listBoardFiltered({ ...FILTER, ...(pipeline ? { pipeline } : {}) });
+    return { sql: String(query.mock.calls[0][0]), params: query.mock.calls[0][1] as unknown[] };
+  };
+
+  it('binds all as the default, so a caller that says nothing changes nothing', async () => {
+    const { params } = await run();
+    expect(params[12]).toBe('all');
+  });
+
+  it('keeps only pooled rows for only, and everything else for exclude', async () => {
+    const { sql } = await run('only');
+    expect(sql).toContain("$13::text = 'only' AND pipeline IS TRUE");
+    expect(sql).toContain("$13::text = 'exclude' AND pipeline IS NOT TRUE");
+  });
+
+  it('treats a feed that never said as NOT a pool, so exclude keeps it', async () => {
+    // IS NOT TRUE and not <> TRUE: in SQL, NULL <> true is NULL, which filters
+    // the row out. Every board except Apple stores null here, so the wrong
+    // operator would empty the board down to Apple's non-pool rows.
+    const { sql } = await run('exclude');
+    expect(sql).toContain('pipeline IS NOT TRUE');
+    expect(sql).not.toMatch(/pipeline\s*<>\s*TRUE/i);
+  });
+
+  it('is respected by the facet counts, not just the page', async () => {
+    // A count that ignored it would offer a reader a filter combination that
+    // returns nothing, which is the defect the age range was already fixed for.
+    const { sql } = await run('only');
+    expect(sql).toContain('match_pipeline');
+    const counts = sql.slice(sql.indexOf('count(*)'));
+    expect(counts).toContain('match_pipeline');
+  });
+
+  it('binds after the shared params, so the title and LIMIT slots still line up', async () => {
+    // The watched-titles clause and LIMIT/OFFSET derive their indices from
+    // shared.length. Appending is safe; inserting would silently renumber them.
+    const { params } = await run('only');
+    expect(params[12]).toBe('only');
+    expect(params.length).toBeGreaterThanOrEqual(13);
   });
 });

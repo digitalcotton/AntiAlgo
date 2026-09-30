@@ -28,7 +28,7 @@
  */
 
 /** Columns bound per row. Must match values() in scripts/ingest-jobs.mjs. */
-export const COLUMNS_PER_ROW = 33;
+export const COLUMNS_PER_ROW = 34;
 
 /** Postgres refuses a statement carrying more bound parameters than this. */
 export const MAX_PARAMETERS = 65535;
@@ -41,7 +41,7 @@ const HEAD = `
                     ats, posting_id, department, comp_posted, days_up, ghost,
                     first_seen, last_seen, slug, fit_total, fit_components,
                     detail_total, detail_components, source,
-                    comp_range, description,
+                    comp_range, description, pipeline,
                     derived_tier, derived_fam, derived_fam_source, derived_region, derived_friction,
                     priced, comp_min_k, comp_max_k, comp_mid_k,
                     status, kill_id, ingested_at)
@@ -61,6 +61,7 @@ const TAIL = `
     -- it and these two lines go with it.
     detail_total=EXCLUDED.detail_total, detail_components=EXCLUDED.detail_components,
     source=EXCLUDED.source, comp_range=EXCLUDED.comp_range, description=EXCLUDED.description,
+    pipeline=EXCLUDED.pipeline,
     derived_tier=EXCLUDED.derived_tier, derived_fam=EXCLUDED.derived_fam,
     derived_fam_source=EXCLUDED.derived_fam_source,
     derived_region=EXCLUDED.derived_region, derived_friction=EXCLUDED.derived_friction,

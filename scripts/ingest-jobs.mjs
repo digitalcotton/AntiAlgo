@@ -293,6 +293,10 @@ function values(j) {
     // recomputed here: a rename that re-scored the board would not be one.
     j.fit_total, JSON.stringify(j.fit_components), j.source,
     j.comp_range ? JSON.stringify(j.comp_range) : null, j.description ?? null,
+    // true/false only where the feed says; null where it has no such concept.
+    // Not coerced with ?? false -- see db/218: "we do not know whether this is
+    // a pool" is a different fact from "it is not one".
+    typeof j.pipeline === 'boolean' ? j.pipeline : null,
     d.derived_tier, d.derived_fam, d.derived_fam_source, d.derived_region, d.derived_friction,
     d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k
   ];

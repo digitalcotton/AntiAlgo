@@ -122,6 +122,11 @@ export interface BoardFilter {
   perPage: number;
   /** The sweep's calendar day (data.ts sweepDate()), the "to" end of every age. */
   sweepDate: string;
+  /** Evergreen talent pools (db/218): 'all' (the default, and what every
+   *  caller passes today), 'only', or 'exclude'. Nothing reads this off the
+   *  URL yet — see the match_pipeline comment in the CTE for why it exists
+   *  before it is used. */
+  pipeline?: 'all' | 'only' | 'exclude';
   /** The age strip's range in whole days, either end open. A row with no
       measurable age is outside any range that is set. */
   ageMin: number | null;
@@ -287,7 +292,14 @@ WITH base AS (
            WHEN j.first_seen IS NOT NULL AND j.first_seen < $1::date
              THEN (CASE WHEN j.status = 'killed' THEN coalesce(k.killed_on::date, $1::date) ELSE $1::date END) - j.first_seen
            ELSE NULL END AS age_days,
-         ${compTopSql('j.comp_posted')} AS comp_top
+         ${compTopSql('j.comp_posted')} AS comp_top,
+         -- Carried into scope for match_pipeline below (db/218). base selects an
+         -- explicit column list rather than j.*, so a column the CTE never
+         -- names is invisible to every later stage: leaving this out made the
+         -- board answer "column pipeline does not exist" -- a SCOPE error that
+         -- reads exactly like a missing migration and sent me to check three
+         -- databases that all had the column.
+         j.pipeline
     FROM jobs j LEFT JOIN board_kills k ON k.id = j.kill_id
 ),
 scored AS (
@@ -319,7 +331,21 @@ matched AS (
          -- selection that is not a lie about one of them.
          ($12::text[] IS NULL
            OR derived_fam = ANY($12::text[])
-           OR (derived_fam IS NULL AND 'unplaced' = ANY($12::text[]))) AS match_family
+           OR (derived_fam IS NULL AND 'unplaced' = ANY($12::text[]))) AS match_family,
+         -- EVERGREEN TALENT POOLS (db/218, jobs.pipeline). Nothing sets this
+         -- today: board-query.ts does not read it off the URL, so every caller
+         -- passes 'all' and this is constant true, which is why it costs the
+         -- board nothing and changes no count. It is here so the question
+         -- "should pools be on the board" can be answered later against data
+         -- already collected instead of a re-crawl of 2,999 boards.
+         --
+         -- NULL IS NOT FALSE. 'only' keeps rows a feed called a pool; 'exclude'
+         -- keeps everything else INCLUDING rows whose feed never said, because
+         -- "we do not know" must not be silently read as "it is not one" and
+         -- drop 52,000 postings off the board.
+         ($13::text = 'all'
+           OR ($13::text = 'only' AND pipeline IS TRUE)
+           OR ($13::text = 'exclude' AND pipeline IS NOT TRUE)) AS match_pipeline
     FROM scored s
 )`;
 
@@ -327,12 +353,12 @@ matched AS (
     range is in every keep clause: it is a filter every count respects, not an
     option any count is taken without. */
 function facetCountSql(titleClause: string): string {
-  const on = (keep: string, extra = '') => `count(*) FILTER (WHERE match_age AND match_country AND match_live AND match_comp_present AND ${titleClause} AND match_family AND ${keep}${extra})::int`;
+  const on = (keep: string, extra = '') => `count(*) FILTER (WHERE match_age AND match_country AND match_live AND match_comp_present AND match_pipeline AND ${titleClause} AND match_family AND ${keep}${extra})::int`;
   // The family's own counts are the one place match_family is NOT applied: a
   // leave-one-out count answers "how many would this option leave", and
   // counting Design inside a Design filter would answer "how many are already
   // showing". Same shape as location_remote being counted without match_location.
-  const onFam = (extra: string) => `count(*) FILTER (WHERE match_age AND match_country AND match_live AND match_comp_present AND ${titleClause} AND match_q AND match_location AND match_comp AND match_freshness${extra})::int`;
+  const onFam = (extra: string) => `count(*) FILTER (WHERE match_age AND match_country AND match_live AND match_comp_present AND match_pipeline AND ${titleClause} AND match_q AND match_location AND match_comp AND match_freshness${extra})::int`;
   const cols = [
     `${on('match_q AND match_location AND match_comp AND match_freshness')} AS total`,
     `${on('match_q AND match_comp AND match_freshness')} AS location_all`,
@@ -407,9 +433,10 @@ export async function listBoardFiltered(opts: BoardFilter): Promise<BoardFiltere
   const shared: unknown[] = [
     opts.sweepDate, FRESH_WINDOW_DAYS_SQL, likePattern(opts.q), opts.location, opts.comp, opts.freshness,
     opts.ageMin ?? null, opts.ageMax ?? null, opts.country ?? null, opts.liveOnly ?? true, opts.hasComp ?? false,
-    opts.families && opts.families.length > 0 ? opts.families : null
+    opts.families && opts.families.length > 0 ? opts.families : null,
+    opts.pipeline ?? 'all'
   ];
-  // The watched-titles narrowing binds after the 11 shared params ($12..), so
+  // The watched-titles narrowing binds after the shared params, so
   // the LIMIT/OFFSET indices shift by however many title tokens there are.
   const { clause: titleClause, params: titleParams } = titleKeepClause(opts.titles, shared.length + 1);
 
@@ -581,7 +608,12 @@ export async function listBoardAgeHistogram(opts: AgeHistogramFilter): Promise<A
     // The age range is null on purpose: see ageHistogramSql.
     null, null,
     opts.country ?? null, opts.liveOnly ?? true, opts.hasComp ?? false,
-    opts.families && opts.families.length > 0 ? opts.families : null
+    opts.families && opts.families.length > 0 ? opts.families : null,
+    // $13, and it has to be here too: this query builds its own param array but
+    // reuses the SAME matched CTE, so leaving it out left $13 unbound and every
+    // page carrying the age strip threw. The unit tests did not catch it
+    // because they exercise listBoardFiltered; the browser gate did.
+    opts.pipeline ?? 'all'
   ];
   const { clause: titleClause, params: titleParams } = titleKeepClause(opts.titles, shared.length + 1);
   const { rows } = await db().query<AgeRow>(

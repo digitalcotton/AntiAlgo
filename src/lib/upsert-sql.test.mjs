@@ -22,13 +22,16 @@ describe('upsertSql', () => {
   // the family came from the employer's department or from reading the title.
   // 33 since 2026-09-28: db/213 renames fit_total to detail_total and the two
   // are dual-written until the old pair is dropped.
-  it('binds 33 placeholders for a single row, starting at $1', () => {
+  // 34 since 2026-09-30: db/218 added pipeline, true only where a feed says a
+  // posting is an evergreen talent pool rather than one opening. Apple is the
+  // first feed to state it and 3,132 of its 4,909 postings are pools.
+  it('binds 34 placeholders for a single row, starting at $1', () => {
     const sql = upsertSql(1);
     expect(sql).toContain(
       '($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,' +
-      '$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33'
+      '$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34'
     );
-    expect(sql).not.toContain('$34');
+    expect(sql).not.toContain('$35');
   });
 
   it('numbers each row consecutively with no gaps or repeats', () => {
@@ -69,11 +72,23 @@ describe('upsertSql', () => {
     expect(cols.slice(-3)).toEqual(['status', 'kill_id', 'ingested_at']);
   });
 
+  it('carries pipeline, in the slot the ingest binds it to', () => {
+    // The column list and the ingest's values() array are two orderings of the
+    // same row, kept in step by hand. If they drift, every posting gets the
+    // next column's value and the board fills with nonsense that still inserts
+    // cleanly, so the position is asserted and not just the presence.
+    const sql = upsertSql(1);
+    const cols = sql.slice(sql.indexOf('(') + 1, sql.indexOf(')')).split(',').map((s) => s.trim());
+    expect(cols.indexOf('pipeline') + 1).toBe(25);
+    expect(cols[cols.indexOf('pipeline') - 1]).toBe('description');
+    expect(sql).toContain('pipeline=EXCLUDED.pipeline');
+  });
+
   it('refuses a batch Postgres would reject, before anything is sent', () => {
-    // 65535 / 33 columns. It was 2184 at 30 and 2114 at 31; a wider row means
-    // fewer rows fit in one statement, and the ingest's batch size is derived
-    // from this rather than guessed.
-    expect(MAX_ROWS_PER_STATEMENT).toBe(1985);
+    // 65535 / 34 columns. It was 2184 at 30, 2114 at 31 and 1985 at 33; a wider
+    // row means fewer rows fit in one statement, and the ingest's batch size is
+    // derived from this rather than guessed.
+    expect(MAX_ROWS_PER_STATEMENT).toBe(1927);
     expect(() => upsertSql(MAX_ROWS_PER_STATEMENT)).not.toThrow();
     expect(() => upsertSql(MAX_ROWS_PER_STATEMENT + 1)).toThrow(/65535/);
     expect(() => assertBatchFits(10_000)).toThrow(/Lower --batch/);
