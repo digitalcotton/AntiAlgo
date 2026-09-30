@@ -380,6 +380,82 @@ const RULES = [
   ['admin', [
     'linguistic', 'project manager', 'program manager', 'projectleider', 'administrator',
     'administratif', 'secretarieel'
+  ]],
+
+  // -------------------------------------------------------------------------
+  // THE SECOND TAIL, 2026-09-30. Same method as the block above and the same
+  // reason for sitting last.
+  //
+  // Nothing broke to cause this. The 09-30 discovery pass found 2,917 new live
+  // tenants and the board went from 1,666 sources to 2,998 -- 37,765 postings
+  // to 52,739 -- and coverage fell from 92.93% to 88.97%, through a floor set
+  // two days earlier against a board a third smaller. The rules did not stop
+  // describing the board; the board changed shape under them. What arrived was
+  // European and physical: Dutch couriers, German bakeries and warehouses,
+  // Norwegian cleaning, Swedish construction.
+  //
+  // Every term below was read off the unmapped tail of the real corpus and
+  // measured against all 52,739 rows. Terms that were tempting and are NOT
+  // here, because the rows behind them are not one family: bare `management`
+  // (75 rows spanning Betriebsleitung, Front of House and General Manager),
+  // `service` (39, spanning airport catering, Ford aftersales and Swedish
+  // service technicians), `engagement`, `fachkraft` and `ausbildung` -- the
+  // last two are German for "skilled worker" and "apprenticeship", which say
+  // the shape of the contract and nothing about the work.
+  //
+  // Still null on purpose, and rightly: Initiativbewerbung and Open
+  // Application (unsolicited applications, 29 rows), company names filed as
+  // departments (Bikeshift Nederland, Bambinositters, Ballast Nedam), and
+  // placeholders like `Hidden (18045)`. A gap is shown as a gap.
+  // -------------------------------------------------------------------------
+  ['health', [
+    // `therapy` and `therapist` were here; the German and Dutch spelling was
+    // not, and it is the single largest named department in the tail.
+    'therapie', 'physiotherapeut', 'ergotherapeut', 'logopad', 'fysiotherap'
+  ]],
+  ['education', [
+    // A German school-inclusion assistant is education. `pedagogi` did not
+    // reach `Pädagogik`, which folds to `padagogik`, not `pedagogik`.
+    'schulbegleitung', 'inklusionsassistenz', 'padagogik', 'erzieher', 'kinderopvang'
+  ]],
+  ['finance', [
+    // Workers' Compensation Claim Consultant, Claims Examiner, Multi-Line
+    // Claim Representative. `insurance` was already finance; the claims desk
+    // that pays it out was not.
+    'claims', 'claim', 'comptabilite'
+  ]],
+  ['sales', ['commercieel', 'aftersales', 'after sales', 'ventas', 'adviseur binnendienst']],
+  ['hospitality', [
+    // Retail, consistent with `verkaufer` and `einzelhandel` already being
+    // hospitality: the department Verkauf here is bakeries and shop branches
+    // (Bäckereifachverkäufer, Filialleitung), not B2B sales, which is
+    // `vertrieb` and stays where it is.
+    // NOT a bare `verkauf`: the prefix rule made it match the department
+    // `Plakat-verkauft.de`, a company name, and filed two Regional Sales
+    // Managers as retail. The specific words cost a handful of rows and tell
+    // the truth. `fachverkaufer` also reaches `Bäckereifachverkäufer`, which
+    // folds to `backereifachverkaufer`, only because the prefix rule fires on
+    // `backerei`.
+    'filialleitung', 'backerei', 'fachverkaufer', 'kassenkraft', 'hostess', 'front of house'
+  ]],
+  ['operations', [
+    // `courier`, `chauffeur` and `driver` were all present and all missed
+    // these: Dutch and German glue the noun on the front, so `buschauffeur`
+    // does not start with `chauffeur` and the prefix rule never fires.
+    'bezorger', 'folderbezorger', 'fietskoerier', 'koerier', 'orderpicker',
+    'lager', 'fachlagerist', 'buschauffeur', 'betriebsleitung', 'schichtleitung',
+    'shift supervisor'
+  ]],
+  ['trades', [
+    // `labourer` was here in the British spelling only; `laborer` is 11 rows
+    // of the no-department pile on its own.
+    'laborer', 'techniek', 'autotechnicus', 'servicemonteur', 'servicetekniker',
+    'handyman', 'waterproofing', 'renhold', 'bygg', 'nybyggnation', 'entreprenad', 'btp',
+    // Dutch mechanical/building-services engineering. Trades and not
+    // manufacturing: the rows behind it are Monteur KLP, BIM Engineer and
+    // Kostendeskundige Installatietechniek, and `installatietechniek` is
+    // already trades.
+    'werktuigbouw'
   ]]
 ];
 
