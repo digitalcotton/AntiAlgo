@@ -31,8 +31,18 @@ const featured = records[0] ?? null;
    what is not shown is printed below it rather than dropped silently, because
    a truncated list that does not say so reads as the whole record. */
 const LIST_ROWS = 20;
+/* Ten on arrival, the rest behind "Show more" (owner, 2026-09-29). The page
+   still HOLDS twenty -- the cap above is unchanged and so is the reasoning for
+   it -- but twenty rows of kill record is a lot to land on before you have
+   decided you want them. The hidden ten are in the markup, not fetched on
+   demand: it is ten list items, they are already on the page, and a reader
+   without JavaScript or with it disabled gets the control working anyway
+   (see the checkbox below). */
+const OPEN_ROWS = 10;
 const rest = records.slice(1, 1 + LIST_ROWS);
 const notShown = Math.max(0, records.length - 1 - rest.length);
+/* Only worth a control when it actually hides something. */
+const hasMore = rest.length > OPEN_ROWS;
 const scaleMax = killScaleMax(records);
 const sweptLabel = feed.servedAt ? sweptStamp(feed.servedAt) : null;
 const address = 'tokenstoagents.ai/jobs/kills';
@@ -68,15 +78,41 @@ const signedIn = Boolean(Astro.locals.viewer);
       )}
 
       {rest.length > 0 && (
-        <ul class="ev-list" aria-label="The most recent kills in the last two months">
-          {rest.map((r) => (
-            <li class="ev-list-row">
-              <span class="ev-li-rule">{r.rule ?? 'killed'}</span>
-              <span class="ev-li-role">{r.role}</span>
-              <span class="ev-li-date">{r.killedOn ?? 'date not shown'}</span>
-            </li>
-          ))}
-        </ul>
+        <Fragment>
+          {/* A checkbox and its label, no script -- the same mechanism the site
+              header's mobile menu uses, for the same reason: this works with
+              JavaScript off, survives a failed hydration, and needs nothing
+              from the dom-contracts gate. The checkbox is the control and is
+              kept reachable by keyboard while off screen; the label is its
+              visible text. It must precede the list so the ~ selectors below
+              can reach it. */}
+          {hasMore && (
+            <input
+              type="checkbox"
+              id="ev-more-toggle"
+              class="ev-more-toggle"
+              aria-label={`Show all ${rest.length} recent kills`}
+            />
+          )}
+          <ul class="ev-list" aria-label="The most recent kills in the last two months">
+            {rest.map((r, i) => (
+              /* The rows past the tenth are marked, not removed: they are in
+                 the document and in the accessibility tree the moment the
+                 control is opened, and a find-in-page still reaches them. */
+              <li class="ev-list-row" data-beyond={i >= OPEN_ROWS ? '' : undefined}>
+                <span class="ev-li-rule">{r.rule ?? 'killed'}</span>
+                <span class="ev-li-role">{r.role}</span>
+                <span class="ev-li-date">{r.killedOn ?? 'date not shown'}</span>
+              </li>
+            ))}
+          </ul>
+          {hasMore && (
+            <label class="ev-showmore" for="ev-more-toggle">
+              <span class="ev-showmore-open">Show {rest.length - OPEN_ROWS} more</span>
+              <span class="ev-showmore-close">Show fewer</span>
+            </label>
+          )}
+        </Fragment>
       )}
 
       {notShown > 0 && (
@@ -261,6 +297,59 @@ const signedIn = Boolean(Astro.locals.viewer);
 
   /* The truncation note. Same machine face and muted ink as the rows it
      closes, so it reads as the last line of the list rather than as copy. */
+  /* --- the show-more control ------------------------------------------
+     A checkbox and a label, no script, the same mechanism the site header's
+     mobile menu uses. The checkbox carries the state; the label is the text a
+     reader clicks. Sibling (~) selectors only reach forward, which is why the
+     input sits before the list in the markup. */
+  .ev-more-toggle {
+    /* Off screen, NOT display:none -- a hidden input is not focusable, and
+       this is the only control. Keyboard users tab to it and press space. */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  /* Closed: everything past the tenth row is out of the document's flow AND
+     out of the accessibility tree. display:none rather than a height clamp,
+     so a screen reader is not read ten rows the page is hiding. */
+  .ev-list-row[data-beyond] {
+    display: none;
+  }
+  .ev-more-toggle:checked ~ .ev-list .ev-list-row[data-beyond] {
+    display: grid;
+  }
+  .ev-showmore {
+    display: inline-block;
+    margin: var(--sp-4) 0 0;
+    font-family: var(--machine);
+    font-size: var(--fs-12);
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 2px;
+  }
+  .ev-showmore:hover {
+    color: var(--ink);
+    border-bottom-color: var(--ink);
+  }
+  /* The focus ring belongs on the label, because the input it belongs to is
+     the thing off screen. Without this the control is invisible to a keyboard. */
+  .ev-more-toggle:focus-visible ~ .ev-showmore {
+    outline: 2px solid var(--ink);
+    outline-offset: 3px;
+  }
+  /* One label, two words: which one shows is the checkbox's business, the same
+     way ThemeToggle prints "Dark" and "Light" from one control. */
+  .ev-showmore-close,
+  .ev-more-toggle:checked ~ .ev-showmore .ev-showmore-open {
+    display: none;
+  }
+  .ev-more-toggle:checked ~ .ev-showmore .ev-showmore-close {
+    display: inline;
+  }
+
   .ev-truncated {
     margin: var(--sp-3) 0 0;
     font-family: var(--machine);
