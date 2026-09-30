@@ -268,6 +268,12 @@ function normalise(raw) {
     )
   };
   row.comp_range = compRangeOf(raw);
+  // Evergreen talent pool (db/218). Copied explicitly because this function
+  // builds a NEW object rather than spreading raw, so a field the crawl adds is
+  // invisible here until it is named -- which is why the first load after the
+  // adapter shipped wrote 57,648 nulls with the value sitting in the board file
+  // the whole time. Boolean or null, never coerced: see the column comment.
+  row.pipeline = typeof raw.pipeline === 'boolean' ? raw.pipeline : null;
   const scored = scoreJob(row);
   // The crawl's own slug, kept apart from the computed one so the ledger can
   // offer it first (nothing emits one today; the board file carries no slugs).
