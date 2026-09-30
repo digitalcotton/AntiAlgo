@@ -135,12 +135,15 @@ export const POSTING_NOTICES: Readonly<Record<string, string>> = {
  * mini reports an Eightfold read as kind 'page' (the API is fetched through
  * the page plan); readThrough() names it from the URL instead.
  *
- * Apple is NOT here, although 'apple' is a SOURCE_KINDS value, and that is the
- * point: this map mirrors board_of, the mini has no Apple adapter, and Apple is
- * one employer's own job site rather than a board system anything else posts
- * on. readThrough() names it in its own words below; the waiting-room plan this
- * map also feeds says "reading the page itself", which is what the mini would
- * in fact do with an Apple link.
+ * Apple is NOT here, although 'apple' is a SOURCE_KINDS value, and it stays out
+ * for a narrower reason than it used to. The old note said "the mini has no
+ * Apple adapter"; since 2026-09-30 it does, Apple is in config.BOARDS, and
+ * board_of returns {ats: 'apple', slug: <locale>} so a pasted Apple link now
+ * resolves to a board we already sweep. What has not changed is that Apple is
+ * ONE EMPLOYER'S own job site and not a board system anything else posts on,
+ * which is what this map names. So readThrough() keeps naming it in its own
+ * words below, and that is still accurate: the adapter enumerates Apple's
+ * listing nightly, while a pasted link is read from the page itself.
  */
 export const BOARD_SYSTEMS = {
   greenhouse: 'Greenhouse',
