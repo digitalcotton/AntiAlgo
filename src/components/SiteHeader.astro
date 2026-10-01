@@ -14,11 +14,17 @@ const signinOpen = isOn('signin');
 
 /**
  * The header has two states. SIGNED OUT: the marketing nav (MARKETING below),
- * the theme toggle, and Save my spot. SIGNED
- * IN: the member surfaces (MEMBER below), the theme
- * toggle, and an account menu (Profile, Settings, Sign out) labelled with the
- * reader's first name — no Save my spot, no Sign in. The viewer is resolved by
- * middleware on every route when a session cookie is present (src/middleware.ts).
+ * the theme toggle, and Save my spot. SIGNED IN: the member surfaces (MEMBER
+ * below), the theme toggle, and an account menu (Profile, Settings, Sign out)
+ * labelled with the reader's first name — no Save my spot, no Sign in. The
+ * viewer is resolved by middleware on every route when a session cookie is
+ * present (src/middleware.ts).
+ *
+ * EITHER STATE IS ONE ROW OR IT IS THE BURGER (owner, 2026-10-01). It never
+ * takes a second line. Which rows are in the nav is decided here, in two arrays
+ * that both read flags; the width where the row stops fitting is not decided
+ * here at all, because it cannot be known from here — see the collapse note in
+ * the stylesheet below.
  */
 const viewer = Astro.locals.viewer;
 const signedIn = Boolean(viewer);
@@ -29,7 +35,9 @@ const isHere = (p: string) => here === p;
 
 // Your key is listed only while the page exists (your_key_page flag), the same
 // rule the footer's kill list and report links follow. Off since 2026-10-01: the
-// page is a flat 404, and this row is one link shorter for it.
+// page is a flat 404 and this row is one link shorter, which is also what buys
+// the signed-out row the width it needs to stay on one line (see the burger
+// breakpoint below).
 const MARKETING = [
   { label: 'Home', href: routeFor('start') },
   { label: 'The board', href: routeFor('board') },
@@ -145,12 +153,13 @@ const comeReadyHref = routeFor('come-ready');
      * not help. The header was therefore wrapping to two rows at every desktop
      * width, 1280 through 2560, not just on small laptops.
      *
-     * 12px brings the requirement to 1203px, which fits from 1280 up with room
-     * to spare. Below about 1220 the row cannot fit at any gap: the text alone
-     * is wider than the frame, and that band still wraps until the burger takes
-     * over at 48rem. Closing that last gap means either fewer links in the
-     * header or raising the burger breakpoint onto laptop widths, and both are
-     * design calls rather than a fix for this bug.
+     * 12px brings the requirement down to a row that fits from 1280 up. The
+     * band below that used to wrap to a second line, which is the stacked nav
+     * the owner called inelegant (2026-10-01). It cannot wrap any more: the
+     * script at the foot of this file measures the row and collapses it to the
+     * burger the moment it stops fitting, at whatever width that turns out to
+     * be. `flex-wrap: wrap` is kept only as the thing that would happen if the
+     * measurement were ever wrong, and nothing should reach it.
      */
     gap: var(--space-300);
     padding-block: var(--space-400);
@@ -159,15 +168,74 @@ const comeReadyHref = routeFor('come-ready');
        absolutely positioned. */
     position: relative;
   }
-  /* The mobile-menu control is invisible until the phone breakpoint. */
-  .nav-toggle,
+  /* THE BURGER AND ITS CHECKBOX, at rest.
+     Both are hidden here and shown only by the collapse rules further down, so
+     these boxes are written once and the collapse itself is three declarations.
+     Until 2026-10-01 all of this lived inside a `max-width: 48rem` query, which
+     is why collapsing at any other width used to mean copying the block. */
+  .nav-toggle {
+    display: none;
+    /* In the page, off screen: still focusable, still named for a screen
+       reader, never a visible control. */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
   .nav-burger {
     display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--color-foreground);
+    /* Apple HIG: a control is at least 44x44pt. The icon is 32px and the pad
+       carries the box past 44; the negative margin cancels the pad so the
+       icon still sits flush with the shell edge. */
+    min-width: 44px;
+    min-height: 44px;
+    padding: var(--space-200);
+    margin: calc(var(--space-200) * -1);
+    /* Above the open overlay (z 1, below) so the close X keeps its place in
+       the header row and stays tappable while the menu covers the page. */
+    position: relative;
+    z-index: 2;
+  }
+  /* The bars/X icon, larger than its 24px markup default so the control reads
+     at a glance. */
+  .nav-burger-icon {
+    width: 2rem;
+    height: 2rem;
+  }
+  .nav-burger-x {
+    display: none;
+  }
+  /* Bars to an X while open. */
+  .nav-toggle:checked ~ .nav-burger .nav-burger-bars {
+    display: none;
+  }
+  .nav-toggle:checked ~ .nav-burger .nav-burger-x {
+    display: inline;
+  }
+  /* A focus ring on the icon when the hidden checkbox has focus. */
+  .nav-toggle:focus-visible ~ .nav-burger {
+    outline: var(--border-heavy) solid var(--color-signal);
+    outline-offset: var(--space-100);
+    border-radius: var(--radius);
   }
   .brand {
     display: flex;
     align-items: center;
     gap: var(--space-300);
+    /* The wordmark rides above the open overlay (z 1): the logo does not move
+       or vanish when the menu opens, it shows through on top. Inert while the
+       menu is closed, which is why it is not inside a collapse rule. */
+    position: relative;
+    z-index: 2;
   }
   .wordmark {
     font-weight: var(--weight-bold);
@@ -279,171 +347,239 @@ const comeReadyHref = routeFor('come-ready');
      its form to trim the standalone-page margin inside this compact menu. */
   .account-panel :global(.signout) { margin-top: var(--space-200); }
 
+  /* ------------------------------------------------------------- the collapse
+   *
+   * THE RULE (owner, 2026-10-01): the header row never takes a second line. It
+   * is one row, or it is the burger. Nothing in between.
+   *
+   * The width where that happens is NOT written down here, on purpose. It is a
+   * function of how long the row actually is, and the row changes: 'Your key'
+   * comes back when the your_key_page flag lights, 'Sign in' comes back when
+   * the signin flag lights, the signed-in row is a different set again, and the
+   * account is labelled with the reader's own first name. Measured on
+   * 2026-10-01 the signed-out row needed a 1149px viewport and the signed-in
+   * row about 918px; with both held-back links restored the signed-out row
+   * needs past 1350px. Any constant chosen from one of those numbers is wrong
+   * for the others and goes stale the day a label changes, which is how the
+   * second row got in to begin with.
+   *
+   * So the script at the foot of this file measures the row once and sets
+   * data-nav="collapsed" on the header when the space left is smaller than the
+   * row needs. These three declarations are the whole collapse.
+   */
+  .hdr[data-nav='collapsed'] .nav-toggle {
+    display: block;
+  }
+  .hdr[data-nav='collapsed'] .nav-burger {
+    display: inline-flex;
+  }
+  .hdr[data-nav='collapsed'] .nav {
+    display: none;
+  }
+
+  /* WITH NO JAVASCRIPT the attribute is never set, so this keeps the phone
+     behaviour the header has always had rather than leaving a reader with a
+     row that cannot fit and no way to open it. Above this width and with no
+     script, the row wraps exactly as it did before 2026-10-01. */
   @media (max-width: 48rem) { /* --breakpoint-phone */
-    /* The checkbox stays in the page, off screen, so it is still focusable and
-       named for a screen reader; the label is the hamburger. */
     .nav-toggle {
       display: block;
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      margin: -1px;
-      padding: 0;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-      border: 0;
     }
     .nav-burger {
       display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      color: var(--color-foreground);
-      /* Apple HIG: a control is at least 44x44pt. The icon is 32px and the pad
-         carries the box past 44; the negative margin cancels the pad so the
-         icon still sits flush with the shell edge. */
-      min-width: 44px;
-      min-height: 44px;
-      padding: var(--space-200);
-      margin: calc(var(--space-200) * -1);
-      /* Above the open overlay (z 1, below) so the close X keeps its place in
-         the header row and stays tappable while the menu covers the page. */
-      position: relative;
-      z-index: 2;
     }
-    /* The bars/X icon, larger than its 24px markup default so the control reads
-       at a glance. */
-    .nav-burger-icon {
-      width: 2rem;
-      height: 2rem;
-    }
-    /* The wordmark rides above the overlay for the same reason: the logo does
-       not move or vanish when the menu opens, it shows through on top. */
-    .brand {
-      position: relative;
-      z-index: 2;
-    }
-    .nav-burger-x {
-      display: none;
-    }
-    /* Bars to an X while open. */
-    .nav-toggle:checked ~ .nav-burger .nav-burger-bars {
-      display: none;
-    }
-    .nav-toggle:checked ~ .nav-burger .nav-burger-x {
-      display: inline;
-    }
-    /* A focus ring on the icon when the hidden checkbox has focus. */
-    .nav-toggle:focus-visible ~ .nav-burger {
-      outline: var(--border-heavy) solid var(--color-signal);
-      outline-offset: var(--space-100);
-      border-radius: var(--radius);
-    }
-
-    /* Collapsed: the nav is hidden until the checkbox is checked, then it takes
-       the whole screen. It is fixed to the viewport and painted UNDER the header
-       (z 1, and the header is z 100), so the same surface colour runs seamlessly
-       from behind the logo down over the page, with no divider: the logo and the
-       close X (both z 2) show through on top and stay put. The page beneath is
-       fully covered, so there is nothing to scroll to. Selecting a link is a real
-       navigation, which lands on a fresh page with the menu closed. The top pad
-       clears the ~68px sticky header (space-400 block padding x2 + brand + rule)
-       with room to spare; the side pad matches the shell so items line up under
-       the logo. */
     .nav {
       display: none;
     }
-    .nav-toggle:checked ~ .nav {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: var(--space-300);
-      position: fixed;
-      inset: 0;
-      z-index: 1;
-      padding: calc(var(--space-700) * 2) var(--space-400) var(--space-700);
-      background: var(--color-surface);
-      overflow-y: auto;
-      overscroll-behavior: contain;
-    }
-    /* In the takeover the items ARE the page, so they read large. Every row is
-       a full-width, 44pt-tall hit target (Apple HIG); the top-level items and
-       the account name grow the most, the nested account links a step down for
-       hierarchy. The closed nav and every desktop size are untouched. */
-    .nav-toggle:checked ~ .nav > .nav-link,
-    .nav-toggle:checked ~ .nav .account-trigger,
-    .nav-toggle:checked ~ .nav .account-item {
-      display: flex;
-      align-items: center;
-      min-height: 44px;
-      width: 100%;
-    }
-    .nav-toggle:checked ~ .nav > .nav-link,
-    .nav-toggle:checked ~ .nav .account-trigger {
-      font-size: var(--size-400);
-    }
-    .nav-toggle:checked ~ .nav .account-item {
-      font-size: var(--size-300);
-    }
-    /* The current page reads by colour here (the foreground weight the link
-       already switches to), not the hairline underline, which would run the
-       full row width now that the rows are full-width. */
-    .nav-toggle:checked ~ .nav > .nav-link {
-      border-bottom: 0;
-      padding-bottom: 0;
-    }
+  }
 
-    /* Signed in, the account is not a dropdown on a phone: it sits open inside
-       the full-screen menu so Profile, Settings and Sign out are on the screen
-       with no second tap. The script forces the disclosure open at this width
-       and keeps a tap on the name from collapsing it; the caret would imply a
-       toggle that is not there, so it goes. (With no JS the native <details>
-       still opens on a tap of the name, so the items are never unreachable.) */
-    .account {
-      width: 100%;
-    }
-    .account-caret {
-      display: none;
-    }
-    .account-panel {
-      position: static;
-      border: 0;
-      border-radius: 0;
-      padding: var(--space-200) 0 0 var(--space-300);
-      min-width: 0;
-    }
+  /* The one frame the script measures in: the row laid out as a row, whatever
+     state it was in. Written after the collapse rules so it outranks them at
+     equal specificity. Nothing paints between the attribute going on and coming
+     off -- it is set and cleared inside one synchronous call -- so this is
+     never a state a reader sees. */
+  .hdr[data-nav='measure'] .nav {
+    display: flex;
+    flex-direction: row;
+    position: static;
+  }
+
+  /* ------------------------------------------------------------- the open menu
+   *
+   * The nav takes the whole screen. It is fixed to the viewport and painted
+   * UNDER the header (z 1, and the header is z 100), so the same surface colour
+   * runs seamlessly from behind the logo down over the page, with no divider:
+   * the logo and the close X (both z 2) show through on top and stay put. The
+   * page beneath is fully covered, so there is nothing to scroll to. Selecting
+   * a link is a real navigation, which lands on a fresh page with the menu
+   * closed. The top pad clears the ~68px sticky header (space-400 block padding
+   * x2 + brand + rule) with room to spare; the side pad matches the shell so
+   * items line up under the logo.
+   *
+   * Last of the display rules, so an open menu wins over the collapse rule that
+   * hides the nav. */
+  .nav-toggle:checked ~ .nav {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-300);
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    padding: calc(var(--space-700) * 2) var(--space-400) var(--space-700);
+    background: var(--color-surface);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* In the takeover the items ARE the page, so they read large. Every row is
+     a full-width, 44pt-tall hit target (Apple HIG); the top-level items and
+     the account name grow the most, the nested account links a step down for
+     hierarchy. The closed row is untouched at every width. */
+  .nav-toggle:checked ~ .nav > .nav-link,
+  .nav-toggle:checked ~ .nav .account-trigger,
+  .nav-toggle:checked ~ .nav .account-item {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    width: 100%;
+  }
+  .nav-toggle:checked ~ .nav > .nav-link,
+  .nav-toggle:checked ~ .nav .account-trigger {
+    font-size: var(--size-400);
+  }
+  .nav-toggle:checked ~ .nav .account-item {
+    font-size: var(--size-300);
+  }
+  /* The current page reads by colour here (the foreground weight the link
+     already switches to), not the hairline underline, which would run the
+     full row width now that the rows are full-width. */
+  .nav-toggle:checked ~ .nav > .nav-link {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  /* Signed in, the account is not a dropdown inside the takeover: it sits open
+     so Profile, Settings and Sign out are on the screen with no second tap. The
+     script forces the disclosure open while the header is collapsed and keeps a
+     tap on the name from collapsing it; the caret would imply a toggle that is
+     not there, so it goes. (With no JS the native <details> still opens on a tap
+     of the name, so the items are never unreachable.) These are scoped to the
+     open menu rather than to a width, so the dropdown stays a dropdown
+     everywhere the row is a row. */
+  .nav-toggle:checked ~ .nav .account {
+    width: 100%;
+  }
+  .nav-toggle:checked ~ .nav .account-caret {
+    display: none;
+  }
+  .nav-toggle:checked ~ .nav .account-panel {
+    position: static;
+    border: 0;
+    border-radius: 0;
+    padding: var(--space-200) 0 0 var(--space-300);
+    min-width: 0;
   }
 </style>
 
 <script>
-  // Dismissal, plus the phone account behaviour. The account menu is a native
-  // <details>; the mobile nav is a checkbox (#nav-toggle) toggled by its label,
-  // so "close" is unchecking it. Each closes on Escape or a click outside it.
-  const menu = document.querySelector<HTMLDetailsElement>('details.account');
+  // The header's own behaviour: whether the row collapses to the burger, and
+  // the dismissal of both menus.
+  //
+  // THE ROW NEVER TAKES A SECOND LINE (owner, 2026-10-01). The width where it
+  // would is not a constant anybody can write down -- see the long note in the
+  // stylesheet -- so it is measured here instead. Once, on load: the row's
+  // content does not change after render, so what changes is only the space it
+  // is given.
+  const hdr = document.querySelector<HTMLElement>('header.hdr');
+  const main = hdr?.querySelector<HTMLElement>('.hdr-main');
+  const brand = hdr?.querySelector<HTMLElement>('.brand');
+  const nav = hdr?.querySelector<HTMLElement>('.nav');
   const navToggle = document.querySelector<HTMLInputElement>('#nav-toggle');
-  const nav = document.querySelector<HTMLElement>('header.hdr .nav');
   const burger = document.querySelector<HTMLElement>('.nav-burger');
+  const menu = document.querySelector<HTMLDetailsElement>('details.account');
 
-  // On a phone the account is not a dropdown: it sits open in the full-screen
-  // menu so Profile, Settings and Sign out are on the screen with no extra tap.
-  // Force it open at that width and keep a tap on the name from collapsing it.
-  // (With no JS the native <details> still opens on a tap, so nothing is lost.)
-  const phone = window.matchMedia('(max-width: 48rem)');
-  const openAccountOnPhone = () => {
-    if (menu && phone.matches) menu.open = true;
+  /** The width the row needs on one line: brand + gap + every nav item and the
+      gaps between them. Summing the items rather than reading a width off the
+      nav is what makes this true in any state -- a wrapped row reports the
+      width of its widest line, and a collapsed one reports nothing at all,
+      but each item's own box is its natural size either way. */
+  let needed = 0;
+
+  const measure = () => {
+    if (!hdr || !main || !brand || !nav) return;
+    // Never while the menu is open: the takeover lays the items out as a column
+    // at a larger font size, so what came back would not be the row's width.
+    // Only matters as a guard -- this runs on load and on fonts.ready, and the
+    // menu cannot be open at either.
+    if (navToggle?.checked) return;
+    // Lay the row out as a row for the length of this function. Nothing paints
+    // in the middle of a synchronous call, so no reader sees this.
+    const was = hdr.dataset.nav;
+    hdr.dataset.nav = 'measure';
+    const outerGap = parseFloat(getComputedStyle(main).columnGap) || 0;
+    const itemGap = parseFloat(getComputedStyle(nav).columnGap) || 0;
+    // Width, not count: in dev the nav holds an injected <script> child, and
+    // counting it would add a gap that is not on the screen. Anything with no
+    // box is not part of the row.
+    const widths = ([...nav.children] as HTMLElement[])
+      .map((item) => item.getBoundingClientRect().width)
+      .filter((width) => width > 0);
+    const row =
+      widths.reduce((total, width) => total + width, 0) + Math.max(widths.length - 1, 0) * itemGap;
+    needed = Math.ceil(brand.getBoundingClientRect().width + outerGap + row);
+    if (was === undefined) delete hdr.dataset.nav;
+    else hdr.dataset.nav = was;
   };
-  openAccountOnPhone();
-  phone.addEventListener('change', openAccountOnPhone);
+
+  const apply = () => {
+    if (!hdr || !main || !needed) return;
+    // clientWidth INCLUDES padding, and .hdr-main is also the .shell, which
+    // carries a 25.6px gutter each side. Comparing against it unsubtracted
+    // leaves the row a gutter's worth of room it does not have, which is a
+    // band ~50px wide where this collapses one step too late and the row
+    // wraps -- the exact thing it exists to prevent.
+    const pad = getComputedStyle(main);
+    const available =
+      main.clientWidth - (parseFloat(pad.paddingLeft) || 0) - (parseFloat(pad.paddingRight) || 0);
+    const collapsed = available < needed;
+    if (collapsed) hdr.dataset.nav = 'collapsed';
+    else delete hdr.dataset.nav;
+    // Leaving the collapsed state with the menu still open would strand the
+    // full-screen overlay over a page that now has room for its row.
+    if (!collapsed && navToggle?.checked) navToggle.checked = false;
+    // The account is a dropdown in the row and a flat section in the takeover,
+    // so it is forced open for the second and left alone for the first.
+    if (menu && collapsed) menu.open = true;
+  };
+
+  const remeasure = () => {
+    measure();
+    apply();
+  };
+
+  remeasure();
+  // A web font that lands after first paint changes every label's width, and
+  // with it the only number this file cares about.
+  document.fonts?.ready.then(remeasure);
+  // The row's own box, not the window: a scrollbar appearing or a zoom change
+  // moves it without a resize event.
+  if (main && 'ResizeObserver' in window) new ResizeObserver(apply).observe(main);
+  else window.addEventListener('resize', apply);
+
+  const collapsedNow = () => hdr?.dataset.nav === 'collapsed';
+
+  // In the takeover the account name is a heading, not a control: a tap on it
+  // must not fold away the three items underneath. (With no JS the native
+  // <details> still opens on a tap, so nothing is ever unreachable.)
   menu?.querySelector('summary')?.addEventListener('click', (event) => {
-    if (phone.matches) event.preventDefault();
+    if (collapsedNow()) event.preventDefault();
   });
 
   document.addEventListener('click', (event) => {
     const target = event.target as Node;
-    // The account only collapses on outside-click where it IS a dropdown, i.e.
-    // on desktop; on a phone it stays open as part of the flat menu.
-    if (!phone.matches && menu?.open && !menu.contains(target)) menu.open = false;
+    // The account only closes on an outside click where it IS a dropdown, i.e.
+    // in the row; inside the takeover it stays open as part of the flat menu.
+    if (!collapsedNow() && menu?.open && !menu.contains(target)) menu.open = false;
     if (
       navToggle?.checked &&
       target !== navToggle &&
@@ -456,9 +592,9 @@ const comeReadyHref = routeFor('come-ready');
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
-    // Desktop: Escape closes the account dropdown. Phone: it closes the whole
-    // menu (below) and the account stays open for next time.
-    if (!phone.matches && menu?.open) {
+    // In the row, Escape closes the account dropdown. Collapsed, it closes the
+    // whole menu (below) and the account stays open for next time.
+    if (!collapsedNow() && menu?.open) {
       menu.open = false;
       menu.querySelector('summary')?.focus();
     }
