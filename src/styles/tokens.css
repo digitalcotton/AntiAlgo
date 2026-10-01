@@ -62,6 +62,7 @@
   --space-100: 0.25rem;
   --space-200: 0.5rem;
   --space-300: 0.75rem;
+  --space-350: 1.25rem; /** 20px. The one half step on the space ramp, added 2026-10-01 for the header nav gap: 16px did not separate the uppercase mono links enough and 24px pushed the header into its burger on a 1280-wide screen. Half steps are house style on the size and gray ramps already (--size-150, --gray-050). */
   --space-400: 1rem;
   --space-500: 1.5rem;
   --space-600: 2rem;

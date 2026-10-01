@@ -145,23 +145,27 @@ const comeReadyHref = routeFor('come-ready');
     align-items: center;
     justify-content: space-between;
     /*
-     * 12px, not 24px, and the same on .nav below. MEASURED 2026-09-29 against
-     * production: the signed-out row needs brand (103px) + this gap + the nav's
-     * own content (968px) + its ten internal gaps. At 24px that is 1335px, and
-     * .shell is capped at 86rem with a 36px gutter each side, so the space
-     * available is 1304px AND NEVER MORE -- the cap means a wider screen does
-     * not help. The header was therefore wrapping to two rows at every desktop
-     * width, 1280 through 2560, not just on small laptops.
+     * This gap is the brand-to-nav one; the gap BETWEEN the links is on .nav
+     * below, and they are deliberately the same value.
      *
-     * 12px brings the requirement down to a row that fits from 1280 up. The
-     * band below that used to wrap to a second line, which is the stacked nav
-     * the owner called inelegant (2026-10-01). It cannot wrap any more: the
-     * script at the foot of this file measures the row and collapses it to the
-     * burger the moment it stops fitting, at whatever width that turns out to
-     * be. `flex-wrap: wrap` is kept only as the thing that would happen if the
+     * HISTORY, because the number has moved twice. It was 24px and the header
+     * wrapped to two rows at every desktop width (measured 2026-09-29 against
+     * production: the row needed 1335px and .shell is capped at 1376px with a
+     * 36px gutter each side, so 1304px was all there ever was, on any screen).
+     * It was cut to 12px to stop that. Since 2026-10-01 the row cannot wrap at
+     * any value -- the script at the foot of this file measures it and collapses
+     * it to the burger instead -- so the gap is a design choice again rather
+     * than a fix, and the owner set it at 20px.
+     *
+     * WHAT THE VALUE COSTS, measured 2026-10-01 on the signed-out row: it is
+     * the width at which the burger takes over. 12px collapsed below 1185px,
+     * 16px below 1221px, 20px below 1257px, 24px below 1293px. 24 was the
+     * roomiest and was refused because it puts a 1280-wide laptop into the
+     * burger; 20 is the step that reads open without doing that to the common
+     * laptop widths. `flex-wrap: wrap` is kept only as what would happen if the
      * measurement were ever wrong, and nothing should reach it.
      */
-    gap: var(--space-300);
+    gap: var(--space-350);
     padding-block: var(--space-400);
     flex-wrap: wrap;
     /* The anchor the phone menu drops from; inert on desktop where nothing is
@@ -248,10 +252,10 @@ const comeReadyHref = routeFor('come-ready');
        padded Save my spot button have different box heights, and centring
        their boxes put their text on three different baselines. */
     align-items: baseline;
-    /* See .hdr-main: at 24px these ten gaps alone were 240px and pushed the
-       row past a frame that is capped at 1376px, so the header wrapped on
-       every desktop. */
-    gap: var(--space-300);
+    /* The gap between the links themselves, and the one the owner was reading
+       when they asked for more air (2026-10-01). Same value as .hdr-main's, and
+       the note there is where the number is argued. */
+    gap: var(--space-350);
     flex-wrap: wrap;
   }
   .nav-link {
