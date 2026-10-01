@@ -24,6 +24,29 @@ const draftAction = routeFor('desk-job-draft');
 const trackAction = routeFor('desk-application');
 const rankLabel = String(rank).padStart(2, '0');
 const sub = [role.company, role.pay, role.remote ? 'Remote' : role.location].filter(Boolean).join('  ·  ');
+
+/**
+ * The arrival-curve reading, assembled here rather than from several
+ * expressions in the markup: Astro puts a newline between adjacent expressions
+ * on separate lines, and that newline renders as a space, so a comma written
+ * after one of them lands as " , ". (Seen on the first render of this change.)
+ *
+ * Where the model makes a claim, print the claim. Where it does not -- past 96
+ * hours, where NBER WP 32320 says nothing -- print the one thing actually
+ * measured, the role's age, so two roles the model is silent about are still
+ * told apart. Until 2026-10-01 everything past four days read "past the first
+ * 96 hours" and nothing more, which drew a five day old posting and a 270 day
+ * old one as the same card.
+ */
+const days = (n: number): string => `${n} ${n === 1 ? 'day' : 'days'}`;
+const narrative = (() => {
+  if (!role.headStart) return null;
+  if (role.headStart.aheadPct !== null) {
+    return `${role.headStart.label}, ahead of ${role.headStart.aheadPct}% of applicants`;
+  }
+  if (role.ageDays === null) return role.headStart.label;
+  return `${role.headStart.label}, ${days(role.ageDays)} old`;
+})();
 ---
 
 <li class="rc">
@@ -44,11 +67,7 @@ const sub = [role.company, role.pay, role.remote ? 'Remote' : role.location].fil
       {role.firstSeen && <span class="rc-chip">first seen {formatDate(role.firstSeen)}</span>}
     </p>
     <HeadStartBar ageDays={role.ageDays} />
-    {role.headStart && (
-      <p class="rc-narrative">
-        {role.headStart.label}{role.headStart.aheadPct !== null && `, ahead of ${role.headStart.aheadPct}% of applicants`}
-      </p>
-    )}
+    {narrative && <p class="rc-narrative">{narrative}</p>}
   </div>
 
   <div class="rc-side">

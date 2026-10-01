@@ -64,7 +64,12 @@ export interface DeskTitleVM {
 export interface HeadStart {
   label: string;
   aheadPct: number | null;
-  zone: '48h' | '96h' | 'later';
+  /** Which band of the curve the role is in. 'beyond' is past the 14-day track
+      the bar draws, which is a different statement from 'later' (past the 96
+      hours the model speaks about, still inside the head-start window) and has
+      to look different on the card: before 2026-10-01 both read the same, and
+      a role five days old and one 270 days old were indistinguishable. */
+  zone: '48h' | '96h' | 'later' | 'beyond';
 }
 
 /** One role in a lane: enough to render a card and link straight to the job. */
@@ -229,12 +234,28 @@ function isoDay(value: Date | string | null | undefined): string | null {
  * agrees with it row for row.
  */
 
-/** The arrival-curve reading for a role's age. See HeadStart. */
-function headStartFor(ageDays: number | null): HeadStart | null {
+/**
+ * The arrival-curve reading for a role's age. See HeadStart.
+ *
+ * FOUR BANDS, NOT THREE (2026-10-01). The last band used to swallow everything
+ * older than four days, so a role five days old and a role 270 days old both
+ * read "past the first 96 hours" under a marker both pinned to the end of the
+ * track -- identical card, two very different roles. That was invisible while
+ * the lanes only showed the last fourteen days; opening the lanes to every live
+ * role (see DESK_WINDOW_DAYS) put the two side by side and made it a defect.
+ *
+ * The split is the window itself, because that is what the bar draws: inside it
+ * the marker has somewhere real to sit, past it the bar has run out and says so.
+ * Neither of the last two bands carries an aheadPct, because the model does not
+ * make a claim past 96 hours and this file does not invent one -- the card
+ * prints the role's real age there instead.
+ */
+export function headStartFor(ageDays: number | null): HeadStart | null {
   if (ageDays === null || ageDays < 0) return null;
   if (ageDays <= 2) return { label: 'inside the first 48 hours', aheadPct: 55, zone: '48h' };
   if (ageDays <= 4) return { label: 'inside the first 96 hours', aheadPct: 40, zone: '96h' };
-  return { label: 'past the first 96 hours', aheadPct: null, zone: 'later' };
+  if (ageDays <= DESK_WINDOW_DAYS) return { label: 'past the first 96 hours', aheadPct: null, zone: 'later' };
+  return { label: `past the ${DESK_WINDOW_DAYS} day head start`, aheadPct: null, zone: 'beyond' };
 }
 
 function roleVM(row: BoardRow, matched: string[], sweepIso: string, isNewFlag: boolean): DeskRoleVM {

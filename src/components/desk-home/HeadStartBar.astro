@@ -5,26 +5,56 @@
  * same on every card (the curve is a fact about postings in general, NBER WP
  * 32320); only the marker moves. Nothing here is invented: the marker is the
  * role's real age, and the zones are the model's, cited once per section by the
- * card. Past 14 days the marker pins to the end.
+ * card.
+ *
+ * PAST THE TRACK, THE BAR SAYS SO INSTEAD OF PRETENDING (2026-10-01). The
+ * marker used to clamp to the end, so a role at exactly 14 days and a role at
+ * 270 days drew the identical picture -- a tick resting on the final tick mark,
+ * which reads as "just reached the end" for both. It did not matter while the
+ * lanes only showed the last fourteen days, because nothing past the end could
+ * appear; the lanes show every live role now (desk-home.ts DESK_WINDOW_DAYS),
+ * so the two sit on the same screen.
+ *
+ * A role past the span gets no in-track marker at all. It gets an arrow off the
+ * right edge, which is a different statement -- this one is off the scale, not
+ * at the end of it -- and the card prints the real age in words beside it. The
+ * scale itself never moves: rescaling per role would make the first 48 hours a
+ * sliver on an old posting and break the one thing the zones are for, which is
+ * being the same on every card.
  */
+import { DESK_WINDOW_DAYS } from '../../lib/desk-home';
+
 interface Props {
   ageDays: number | null;
 }
 const { ageDays } = Astro.props;
-const SPAN = 14;
-// Marker position as a percentage of the 14-day track, clamped in range.
-const pos = ageDays === null ? null : Math.max(0, Math.min(SPAN, ageDays)) / SPAN * 100;
+/** The track is the head-start window, so it reads the same constant the lanes
+    rank by rather than a 14 of its own that could drift from it. */
+const SPAN = DESK_WINDOW_DAYS;
+const beyond = ageDays !== null && ageDays > SPAN;
+// Marker position as a percentage of the track. Null when there is no age, and
+// null past the end, where the arrow takes over rather than a pinned tick.
+const pos = ageDays === null || beyond ? null : (Math.max(0, ageDays) / SPAN) * 100;
+// "1 day", not "1 days": a screen reader reads this sentence out loud.
+const days = ageDays === null ? '' : `${ageDays} ${ageDays === 1 ? 'day' : 'days'}`;
+const label =
+  ageDays === null
+    ? 'Age unknown'
+    : beyond
+      ? `About ${days} old, past the end of the ${SPAN} day arrival curve`
+      : `About ${days} old on a ${SPAN} day arrival curve`;
 ---
 
 <div class="hs">
   <div class="hs-label mono-label">Head start</div>
-  <div class="hs-track" role="img" aria-label={ageDays === null ? 'Age unknown' : `About ${ageDays} days old on a 14 day arrival curve`}>
+  <div class="hs-track" role="img" aria-label={label}>
     {/* Fixed zones: the first 48h, then to 96h, then to 7d, then to 14d. */}
     <span class="hs-zone hs-zone-48"></span>
     <span class="hs-zone hs-zone-96"></span>
     <span class="hs-zone hs-zone-7d"></span>
     <span class="hs-zone hs-zone-14d"></span>
     {pos !== null && <span class="hs-marker" style={`left:${pos}%`}></span>}
+    {beyond && <span class="hs-over" aria-hidden="true"></span>}
   </div>
   <div class="hs-ticks mono-label" aria-hidden="true">
     <span style="left:14.29%">48h</span>
@@ -59,6 +89,20 @@ const pos = ageDays === null ? null : Math.max(0, Math.min(SPAN, ageDays)) / SPA
     width: 2px;
     background: var(--color-foreground);
     transform: translateX(-1px);
+  }
+  /* Off the scale: an arrow at the end of the track, in place of a marker
+     inside it. Drawn with borders rather than a glyph so it needs no font
+     metrics to sit inside a 14px track. */
+  .hs-over {
+    position: absolute;
+    right: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid var(--color-foreground);
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
   }
   .hs-ticks { position: relative; height: 1em; color: var(--color-muted); }
   .hs-ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
