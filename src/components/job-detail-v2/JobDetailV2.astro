@@ -53,6 +53,7 @@ import { keylessDraftAllowed } from '../../lib/dev-keyless-draft';
 import DescriptionSlot from '../job-detail/DescriptionSlot.astro';
 import { expiryOf } from '../job-detail/detail';
 import { compShort, formatDate, daysBetween, sweepDate, sweptAt, sourceLabel } from '../../lib/data';
+import { FRESH_WINDOW_HOURS } from '../../lib/data-contract';
 import { routeFor } from '../../data/nav';
 import { withBase } from '../../../site.config.mjs';
 import { familyLabel } from '../../lib/job-family.mjs';
@@ -152,9 +153,63 @@ const sweepIso = sweepDate();
 const firstSeenIso = job.first_observed;
 const publishedIso = job.published_date;
 const lastVerifiedIso = job.last_verified;
-const ageDays = daysBetween(firstSeenIso ?? publishedIso, sweepIso);
 const verifiedTime = sweptAt(); // the "07:30 UTC" verified-at stamp, one clock
 const verifiedTimeShort = /T(\d{2}:\d{2})/.exec(verifiedTime)?.[1] ?? null;
+
+/**
+ * THE FRESHNESS CLAIM ON THIS PAGE USED TO BE A CONSTANT, on the page with the
+ * Apply button on it.
+ *
+ * Three strings said so: "Verified today at the source", "Verified today", and
+ * "still live as of this morning's sweep". The only branch in any of them was
+ * `isClosed`. Nothing read a clock, nothing read the freshness window, and the
+ * page carried no instant a machine could check — so on a morning when the
+ * sweep had not run for three days, the page still said "today" and "this
+ * morning", in the live colour, above a button that sends someone off to apply.
+ *
+ * The site already had the mechanism: an instant in the markup, a window beside
+ * it, and the reader's own clock deciding whether the sentence still holds.
+ * That is what the band below is. The wording is derived now, in all three
+ * places, from the two instants this record actually carries.
+ *
+ * WHY THE READER'S CLOCK AND NOT THE SERVER'S. src/lib/data.ts states the rule
+ * in its own header: there is no Date.now() in this repository, because every
+ * rendered value is an artifact of a fixed sweep, and "now" is a value the
+ * machine recorded rather than one the renderer looks up. data-contract.ts owns
+ * the single exception and is explicit that nothing its clock reads ever
+ * reaches a page. So the age cannot be settled on the server without breaking
+ * one of those two rules, and it does not need to be: a build knows how old the
+ * data was when it was built, which is the wrong question. Only the device
+ * reading the page can answer the right one.
+ *
+ * What the server renders is therefore a FLOOR — the age as of the last sweep,
+ * which is the oldest thing the record can prove — and every sentence is
+ * phrased so the floor is true on its own. The script below raises it to the
+ * reader's clock and downgrades the wording past the window. A reader with
+ * JavaScript off gets the floor and a real date beside it, never a promise.
+ */
+const ageFromIso = firstSeenIso ?? publishedIso;
+const ageDays = daysBetween(ageFromIso, sweepIso);
+
+/**
+ * The instant this posting was last read at the source, as something
+ * Date.parse() can take.
+ *
+ * `last_verified` reaches here two ways. Through the crawl it is a calendar
+ * date; through the static export (data.ts builds one row as
+ * `String(statsDoc.swept_at_utc)`) it is a full instant. A date-only value is
+ * read as midnight UTC, which makes the page report itself as slightly OLDER
+ * than it is — up to one sweep's worth. That is the safe direction and the
+ * reason it is not patched up with the sweep's time-of-day: pinning 07:30 onto
+ * a date the sweep did not produce would be inventing precision, and the whole
+ * defect being fixed here is a freshness figure that was more confident than
+ * its evidence.
+ */
+const verifiedAt = lastVerifiedIso
+  ? /T\d{2}:\d{2}/.test(lastVerifiedIso)
+    ? lastVerifiedIso
+    : `${lastVerifiedIso.slice(0, 10)}T00:00:00Z`
+  : null;
 
 // --- provenance (the expanded "full history") ---
 const expiry = expiryOf(job);
@@ -216,7 +271,13 @@ function fitNote(key: string, score: number, max: number): string {
     case 'title_scope': return full ? 'A specific title is posted.' : 'No usable title posted.';
     case 'remote_geo': return job.remote ? 'Posted as remote.' : job.location ? `Posted in ${job.location}.` : 'No location posted.';
     case 'comp': return compFullText ? (full ? 'Pay range printed.' : 'Pay mentioned, no figure printed.') : 'No pay printed.';
-    case 'freshness': return ageDays !== null ? `${ageDays} ${ageDays === 1 ? 'day' : 'days'} old, verified this sweep.` : 'Age unknown.';
+    /* "verified this sweep" was a fourth copy of the page's freshness claim,
+       hiding inside a score explanation. This note has to describe what the
+       rubric MEASURED, and what it measured is the age at the sweep that scored
+       it — a fixed historical fact, correctly stated in the past tense. It is
+       deliberately not updated by the script above: the score was computed from
+       this number and would stop agreeing with its own explanation. */
+    case 'freshness': return ageDays !== null ? `${ageDays} ${ageDays === 1 ? 'day' : 'days'} old when it was last scored.` : 'Age unknown.';
     case 'apply_friction': return `Applies on ${ats}.`;
     default: return '';
   }
@@ -246,7 +307,25 @@ const saveNote = applyTrack
   : 'Sign in to save roles to your desk';
 ---
 
-<article class="jd" data-slug={job.slug}>
+{/* The staleness pair's server half, for this one posting.
+
+    data-swept is this posting's own last-verified instant rather than the
+    sweep's or the crawl's: a reader on this page is asking about THIS row, and
+    the row carries its own answer. data-age-from is where the age is counted
+    from, so the script can recompute it instead of being handed a number that
+    was already old when it was rendered. data-fresh-hours is read off the
+    markup for the same reason JobTable.astro reads it off its own band — two
+    copies of a threshold is how a page ends up looking fresh while the alarm
+    rings. */}
+<article
+  class="jd"
+  data-slug={job.slug}
+  data-jd-age
+  data-swept={verifiedAt}
+  data-fresh-hours={FRESH_WINDOW_HOURS}
+  data-age-from={ageFromIso}
+  data-closed={isClosed ? 'true' : 'false'}
+>
   <!-- breadcrumb (the role-family tabs are omitted until tags land) -->
   <nav class="jd-crumbs" aria-label="Breadcrumb">
     <a href={boardHref}>&larr; {boardLabel}</a>
@@ -268,7 +347,12 @@ const saveNote = applyTrack
     <div class="jd-card" data-jd-top>
       <p class="jd-verified">
         <span class={`jd-dot ${isClosed ? 'is-closed' : 'is-live'}`} aria-hidden="true"></span>
-        <strong class={`jd-verified-strong ${isClosed ? 'is-closed' : ''}`}>{isClosed ? 'Closed, last read at the source' : 'Verified today at the source'}</strong>
+        {/* "Verified today at the source" lived here as a constant. The server
+            can only say WHEN it was last read, which is what the date beside
+            this says; whether that still counts as "this sweep" is the reader's
+            clock's to decide, and the script does it. The closed wording is
+            untouched: a closed posting makes no freshness claim to decay. */}
+        <strong class={`jd-verified-strong ${isClosed ? 'is-closed' : ''}`} data-jd-verified-strong>{isClosed ? 'Closed, last read at the source' : 'Last verified at the source'}</strong>
         <span class="jd-verified-sub">{sourceSub}{verifiedTimeShort ? `, ${verifiedTimeShort} UTC` : ''}</span>
       </p>
 
@@ -282,7 +366,12 @@ const saveNote = applyTrack
         </div>
         <div class="jd-stat">
           <dt>Age of posting</dt>
-          <dd>{ageDays !== null ? `${ageDays} ${ageDays === 1 ? 'day' : 'days'}` : 'Unknown'}</dd>
+          {/* The floor, as of the last sweep. The script raises it to the
+              reader's clock, which is the whole point: this number used to be
+              measured to the build-time sweep day, so a posting first seen on
+              the last sweep read "0 days" for as long as the machine stayed
+              down. Three days stale, still "0 days old". */}
+          <dd data-jd-age-days>{ageDays !== null ? `${ageDays} ${ageDays === 1 ? 'day' : 'days'}` : 'Unknown'}</dd>
         </div>
         {signedIn ? (
           <div class="jd-stat">
@@ -313,7 +402,10 @@ const saveNote = applyTrack
           {publishedIso && firstSeenIso && <span class="jd-sep">·</span>}
           {firstSeenIso && <>First seen {formatDate(firstSeenIso)}</>}
           <span class="jd-sep">·</span>
-          <span class={isClosed ? '' : 'jd-verified-word'}>{isClosed ? 'Closed' : 'Verified today'}</span>
+          {/* The second copy of the same constant ("Verified today"), in the
+              dates line, where it sat beside two real dates and read as though
+              it were a third. It is one now. */}
+          <span class={isClosed ? '' : 'jd-verified-word'} data-jd-verified-short>{isClosed ? 'Closed' : `Verified ${formatDate(lastVerifiedIso) ?? lastVerifiedIso}`}</span>
         </p>
         <p class="jd-dates-note">Posted is the date the company printed. First seen is the night our sweep first read it. When those two dates drift apart, the posting sat somewhere before it reached you.</p>
         <details class="jd-history">
@@ -433,13 +525,108 @@ const saveNote = applyTrack
 
       {!isClosed && (
         <p class="jd-fresh">
-          {ageDays !== null ? `${ageDays} ${ageDays === 1 ? 'day' : 'days'} old and still live as of this morning's sweep.` : "Live as of this morning's sweep."} Most applications land in the first 96 hours.
+          {/* "still live as of this morning's sweep" was the third copy, and the
+              worst of the three: "this morning" is a claim about the reader's
+              day that the server cannot make at all, and it sat directly under
+              the description a reader has just finished reading. What the record
+              supports is the date it was last seen live, which is what this says
+              until the reader's clock can say more. */}
+          <span data-jd-fresh>
+            {ageDays !== null
+              ? `${ageDays} ${ageDays === 1 ? 'day' : 'days'} old, and live when we last read it on ${formatDate(lastVerifiedIso) ?? lastVerifiedIso}.`
+              : `Live when we last read it on ${formatDate(lastVerifiedIso) ?? lastVerifiedIso}.`}
+          </span>{' '}
+          Most applications land in the first 96 hours.
         </p>
       )}
     </div>
 
   </div>
 </article>
+
+<!--
+  THE READER'S CLOCK, FOR THE THREE SENTENCES THAT USED TO BE CONSTANTS.
+
+  Everything the server rendered above is a floor: true when it was sent, and
+  phrased so it stays true however long the page sits. This raises it. It reads
+  the posting's own last-verified instant and the age's start date off the
+  article, subtracts them from the device's clock, and writes the four places
+  that talk about age or freshness.
+
+  It upgrades as well as downgrades, and the asymmetry is the point. The server
+  never claims the posting is current, because it cannot know; inside the window
+  this says "this sweep", and past it this says how long it has actually been.
+  So the optimistic reading only ever exists where a clock has backed it.
+
+  A clock skewed backwards reads negative, which is not freshness and not
+  staleness, so a negative age is left entirely alone rather than used to make a
+  claim about an employer's posting on the strength of a wrong device clock.
+  A closed posting is skipped: it makes no freshness claim to decay, and its
+  wording was already honest.
+-->
+<script is:inline>
+  (function () {
+    var root = document.querySelector('[data-jd-age]');
+    if (!root || root.getAttribute('data-closed') === 'true') return;
+
+    var hours = parseFloat(root.getAttribute('data-fresh-hours'));
+    if (!(hours > 0)) hours = 36;
+
+    var set = function (sel, text) {
+      var el = root.querySelector(sel);
+      if (el) el.textContent = text;
+    };
+    var plural = function (n, word) {
+      return n + ' ' + word + (n === 1 ? '' : 's');
+    };
+
+    // How long since this posting was last read at the source. Drives the two
+    // "verified" sentences and the freshness line.
+    var verified = Date.parse(root.getAttribute('data-swept') || '');
+    if (!isNaN(verified)) {
+      var since = (Date.now() - verified) / 3600000;
+      if (since >= 0) {
+        var stale = since >= hours;
+        var whole = Math.floor(since);
+        var ago = whole >= 48 ? plural(Math.floor(whole / 24), 'day') : plural(whole, 'hour');
+
+        set('[data-jd-verified-strong]', stale
+          ? 'Last verified ' + ago + ' ago at the source'
+          : 'Verified this sweep at the source');
+        set('[data-jd-verified-short]', stale ? 'Last verified ' + ago + ' ago' : 'Verified this sweep');
+        if (stale) root.setAttribute('data-stale', '');
+      }
+    }
+
+    // The age of the posting itself, measured from the day we first saw it to
+    // now rather than to the sweep that happened to build this page.
+    var from = Date.parse(root.getAttribute('data-age-from') || '');
+    if (!isNaN(from)) {
+      var days = Math.floor((Date.now() - from) / 86400000);
+      if (days >= 0) {
+        set('[data-jd-age-days]', plural(days, 'day'));
+        var freshLine = plural(days, 'day') + ' old';
+        if (!isNaN(verified)) {
+          var vSince = (Date.now() - verified) / 3600000;
+          if (vSince >= 0) {
+            freshLine += vSince >= hours
+              ? ', and not re-checked for ' +
+                (Math.floor(vSince) >= 48
+                  ? plural(Math.floor(Math.floor(vSince) / 24), 'day')
+                  : plural(Math.floor(vSince), 'hour')) +
+                '.'
+              : ', and live as of this sweep.';
+          } else {
+            freshLine += '.';
+          }
+        } else {
+          freshLine += '.';
+        }
+        set('[data-jd-fresh]', freshLine);
+      }
+    }
+  })();
+</script>
 
 <script>
   // Reveal the sticky bar once the header card has scrolled out of view.
@@ -507,6 +694,25 @@ const saveNote = applyTrack
   .jd-dot { width: 9px; height: 9px; border-radius: 50%; align-self: center; }
   .jd-dot.is-live { background: var(--color-mark-live); }
   .jd-dot.is-closed { background: var(--color-stat-loss); }
+
+  /* PAST THE FRESHNESS WINDOW, THE LIVE COLOUR GOES WITH THE SENTENCE. The
+     script above rewrites three sentences and sets data-stale on the article;
+     these are the rules that make the page look the way it now reads. Leaving
+     the green behind would be the contradiction in two parts the table's band
+     comment warns about — an amber sentence under a green mark, on the page
+     with the Apply button.
+
+     Amber, not red: this is a warning about our own freshness, not an
+     accusation about the employer. Same token the band and the board's stamp
+     use.
+
+     These live in this file because the elements do. An Astro scoped rule only
+     reaches markup its own component authored, and it outranks a shared one, so
+     a rule written anywhere else could not colour these and a global one would
+     lose to the two green rules directly above. */
+  .jd[data-stale] .jd-verified-strong:not(.is-closed) { color: var(--color-banner-stale); }
+  .jd[data-stale] .jd-verified-word { color: var(--color-banner-stale); }
+  .jd[data-stale] .jd-dot.is-live { background: var(--color-banner-stale); }
 
   .jd-title { margin: 0; font-size: clamp(2rem, 4vw, 2.6rem); line-height: 1.03; letter-spacing: -0.02em; }
   .jd-subtitle { margin: 0; font-size: var(--size-150); font-weight: var(--weight-regular); }

@@ -3,9 +3,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Panel from '../components/Panel.astro';
 import { isPaidViewer } from '../lib/ledger-access';
 import { buildJobsDataPayload } from '../lib/jobs-data-page';
-import { getBoardStats } from '../lib/job-store';
+import { boardRowsLoadedAt, getBoardStats } from '../lib/job-store';
 import { isConfigured } from '../lib/db';
-import { prospectRows } from '../lib/data';
+import { prospectRows, sweptAt } from '../lib/data';
+import { sweptStamp } from '../lib/stats';
+import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
 import { routeFor } from '../data/nav';
 import { isOn } from '../lib/flags';
 import { withBase } from '../../site.config.mjs';
@@ -64,21 +66,54 @@ if (paid) {
    THE HATCH IS THE SITE'S OWN DRAWING for a withheld thing (the job detail's
    verbatim description, the Desk's empty lane): an absence, never a blurred or
    invented row. Nothing here is a sample. */
+/*
+ * THE BOARD STATS ROW, READ ONCE, FOR BOTH BRANCHES. It used to be read only
+ * for the unpaid tease, because the counts were the only thing anyone wanted
+ * from it. The row also carries swept_at, which is the instant every figure on
+ * this page — the tease's three counts and the paid app's whole payload — was
+ * actually read, and this page printed none of it. It said "Verified live
+ * tonight" over tens of thousands of crawled rows with no instant anywhere on
+ * the page, which is a promise rather than an observation, and it stayed
+ * exactly as confident on a night the crawl did not run.
+ *
+ * So the read moves out here and the paid branch gets the instant too. It is
+ * one row by primary key, which is why doing it for both branches is not worth
+ * a conditional.
+ */
+let stats: Awaited<ReturnType<typeof getBoardStats>> = null;
+try {
+  stats = isConfigured() ? await getBoardStats() : null;
+} catch (error) {
+  console.error('jobs-data: board_stats could not be read (the page still renders, and says what it knows).', error);
+}
+
+/*
+ * WHICH INSTANT GOES OVER THESE FIGURES. The crawl's, not the sweep's. Every
+ * number on this page descends from the ~1,666 boards the crawl loads into
+ * Postgres, not from the 45 curated boards of the nightly sweep, and the crawl
+ * finishes hours after the sweep does. boardRowsLoadedAt() is the crawl's own
+ * load instant, normalised — board_stats.swept_at arrives as a Date from the pg
+ * driver and as a string from JSON, and the raw Date stringifies to "Mon Sep 28
+ * 2026 13:43:00 GMT+0000 (Coordinated Universal Time)" in an attribute.
+ *
+ * WHEN THE ROW CANNOT BE READ AT ALL the stamp falls back to the sweep instant,
+ * the way /board's does, because a band with no parseable instant silently
+ * stops warning and a visibly degraded one does not. Unlike /board's, the
+ * WORDING degrades with it: the band is told this is a sweep instant, so a
+ * failed read produces a page that says "Last swept" over figures it could not
+ * date rather than one that calls the sweep's instant the crawl's.
+ */
+const crawlAt = boardRowsLoadedAt(stats);
+const boardRowsAt = crawlAt ?? sweptAt();
+
 let tease: { boards: number; verified: number; killed: number; prospects: number } | null = null;
-if (!paid) {
-  try {
-    const stats = isConfigured() ? await getBoardStats() : null;
-    if (stats) {
-      tease = {
-        boards: stats.boards_swept ?? 0,
-        verified: stats.verified_live ?? 0,
-        killed: stats.killed_by_rule ?? 0,
-        prospects: prospectRows().length
-      };
-    }
-  } catch (error) {
-    console.error('jobs-data: the tease counts could not be read (the panel still renders).', error);
-  }
+if (!paid && stats) {
+  tease = {
+    boards: stats.boards_swept ?? 0,
+    verified: stats.verified_live ?? 0,
+    killed: stats.killed_by_rule ?? 0,
+    prospects: prospectRows().length
+  };
 }
 const n = (v: number) => v.toLocaleString();
 
@@ -97,7 +132,12 @@ const boardHref = routeFor('board');
 const billingOpen = isOn('stripe');
 ---
 
-<BaseLayout title="Jobs Data" description="Read the job market like a data scientist, in any of twenty-two fields: what pays, what is fresh, who recycles, and where roles are about to open, counted from last night's sweep.">
+<BaseLayout
+  title="Jobs Data"
+  description="Read the job market like a data scientist, in any of twenty-two fields: what pays, what is fresh, who recycles, and where roles are about to open, counted from last night's sweep."
+  dataAt={boardRowsAt}
+  dataPopulation={crawlAt ? 'crawl' : 'sweep'}
+>
   <link rel="stylesheet" href={cssHref} />
 
   {paid ? (
@@ -132,7 +172,24 @@ const billingOpen = isOn('stripe');
   ) : (
     <main class="shell ledger-preview">
       <header class="lp-head">
-        <p class="lp-eyebrow mono-label">Tonight's read</p>
+        {/* THE EYEBROW WAS THE FRESHNESS CLAIM, AND IT WAS A CONSTANT. It read
+            "Tonight's read", which is a sentence that cannot go false on a page
+            that has not been rebuilt for three days — it just goes wrong. It
+            carries the real instant now, and the staleness pair with it:
+            data-swept and data-fresh-hours are what the shell's band script
+            reads, and past the window it rewrites this line to say how long it
+            has actually been. Same attribute trio as the board's stamp, so this
+            is the site's one convention rather than a second one. */}
+        <p
+          class="lp-eyebrow mono-label"
+          data-age-disclosure
+          data-swept={boardRowsAt}
+          data-fresh-hours={FRESH_WINDOW_HOURS}
+        >
+          <span data-assurance-text>
+            {crawlAt ? 'Board last read' : 'Last swept'} {sweptStamp(boardRowsAt)}
+          </span>
+        </p>
         <h1 class="lp-title">Read the market in your sector like a data scientist.</h1>
         <p class="lp-lede">
           Every night the sweep reads company careers pages directly, verifies what is still there,
@@ -143,9 +200,14 @@ const billingOpen = isOn('stripe');
       </header>
 
       {tease && (
-        <section class="lp-grid" aria-label="Tonight's read, in part">
+        <section class="lp-grid" aria-label="The last read, in part">
           <div class="lp-tile">
-            <p class="lp-tile-title mono-label">Verified live tonight</p>
+            {/* "Verified live tonight" was the same constant as the eyebrow and
+                the more expensive one, because it sat directly over the figure.
+                The tile states what was counted; when it was counted is the
+                eyebrow's job, once, for all three tiles, rather than a word
+                repeated on each one that nothing can keep true. */}
+            <p class="lp-tile-title mono-label">Verified live</p>
             <p class="lp-tile-figure">{n(tease.verified)}</p>
             <p class="lp-tile-note">Read at {n(tease.boards)} company careers pages, not a job board.</p>
           </div>
@@ -207,6 +269,13 @@ const billingOpen = isOn('stripe');
   }
   .lp-head { display: flex; flex-direction: column; gap: var(--space-200, 0.5rem); }
   .lp-eyebrow { margin: 0; color: var(--color-muted); }
+  /* Amber past the freshness window, the same token the board's stamp and the
+     shell's band use. Scoped here deliberately: this rule has to live in the
+     file that authors the element, because an Astro scoped rule only reaches
+     markup from its own component — the shell's identical rule cannot land on
+     this eyebrow, and relying on it is how an element ends up with the stale
+     attribute set and no colour to show for it. */
+  .lp-eyebrow[data-stale] { color: var(--color-banner-stale); }
   .lp-title { margin: 0; font-size: clamp(1.9rem, 4vw, 3rem); line-height: 1.05; letter-spacing: -0.03em; max-width: 24ch; }
   .lp-lede { margin: 0; color: var(--color-muted); max-width: 62ch; line-height: 1.55; }
   .lp-list { margin: 0; padding-left: 1.1rem; color: var(--color-muted); display: flex; flex-direction: column; gap: var(--space-100, 0.25rem); }

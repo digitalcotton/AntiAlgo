@@ -2,7 +2,9 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Board from '../components/Board.astro';
 import BoardTabs from '../components/BoardTabs.astro';
-import { ageHistogramFromJobs, facetGroupsFromCounts, prospectRows } from '../lib/data';
+import { ageHistogramFromJobs, facetGroupsFromCounts, prospectRows, sweptAt } from '../lib/data';
+import { sweptStamp } from '../lib/stats';
+import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
 import { isOn } from '../lib/flags';
 import { boardHref, clampPage, parseBoardQuery } from '../lib/board-query';
 import { listProspectsFiltered, type ProspectPage } from '../lib/prospect-board';
@@ -57,6 +59,27 @@ const prelistPaidLive = isOn('prelist_paid');
 const allProspects = prospectRows();
 const prospectCount = allProspects.length;
 
+/*
+ * WHEN THIS LIST WAS READ. This page rendered rows, and a count, and a score
+ * per row, with no stamp of any kind on it — the only one of the board's three
+ * surfaces with nothing. / and /board both carry a band; this had none, and
+ * nothing noticed, because disclosure was a thing each page remembered rather
+ * than something the shell did. It is in the shell now (BaseLayout's band), and
+ * this stamp is the page's own copy of it, where a reader is actually looking.
+ *
+ * THE SWEEP'S INSTANT, NOT THE CRAWL'S, and the difference matters here in the
+ * opposite direction to /jobs-data. These rows are prospects: they come from
+ * prospectRows(), which reads the committed export the nightly sweep publishes,
+ * not from Postgres. stats.json ships in that same export — data-contract.ts
+ * checks the two against each other — so sweptAt() is genuinely the instant
+ * these rows were last written, and boardRowsLoadedAt() would be a crawl
+ * instant printed over rows the crawl never touched.
+ *
+ * Both branches below get it. The wall renders no rows but still prints the
+ * count, and a count is as perishable as a row.
+ */
+const sweptIso = sweptAt();
+
 const boardPath = routeFor('prelist');
 const query = parseBoardQuery(Astro.url.searchParams);
 
@@ -93,6 +116,20 @@ const groups = served
         The same nightly pass that verifies every posting on the board also scores companies that have not posted a
         role yet: funded, in scope, and read by the same five weights. Nothing here is a job. Every row states the
         observation that put a company on this list, and no role name is ever written onto a row that has no posting.
+      </p>
+      {/* The staleness pair, the same three attributes /board's stamp carries.
+          On the member branch this is the first [data-swept] in the document, so
+          JobTable.astro's own script reaches it as well as the shell's — both
+          read the same instant and the same window off this markup and compute
+          the same age, so whichever runs second says what the first one said.
+          The alternative was a second attribute nothing else understands. */}
+      <p
+        class="index-eyebrow mono"
+        data-age-disclosure
+        data-swept={sweptIso}
+        data-fresh-hours={FRESH_WINDOW_HOURS}
+      >
+        <span data-assurance-text>Last swept {sweptStamp(sweptIso)}</span>
       </p>
     </header>
 
@@ -194,6 +231,20 @@ const groups = served
     font-size: var(--size-300);
     max-width: var(--layout-measure);
     color: var(--color-muted);
+  }
+
+  .index-eyebrow {
+    margin: 0;
+    color: var(--color-muted);
+  }
+
+  /* Amber, not red, past the window: a warning about our own freshness. The
+     rule has to be in this file, because an Astro scoped rule only reaches
+     markup its own component authored — neither the shell's identical rule nor
+     /board's can land on this element, and an element carrying data-stale with
+     no rule to match it is a sentence that changes and a colour that does not. */
+  .index-eyebrow[data-stale] {
+    color: var(--color-banner-stale);
   }
 
   /* The wall's own card, only for the signed-out branch. The member branch draws

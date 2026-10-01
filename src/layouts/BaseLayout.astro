@@ -4,6 +4,8 @@ import SiteHeader from '../components/SiteHeader.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import { SITE } from '../data/site';
 import { sweptAt } from '../lib/data';
+import { sweptStamp } from '../lib/stats';
+import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
 import { publicAsset } from '../data/nav';
 
 /** The Latin woff2 subsets in public/fonts, by a short key. A page names the
@@ -75,6 +77,17 @@ interface Props {
       N27 faces every route paints; a page with more (the board's mono labels
       and medium body) names them so they do not wait on a stylesheet. */
   fonts?: FontKey[];
+  /** The instant THIS route's dated figures were actually read, when it is not
+      the sweep's. See the age-disclosure note below: a route that renders the
+      crawl's output passes the crawl's own load instant here, because the
+      default is the sweep's and the two are hours apart. */
+  dataAt?: string | null;
+  /** Which of the machine's two populations `dataAt` belongs to. It travels
+      with `dataAt` and never apart from it: the instant decides how old the
+      band says the page is, and this decides what the band says the page IS.
+      An instant with the wrong noun on it is the same defect as the wrong
+      instant, printed more confidently. */
+  dataPopulation?: 'sweep' | 'crawl';
 }
 
 const {
@@ -84,7 +97,9 @@ const {
   image = SITE.ogImage,
   ogType = 'website',
   noindex = false,
-  fonts = ['n27-regular', 'n27-bold']
+  fonts = ['n27-regular', 'n27-bold'],
+  dataAt = null,
+  dataPopulation = 'sweep'
 } = Astro.props;
 void active; // see the Props comment above: accepted, not yet consumed.
 
@@ -92,6 +107,46 @@ const canonical = new URL(Astro.url.pathname, SITE.url).href.replace(/\/$/, '') 
 const ogImage = new URL(image, SITE.url).href;
 const fullTitle = title === SITE.name ? title : `${title} · ${SITE.name}`;
 const robots = noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large, max-snippet:-1';
+
+/**
+ * AGE DISCLOSURE, IN THE SHELL, SO A ROUTE GETS IT BY DEFAULT RATHER THAN BY
+ * BEING REMEMBERED.
+ *
+ * The site already had the right mechanism and it was installed one page at a
+ * time. / and /board carry a band that reports age instead of throwing, which
+ * is why a stale number stopped taking the site down. /desk prints its own
+ * swept stamp and /opportunities stamps every row. Three surfaces had nothing:
+ * /jobs-data labelled tens of thousands of crawled rows "Verified live
+ * tonight" over no instant at all, /prelist rendered rows with no stamp of any
+ * kind, and the job detail page — the one with the Apply button on it — made a
+ * freshness promise that was a hardcoded string.
+ *
+ * The common cause is that disclosure was a thing each page had to remember.
+ * /prelist is what that costs: nobody forgot on purpose, there was simply
+ * nowhere the obligation lived. So it lives here now. Every route renders
+ * inside this shell (42 of them import it today), so every route gets a band
+ * whose instant is real, and a NEW route gets one without its author doing
+ * anything. scripts/gate-invariants.mjs check 7 enforces the rest: that the
+ * band is still here, and that a route reading the crawl overrides the default
+ * instead of inheriting the wrong clock.
+ *
+ * WHICH INSTANT. The default is the sweep's, read from the same stats.json the
+ * <meta name="sweep-instant"> above is read from, because that is the instant
+ * behind everything on the site that is not a crawled row. A route whose
+ * figures come from the crawl — ~1,666 boards out of Postgres rather than 45
+ * curated ones — passes `dataAt` and `dataPopulation="crawl"`, because the
+ * crawl finishes hours after the sweep and printing the sweep's instant over
+ * the crawl's rows overstates their freshness. That is not hypothetical: on
+ * 2026-09-30 the board's own stamp did exactly this and claimed rows were four
+ * minutes old when they had been loaded two days earlier.
+ */
+const ageAt = dataAt ?? sweptAt();
+const agePopulation = dataAt ? dataPopulation : 'sweep';
+/* What the band says the page IS, before the reader's clock says how old it
+   is. Neither phrase contains "today", "tonight" or "this morning": those read
+   as true on a page that has not been rebuilt for three days, which is exactly
+   when a reader needs them to read as false. */
+const ageLabel = agePopulation === 'crawl' ? 'Board last read' : 'Last swept';
 ---
 
 <!doctype html>
@@ -207,6 +262,32 @@ const robots = noindex ? 'noindex, follow' : 'index, follow, max-image-preview:l
         browser's blue-link default. ?inline resolves the two @imports and
         minifies in build; the component sheets stay linked and cached. */}
     <style is:inline set:html={globalCss}></style>
+
+    {/* The age band's own styling. Scoped, which is the whole reason it can be
+        trusted: this rule reaches the band because the band is authored in this
+        file's template, and it reaches nothing a page authored itself. The band
+        is real markup rather than something a script builds, precisely so the
+        scoped rule can land on it — a scoped rule never reaches an element
+        built by script. */}
+    <style>
+      /* Quiet by default. It is a provenance line, not a banner: on a page
+         whose figures are current it should read as a footnote. */
+      .age-disclosure {
+        margin: 0;
+        padding: var(--space-300) clamp(16px, 2.5vw, 36px);
+        color: var(--color-muted);
+        font-size: var(--size-100);
+        text-align: center;
+      }
+
+      /* Amber, not red, past the window: this is a warning about our own
+         freshness, never an accusation about an employer. Same token the
+         board's band and the table's assurance line use, so the site has one
+         colour for "we are late" rather than three. */
+      .age-disclosure[data-stale] {
+        color: var(--color-banner-stale);
+      }
+    </style>
   </head>
 
   <body>
@@ -215,6 +296,80 @@ const robots = noindex ? 'noindex, follow' : 'index, follow, max-image-preview:l
     <main id="main" tabindex="-1">
       <slot />
     </main>
+
+    {/* The shell's own age band. See the age-disclosure note in the frontmatter
+        for why it is here rather than on each page.
+
+        IT SITS AFTER </main>, AND THE POSITION IS LOAD-BEARING. JobTable.astro's
+        inline staleness script reads `document.querySelector('[data-swept]')` —
+        the FIRST such element in the document, not all of them. / and /board
+        each author their own band inside the board card, so those stay first and
+        that script keeps finding exactly the element it has always found. Put
+        this one above <main> and it would quietly steal that script's target on
+        the site's two most important pages. The band below is handled by its own
+        script, keyed on its own attribute, so the two never reach for the same
+        element.
+
+        It carries the same data-swept / data-fresh-hours / data-assurance-text
+        trio the board's band carries, so the pair stays one convention rather
+        than becoming two: anything that already knows how to read a stamp can
+        read this one. */}
+    <p class="age-disclosure mono" data-age-disclosure data-swept={ageAt} data-fresh-hours={FRESH_WINDOW_HOURS}>
+      <span data-assurance-text>{ageLabel} {sweptStamp(ageAt)}</span>
+    </p>
+
+    <!--
+      The reader's clock, not the build's.
+
+      The band above is rendered from an instant the machine recorded, so it is
+      true when it is sent. Whether it is still true is a question only the
+      reader's device can answer, and the answer changes every hour without a
+      request happening. This is the same reasoning — and deliberately the same
+      sentence — as JobTable.astro's band script, for the same reason the
+      threshold is read off the markup rather than typed here: two copies of a
+      wording or a window is how a page ends up looking fresh while the alarm
+      rings.
+
+      It never claims fresh. It either downgrades the band or leaves it alone,
+      so a reader with JavaScript off is left with a real instant and no
+      arithmetic rather than with a promise.
+
+      querySelectorAll, and only this attribute: there may be another band on
+      the page (the board authors its own) and that one belongs to the script
+      that has always owned it.
+    -->
+    <script is:inline>
+      (function () {
+        var bands = document.querySelectorAll('[data-age-disclosure]');
+        for (var i = 0; i < bands.length; i++) {
+          var band = bands[i];
+          var text = band.querySelector('[data-assurance-text]');
+          var swept = Date.parse(band.getAttribute('data-swept') || '');
+          if (!text || isNaN(swept)) continue;
+
+          // The window the server stamped on the band, which is
+          // FRESH_WINDOW_HOURS. An unreadable attribute falls back to that
+          // constant's value rather than to no check at all, because a band
+          // that silently never warns is worse than one that warns on a
+          // slightly wrong threshold. A clock skewed backwards reads negative,
+          // which is not staleness and must not raise a warning on the
+          // strength of a wrong device clock, so only positive ages count.
+          var hours = parseFloat(band.getAttribute('data-fresh-hours'));
+          if (!(hours > 0)) hours = 36;
+          var age = (Date.now() - swept) / 3600000;
+          if (!(age >= hours)) continue;
+
+          var whole = Math.floor(age);
+          var label = whole >= 48 ? Math.floor(whole / 24) + ' days' : whole + ' hours';
+          band.setAttribute('data-stale', '');
+          text.textContent =
+            'Last verified ' +
+            label +
+            ' ago. These figures were true at the last sweep and have not been checked since.';
+        }
+      })();
+    </script>
+
     <SiteFooter />
 
     <script>
