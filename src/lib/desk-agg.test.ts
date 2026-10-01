@@ -40,7 +40,7 @@ const d = HAVE_DB ? describe : describe.skip;
 
 /** The windows the production caller passes; restated here so a change to one
     of them shows up as a failing parity check rather than as a silent drift. */
-const SHOW = 6;
+const SHOW = 4;
 const FIRST_VISIT_WINDOW_DAYS = 7;
 /** A fixed sweep day and a fixed last-visit day: the parity claim is about the
     cut, not about what "today" is, so neither side reads a clock. */

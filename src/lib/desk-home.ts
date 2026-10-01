@@ -175,8 +175,17 @@ export interface DeskHomeData {
 }
 
 /** How many fit-ranked lane roles the Desk shows before it links out to the full
-    board. A digest, not the whole market: the rest is one click away. */
-const DESK_SHOW = 6;
+    board. A digest, not the whole market: the rest is one click away.
+ *
+ * SIX UNTIL 2026-10-01, FOUR NOW (owner). The lanes stopped filtering by the
+ * head-start window the same day (see DESK_WINDOW_DAYS), so a lane that used to
+ * run dry at a handful of recent arrivals now has every live match under the
+ * titles to draw from and would fill its six every time. Four keeps it a digest
+ * and sends the rest to the board, which is what the "see all N on the board"
+ * line under each lane is for -- a line that now appears far more often, on
+ * purpose. desk-agg.test.ts restates this number, so changing it here alone
+ * fails the parity check rather than drifting quietly. */
+const DESK_SHOW = 4;
 /** The head-start window: the head-start bar ends at 14D, and a role past it is
     not a head start (owner rule, 2026-09-19).
  *

@@ -16,10 +16,10 @@
  * The Desk's cut is the member's watched titles, so the queries here are keyed
  * on those titles rather than taken over the whole board.
  *
- * WHAT LEAVES THE DATABASE NOW. At most DESK_SHOW rows per lane (twelve rows of
- * full columns), one row of five counts, one row of three counts per watched
- * title, and the head of the title index. Nothing here reads a posting the page
- * does not draw.
+ * WHAT LEAVES THE DATABASE NOW. At most DESK_SHOW rows per lane (eight rows of
+ * full columns across the two lanes, since 2026-10-01; twelve before that),
+ * one row of seven counts, one row of three counts per watched title, and the
+ * head of the title index. Nothing here reads a posting the page does not draw.
  *
  * THE MATCHER IS THE SAME MATCHER. Every title test below is the SQL mirror of
  * ledger-titles.matchesTitle, byte for byte the clause job-store.ts's
