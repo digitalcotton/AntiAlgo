@@ -4,6 +4,7 @@ export const prerender = false;
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { INDEX, routeFor } from '../data/nav';
 import { SITE } from '../data/site';
+import { isOn } from '../lib/flags';
 import { count, loadStats, sweptStamp, waitlistEmailCount } from '../lib/stats';
 import { LAUNCH_LABEL, daysToLaunch, withBase } from '../../site.config.mjs';
 
@@ -238,7 +239,8 @@ const REFUSALS = [
         <div class="price-col">
           <p class="price-copy">That's the federal minimum wage. It hasn't moved since 2009, and neither will this price. Finding a career should never cost more than anyone's hour of work.</p>
           <p class="price-copy">LinkedIn Premium is <span class="mono-inline">$39.99</span> a month and never checks whether a posting is real. Ours are checked every night, free. You pay for the desk.</p>
-          <p class="price-copy muted">Your AI runs on your key. We never pay for it, so we never charge for it. <a href={routeFor('your-key')}>How the key works</a></p>
+          {/* The link rides the your_key_page flag; the sentence stands on its own without it. */}
+          <p class="price-copy muted">Your AI runs on your key. We never pay for it, so we never charge for it.{isOn('your_key_page') && <Fragment> <a href={routeFor('your-key')}>How the key works</a></Fragment>}</p>
         </div>
       </div>
     </section>

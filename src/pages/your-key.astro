@@ -1,8 +1,19 @@
 ---
+export const prerender = false;
+
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { INDEX, routeFor } from '../data/nav';
 
 /*
+ * DARK BY FLAG since 2026-10-01, and the only reason this page is rendered per
+ * request rather than prerendered. flags.config.mjs maps '/your-key' to
+ * `your_key_page`, which is off in both editions, so src/middleware.ts 404s the
+ * request before this file renders. A prerendered page could not be gated that
+ * way: middleware would run at build time and write the 404 into a static file
+ * that then serves with a 200. The page is kept whole, and the four links into
+ * it (header, footer, home price note, How it works step 03) are each written
+ * as a conditional on the same flag, so launch is one value changed.
+ *
  * Your key (BYOK), built to the Anti Algo Your Key canvas: a hero, the console
  * table (Pick a console), the flow (Then, in that console) with a screenshot
  * slot, the password note, and a closer. The four providers are The Index's own

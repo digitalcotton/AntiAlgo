@@ -394,7 +394,10 @@ const THIRD_PARTY_HOSTS = [/api\.resend\.com/, /api\.anthropic\.com/, /api\.open
 // A representative slice of the public surface, not every route — the full
 // crawl is routes.public.spec.ts's job. This one just watches for a stray
 // dependency, so it stays fast.
-const REPRESENTATIVE_PUBLIC_PAGES = ['/', '/board', '/evidence', '/how-it-works', '/your-key'];
+// /your-key was in this slice until 2026-10-01; it is a flat 404 now (the
+// your_key_page flag), so /the-account stands in for it as the other
+// marketing page that talks about the key and the price.
+const REPRESENTATIVE_PUBLIC_PAGES = ['/', '/board', '/evidence', '/how-it-works', '/the-account'];
 
 test.describe('no public page ever reaches a third-party AI or mail provider', () => {
   for (const path of REPRESENTATIVE_PUBLIC_PAGES) {

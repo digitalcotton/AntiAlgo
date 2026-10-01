@@ -217,6 +217,26 @@ export const FLAGS = {
     editions: { design: false, broad: false }
   },
 
+  // OFF in both editions (owner decision, 2026-10-01): the BYOK explainer page
+  // is held back until launch, or until there is a pre-registration to send a
+  // reader to. The page itself is kept whole (src/pages/your-key.astro) and
+  // every link into it — the header nav, the footer, the home page's price
+  // note, step 03 of How it works — is written as a conditional on this flag,
+  // so flipping this one value lights the page and all four links back up in a
+  // single edit rather than four remembered ones.
+  //
+  // NOT the `byok` flag above. That one is the runtime kill switch over
+  // drafting with a reader's own provider key, and it is ON: a member who has
+  // already saved a key still drafts with it. This flag is only about the
+  // public page that explains the idea.
+  your_key_page: {
+    why:
+      'The BYOK explainer at /your-key is held back until launch (or a pre-registration). While ' +
+      'off the page is a flat 404 and no page links into it. Turn on at launch to restore the ' +
+      'page, the header and footer links, the home price note and How it works step 03 at once.',
+    editions: { design: false, broad: false }
+  },
+
   // --- Phase 6: Stripe billing, wired but dark ---
   stripe: {
     why:
@@ -300,6 +320,12 @@ export const FLAGGED_ROUTES = {
   // Come ready (/start), the first run, rides the same kill switch as the
   // Profile's checklist: off, and the page is a flat 404.
   '/start': 'onboarding',
+  // src/pages/your-key.astro carries `export const prerender = false` for this
+  // entry's sake and no other reason: a prerendered page cannot be gated here
+  // (middleware would run at build time and bake the 404 into a static file
+  // served with a 200). Drop that line again the day the flag lights up and the
+  // page can go back to being static.
+  '/your-key': 'your_key_page',
   // src/pages/billing/checkout.ts and src/pages/billing/webhook.ts both carry
   // `export const prerender = false`. One entry covers both by prefix, same
   // as '/desk' covers desk/save.ts, desk/application.ts, etc. above.
