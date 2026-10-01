@@ -177,8 +177,14 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
             <>
               <section class="dh-lane" id="core" aria-labelledby="nc-h">
                 <p class="dh-lane-index mono-label"><span>02</span> In core</p>
-                <h2 id="nc-h" class="dh-lane-title">{home.coreLiveCount} {home.coreLiveCount === 1 ? 'role' : 'roles'} live under your core titles, seen in the last 14 days.</h2>
-                <p class="dh-lane-note">Ranked by fit, each verified live at the company's own careers page. {home.newCoreCount > 0 ? `${home.newCoreCount} new since your last visit, tagged below.` : 'None new since your last visit.'} The clock is where the role sits on the arrival curve, not a countdown.</p>
+                {/* TWO SENTENCES, BOTH TRUE. One said "N roles live under your core
+                    titles, seen in the last 14 days" over a count that was
+                    windowed, so a member with ten live roles and no recent
+                    arrival read "0 roles live" about roles that are live. The
+                    count is now every live role under the titles, and the
+                    fourteen days are a second sentence about those roles. */}
+                <h2 id="nc-h" class="dh-lane-title">{home.coreLiveCount} {home.coreLiveCount === 1 ? 'role' : 'roles'} live under your core titles. {home.coreWindowCount > 0 ? `${home.coreWindowCount} first seen in the last 14 days.` : 'None first seen in the last 14 days.'}</h2>
+                <p class="dh-lane-note">Ranked by fit, the last 14 days first. Each verified live at the company's own careers page. {home.newCoreCount > 0 ? `${home.newCoreCount} new since your last visit, tagged below.` : 'None new since your last visit.'} The clock is where the role sits on the arrival curve, not a countdown.</p>
                 {home.core.length > 0 ? (
                   <>
                     <ol class="dh-cards">{home.core.map((r, i) => <RoleCard role={r} rank={i + 1} />)}</ol>
@@ -188,7 +194,10 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
                   </>
                 ) : (
                   <div class="dh-slot" role="status">
-                    <p class="dh-slot-line mono-label">{home.coreTitles.length === 0 ? 'Name a core title above and its live roles land here.' : 'No role under your core titles in the last 14 days.'}</p>
+                    {/* Only reached when nothing is live under the titles at all.
+                        It used to be reached whenever nothing was inside the
+                        window, which is the common case for a narrow watch list. */}
+                    <p class="dh-slot-line mono-label">{home.coreTitles.length === 0 ? 'Name a core title above and its live roles land here.' : 'No role is live under your core titles right now.'}</p>
                   </div>
                 )}
                 {/* The two readings the clock rests on (design: the two-column
@@ -209,7 +218,7 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
 
               <section class="dh-lane" id="stretch" aria-labelledby="ns-h">
                 <p class="dh-lane-index mono-label"><span>03</span> In stretch</p>
-                <h2 id="ns-h" class="dh-lane-title">{home.stretchLiveCount} {home.stretchLiveCount === 1 ? 'role' : 'roles'} you are working toward, seen in the last 14 days.</h2>
+                <h2 id="ns-h" class="dh-lane-title">{home.stretchLiveCount} {home.stretchLiveCount === 1 ? 'role' : 'roles'} you are working toward. {home.stretchWindowCount > 0 ? `${home.stretchWindowCount} first seen in the last 14 days.` : 'None first seen in the last 14 days.'}</h2>
                 <p class="dh-lane-note">A reach is a reach because the fit is lower, not because we scored your resumé against the posting line by line: we do not measure that yet, so we do not claim it.</p>
                 {home.stretch.length > 0 ? (
                   <>
@@ -220,7 +229,7 @@ const n = (v: number | null) => (typeof v === 'number' ? v.toLocaleString() : 'n
                   </>
                 ) : (
                   <div class="dh-slot" role="status">
-                    <p class="dh-slot-line mono-label">{home.stretchTitles.length === 0 ? 'No stretch titles yet. Add one above to track roles you are working toward.' : 'No role under your stretch titles in the last 14 days.'}</p>
+                    <p class="dh-slot-line mono-label">{home.stretchTitles.length === 0 ? 'No stretch titles yet. Add one above to track roles you are working toward.' : 'No role is live under your stretch titles right now.'}</p>
                   </div>
                 )}
               </section>

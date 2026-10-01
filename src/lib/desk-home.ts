@@ -131,10 +131,17 @@ export interface DeskHomeData {
   /** Fit-ranked top slice of the live roles under stretch titles. */
   stretch: DeskRoleVM[];
   died: DeskKillVM[];
-  /** Total live roles under core / stretch titles (after filters): the lane
-      heading count and what the "see all N on the board" link points at. */
+  /** Total live roles under core / stretch titles (after filters), at ANY age:
+      the lane heading count and what the "see all N on the board" link points
+      at. These were windowed until 2026-10-01; see desk-agg.ts DeskLaneCounts
+      for why the window stopped being a filter. */
   coreLiveCount: number;
   stretchLiveCount: number;
+  /** Of those, first seen within DESK_WINDOW_DAYS. The lane heading states this
+      as a second sentence instead of the window deciding whether there is a
+      lane at all. */
+  coreWindowCount: number;
+  stretchWindowCount: number;
   /** New-since-last-visit counts, for the summary line and the lane tag note. */
   newCoreCount: number;
   newStretchCount: number;
@@ -165,11 +172,17 @@ export interface DeskHomeData {
 /** How many fit-ranked lane roles the Desk shows before it links out to the full
     board. A digest, not the whole market: the rest is one click away. */
 const DESK_SHOW = 6;
-/** The lanes show only roles first seen within this many days of the sweep
-    (owner rule, 2026-09-19): the head-start bar ends at 14D, and a role past it
-    is not a head start. Older live matches stay on the board. */
+/** The head-start window: the head-start bar ends at 14D, and a role past it is
+    not a head start (owner rule, 2026-09-19).
+ *
+ * IT RANKS THE LANES, IT NO LONGER EMPTIES THEM (owner, 2026-10-01). Until
+ * then the lanes showed ONLY roles inside this window, which meant a member
+ * with live matches and no recent arrival got an empty section under a heading
+ * that said "0 roles live" about live roles. Roles inside the window now sort
+ * first and the heading counts them in a sentence of their own. The reasoning,
+ * and the measurements that settled it, are in desk-agg.ts above deskLaneRows. */
 export const DESK_WINDOW_DAYS = 14;
-/** Pure: whether a role's age puts it inside the lanes' window. An unknown
+/** Pure: whether a role's age puts it inside the head-start window. An unknown
     age is outside it, because nothing can place it on the curve. */
 export function inDeskWindow(ageDays: number | null): boolean {
   return ageDays !== null && ageDays >= 0 && ageDays <= DESK_WINDOW_DAYS;
@@ -361,6 +374,8 @@ export async function buildDeskHome(userId: string): Promise<DeskHomeData> {
     died: laneKills.slice(0, DIED_CAP),
     coreLiveCount: counts.coreLiveCount,
     stretchLiveCount: counts.stretchLiveCount,
+    coreWindowCount: counts.coreWindowCount,
+    stretchWindowCount: counts.stretchWindowCount,
     newCoreCount: counts.newCoreCount,
     newStretchCount: counts.newStretchCount,
     diedCount: laneKills.length,

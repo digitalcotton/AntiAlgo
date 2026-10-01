@@ -70,14 +70,34 @@ export interface DeskWhen {
   show: number;
 }
 
-/** The Desk's five headline counts, every one over the whole matched set rather
-    than over the rows returned. */
+/** The Desk's headline counts, every one over the whole matched set rather
+    than over the rows returned.
+ *
+ * THREE PAIRS, AND THEY ARE NOT THE SAME QUESTION. Keeping them apart is the
+ * whole repair of 2026-10-01: one number was being asked to mean all three,
+ * and it printed "0 roles live" about ten live roles.
+ *   live   -- under the titles, after the member's filters, at any age.
+ *   window -- of those, first seen within when.windowDays. The fourteen days.
+ *   new    -- of those, first seen since the member's last visit.
+ * A role can be live and neither of the other two, which is the common case
+ * for a narrow watch list and the case that used to render as nothing. */
 export interface DeskLaneCounts {
   /** Distinct live roles under all watched titles, after the member's filters,
       with NO age window: the summary line's number. */
   liveUnderTitles: number;
+  /** Live under core / stretch titles at ANY age: what each lane heading counts
+      and what its "see all N on the board" link points at. Windowed until
+      2026-10-01, which is why a heading could say 0 over a lane of real roles. */
   coreLiveCount: number;
   stretchLiveCount: number;
+  /** Of those, first seen inside when.windowDays. The fourteen days, now stated
+      by the heading rather than used to empty it. */
+  coreWindowCount: number;
+  stretchWindowCount: number;
+  /** Of those, first seen since the member's last visit: the lane's "N new,
+      tagged below" note. No longer gated on the window, because the rows the
+      tag appears on are no longer gated on it either -- a count that promised
+      a tag the reader could not find would be the same bug in a new place. */
   newCoreCount: number;
   newStretchCount: number;
 }
@@ -215,9 +235,9 @@ function laneParams(watches: readonly DeskWatch[], prefs: LedgerSelection, when:
 }
 
 /**
- * The five headline counts. A separate statement from the rows on purpose: a
- * member whose every match is older than the window has real counts and no
- * rows, so the counts cannot ride on a returned row.
+ * The headline counts. A separate statement from the rows on purpose: the rows
+ * are a capped head (when.show per lane) and these are over the whole matched
+ * set, so the counts cannot ride on a returned row.
  */
 export async function deskLaneCounts(
   watches: readonly DeskWatch[],
@@ -225,16 +245,24 @@ export async function deskLaneCounts(
   when: DeskWhen
 ): Promise<DeskLaneCounts> {
   const empty: DeskLaneCounts = {
-    liveUnderTitles: 0, coreLiveCount: 0, stretchLiveCount: 0, newCoreCount: 0, newStretchCount: 0
+    liveUnderTitles: 0,
+    coreLiveCount: 0,
+    stretchLiveCount: 0,
+    coreWindowCount: 0,
+    stretchWindowCount: 0,
+    newCoreCount: 0,
+    newStretchCount: 0
   };
   if (phrasesOf(watches).phrase.length === 0) return empty;
   const { rows } = await db().query<Record<string, number>>(
     `${DESK_LANE_CTE}
-SELECT count(*)::int                                                              AS live_under_titles,
-       count(*) FILTER (WHERE in_window AND is_core)::int                          AS core_live,
-       count(*) FILTER (WHERE in_window AND NOT is_core)::int                       AS stretch_live,
-       count(*) FILTER (WHERE in_window AND is_core AND is_new)::int                AS new_core,
-       count(*) FILTER (WHERE in_window AND NOT is_core AND is_new)::int            AS new_stretch
+SELECT count(*)::int                                                   AS live_under_titles,
+       count(*) FILTER (WHERE is_core)::int                            AS core_live,
+       count(*) FILTER (WHERE NOT is_core)::int                        AS stretch_live,
+       count(*) FILTER (WHERE in_window AND is_core)::int              AS core_window,
+       count(*) FILTER (WHERE in_window AND NOT is_core)::int          AS stretch_window,
+       count(*) FILTER (WHERE is_core AND is_new)::int                 AS new_core,
+       count(*) FILTER (WHERE NOT is_core AND is_new)::int             AS new_stretch
   FROM lane`,
     laneParams(watches, prefs, when)
   );
@@ -244,6 +272,8 @@ SELECT count(*)::int                                                            
     liveUnderTitles: c.live_under_titles ?? 0,
     coreLiveCount: c.core_live ?? 0,
     stretchLiveCount: c.stretch_live ?? 0,
+    coreWindowCount: c.core_window ?? 0,
+    stretchWindowCount: c.stretch_window ?? 0,
     newCoreCount: c.new_core ?? 0,
     newStretchCount: c.new_stretch ?? 0
   };
@@ -251,9 +281,31 @@ SELECT count(*)::int                                                            
 
 /**
  * The ranked head of each lane: at most when.show rows of core and when.show of
- * stretch, inside the window, fit first and newest breaking a tie, with id ASC
- * making the tie deterministic (see the header). One statement for both lanes,
- * partitioned on is_core.
+ * stretch, window first, then fit, then newest, with id ASC making the tie
+ * deterministic (see the header). One statement for both lanes, partitioned on
+ * is_core.
+ *
+ * THE WINDOW SORTS, IT DOES NOT FILTER (owner, 2026-10-01). This clause used to
+ * read `WHERE in_window`, and that one line is what put a wall of zeros on top
+ * of real roles: a member with ten live roles under their titles, none first
+ * seen in the last fourteen days, got an empty lane and a heading that said
+ * "0 roles live" about roles that are live. Measured on the local snapshot the
+ * day this changed: 34% of all live rows were inside the window, 17% once a
+ * remote and pay filter was applied, and 0% once a title was named on top --
+ * so the narrower the watch list, the likelier the lane was empty, which is
+ * backwards for the one page built on naming your titles.
+ *
+ * This file's own neighbours already said so and were being contradicted by
+ * this query: DeskHome.core is documented as "all matches, not only new
+ * arrivals", and buildDeskHome's lane comment as "NOT only what arrived since
+ * the last visit ... or the page is a wall of zeros sitting on top of real
+ * roles". The SQL is what disagreed, and it is the SQL that moved.
+ *
+ * The fourteen days are not gone: in_window leads the ORDER BY, so anything
+ * inside it still comes first, deskLaneCounts still counts it, and the heading
+ * still states it. The per-role arrival clock carries the head start, per role,
+ * which is finer than a cliff at day 14 anyway -- the curve the evidence block
+ * cites is continuous, and nothing happens to a posting on its fifteenth day.
  */
 export async function deskLaneRows(
   watches: readonly DeskWatch[],
@@ -267,11 +319,11 @@ export async function deskLaneRows(
 ranked AS (
   SELECT lane.id, lane.matched, lane.is_core, lane.is_new,
          row_number() OVER (PARTITION BY is_core
-                            ORDER BY coalesce(detail_total, 0) DESC,
+                            ORDER BY in_window DESC,
+                                     coalesce(detail_total, 0) DESC,
                                      coalesce(first_seen, '1970-01-01'::date) DESC,
                                      lane.id ASC) AS rn
     FROM lane
-   WHERE in_window
 )
 SELECT ${BOARD_LIST_COLUMNS}, ${KILL_COLUMNS},
        r.matched, r.is_core, r.is_new

@@ -85,18 +85,29 @@ interface OldDesk {
   liveUnderTitles: number;
   coreLiveCount: number;
   stretchLiveCount: number;
+  coreWindowCount: number;
+  stretchWindowCount: number;
   newCoreCount: number;
   newStretchCount: number;
-  /** The whole windowed lane, ranked, before the DESK_SHOW slice. */
+  /** The whole lane, ranked, before the DESK_SHOW slice. Windowed until
+      2026-10-01; the window is a sort key now, not a filter. */
   coreLane: { role: BoardRow; matched: string[] }[];
   stretchLane: { role: BoardRow; matched: string[] }[];
   titleVMs: { title: string; liveCount: number; titlesLive: number; titlesTotal: number; covered: boolean }[];
 }
 
 /**
- * The old reduction, with ONE change: a final `id` tiebreak on the ranking sort,
- * which is the difference this test is here to name. `tied()` below runs the
- * comparator without it to show the ties are real.
+ * The reduction in TypeScript, kept as the independent second opinion the SQL
+ * is checked against. Two deliberate differences from the version that shipped
+ * at 4d37933, each one a thing this file exists to name:
+ *
+ *   1. A final `id` tiebreak on the ranking sort. The test below runs the
+ *      comparator without it to show the ties are real.
+ *   2. The head-start window SORTS the lane instead of filtering it (owner,
+ *      2026-10-01). It used to `continue` past anything outside the window,
+ *      which is what left a member with ten live roles looking at an empty
+ *      section. Roles inside the window now lead the lane and are counted
+ *      separately, in coreWindowCount / stretchWindowCount.
  */
 function oldDesk(
   liveRows: BoardRow[],
@@ -126,27 +137,36 @@ function oldDesk(
   });
 
   const lane = laneFor(filtered, allTitles);
+  const inWindow = (role: BoardRow): boolean =>
+    inDeskWindow(daysBetween(isoDay(role.first_seen), sweepIso));
   const laneRanked = [...lane].sort(
     (a, b) =>
+      // The window leads the sort now. See difference 2 in the header.
+      Number(inWindow(b.role)) - Number(inWindow(a.role)) ||
       (b.role.detail_total ?? 0) - (a.role.detail_total ?? 0) ||
       (toMs(b.role.first_seen) ?? 0) - (toMs(a.role.first_seen) ?? 0) ||
-      // The added tiebreak. See the header.
+      // The added tiebreak. See difference 1 in the header.
       a.role.id.localeCompare(b.role.id)
   );
 
   const coreLane: { role: BoardRow; matched: string[] }[] = [];
   const stretchLane: { role: BoardRow; matched: string[] }[] = [];
   for (const item of laneRanked) {
-    if (!inDeskWindow(daysBetween(isoDay(item.role.first_seen), sweepIso))) continue;
     (item.matched.some((title) => coreSet.has(title)) ? coreLane : stretchLane).push(item);
   }
   const flagNew = (role: BoardRow): boolean => isNew(role.first_seen, lastSeenDay, sweepIso);
+  const count = (
+    rows: { role: BoardRow }[],
+    predicate: (role: BoardRow) => boolean
+  ): number => rows.reduce((n, x) => n + (predicate(x.role) ? 1 : 0), 0);
   return {
     liveUnderTitles: lane.length,
     coreLiveCount: coreLane.length,
     stretchLiveCount: stretchLane.length,
-    newCoreCount: coreLane.reduce((n, x) => n + (flagNew(x.role) ? 1 : 0), 0),
-    newStretchCount: stretchLane.reduce((n, x) => n + (flagNew(x.role) ? 1 : 0), 0),
+    coreWindowCount: count(coreLane, inWindow),
+    stretchWindowCount: count(stretchLane, inWindow),
+    newCoreCount: count(coreLane, flagNew),
+    newStretchCount: count(stretchLane, flagNew),
     coreLane,
     stretchLane,
     titleVMs
@@ -205,16 +225,48 @@ d('the Desk lane, in SQL, says what the TypeScript reduction said', () => {
     expect(LIVE.length).toBeGreaterThan(0);
   });
 
-  it.each(fixtures())('$name: the five counts are identical', async (f) => {
+  it.each(fixtures())('$name: the seven counts are identical', async (f) => {
     const old = oldDesk(LIVE, KILLS, f.watches, f.prefs, f.lastSeenDay, SWEEP);
     const got = await deskLaneCounts(f.watches, f.prefs, whenFor(f.lastSeenDay));
     expect(got).toEqual({
       liveUnderTitles: old.liveUnderTitles,
       coreLiveCount: old.coreLiveCount,
       stretchLiveCount: old.stretchLiveCount,
+      coreWindowCount: old.coreWindowCount,
+      stretchWindowCount: old.stretchWindowCount,
       newCoreCount: old.newCoreCount,
       newStretchCount: old.newStretchCount
     });
+  }, 120_000);
+
+  /* THE CLAIM THIS CHANGE WAS MADE FOR, asserted rather than described: a lane
+     whose matches are all older than the window still returns rows. Before
+     2026-10-01 this was the shape that returned nothing at all, under a heading
+     that said "0 roles live" about live roles. */
+  it.each(fixtures())('$name: a lane with live matches is never empty', async (f) => {
+    const got = await deskLaneCounts(f.watches, f.prefs, whenFor(f.lastSeenDay));
+    const rows = await deskLaneRows(f.watches, f.prefs, whenFor(f.lastSeenDay));
+    const core = rows.filter((r) => r.isCore).length;
+    const stretch = rows.filter((r) => !r.isCore).length;
+    expect(core).toBe(Math.min(got.coreLiveCount, SHOW));
+    expect(stretch).toBe(Math.min(got.stretchLiveCount, SHOW));
+    // And the window is still counted, it just does not decide the rows.
+    expect(got.coreWindowCount).toBeLessThanOrEqual(got.coreLiveCount);
+    expect(got.stretchWindowCount).toBeLessThanOrEqual(got.stretchLiveCount);
+  }, 120_000);
+
+  /* The ordering half of the same claim: nothing outside the window may sit
+     above something inside it, in either lane. */
+  it.each(fixtures())('$name: the window leads the ranking', async (f) => {
+    const rows = await deskLaneRows(f.watches, f.prefs, whenFor(f.lastSeenDay));
+    for (const lane of [rows.filter((r) => r.isCore), rows.filter((r) => !r.isCore)]) {
+      const flags = lane.map((r) =>
+        inDeskWindow(daysBetween(isoDay(r.row.first_seen), SWEEP))
+      );
+      const firstOutside = flags.indexOf(false);
+      if (firstOutside === -1) continue;
+      expect(flags.slice(firstOutside).some(Boolean)).toBe(false);
+    }
   }, 120_000);
 
   it.each(fixtures())('$name: the ranked rows are the same rows in the same order', async (f) => {
@@ -305,9 +357,9 @@ d('the Desk lane, in SQL, says what the TypeScript reduction said', () => {
 d('the one intended difference: a tie now resolves the same way every time', () => {
   it('the old comparator left real ties in the lane, so the tiebreak was needed', () => {
     const watches: DeskWatch[] = [{ title: 'engineer', shelf: 'core' }];
-    const lane = laneFor(LIVE, ['engineer']).filter((x) =>
-      inDeskWindow(daysBetween(isoDay(x.role.first_seen), SWEEP))
-    );
+    // No window filter here since 2026-10-01: the lane this mirrors does not
+    // apply one either, so the ties asserted are the ties the lane really has.
+    const lane = laneFor(LIVE, ['engineer']);
     const keys = lane.map((x) => `${x.role.detail_total ?? 0}|${toMs(x.role.first_seen) ?? 0}`);
     const ties = keys.length - new Set(keys).size;
     // If this ever hits zero the difference stops mattering, but it is the
