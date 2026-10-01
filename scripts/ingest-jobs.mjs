@@ -31,10 +31,31 @@
  * without a build step, so the one INSERT ... ON CONFLICT statement is repeated
  * here and must stay in step with it.
  *
+ * THE FLOOR ON A REPLACE (2026-10-01). --replace truncates and reloads, and
+ * until now the only consistency check compared the incoming file against the
+ * file's own _meta.count. Nothing compared it against the board already in the
+ * table, so a crawl that reached a tenth of its boards published a tenth of the
+ * board in one clean transaction under a fresh timestamp, and a reader read that
+ * as companies having stopped hiring. src/lib/ingest-floor.mjs now decides
+ * whether tonight's count may replace the published one; the rule, the 70%
+ * fraction and the evidence for it live in that file's header, and the two reads
+ * it decides on happen inside this transaction, under the lock the TRUNCATE is
+ * about to take, so the number compared is exactly the number being destroyed.
+ *
  * FLAGS
  *   --file <path>   tracker JSON to read (default src/data/general-sample.json)
- *   --limit <n>     ingest at most n rows (after normalisation)
- *   --dry-run       normalise and report, write nothing, touch no connection
+ *   --limit <n>     ingest at most n rows (after normalisation). A file that
+ *                   declares _meta.count already fails the accounting check
+ *                   below before it reaches the floor; for one that does not,
+ *                   --replace --limit is a deliberate shrink and the floor
+ *                   refuses it until --allow-shrink says it was meant.
+ *   --replace       TRUNCATE the board first, inside the same transaction
+ *   --allow-shrink  publish a drop the floor would otherwise refuse. For a real
+ *                   contraction, meant by a person. Never passed by the build.
+ *   --dry-run       normalise and report, write nothing. With a database in
+ *                   reach it also reports what the floor would decide, from a
+ *                   READ ONLY transaction, and exits non-zero if that decision
+ *                   is a refusal, so it is usable as a pre-flight check.
  *   --batch <n>     rows per transaction (default 250)
  */
 import { readFile } from 'node:fs/promises';
@@ -44,6 +65,10 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { assertBatchFits, upsertSql } from '../src/lib/upsert-sql.mjs';
 import { derivedFor, tierFromTitle } from '../src/lib/jobs-derived.mjs';
+// The night over night floor. Its own file for the same reason upsert-sql.mjs is
+// one: this script does its work at import, so the rule worth testing cannot be
+// reached from a test while it lives in here.
+import { OVERRIDE_FLAG, floorVerdict } from '../src/lib/ingest-floor.mjs';
 // familyOf, for the kill rows below. It was called at the kill-archive insert
 // from 9e1b95a (2026-09-28) and never imported, so every board load since has
 // died with "familyOf is not defined" AFTER staging all 52,739 rows and rolling
@@ -64,6 +89,15 @@ function arg(name, fallback) {
 }
 const DRY = process.argv.includes('--dry-run');
 const REPLACE = process.argv.includes('--replace');
+// Only ever typed by a person who means a contraction. OVERRIDE_FLAG is imported
+// rather than repeated so the flag the refusal message names and the flag this
+// line reads cannot drift apart.
+const ALLOW_SHRINK = process.argv.includes(OVERRIDE_FLAG);
+// One owner for which variable wins, because the dry run's read only probe and
+// the real load both need it and two copies of that precedence would drift. The
+// unpooled endpoint is the right one for a big TRUNCATE and load; the refusal for
+// a missing value stays where the load is, so a dry run still works with none.
+const DB_URL = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 const FILE = resolve(root, arg('file', join('src', 'data', 'general-sample.json')));
 const LIMIT = Number(arg('limit', '0')) || 0;
 const BATCH = Number(arg('batch', '250')) || 250;
@@ -383,6 +417,13 @@ console.log(`kills   ${killedInFeed} of ${rows.length} feed row(s) are named by 
  * is allowed to drop one are counted above and named in the message.
  */
 const declared = Number(parsed?._meta?.count);
+// The file's own name for itself, carried into the floor's message as a label.
+// Three different strings have appeared in this field (the everything edition,
+// the curated edition, and the older sample's wording), so when a refusal says
+// which one arrived it separates "the board shrank" from "the wrong exporter
+// wrote here", and those have different fixes. Nothing here decides on it: which
+// edition a site may load is scripts/ingest-on-build.mjs's question.
+const declaredSource = typeof parsed?._meta?.source === 'string' ? parsed._meta.source : null;
 if (Number.isFinite(declared) && rows.length + shellRows + duplicateIds !== declared) {
   console.error(
     `ingest: the export declares ${declared} rows and this run accounted for ${rows.length + shellRows + duplicateIds} ` +
@@ -390,6 +431,57 @@ if (Number.isFinite(declared) && rows.length + shellRows + duplicateIds !== decl
       `board_build.py and this table, which is exactly the drift the scope filter used to cause here.`
   );
   process.exit(1);
+}
+
+/**
+ * The two numbers the floor decides on: what the table holds now, and what the
+ * previous ingest said it staged.
+ *
+ * They are two copies of one fact and they are read together on purpose. The
+ * ingest writes board_stats in the same transaction as the rows, so
+ * verified_live + killed should equal count(*) exactly, and when it does not,
+ * something has written `jobs` from outside this script. floorVerdict() says so
+ * and takes the larger as its baseline; this function's only job is to fetch
+ * both honestly, including the null when board_stats has no row yet.
+ */
+async function readBaselines(client) {
+  const { rows: here } = await client.query('SELECT count(*)::int AS n FROM jobs');
+  const { rows: stats } = await client.query(
+    'SELECT verified_live, killed, ingested_at FROM board_stats WHERE id = 1'
+  );
+  const previous = stats[0] ?? null;
+  return {
+    published: here[0]?.n ?? 0,
+    remembered: previous ? Number(previous.verified_live) + Number(previous.killed) : null,
+    rememberedAt: previous?.ingested_at ?? null
+  };
+}
+
+/**
+ * What the floor WOULD decide, for --dry-run, without touching a row.
+ *
+ * READ ONLY IS DECLARED TO POSTGRES, NOT PROMISED IN A COMMENT. The transaction
+ * is opened READ ONLY, so a dry run that somehow reached a write would be
+ * refused by the server rather than by this script's good intentions.
+ *
+ * AND IT TAKES NO LOCK. The real load locks `jobs` before reading, because the
+ * count it compares has to be the count the TRUNCATE is about to destroy. A dry
+ * run must not do that: ACCESS EXCLUSIVE on `jobs` stalls every reader on the
+ * site, and nobody should be able to stop the board by asking a question about
+ * it. So this reads without the lock and the number it reports can move before
+ * the real run, which is the honest trade and is why the real check still runs.
+ */
+async function floorIfDry(incoming) {
+  const probe = new Client({ connectionString: DB_URL });
+  try {
+    await probe.connect();
+    await probe.query('BEGIN TRANSACTION READ ONLY');
+    const baselines = await readBaselines(probe);
+    await probe.query('ROLLBACK');
+    return floorVerdict({ incoming, ...baselines, source: declaredSource, allowShrink: ALLOW_SHRINK });
+  } finally {
+    await probe.end().catch(() => {});
+  }
 }
 
 if (DRY) {
@@ -400,6 +492,26 @@ if (DRY) {
   for (const r of rows.filter((x) => x.url && killByUrl.has(x.url)).slice(0, 5)) {
     const k = killByUrl.get(r.url)[0];
     console.log(`  killed: [${k.kill_rule}/${k.pipeline}] ${r.company} / ${r.title} -> /board/${r.slug}`);
+  }
+  // A dry run of a replace is the one place an operator can ask "would tonight's
+  // file be allowed to replace the board?" before anything is at stake, so it
+  // answers that when a database is in reach. It exits non-zero on a refusal: a
+  // check that measured a refusal and reported success is the failure mode this
+  // repository keeps relearning.
+  if (REPLACE && DB_URL) {
+    let verdict;
+    try {
+      verdict = await floorIfDry(rows.length);
+    } catch (error) {
+      console.error(`dry run: could not read the board to check the floor: ${error.message}`);
+      process.exit(1);
+    }
+    for (const line of verdict.lines) console.log(line);
+    console.log(`dry run: the floor would ${verdict.ok ? 'allow' : 'REFUSE'} this load (${verdict.code}).`);
+    process.exit(verdict.ok ? 0 : 1);
+  }
+  if (REPLACE) {
+    console.log('dry run: no DATABASE_URL_UNPOOLED or DATABASE_URL in reach, so the floor was NOT checked here. The load itself always checks it.');
   }
   process.exit(0);
 }
@@ -517,13 +629,12 @@ async function resolveSlugs(client, rows) {
   );
 }
 
-const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
-if (!url) {
+if (!DB_URL) {
   console.error('No DATABASE_URL_UNPOOLED or DATABASE_URL in the environment. Pull it with: npx vercel env pull .env.local');
   process.exit(1);
 }
 
-const client = new Client({ connectionString: url });
+const client = new Client({ connectionString: DB_URL });
 await client.connect();
 let written = 0;
 try {
@@ -548,6 +659,52 @@ try {
   // A full sweep replaces the board: a posting gone from the feed drops out,
   // which is the signal the ghost watch and the counts depend on.
   if (REPLACE) {
+    /*
+     * THE FLOOR, UNDER THE LOCK THE TRUNCATE IS ABOUT TO TAKE.
+     *
+     * The lock is requested explicitly rather than left to TRUNCATE for two
+     * reasons, and both of them are about the night of 2026-10-01, when two
+     * exporters wrote this table two minutes apart with row counts thirteen times
+     * apart and the bigger one happened to commit last.
+     *
+     *   1. The count has to be the count being destroyed. READ COMMITTED gives
+     *      each statement its own snapshot, so a count taken before the lock
+     *      could be a rival's pre-commit view. Taken after it, it is what this
+     *      transaction is about to truncate, full stop.
+     *   2. It cannot deadlock. If the count ran first it would hold ACCESS
+     *      SHARE and then ask for ACCESS EXCLUSIVE; two ingests doing that at
+     *      once deadlock, and Postgres would kill one. Asking for the strong
+     *      lock first means two ingests queue exactly as they do today, and the
+     *      second one, once it is let through, reads the first one's committed
+     *      result and judges tonight's file against that.
+     *
+     * WHAT IT COSTS A READER. Almost nothing. TRUNCATE is the next statement on
+     * this table and would have taken the same lock at the same point, so the
+     * only extra time the board is held shut is the two reads in between: a
+     * count over `jobs`, measured at 8 to 14 ms over the 37,765 rows on this
+     * machine's dev board, and a single-row read of board_stats at well under a
+     * millisecond. The load that follows holds the same lock for seconds.
+     */
+    await client.query('LOCK TABLE jobs IN ACCESS EXCLUSIVE MODE');
+    const verdict = floorVerdict({
+      incoming: rows.length,
+      ...(await readBaselines(client)),
+      source: declaredSource,
+      allowShrink: ALLOW_SHRINK
+    });
+    if (!verdict.ok) {
+      // The detail to stderr, then throw with the one sentence that stands on
+      // its own. jobmachine/publish/db.py surfaces only the LAST SIX lines of
+      // stderr on a failure, which is why the sentence has to be complete by
+      // itself: a refusal is five lines, six when the table and board_stats also
+      // disagree, and the catch below adds one more carrying that sentence. So on
+      // the ordinary refusal an operator is handed all of it, and on the rarer
+      // one the line that drops off the top is the row-count disagreement.
+      for (const line of verdict.lines) console.error(line);
+      throw new Error(verdict.summary);
+    }
+    for (const line of verdict.lines) console.log(line);
+
     await client.query('TRUNCATE jobs');
     console.log('replaced: cleared the jobs table first (inside the transaction)');
   }

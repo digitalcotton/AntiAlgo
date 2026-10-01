@@ -21,7 +21,7 @@
  * Actions out of the data path altogether. Actions remain for CI, which is a
  * check on the code and can be red without a reader seeing stale data.
  *
- * THREE THINGS THIS REFUSES TO DO.
+ * FOUR THINGS THIS REFUSES TO DO.
  *
  *   1. Touch production from anything but a production deploy. A preview build
  *      of a branch has the same credentials in scope on Vercel and would
@@ -36,19 +36,51 @@
  *      within six hours, and nobody ships a fresh sweep stamp over a board that
  *      did not move. The alternative, a warning in a build log, is how the
  *      previous failure stayed invisible for a day.
+ *   4. Load a board file belonging to a different site. Added 2026-10-01, see
+ *      below: one crawl is exported twice, and only one of the two editions is
+ *      this site's board.
+ *
+ * THE EDITION CHECK, AND THE NIGHT THAT BOUGHT IT. One crawl a night is exported
+ * once per edition (jobmachine/editions.py): "everything", every role the crawl
+ * read, which is antialgo.ai's board, and "curated", design, AI and UX research
+ * only, which is tokenstoagents.ai's. On 2026-10-01 the curated file was written
+ * into THIS repo and a production build loaded it: 4,330 rows replaced 57,852, a
+ * 92.5% collapse, and it survived only because `jm publish everything` committed
+ * the full board two seconds later. Had the two commits landed the other way
+ * round the site would have served a twentieth of its board under a fresh
+ * timestamp, and a reader would have read that as companies having stopped
+ * hiring.
+ *
+ * So the file now has to say which edition it is, and it has to say this one. The
+ * exporter already writes that: _meta.source carries the edition's own `source`
+ * string, verbatim, from editions.py. The check is one string against one string,
+ * which is the point; there is nothing to infer and nothing to guess at. A file
+ * that will not say which edition it is is refused too, because "either of these
+ * two" is not an answer when one of them is thirteen times the other.
  *
  * The load itself is unchanged: scripts/ingest-jobs.mjs, --replace, one
- * transaction, proven to roll back whole on a forced failure.
+ * transaction, proven to roll back whole on a forced failure. That script now
+ * carries a row-count floor of its own (src/lib/ingest-floor.mjs), so these two
+ * guards are independent: this one refuses the wrong edition by name, the floor
+ * refuses a collapse by size, whatever wrote the file and whoever called it.
  */
 
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// Reading the edition out of a board file is real logic with real ways to be
+// wrong, and this file cannot be imported, so that part lives where a test can
+// reach it. What stays here is the policy: which edition THIS site serves, and
+// what a build does about a file that is not it.
+import { EVERYTHING_EDITION, readBoardMeta } from '../src/lib/board-edition.mjs';
 
 const REPO = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
 const FILE = join(REPO, 'src', 'data', 'board-latest.json.gz');
 const NAME = 'ingest-on-build';
+
+/** antialgo.ai serves the everything edition. This is the one line that says so. */
+const BOARD_EDITION = EVERYTHING_EDITION;
 
 const env = process.env.VERCEL_ENV || '';
 const hasCredentials = Boolean(process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL);
@@ -97,6 +129,35 @@ if (!existsSync(FILE)) {
   process.exit(0);
 }
 
+// WHICH EDITION IS THIS, AND IS IT OURS. Read before the load, so a file from
+// the wrong exporter never reaches the TRUNCATE at all.
+//
+// This fails the build rather than skipping the load quietly, for the same reason
+// refusal 2 above fails on missing credentials: the curated file being in this
+// repo means something in the publish path is pointed at the wrong site, that
+// will be just as true tomorrow night, and a skipped load with a green build is
+// how this kind of fault stays invisible until a reader finds it. The board
+// itself is not at risk from the red build: the full edition is loaded straight
+// into Postgres by `jm publish everything`, so the rows a reader sees are the
+// rows they already had.
+const { meta, why } = await readBoardMeta(FILE);
+if (!meta) {
+  console.error(`${NAME}: src/data/board-latest.json.gz will not say which edition it is (${why}).`);
+  console.error(`${NAME}: this site loads the "${BOARD_EDITION}" edition only, and an unidentified board file is not loaded over a known one.`);
+  process.exit(1);
+}
+if (meta.source !== BOARD_EDITION) {
+  console.error(`${NAME}: src/data/board-latest.json.gz is the wrong edition for this site.`);
+  console.error(`${NAME}: it says it is ${JSON.stringify(meta.source ?? null)}; this site serves ${JSON.stringify(BOARD_EDITION)}.`);
+  console.error(`${NAME}: the file declares ${meta.count ?? 'an unstated number of'} row(s), generated from ${meta.generated_from ?? 'an unstated crawl'}.`);
+  console.error(`${NAME}: refusing to load it. Whatever wrote this file into the site repo is pointed at the wrong site; fix that, do not relax this check.`);
+  process.exit(1);
+}
+console.log(`${NAME}: the board file is the ${JSON.stringify(meta.source)} edition, declaring ${meta.count ?? 'an unstated number of'} row(s). That is this site's edition.`);
+
+// NO --allow-shrink HERE, EVER. That flag is how a person publishes a real
+// contraction, with their own judgement behind it; a build has no judgement, so
+// an unattended deploy must be refused by the floor rather than wave past it.
 console.log(`${NAME}: loading the board from src/data/board-latest.json.gz`);
 const run = spawnSync(process.execPath, [join(REPO, 'scripts', 'ingest-jobs.mjs'), '--file', FILE, '--replace'], {
   cwd: REPO,
