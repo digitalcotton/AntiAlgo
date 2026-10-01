@@ -2,15 +2,26 @@
  * The daily freshness check: the half of the staleness pair that does not need
  * a reader to be looking.
  *
- * WHAT WAS HERE BEFORE, WHICH WAS NOTHING.
+ * WHAT WAS WRITTEN HERE BEFORE, WHICH WAS NOT TRUE.
  *
- * vercel.json has declared a cron against this path since the deploy was set
- * up, and this file did not exist. A Vercel cron against a path with no
- * function behind it does not rebuild anything: it is a scheduled GET that
- * either 404s or, once the /jobs rewrite has had its say, returns a page. The
- * guard the comment in vercel.json described was a comment. That is worse than
- * having no guard, because the reason for not building one was already written
- * down as done.
+ * The paragraph that used to sit here said vercel.json had declared a cron
+ * against this path since the deploy was set up. It never had.
+ * `git log --oneline -- vercel.json` returns one commit, and that commit carries
+ * no `crons` key, so from the day this function shipped until 2026-10-01 nothing
+ * invoked it. The function was correct the entire time. It answered correctly to
+ * anyone who typed the URL, which was nobody.
+ *
+ * That sentence is why five consecutive nights of pipeline failures went
+ * unnoticed. Every other alarm in this system runs ON the machine being watched,
+ * so a mini that is off, asleep or wedged raises none of them; this endpoint is
+ * the only one that survives the mini, and it was not running either. A comment
+ * claiming a wire exists is worse than no wire, because it closes the question:
+ * nobody checks a thing already written down as done.
+ *
+ * So, as of 2026-10-01, vercel.json carries
+ * `"crons": [{ "path": "/api/rebuild", "schedule": "0 22 * * *" }]`. The
+ * acceptance test for that is an invocation appearing in the Vercel cron log,
+ * not this paragraph. Read the log once before trusting it.
  *
  * WHY A REBUILD WAS THE WRONG MECHANISM ANYWAY.
  *
@@ -30,18 +41,43 @@
  *   503  it is not, which means a sweep did not run or a push did not land
  *
  * Vercel records the status of every cron invocation, so a silent night turns
- * the cron log red the next morning and it stays red until a push fixes it.
+ * the cron log red that same evening and it stays red until a push fixes it.
  * That costs no credential, no key and no build, which is the point: an alarm
  * that waits on something Ryan has not set up yet is an alarm that does not
  * exist, and this repository has just spent a day proving how that ends.
+ *
+ * READING THE ANSWER IS DELIBERATELY UNAUTHENTICATED, AND THAT IS THE WIRING.
+ *
+ * `handler()` assesses and answers before it looks at a single header. Nothing
+ * about the 200 or the 503 depends on CRON_SECRET, on an Authorization header,
+ * or on any env var existing. A Vercel cron therefore cannot 401 against this
+ * route, which matters more than it sounds: a cron that authenticates against a
+ * secret nobody has set yet would log a red 401 every night for a reason that
+ * has nothing to do with the pipeline, and an alarm that cries wolf is an alarm
+ * that gets ignored, which is where this file started. The secret gates only the
+ * deploy hook below, because that is the only thing here that spends money.
+ *
+ * It follows that the user-agent Vercel puts on a cron request is not checked
+ * for either, and must not be: `vercel-cron/1.0` is an ordinary request header
+ * that any stranger can type, so treating it as proof of identity would hand the
+ * internet the deploy button while protecting an answer the site's own footer
+ * already publishes.
  *
  * THE REBUILD IS STILL AVAILABLE, AND IS NOW THE LOUDER SECOND STEP.
  *
  * Set VERCEL_DEPLOY_HOOK_URL and CRON_SECRET, and a stale answer also fires a
  * deployment, which the data contract then fails at 48 hours with a readable
  * sentence, which Vercel emails. Without them this endpoint still knows and
- * still says so; it just says so somewhere only the dashboard shows. See
- * DECISIONS.md under Blocked for what creating those two involves.
+ * still says so; it just says so somewhere only the dashboard shows.
+ *
+ * Both are project settings rather than code: the hook is created in the Vercel
+ * project's Git settings and is a URL to POST to, and CRON_SECRET is any value
+ * added to the project's environment variables, which Vercel then starts
+ * attaching to its own cron requests as `Authorization: Bearer <value>`. Neither
+ * is set as far as this checkout can tell, and neither needs to be for the alarm
+ * above to work. So that the first red invocation does not send a reader the
+ * wrong way, the stale branch names which of the two is missing instead of
+ * reporting a refusal that sounds like an intruder.
  *
  * WHY THE THRESHOLD IS THE READER'S 36 AND NOT THE BUILD'S 48.
  *
@@ -51,6 +87,38 @@
  * verified this sweep. This alarm has to fire no later than the page stops
  * making the claim, so it takes the reader's number. In practice that is one
  * missed night rather than two.
+ *
+ * WHY THE CRON IS AT 22:00Z, AND WHY ONLY ONCE A DAY.
+ *
+ * swept_at_utc is the nightly's FIRE instant, not its finish. Fourteen of the
+ * nineteen stamps ever committed to src/data/stats.json read 07:30:00Z through
+ * 07:30:04Z, which is 03:30 local, which is the LaunchDaemon; a fifteenth reads
+ * 07:41:59Z, the same daemon twelve minutes late. The other four are off-schedule
+ * runs by hand: three in the afternoon, one late in the evening. So the live
+ * deployment crosses the 36 hour line at 19:30Z on the day after a night that
+ * did not publish — and after the 2026-11-01 clock change the mini fires at
+ * 08:30Z and the line moves to 20:30Z. Vercel cron is UTC and does not follow a
+ * local clock, so one declared time has to clear the later of the two. 22:00Z
+ * clears it by an hour and a half in winter and two and a half in summer, which
+ * is also the margin for a nightly that starts late: 2026-09-21 stamped
+ * 07:41:59Z.
+ *
+ * In local terms the line always falls at half past three in the afternoon,
+ * either half of the year, because the stamp follows the local clock and 36 hours
+ * is 36 hours. 22:00Z is six and a half hours later: 18:00 in summer, 17:00 in
+ * winter. That is chosen, not left over. The alarm goes red before dinner on the
+ * same day the page stopped claiming every row was verified this sweep, rather
+ * than at some hour when nobody is going to look at a dashboard. A single missed
+ * night is known about roughly fourteen hours after the run that missed it, and
+ * no sooner is possible: the 503 cannot exist before 36 hours have passed.
+ *
+ * One entry, one once-a-day expression, because a Hobby project is capped at two
+ * cron jobs and at one invocation per job per day, and nothing in this checkout
+ * says which plan the project is on. `"0 11,22 * * *"` would halve the worst-case
+ * lag and would also be rejected on Hobby, which fails the deployment — a file
+ * about an alarm that was never wired is the wrong place to gamble the deploy on
+ * an unread setting. If the project is on Pro, adding the second hour is a safe
+ * one-line change and the only thing it buys is a shorter wait.
  *
  * WHY A FIXTURE NEVER ALARMS.
  *
@@ -183,6 +251,14 @@ export default async function handler(request: Request): Promise<Response> {
   const hook = (process.env.VERCEL_DEPLOY_HOOK_URL ?? '').trim();
   if (!hook) {
     rebuild = 'no VERCEL_DEPLOY_HOOK_URL on this project, so nothing was triggered';
+  } else if (!(process.env.CRON_SECRET ?? '').trim()) {
+    // Not a refusal, and worth separating from one. Vercel attaches the bearer
+    // token only once CRON_SECRET exists on the project, so with no secret there
+    // is nothing for mayDeploy() to match and every cron invocation lands here.
+    // The first red night should name the setting that is missing rather than
+    // read like somebody tried the door, which is the reading the single
+    // "refused" sentence used to give it.
+    rebuild = 'no CRON_SECRET on this project, so the hook cannot be authorised; set it to let a stale answer rebuild';
   } else if (!mayDeploy(request)) {
     rebuild = 'refused: this request did not carry the cron secret';
   } else {

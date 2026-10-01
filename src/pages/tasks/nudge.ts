@@ -1,8 +1,28 @@
 /**
  * GET /tasks/nudge: the scheduled confirm-loop nudge sender (F4.1's third
- * channel), behind the `email_send` flag. A Vercel cron (vercel.json) hits this
- * once a day; it finds the still-waiting Desk cards nobody has been nudged about,
- * groups them by person, and sends each person one gentle email to resolve them.
+ * channel), behind the `email_send` flag. It finds the still-waiting Desk cards
+ * nobody has been nudged about, groups them by person, and sends each person one
+ * gentle email to resolve them.
+ *
+ * NOTHING SCHEDULES THIS. "Scheduled" above is the feature's name, not a claim
+ * about vercel.json. The paragraph that used to sit here said a Vercel cron hit
+ * this route once a day. None ever has: until 2026-10-01 vercel.json had no
+ * `crons` key at all, and the entry added that day names /api/rebuild and nothing
+ * else. Leaving this one unwired is deliberate, not an oversight repeated. The
+ * `email_send` flag is OFF in both editions and '/tasks' sits in FLAGGED_ROUTES
+ * against it, so middleware 404s this route before the handler runs — verified
+ * against production on 2026-10-01, where GET /tasks/nudge answers 404. A cron
+ * pointed here today would write a 404 into the cron log every night and send
+ * nothing, which is noise in the one log that now has a real alarm in it.
+ *
+ * WHAT TO ADD WHEN EMAIL SHIPS. Flip `email_send` on, set RESEND_API_KEY and
+ * CRON_SECRET, then add `{ "path": "/tasks/nudge", "schedule": "0 13 * * *" }`
+ * beside the freshness entry — 13:00Z is mid-morning local, so a nudge arrives
+ * inside somebody's working day instead of at four in the morning. Unlike the
+ * freshness alarm this route is nothing BUT its secret (gate 1 below), so it
+ * genuinely does need CRON_SECRET set first or Vercel's cron will 401 against it
+ * forever. Note also that a Hobby project allows two cron jobs in total and this
+ * would be the second.
  *
  * WHY IT IS AN ASTRO ROUTE, NOT A ROOT api/ FUNCTION. Rendering an email reads
  * the generated token CSS off disk (emails/lib, the same loadTokens auth.ts uses
