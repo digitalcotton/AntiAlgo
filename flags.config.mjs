@@ -178,7 +178,7 @@ export const FLAGS = {
   },
   email_send: {
     why:
-      "The scheduled confirm-loop nudge, sent from src/pages/tasks/nudge.ts on a Vercel cron. " +
+      "The scheduled confirm-loop nudge, sent from src/pages/tasks/nudge.ts, which nothing schedules yet: no cron points at it, and the one declared on 2026-10-01 names /api/rebuild and nothing else. See that file's header. " +
       'Kept OFF here: AntiAlgo has no sender wired (RESEND_API_KEY unset, email verification ' +
       'off per this repo\'s own posture), so this stays dark in both editions until email ships.',
     editions: { design: false, broad: false }

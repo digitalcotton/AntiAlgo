@@ -244,7 +244,8 @@ const prospectCount = prospectRows().length;
       {/* The sweep stamp sits right of the board tabs (Board.astro's stamp
           slot). It is still the reader-facing half of the staleness pair:
           data-swept and data-assurance-text are what the table's inline script
-          and scripts/prove-staleness-pair.mjs read, wherever the element sits. */}
+          read, wherever the element sits. This used to name a second reader,
+          scripts/prove-staleness-pair.mjs, which has never existed in this repository. */}
       <p slot="stamp" class="index-eyebrow mono" data-swept={boardRowsAt} data-fresh-hours={FRESH_WINDOW_HOURS}>
         <span data-assurance-text>Verified this sweep · {stampOf(boardRowsAt)}</span>
       </p>

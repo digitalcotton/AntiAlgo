@@ -457,6 +457,15 @@ const REFUSALS = [
     letter-spacing: var(--tc);
     color: var(--muted);
   }
+  /* The stale colour, which this page did not have. JobTable's script sets
+     data-stale on the element above once the board's rows pass the freshness
+     window, so the SENTENCE changed on a stale night and the colour did not:
+     grep for data-stale in this file returned nothing at all. /board looked
+     right only because board.astro carries its own copy of this rule, and an
+     Astro scoped rule cannot cross a component boundary to reach this element.
+     The token is the shared one rather than a local alias, because this page
+     aliases --muted and --machine but never defined a stale colour. */
+  .board-sec .index-eyebrow[data-stale] { color: var(--color-banner-stale); }
   /* The teaser is a taste: each role on ONE line. The role cell normally stacks
      the title over a second line (the verification mark + company), and the age,
      location and apply cells each add explanatory sub-lines; that is right on the
