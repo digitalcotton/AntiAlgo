@@ -136,6 +136,7 @@ export type SourceSystem =
   | 'rippling'
   | 'jobvite'
   | 'usajobs'
+  | 'apple'
   | 'yc'
   | 'breezy'
   | 'bamboohr'
@@ -2789,6 +2790,7 @@ const SOURCE_LABELS: Record<string, string> = {
   rippling: 'Rippling',
   jobvite: 'Jobvite',
   usajobs: 'USAJOBS',
+  apple: 'Apple',
   yc: 'Work at a Startup',
   breezy: 'Breezy HR',
   bamboohr: 'BambooHR',

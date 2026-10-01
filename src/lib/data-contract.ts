@@ -291,13 +291,35 @@ interface JobLike {
  * answer for any host not in this table, and the wrong answer for every host
  * that is in it.
  */
+/*
+ * TWIN OF ATS_HOSTS IN export-site-data.py ON THE MINI, and the two are one
+ * table split across two repositories. The machine derives a row's label from
+ * its host using its copy; this copy verifies that label. A board present in one
+ * and absent from the other is the 2026-10-01 fault exactly: nothing compared
+ * them, and an adapter name the machine could stamp but this side had never been
+ * told about refused a whole night's export.
+ *
+ * tests/test_source_system_contract.py on the mini now reads BOTH files and fails
+ * when they disagree, so this list is held to its twin rather than to anyone
+ * remembering. The four entries added on 2026-10-01 -- lever, rippling, usajobs,
+ * apple -- were all reachable from config.BOARDS or config.TRACK_ONLY_BOARDS and
+ * none of them was here.
+ *
+ * Suffixes are registrable domains so subdomains match, with one exception:
+ * Apple's board is jobs.apple.com exactly, because apple.com would also claim
+ * www.apple.com, which is a marketing site and nobody's job board.
+ */
 const ATS_HOSTS: ReadonlyArray<{ system: string; suffix: string }> = [
   { system: 'greenhouse', suffix: 'greenhouse.io' },
   { system: 'ashby', suffix: 'ashbyhq.com' },
   { system: 'workable', suffix: 'workable.com' },
   { system: 'jobvite', suffix: 'jobvite.com' },
   { system: 'yc', suffix: 'ycombinator.com' },
-  { system: 'yc', suffix: 'workatastartup.com' }
+  { system: 'yc', suffix: 'workatastartup.com' },
+  { system: 'lever', suffix: 'lever.co' },
+  { system: 'rippling', suffix: 'rippling.com' },
+  { system: 'usajobs', suffix: 'usajobs.gov' },
+  { system: 'apple', suffix: 'jobs.apple.com' }
 ];
 
 /** The system a URL's host proves, or null where the host is nobody's ATS. */
