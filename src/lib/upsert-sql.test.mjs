@@ -9,10 +9,10 @@ import {
 /**
  * The ingest sent one INSERT per posting. At 1,900 rows from a build container
  * that was fine; at the whole crawl, run from the mini over a home connection,
- * it is thousands of sequential round trips with the TRUNCATE held for all of
- * them. These tests pin the batched statement's shape, because a placeholder
- * off by one would bind the wrong column to the wrong row and write plausible
- * nonsense rather than failing.
+ * it is thousands of sequential round trips with the replace's lock held for
+ * all of them. These tests pin the batched statement's shape, because a
+ * placeholder off by one would bind the wrong column to the wrong row and write
+ * plausible nonsense rather than failing.
  */
 
 describe('upsertSql', () => {

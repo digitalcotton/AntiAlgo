@@ -2,13 +2,13 @@
  * backfill-derived.mjs: fill db/207's derived columns on rows that were written
  * before the column existed.
  *
- * WHY IT IS NEEDED AT ALL, GIVEN THE INGEST TRUNCATES. scripts/ingest-jobs.mjs
- * replaces the jobs table whole on every crawl and now writes these columns
- * itself, so the next crawl would fill them anyway. But "the next crawl" is up
- * to a day away, and until then every row reads derived_region 'Unknown',
- * derived_friction 'easy' and priced false, which is the column defaults
- * masquerading as measurements. This runs the same definition over the rows
- * already on file so the two halves agree immediately.
+ * WHY IT IS NEEDED AT ALL, GIVEN THE INGEST REPLACES THE BOARD.
+ * scripts/ingest-jobs.mjs replaces the jobs table whole on every crawl and now
+ * writes these columns itself, so the next crawl would fill them anyway. But
+ * "the next crawl" is up to a day away, and until then every row reads
+ * derived_region 'Unknown', derived_friction 'easy' and priced false, which is
+ * the column defaults masquerading as measurements. This runs the same
+ * definition over the rows already on file so the two halves agree immediately.
  *
  * IT ALSO FILLS db/220's place_country, place_admin1, place_city and place_label,
  * and it is the only thing that will for rows already on file: the ingest

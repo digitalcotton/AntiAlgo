@@ -61,7 +61,7 @@
 
 CREATE TABLE IF NOT EXISTS job_slug_ledger (
   -- The posting's own id, as the crawl names it ("teamtailor|8443557"). Not a
-  -- foreign key to jobs(id): jobs is TRUNCATEd and replaced whole every night
+  -- foreign key to jobs(id): jobs is cleared and replaced whole every night
   -- (scripts/ingest-jobs.mjs --replace), and the whole point of this table is
   -- to outlive that.
   job_id     text PRIMARY KEY,

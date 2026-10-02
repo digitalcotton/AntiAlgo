@@ -11,8 +11,10 @@
  * database, that cost a few seconds. Two things changed it: the board now
  * carries the whole crawl, about seven times the rows, and the load may be run
  * from the Mac mini over a home connection rather than from the build.
- * Sequential round trips multiply against both, and the TRUNCATE is held for
- * all of them, so minutes of lock instead of seconds.
+ * Sequential round trips multiply against both, and the replace's table lock is
+ * held for all of them, so minutes of lock instead of seconds. (Until
+ * 2026-10-02 that lock shut readers out as well. It now shuts out only other
+ * writers, see scripts/ingest-jobs.mjs, but it is still held for the whole load.)
  *
  * The rows of a batch now go in one statement. Same columns, same
  * ON CONFLICT (id) DO UPDATE, same transaction. The SET clause reads from

@@ -36,19 +36,22 @@ CREATE TABLE IF NOT EXISTS account_filter_state (
   -- on this side of the boundary to reference, because the data they point
   -- at is a published file this database never reads. This column has the
   -- reverse problem: the vocabulary it would need to enumerate (which
-  -- filter groups exist, which values each one accepts, today 'location',
-  -- 'comp' and 'freshness', and within 'comp' every key COMP_BANDS names)
-  -- is not fixed by this migration at all. It is derived from the sweep's
-  -- own rows every build, by src/lib/data.ts's filterGroups(), which can
-  -- gain or retire a group or a band's key without a schema change. A
-  -- CHECK constraint copying today's vocabulary into SQL would be a second,
-  -- harder-to-move copy of something src/lib/data.ts already owns, and the
-  -- two would drift the day a band is renamed there and not here.
+  -- filter groups exist, which values each one accepts: 'location', 'comp'
+  -- and 'freshness' when this was written, with every key COMP_BANDS names
+  -- inside 'comp', and 'place', 'remote' and 'pay_min' since 2026-10-02)
+  -- is not fixed by this migration at all. It is whatever the board's
+  -- address accepts, read by src/lib/board-query.ts's parseBoardQuery(),
+  -- which can gain or retire a group or a value without a schema change, and
+  -- the stored shape did change on 2026-10-02 without a migration. A CHECK
+  -- constraint copying today's vocabulary into SQL would be a second,
+  -- harder-to-move copy of something src/lib/board-query.ts already owns, and
+  -- the two would drift the day a value is renamed there and not here.
   --
-  -- The validation this repository does want, an unknown group dropped and
+  -- The validation this repository does want, an unknown key dropped and
   -- an unknown value falling back to 'all', is application logic and lives
-  -- in src/lib/filters.ts's normalizeFilterSelection(), run against the
-  -- live groups on every read and every write. What Postgres enforces here
+  -- in src/lib/filters-store.ts's normalizeSavedSelection(), which builds
+  -- the address a selection stands for and reads it with parseBoardQuery(),
+  -- on every read and every write. What Postgres enforces here
   -- is only that a row exists and belongs to exactly one person; the
   -- shape of what is inside it is this feature's job, not this migration's.
   selection   jsonb NOT NULL DEFAULT '{}'::jsonb,

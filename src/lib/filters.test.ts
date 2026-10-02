@@ -2,79 +2,22 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SEEN_DIMMER_ENABLED,
   isDefaultSelection,
-  normalizeFilterSelection,
   normalizeSeenDimmerEnabled,
   normalizeSeenSlugs,
   parseStoredJSON,
   suppressApplied,
-  suppressedSlugs,
-  type FilterSelection
+  suppressedSlugs
 } from './filters';
-import type { FilterGroup, Job } from './data';
+import type { Job } from './data';
 
 // filters.ts is the pure half of MASTER-SPEC F10, kept pure specifically so
 // it can be tested with no database and no browser (the same reason
-// entitlement.ts and desk.ts are). These tests pin the three things that
-// actually matter: normalizeFilterSelection() never trusts a value it was
-// not told about, suppressApplied() suppresses exactly the rows a person
+// entitlement.ts and desk.ts are). These tests pin the two things that
+// actually matter: suppressApplied() suppresses exactly the rows a person
 // applied to and nobody else's, and the storage-parsing helpers degrade to
 // a safe default rather than throwing on anything a browser's own storage
-// or a stale save could hand back.
-
-const GROUPS: FilterGroup[] = [
-  {
-    key: 'location',
-    label: 'Location',
-    options: [
-      { value: 'all', label: 'All', count: 3 },
-      { value: 'remote', label: 'Remote', count: 2 },
-      { value: 'onsite', label: 'On-site', count: 1 }
-    ]
-  },
-  {
-    key: 'comp',
-    label: 'Comp',
-    options: [
-      { value: 'all', label: 'All', count: 3 },
-      { value: '200-250', label: '$200K to $250K', count: 2 },
-      { value: 'not-listed', label: 'Not listed', count: 1 }
-    ]
-  }
-];
-
-describe('normalizeFilterSelection(): never trusts a value it was not told about', () => {
-  it('keeps a value that is one of the group\'s own options', () => {
-    const selection = normalizeFilterSelection({ location: 'remote' }, GROUPS);
-    expect(selection.location).toBe('remote');
-  });
-
-  it('falls back to "all" for a value that is not one of the group\'s own options', () => {
-    const selection = normalizeFilterSelection({ location: 'on-mars' }, GROUPS);
-    expect(selection.location).toBe('all');
-  });
-
-  it('falls back to "all" for a group missing from the raw input entirely', () => {
-    const selection = normalizeFilterSelection({}, GROUPS);
-    expect(selection).toEqual({ location: 'all', comp: 'all' });
-  });
-
-  it('drops a key the live groups do not name, rather than carrying it forward', () => {
-    const selection = normalizeFilterSelection({ location: 'remote', freshness: 'fresh' }, GROUPS);
-    expect(selection).toEqual({ location: 'remote', comp: 'all' });
-    expect('freshness' in selection).toBe(false);
-  });
-
-  it('treats null, a string, and an array all as "nothing was stored"', () => {
-    expect(normalizeFilterSelection(null, GROUPS)).toEqual({ location: 'all', comp: 'all' });
-    expect(normalizeFilterSelection('remote', GROUPS)).toEqual({ location: 'all', comp: 'all' });
-    expect(normalizeFilterSelection(['remote'], GROUPS)).toEqual({ location: 'all', comp: 'all' });
-  });
-
-  it('rejects a numeric or object value pretending to be a group\'s option value', () => {
-    const selection = normalizeFilterSelection({ location: 42, comp: { sneaky: true } }, GROUPS);
-    expect(selection).toEqual({ location: 'all', comp: 'all' });
-  });
-});
+// or a stale save could hand back. What a saved selection may contain is
+// filters-store.ts's job, and filters-store.test.ts pins it.
 
 describe('isDefaultSelection()', () => {
   it('is true when every group is "all"', () => {
@@ -213,18 +156,5 @@ describe('normalizeSeenDimmerEnabled(): defaults on, exactly as MASTER-SPEC F10 
   it('falls back to the default for a non-boolean stray value', () => {
     expect(normalizeSeenDimmerEnabled('true')).toBe(DEFAULT_SEEN_DIMMER_ENABLED);
     expect(normalizeSeenDimmerEnabled(1)).toBe(DEFAULT_SEEN_DIMMER_ENABLED);
-  });
-});
-
-// A round trip, end to end, at the pure layer: exactly what the
-// verification checklist asks for ("filter state round-trips through the
-// store"), the half of it this file can prove without a connection string.
-// filters-store.test.ts proves the row-to-shape half on the other side of
-// the same round trip.
-describe('normalizeFilterSelection(): round-trips a real selection through JSON, the way storage actually holds it', () => {
-  it('comes back identical after a stringify/parse cycle', () => {
-    const original: FilterSelection = { location: 'remote', comp: '200-250' };
-    const roundTripped = normalizeFilterSelection(JSON.parse(JSON.stringify(original)), GROUPS);
-    expect(roundTripped).toEqual(original);
   });
 });

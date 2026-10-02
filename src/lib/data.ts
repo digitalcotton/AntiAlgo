@@ -1823,10 +1823,11 @@ export type SortKey = 'fit' | 'comp' | 'age';
  * (compShortFromText) matches "$150,000" and prints a range; this pattern
  * used to require a literal "k" and no comma, so that same row sorted as if
  * it stated no pay at all. Written once here and consumed two ways:
- * compTop() below builds a JS RegExp from it, and job-store.ts's
- * BOARD_FACET_CTE interpolates the raw string into the SQL text it hands to
- * Postgres' regexp_matches(). THE TWO CONSUMERS MUST BE CHANGED TOGETHER —
- * see the matching comment on comp_top in job-store.ts.
+ * compTop() below builds a JS RegExp from it, and job-store.ts's compTopSql(),
+ * which boardFacetCte() builds its comp_top column with, interpolates the raw
+ * string into the SQL text it hands to Postgres' regexp_matches(). THE TWO
+ * CONSUMERS MUST BE CHANGED TOGETHER — see the matching comment on comp_top in
+ * job-store.ts.
  *
  * Group 1 is the digits, comma grouping intact ("150,000" or "150" or
  * "150.5"). Group 2 is a trailing "k"/"K" if present, else unmatched (NULL
