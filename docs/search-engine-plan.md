@@ -131,6 +131,65 @@ Accept: ≥ 60 table cases, all green.
 - Accept: endpoint tests; a field name typed as words is searched, not
   converted.
 
+### The suggest contract (fixed 2026-10-02, so F2 and G build in parallel)
+
+`GET /board/suggest?q=<text>&<every current board param>&v=<sweep instant>`
+
+```json
+{
+  "v": "<sweep instant the counts are for>",
+  "q": "<the text as received, capped at 200>",
+  "parsed": { "words": [], "chips": [], "offers": [] },
+  "total": 1234,
+  "groups": [
+    { "type": "titles",    "label": "Titles",    "items": [] },
+    { "type": "places",    "label": "Places",    "items": [] },
+    { "type": "companies", "label": "Companies", "items": [] },
+    { "type": "facts",     "label": "Facts",     "items": [] }
+  ]
+}
+```
+
+Each item:
+
+```json
+{
+  "id": "place:GB/London",
+  "label": "London, United Kingdom",
+  "count": 406,
+  "disabled": false,
+  "apply": { "chip": { "kind": "place", "key": "GB/London", "label": "London, United Kingdom" } },
+  "href": "/board?..."
+}
+```
+
+- `total` is what pressing Enter on the current text returns.
+- **Titles are whole-query completions** (Indeed's model): rows whose title
+  matches every word of `q`, the last as a prefix; `apply` is
+  `{ "words": "<title phrase>" }`, replacing the words part of the query.
+- **Places and companies complete the trailing fragment** (the last one to
+  three tokens); `apply` is `{ "chip": … }` and the fragment is removed.
+- **Facts** are the parser's pay / remote / age chips found in the text, plus
+  its offers (an ambiguous place or company shown as a choosable chip).
+- **`count` is exact**: it equals the `total` of `/board` at the item's
+  `href`, leave-one-out over the current filters. A zero is `disabled: true`
+  and is returned, never dropped. Ticket I asserts this over 500 random cases.
+- At most 8 items per group; an empty group is returned empty, and the client
+  does not draw it.
+- Caching: when `v` equals the current sweep instant,
+  `Cache-Control: public, max-age=60, s-maxage=86400, stale-while-revalidate=600`;
+  otherwise answer for the current sweep with its `v` and `no-store`.
+- Errors: input over 200 characters is truncated, not refused; a server error
+  is `500 {"error": "<message>"}` and the client shows its error state.
+- Latency budget: p95 ≤ 100 ms on the local board.
+
+**File ownership for the parallel build:** F2 owns `src/pages/board/suggest.ts`,
+the route entry in `src/data/nav.ts`, any new SQL module it needs, and the
+frontmatter of `src/pages/board.astro` (lexicon wiring, the visible parse
+redirect, removal of the `familyFromSearch` 302). G owns `Filters.astro`, the
+new `SearchBox.astro`, their styles and the sweep specs, and edits
+`board.astro` markup only after F2 is merged.
+
 ### Wave 3 — the box (one developer, alone)
 
 **G. Search box and strip** — `Filters.astro`, a new
