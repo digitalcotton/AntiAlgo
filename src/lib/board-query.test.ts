@@ -8,6 +8,9 @@ import {
   formatPlaceKey,
   hiddenFields,
   isExplicit,
+  isPlaceKey,
+  isPlaceUnstated,
+  PLACE_UNSTATED,
   pageSpan,
   parseBoardQuery,
   parseCompany,
@@ -194,6 +197,54 @@ describe('place: a country, a region and a city, strictly', () => {
   });
   it('keeps the last valid key of a repeated parameter', () => {
     expect(parseBoardQuery(params('place=GB&place=US-MD&place=nope')).place).toBe('US-MD');
+  });
+});
+
+describe('place=unstated: the one key that is not a place (Location, Not stated)', () => {
+  it('is read from the address, and the last valid key of a repeated parameter wins over it', () => {
+    expect(parseBoardQuery(params('place=unstated')).place).toBe('unstated');
+    expect(parseBoardQuery(params('place=GB&place=unstated')).place).toBe('unstated');
+    expect(parseBoardQuery(params('place=unstated&place=GB')).place).toBe('GB');
+    // An invalid key after it does not displace it, as for every other key.
+    expect(parseBoardQuery(params('place=unstated&place=nope')).place).toBe('unstated');
+  });
+  it('is exactly one spelling: a near miss is no place, never repaired into it', () => {
+    for (const key of ['Unstated', 'UNSTATED', 'unstated ', ' unstated', 'unstated/London', 'unstated-MD', 'unstate', 'none', 'not-stated', 'null', 'all']) {
+      expect(parseBoardQuery(params(`place=${encodeURIComponent(key)}`)).place, JSON.stringify(key)).toBeNull();
+      expect(isPlaceKey(key), JSON.stringify(key)).toBe(false);
+    }
+  });
+  it('cannot collide with a place key: those start with two upper case letters and this is eight lower case ones', () => {
+    expect(PLACE_UNSTATED).toBe('unstated');
+    expect(PLACE_UNSTATED).not.toMatch(/^[A-Z]{2}/);
+    for (const key of ['GB', 'US-MD', 'GB/London', 'US-MD/Baltimore']) {
+      expect(isPlaceUnstated(key), key).toBe(false);
+      expect(isPlaceKey(key), key).toBe(true);
+    }
+    expect(isPlaceUnstated('unstated')).toBe(true);
+    expect(isPlaceKey('unstated')).toBe(true);
+    expect(isPlaceKey(null)).toBe(false);
+    expect(isPlaceKey(undefined)).toBe(false);
+  });
+  it('is not a geographic key: parsePlaceKey, which every predicate binds the parts of, still refuses it', () => {
+    // If it returned a place with no country a caller that forgot the case would
+    // bind "no place chosen" and match every row. job-store.ts reads it through
+    // isPlaceUnstated() instead (placeBinding).
+    expect(parsePlaceKey('unstated')).toBeNull();
+  });
+  it('round-trips through the address, the strip, the hidden fields and a clear', () => {
+    const query = parseBoardQuery(params('place=unstated&remote=remote'));
+    expect(boardHref('/board', query)).toBe('/board?place=unstated&remote=remote');
+    expect(stripValues(query)).toEqual({ place: 'unstated', pay_min: 'all' });
+    expect(hiddenFields(query, ['place'])).toEqual([['remote', 'remote']]);
+    expect(hiddenFields(query, [])).toEqual([['place', 'unstated'], ['remote', 'remote']]);
+    expect(boardHref('/board', query, { place: null })).toBe('/board?remote=remote');
+    // Choosing it from another place replaces that place.
+    expect(boardHref('/board', parseBoardQuery(params('place=GB%2FLondon')), { place: 'unstated' })).toBe('/board?place=unstated');
+    expect(parseBoardQuery(new URLSearchParams(boardHref('/board', query).split('?')[1]))).toEqual(query);
+  });
+  it('is worded in full as a chip: "Location not stated"', () => {
+    expect(placeKeyLabel('unstated')).toBe('Location not stated');
   });
 });
 

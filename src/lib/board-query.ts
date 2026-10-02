@@ -25,7 +25,7 @@ import { COMP_BANDS, SORT_KEYS, type SortKey } from './data';
 // The pay bounds the search box clamps to, imported so the box and the address
 // can never disagree about what a legal floor is.
 import { PAY_MAX_K, PAY_MIN_K } from './search-parse';
-import { parsePlaceKey } from './place-key';
+import { isPlaceKey } from './place-key';
 
 /** 5 on arrival (the owner's call, 2026-09-11): a first page a person reads
     whole, then steps up to a hundred for scanning. */
@@ -135,10 +135,12 @@ export interface BoardQuery {
   /**
    * WHERE THE POSTING IS, as a place key (`place=`): a country (`GB`), a
    * country and region (`US-MD`), or either followed by `/` and a city exactly
-   * as the board spells it (`GB/London`, `US-MD/Baltimore`). Null is no place
-   * chosen. Validated for shape here (parsePlaceKey) and nothing else: whether
-   * a key names a place the board holds is the counts' business, and a key that
-   * names nothing correctly returns nothing.
+   * as the board spells it (`GB/London`, `US-MD/Baltimore`), or `unstated`, the
+   * postings whose country the board could not resolve (place-key.ts
+   * PLACE_UNSTATED). Null is no place chosen. Validated for shape here
+   * (isPlaceKey) and nothing else: whether a key names a place the board holds
+   * is the counts' business, and a key that names nothing correctly returns
+   * nothing.
    */
   place: string | null;
   /**
@@ -261,7 +263,7 @@ export function parseRemote(values: readonly string[]): RemoteKind[] {
 
 // The place key's grammar moved to place-key.ts (data.ts needs it too, and cannot
 // import this file); re-exported so every caller of it from here keeps working.
-export { formatPlaceKey, parsePlaceKey, placeKeyLabel, type PlaceKey } from './place-key';
+export { PLACE_UNSTATED, formatPlaceKey, isPlaceKey, isPlaceUnstated, parsePlaceKey, placeKeyLabel, type PlaceKey } from './place-key';
 
 /** A pay floor from the address: a whole number of thousands in the box's own bounds, or null. */
 export function parsePayMin(value: string | null): number | null {
@@ -376,7 +378,7 @@ export function parseBoardQuery(params: URLSearchParams): BoardQuery {
   let company: string | null = null;
   for (const value of params.getAll('company')) company = parseCompany(value) ?? company;
   let place: string | null = null;
-  for (const value of params.getAll('place')) place = parsePlaceKey(value) ? value : place;
+  for (const value of params.getAll('place')) place = isPlaceKey(value) ? value : place;
 
   // `best` ranks words, so with none typed it reads as the table's own default.
   const named = oneOf(params.get('sort'), BOARD_SORT_KEYS, defaultSortFor(q));

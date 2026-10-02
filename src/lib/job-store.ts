@@ -19,7 +19,7 @@ import { COMP_TOP_PATTERN } from './data';
 import { normalizeTitle } from './ledger-titles';
 import { FAMILY_IDS } from './job-family.mjs';
 import { SEARCH_MAX_CHARS } from './search-parse';
-import { parsePlaceKey, type BoardSort } from './board-query';
+import { PLACE_UNSTATED, isPlaceUnstated, parsePlaceKey, type BoardSort } from './board-query';
 
 /**
  * The columns the board adapter (board-jobs.ts) reads, in one place. ghost is
@@ -174,8 +174,18 @@ export interface BoardFilter {
   /** Keep only postings that state no pay. Exclusive with `payMin`. */
   compNotListed?: boolean;
   /** A place key (`GB`, `US-MD`, `GB/London`, `US-MD/Baltimore`;
-   *  board-query.ts parsePlaceKey). An invalid key is dropped, not an error. */
+   *  board-query.ts parsePlaceKey), or `unstated` for the postings with no
+   *  resolved country (place-key.ts PLACE_UNSTATED). An invalid key is dropped,
+   *  not an error. */
   place?: string | null;
+  /** Whether the reader can SEE Deets, the score this board prints in its own
+   *  column and explains in the why panel. Absent means true, which is what every
+   *  caller that does not render rows (the counts, the typeahead, the harness)
+   *  means and what the signed-in board is. board.astro passes false for a reader
+   *  who has neither the Deets column nor the panel, and a search's best-match
+   *  order then drops Deets from its tie-break: an order must not lean on a
+   *  number the reader cannot read. See BEST_ORDER. */
+  deetsVisible?: boolean;
   /** A company by its exact name on the board. */
   company?: string | null;
   /** Occupational families to keep (src/lib/job-family.mjs, db/212's
@@ -212,9 +222,12 @@ export interface FacetCounts {
    *  the whole pay control out, so each is what that choice would leave. */
   pay: { any: number; notListed: number; floors: Record<string, number> };
   /** The places, counted over everything but the place filter itself: each
-   *  country's rows, and the rows with no resolved country, which no place can
-   *  be chosen to reach and which are therefore counted apart. Together they
-   *  sum to what the board would show with no place chosen. */
+   *  country's rows, and the rows with no resolved country (`place=unstated`),
+   *  counted apart. Together they sum to what the board would show with no place
+   *  chosen. EVERY COUNTRY THE LIVE BOARD HOLDS IS A KEY, at 0 where the other
+   *  filters leave it nothing: a country is never dropped from the list because
+   *  the words, the pay floor or the arrangement emptied it, since an absence
+   *  cannot be told from a country the board never had. */
   place: { countries: Record<string, number>; notStated: number };
 }
 
@@ -299,17 +312,47 @@ const BOARD_ORDER: Record<Exclude<BoardFilter['sort'], 'best'>, string> = {
 };
 
 /**
+ * THE BEST-MATCH ORDERS, TWO EACH, allowlisted: the raw string never reaches SQL
+ * and neither does the flag that picks between them. A search's order is its text
+ * (the tier a row's words are found at, then how close the match is, or on the typo
+ * path how alike the spelling is), and what breaks a tie after that was Deets. A
+ * reader who cannot see Deets, a signed-out reader on a board where fit_public is
+ * dark, has no Deets column and no why panel, so a tie broken by Deets is broken
+ * by a number they cannot read and the order is one they cannot check: the thing
+ * this product exists to refuse. For them the tie is age, then id. `deetsVisible`
+ * on the filter chooses (pageSql); rank-reason.ts words both, and
+ * rank-reason.test.ts reads these four strings and fails when one changes under a
+ * sentence that still describes the old order.
+ */
+const BEST_ORDER = {
+  withDeets: 'tier_n ASC, rank_n DESC, detail_total DESC, age_days ASC NULLS LAST, id ASC',
+  withoutDeets: 'tier_n ASC, rank_n DESC, age_days ASC NULLS LAST, id ASC'
+} as const;
+const FUZZY_ORDER = {
+  withDeets: 'text_sim DESC, detail_total DESC, age_days ASC NULLS LAST, id ASC',
+  withoutDeets: 'text_sim DESC, age_days ASC NULLS LAST, id ASC'
+} as const;
+
+/**
  * THE PLACE AND COMPANY PREDICATES, written once. boardFacetCte() spells its
  * match_place and match_company flags with these, and countBoardTotals() spells
  * the per-suggestion version of the same two questions with them, so "what is a
  * posting in this place" has one definition and a suggestion's count cannot
  * drift from the table's. The arguments are the PARAMETER NAMES to read (`$16`),
  * never values.
+ *
+ * `unstated` TRAVELS IN THE COUNTRY PARAMETER. The country is bound as the
+ * literal PLACE_UNSTATED (placeBinding), which no country code can equal, and the
+ * predicate then asks for the rows with NO resolved country instead of the rows in
+ * one. That keeps the statement's parameters exactly where they were (the tests
+ * pin them, and the search words are numbered from the end of them), and the
+ * keyword is written into the text from this file's own constant, never from input.
  */
 function placeMatchSql(country: string, admin1: string, city: string): string {
-  return `COALESCE((${country}::text IS NULL OR place_country = ${country}::text)
-                  AND (${admin1}::text IS NULL OR place_admin1 = ${admin1}::text)
-                  AND (${city}::text IS NULL OR place_city = ${city}::text), false)`;
+  return `COALESCE(CASE WHEN ${country}::text = '${PLACE_UNSTATED}' THEN place_country IS NULL
+                   ELSE (${country}::text IS NULL OR place_country = ${country}::text)
+                    AND (${admin1}::text IS NULL OR place_admin1 = ${admin1}::text)
+                    AND (${city}::text IS NULL OR place_city = ${city}::text) END, false)`;
 }
 function companyMatchSql(name: string): string {
   return `(${name}::text IS NULL OR company = ${name}::text)`;
@@ -642,10 +685,26 @@ function facetCountSql(mode: TextMode, titleClause: string, materialize: boolean
     `${on('family', ' AND derived_fam IS NULL')} AS family_unplaced`,
     ...FAMILY_IDS.map((id) => `${on('family', ` AND derived_fam = '${id}'`)} AS "family_${id}"`),
     // The places, counted over everything but the place filter. The empty key
-    // is the rows with no resolved country, which no place can be chosen to
-    // reach. NULL (not an empty object) when no row qualifies.
+    // is the rows with no resolved country (`place=unstated` reaches them).
+    // NULL (not an empty object) when no row qualifies.
     `(SELECT jsonb_object_agg(coalesce(place_country, ''), n)
-        FROM (SELECT place_country, count(*)::int AS n FROM flags WHERE ${keep('place')} GROUP BY place_country) p) AS places`
+        FROM (SELECT place_country, count(*)::int AS n FROM flags WHERE ${keep('place')} GROUP BY place_country) p) AS places`,
+    // EVERY COUNTRY THE LIVE BOARD HOLDS, so a country the other filters leave
+    // nothing is a zero in the list and not a missing row (readCounts adds the
+    // zeros). It cannot come from `flags`: the search words are in the CTE's
+    // WHERE as well as in match_q, so under words `flags` holds only the rows
+    // the words found. It is a list of NAMES, not a count, so it is read straight
+    // off the table and takes no part in any number: every count above still comes
+    // from the one CTE. A recursive skip over jobs_live_place_country_idx (find the
+    // smallest country, then the smallest larger one) reads one index entry per
+    // country, 95 of them, where DISTINCT reads all 30,574: 1 ms against 6. The
+    // literal status <> 'killed' is what lets Postgres use the partial index.
+    `(WITH RECURSIVE live_country(c) AS (
+        SELECT min(place_country) FROM jobs WHERE status <> 'killed' AND place_country IS NOT NULL
+        UNION ALL
+        SELECT (SELECT min(place_country) FROM jobs WHERE status <> 'killed' AND place_country > live_country.c)
+          FROM live_country WHERE live_country.c IS NOT NULL
+      ) SELECT array_agg(c) FROM live_country WHERE c IS NOT NULL) AS place_universe`
   ];
   return `${boardFacetCte(mode)}
 , flags AS ${materialize ? 'MATERIALIZED' : 'NOT MATERIALIZED'} (
@@ -1121,11 +1180,24 @@ function resolvePay(f: Pick<SharedInput, 'comp' | 'payMin' | 'compNotListed'>): 
   return { comp, payMin: typeof floor === 'number' && Number.isFinite(floor) && floor > 0 ? floor : null };
 }
 
+/**
+ * A place filter as the statements bind it: the country, region and city (each
+ * null where the key stops short of it), or null when no place is chosen. The one
+ * reader of BoardFilter.place, so a statement cannot take `unstated` for "no
+ * place" the way parsePlaceKey alone would, nor drop it. `unstated` is bound as
+ * the country, as the literal placeMatchSql tests for; a key that is not a place
+ * at all is dropped, as it always was.
+ */
+function placeBinding(place: string | null | undefined): { country: string; admin1: string | null; city: string | null } | null {
+  if (isPlaceUnstated(place)) return { country: PLACE_UNSTATED, admin1: null, city: null };
+  return parsePlaceKey(place ?? null);
+}
+
 /** Parameters $1 to $19 of the CTE, in order. `text` is $3: see boardFacetCte. */
 function sharedParams(f: SharedInput, text: string | null, age: { min: number | null; max: number | null }): unknown[] {
   const arrangement = resolveArrangement(f);
   const pay = resolvePay(f);
-  const place = parsePlaceKey(f.place ?? null);
+  const place = placeBinding(f.place);
   const company = f.company?.trim();
   return [
     f.sweepDate, FRESH_WINDOW_DAYS_SQL, text, arrangement.location, pay.comp, f.freshness ?? 'all',
@@ -1183,7 +1255,7 @@ function needsFlags(f: SharedInput, hasText: boolean, age: { min: number | null;
     age.min !== null ||
     age.max !== null ||
     Boolean(f.families && f.families.length > 0) ||
-    parsePlaceKey(f.place ?? null) !== null ||
+    placeBinding(f.place) !== null ||
     Boolean(f.company?.trim())
   );
 }
@@ -1326,6 +1398,11 @@ async function readCounts(conn: Queryable, setup: Setup): Promise<{ counts: Face
     if (country === '') notStated += Number(n) || 0;
     else countries[country] = Number(n) || 0;
   }
+  // Then every country the live board holds that the filters left nothing in, at
+  // zero: counted ones are never overwritten, so a zero only ever fills a gap.
+  for (const country of (rows[0]?.place_universe ?? []) as string[]) {
+    if (!(country in countries)) countries[country] = 0;
+  }
   const location = {
     all: c.location_all ?? 0,
     remote: c.location_remote ?? 0,
@@ -1364,6 +1441,8 @@ interface PageSpec {
   /** `exact` and `fuzzy` carry words; `none` is no words (or nothing to match). */
   text: 'none' | 'exact' | 'fuzzy';
   sort: BoardSort;
+  /** Whether the reader can see Deets: which of the two best-match tails to run. */
+  deetsVisible: boolean;
   titleClause: string;
   /** Parameter numbers of the tier queries ($ index), exact words only. */
   tiers: { a: number; ab: number; abc: number; phrase: number } | null;
@@ -1407,8 +1486,9 @@ function fieldSql(titleRef: string, searchRef: string, tiers: NonNullable<PageSp
  * The page statement. Three shapes of the same thing:
  *
  *   exact words, sort=best   every matching row is ranked (tier, then
- *                            ts_rank_cd, then Deets, then age, then id) before
- *                            the page is cut, because the order IS the rank.
+ *                            ts_rank_cd, then Deets when the reader can see it,
+ *                            then age, then id) before the page is cut, because
+ *                            the order IS the rank.
  *   exact words, any other   the page is cut in the reader's own order and
  *                            only then are its twenty-five rows asked which
  *                            rung they are on. A tier is a fact about a row,
@@ -1443,9 +1523,9 @@ function pageSql(spec: PageSpec): string {
    WHERE ${keep}
 )`);
     source = 'ranked m';
-    order = 'tier_n ASC, rank_n DESC, detail_total DESC, age_days ASC NULLS LAST, id ASC';
+    order = spec.deetsVisible ? BEST_ORDER.withDeets : BEST_ORDER.withoutDeets;
   } else if (best && text === 'fuzzy') {
-    order = 'text_sim DESC, detail_total DESC, age_days ASC NULLS LAST, id ASC';
+    order = spec.deetsVisible ? FUZZY_ORDER.withDeets : FUZZY_ORDER.withoutDeets;
   } else {
     order = BOARD_ORDER[spec.sort === 'best' ? 'fit' : spec.sort] ?? BOARD_ORDER.fit;
   }
@@ -1480,7 +1560,7 @@ async function readPage(
   setup: Setup,
   text: PageSpec['text'],
   sq: SearchQuery | null,
-  opts: Pick<BoardFilter, 'sort'>,
+  opts: Pick<BoardFilter, 'sort' | 'deetsVisible'>,
   perPage: number,
   page: number
 ): Promise<BoardListRow[]> {
@@ -1497,7 +1577,7 @@ async function readPage(
   const { rows } = await runStatement(
     conn,
     plansForWords(setup.mode),
-    pageSql({ mode: setup.mode, text, sort: opts.sort, titleClause: setup.titleClause, tiers, limit: params.length - 1, offset: params.length }),
+    pageSql({ mode: setup.mode, text, sort: opts.sort, deetsVisible: opts.deetsVisible !== false, titleClause: setup.titleClause, tiers, limit: params.length - 1, offset: params.length }),
     params
   );
   return rows as BoardListRow[];
@@ -1728,12 +1808,14 @@ async function countGroup(group: readonly BoardFilter[]): Promise<number[]> {
         const f = group[at] as BoardFilter;
         const own: string[] = [];
         const sargable: string[] = [];
-        const place = parsePlaceKey(f.place ?? null);
+        const place = placeBinding(f.place);
         if (place) {
           params.push(place.country, place.admin1, place.city);
           const [c, a, y] = [params.length - 2, params.length - 1, params.length].map((n) => `$${n}`) as [string, string, string];
           own.push(placeMatchSql(c, a, y));
-          sargable.push(`place_country = ${c}::text`);
+          // `unstated` reads the rows with no country, which the same index answers
+          // as a NULL probe; every other key is an equality on what it names.
+          sargable.push(place.country === PLACE_UNSTATED ? 'place_country IS NULL' : `place_country = ${c}::text`);
           if (place.admin1 !== null) sargable.push(`place_admin1 = ${a}::text`);
           if (place.city !== null) sargable.push(`place_city = ${y}::text`);
         }
@@ -1939,7 +2021,7 @@ function instantString(value: Date | string | null): string | null {
     passes the sweep date alone. */
 export type AgeHistogramFilter = Omit<
   BoardFilter,
-  'page' | 'perPage' | 'sort' | 'ageMin' | 'ageMax' | 'q' | 'location' | 'comp' | 'freshness'
+  'page' | 'perPage' | 'sort' | 'deetsVisible' | 'ageMin' | 'ageMax' | 'q' | 'location' | 'comp' | 'freshness'
 > &
   Partial<Pick<BoardFilter, 'q' | 'location' | 'comp' | 'freshness'>>;
 

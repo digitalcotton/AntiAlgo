@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { clusterJobs, compShortFromText, compTop, locationDisplay, type Job } from './data';
+import { PLACE_UNSTATED } from './place-key';
 
 // data.ts's clusterJobs() is MASTER-SPEC F10's duplicate-cluster collapse:
 // same title, same company, different locations becomes one row. These tests
@@ -334,7 +335,7 @@ describe('facetGroupsFromCounts: the board (stated-fact counts)', () => {
     expect(groups.map((g) => g.multi === true)).toEqual([false, true, false, false]);
   });
 
-  it('Location: Worldwide first (everything), countries by count with English names, Not stated last and disabled', async () => {
+  it('Location: Worldwide first (everything), countries by count with English names, Not stated last and a real choice', async () => {
     const { facetGroupsFromCounts } = await import('./data');
     const place = facetGroupsFromCounts(counts, ALL).find((g) => g.key === 'place')!;
     expect(place.options.map((o) => [o.value, o.label, o.count])).toEqual([
@@ -348,9 +349,19 @@ describe('facetGroupsFromCounts: the board (stated-fact counts)', () => {
     ]);
     // Worldwide is the sum of the places, which is what the store's leave-one-out takes.
     expect(place.options[0].count).toBe(60 + 12 + 12 + 4 + 12);
-    expect(place.options.map((o) => o.disabled === true)).toEqual([false, false, false, false, false, true]);
-    // The absence is drawn with its count, not hidden.
+    // Nothing is flagged disabled: Not stated is a choice the store can answer now
+    // (`place=unstated`), live while it has rows, a muted zero when it has none.
+    expect(place.options.map((o) => o.disabled === true)).toEqual([false, false, false, false, false, false]);
+    // The absence is drawn with its count, not hidden, under the value the address reads.
     expect(place.options.at(-1)).toMatchObject({ value: 'unstated', label: 'Not stated', count: 12 });
+    expect(place.options.at(-1)?.value).toBe(PLACE_UNSTATED);
+  });
+
+  it('Location: Not stated chosen is the selected option, and is not relabelled or listed twice', async () => {
+    const { facetGroupsFromCounts } = await import('./data');
+    const place = facetGroupsFromCounts(counts, { ...ALL, place: 'unstated' }).find((g) => g.key === 'place')!;
+    expect(place.options.filter((o) => o.value === 'unstated')).toHaveLength(1);
+    expect(place.options.map((o) => o.value)).toEqual(['all', 'US', 'CA', 'GB', 'IN', 'unstated']);
   });
 
   it('Location: a chosen city or region is its own option under Worldwide, read as its own name, and the list still offers countries', async () => {
@@ -377,11 +388,10 @@ describe('facetGroupsFromCounts: the board (stated-fact counts)', () => {
   });
 
   it('Location: a country the counts hand over at zero is kept, after the ones with rows, and Worldwide still sums the places', async () => {
-    // The store lists only countries that have rows under the other filters, so a
-    // country that empties drops off the list unless the counts carry it at zero
-    // (see the report: that is the one place "never hidden" needs the store). This
-    // is the strip's half: given a zero, it draws a zero, last among the countries
-    // (France before Germany: ties go by name, not by code).
+    // The store returns every country the live board holds, at zero where the
+    // other filters leave it nothing (job-store.ts readCounts), so a country never
+    // drops off the list. This is the strip's half: given a zero, it draws a zero,
+    // last among the countries (France before Germany: ties go by name, not by code).
     const { facetGroupsFromCounts } = await import('./data');
     const place = facetGroupsFromCounts(
       { ...counts, place: { countries: { US: 60, FR: 0, GB: 12, DE: 0 }, notStated: 0 } },

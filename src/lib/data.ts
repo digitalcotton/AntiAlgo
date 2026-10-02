@@ -33,7 +33,7 @@
 
 import { FAMILIES } from './job-family.mjs';
 import { SENIORITY_LADDER, countryName } from './jobs-derived.mjs';
-import { parsePlaceKey, placeKeyLabel } from './place-key';
+import { PLACE_UNSTATED, parsePlaceKey, placeKeyLabel } from './place-key';
 import rawJobs from '../data/jobs.json';
 import rawProspects from '../data/prospects.json';
 import rawKills from '../data/kills.json';
@@ -2358,8 +2358,10 @@ export interface StripSelection {
  * THE BOARD'S STRIP IS THREE CONTROLS, IN THIS ORDER (docs/search-engine-design.md
  * §2, docs/board-filters-design-prompt.md §4):
  *
- *   place     LOCATION, geography: Worldwide, then every country that has rows,
- *             most first, then Not stated. A single choice; its value is the
+ *   place     LOCATION, geography: Worldwide, then every country the live board
+ *             holds, most rows first and the ones the other filters leave empty
+ *             last at zero, then Not stated (`place=unstated`, the rows whose
+ *             country the board could not resolve). A single choice; its value is the
  *             `place=` key, which is the same key a search-box chip writes, so
  *             the control and the chip are ONE state. When the address names a
  *             city or a region (a chip set it) the list still offers countries
@@ -2377,10 +2379,12 @@ export interface StripSelection {
  * over ONE population), and an option that would leave nothing is returned at
  * zero for the strip to draw muted and refuse. Removing options as they empty
  * costs a reader their place; the old pruning ("a group whose every row falls in
- * one option is a label and not a filter") is gone with it. The one exception is
- * stated on the option itself: `disabled` is an option nothing can be asked of
- * yet (Not stated under Location, until the store can filter to rows with no
- * resolved place), and it keeps its count.
+ * one option is a label and not a filter") is gone with it. A country the board
+ * holds is in the Location list whatever the other filters have left it: the
+ * store returns every one, at zero where it has to, and Filters.astro draws a zero
+ * muted and refused unless it is the choice already made. `disabled` on a
+ * FilterOption is still the way to say an option nothing can be asked of whatever
+ * its count; no option sets it today.
  *
  * THE FIELD IS NOT A STRIP CONTROL. It filtered on an inference (44% of rows are
  * ambiguous between two families), so it left the strip and returns, as the last
@@ -2417,10 +2421,11 @@ function placeGroup(place: NonNullable<StripCounts['place']>, total: number, sel
   const options: FilterOption[] = [{ value: 'all', label: 'Worldwide', count: everywhere }];
 
   // THE PLACE THE ADDRESS HAS CHOSEN, WHEN THE LIST BELOW CANNOT SHOW IT: a city
-  // or a region (a search-box chip sets those), or a country with no rows under
-  // the other filters (the counts list only countries that have some). Without an
-  // option for it the select could not say what it holds. A city's count is the
-  // result total, since the place is applied there; a country with no rows is zero.
+  // or a region (a search-box chip sets those), or a country the board does not
+  // hold at all (a stale bookmark: the store lists every country it does, at zero
+  // where the filters leave none). Without an option for it the select could not
+  // say what it holds. A city's count is the result total, since the place is
+  // applied there; a country with no rows is zero.
   const chosen = selected.place ?? null;
   const parts = chosen === null ? null : parsePlaceKey(chosen);
   if (chosen !== null && parts !== null) {
@@ -2431,11 +2436,11 @@ function placeGroup(place: NonNullable<StripCounts['place']>, total: number, sel
   }
 
   for (const country of countries) options.push({ value: country.code, label: country.name, count: country.count });
-  // Drawn last and never hidden: 21,573 of 37,286 rows were once in it, and an
-  // absence is shown, not left out. Disabled, because the store cannot yet be
-  // asked for "no resolved place" (parsePlaceKey has no such key), and a row that
-  // offered a choice it then ignored would be the one lie in the list.
-  options.push({ value: 'unstated', label: 'Not stated', count: place.notStated, disabled: true });
+  // Drawn last and never hidden: 6,712 of 37,286 live rows are in it, and an
+  // absence is shown, not left out. It is a real choice (`place=unstated`, the
+  // rows with no resolved country), so it is live while it has rows and a muted
+  // zero when the other filters leave it none, like every country above it.
+  options.push({ value: PLACE_UNSTATED, label: 'Not stated', count: place.notStated });
   return { key: 'place', label: 'Location', options };
 }
 

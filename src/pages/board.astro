@@ -115,6 +115,13 @@ const query = parsed;
 // only the store is handed the order the reader can actually see. Board.astro
 // underlines the same substitution on the sort control.
 const servedSort = !showFit && query.sort === 'fit' ? ('age' as const) : query.sort;
+// THE SAME FACT DECIDES WHAT BREAKS A TIE IN A SEARCH. Best match orders by the
+// text and then, for a reader who can see it, by Deets. A reader with no Deets
+// column and no why panel (showFit false) must not be ordered by a number they
+// cannot read, so the store is told, and its best-match tail is age and id for
+// them (job-store.ts BEST_ORDER). Board.astro says the order in one line above
+// the rows for the same reader, from the same flag (its `fit` prop).
+const deetsVisible = showFit;
 
 // THE BOARD IS NEVER PRE-FILTERED (owner decision, 2026-09-19). A member's
 // Desk titles no longer narrow it by default; every reader gets the full sweep.
@@ -191,8 +198,9 @@ if (isConfigured()) {
   [served, boardStats] = await Promise.all([
     // The store's filter is built by the one function the typeahead's counts
     // also use (search-suggest.ts), so a count printed in the box and the total
-    // under it cannot come from two readings of the same address.
-    listBoardFiltered(boardFilterFromQuery(query, { sweepDate: sweepDate(), sort: servedSort, titles: pickedTitles })).catch((error) => {
+    // under it cannot come from two readings of the same address. The one thing
+    // added here is whether the reader can see Deets, which only an ordering reads.
+    listBoardFiltered({ ...boardFilterFromQuery(query, { sweepDate: sweepDate(), sort: servedSort, titles: pickedTitles }), deetsVisible }).catch((error) => {
       console.error('board: the job store did not answer; rendering an empty board.', error);
       return EMPTY_PAGE;
     }),

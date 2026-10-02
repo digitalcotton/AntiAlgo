@@ -89,6 +89,15 @@ describe('normalizeSavedSelection(): what may be written', () => {
     }
   });
 
+  it('keeps Not stated: place=unstated is a real choice now, and survives a save and a read', () => {
+    expect(normalizeSavedSelection({ place: 'unstated' }).place).toBe('unstated');
+    expect(readSavedSelection({ place: 'unstated' }).place).toBe('unstated');
+    const saved = { place: 'unstated', remote: 'remote', pay_min: '150' };
+    expect(readSavedSelection(normalizeSavedSelection(saved))).toEqual(saved);
+    // A stored row hands it back through rowToStoredFilterState the same way.
+    expect(rowToStoredFilterState(filterStateRow({ selection: saved })).selection).toEqual(saved);
+  });
+
   it('keeps Not listed and a floor as the two things pay_min can say besides Any', () => {
     expect(normalizeSavedSelection({ pay_min: 'not-listed' }).pay_min).toBe('not-listed');
     expect(normalizeSavedSelection({ pay_min: '175' }).pay_min).toBe('175');
@@ -109,8 +118,8 @@ describe('normalizeSavedSelection(): what may be written', () => {
   });
 
   describe('a value the address\'s parsers refuse is no choice, never repaired and never kept', () => {
-    it('place: lower case, no country, a trailing slash, a four letter region, a control character, Not stated (which no key names)', () => {
-      for (const place of ['gb', '-MD', 'US-', 'GB/', 'US-ABCD', 'GB/Lon\ndon', 'GB/ London', 'unstated', 'Worldwide', '']) {
+    it('place: lower case, no country, a trailing slash, a four letter region, a control character, a near miss of Not stated', () => {
+      for (const place of ['gb', '-MD', 'US-', 'GB/', 'US-ABCD', 'GB/Lon\ndon', 'GB/ London', 'Unstated', 'UNSTATED', 'unstated ', 'unstated/London', 'none', 'Worldwide', '']) {
         expect(normalizeSavedSelection({ place }).place, JSON.stringify(place)).toBe('all');
       }
     });
@@ -220,6 +229,7 @@ describe('readSavedSelection() and the legacy mapping: an old record means what 
       { record: { comp: 'not-listed', pay_min: '300' }, address: 'comp=not-listed&pay_min=300' },
       { record: { pay_min: 'not-listed' }, address: 'pay_min=not-listed' },
       { record: { comp: 'under-150' }, address: 'comp=under-150' },
+      { record: { place: 'unstated', remote: 'remote' }, address: 'place=unstated&remote=remote' },
       { record: { place: 'nowhere', remote: 'mars', pay_min: '0' }, address: 'place=nowhere&remote=mars&pay_min=0' },
       { record: { remote: ['onsite', 'remote'] }, address: 'remote=onsite&remote=remote' }
     ];
@@ -234,7 +244,7 @@ describe('readSavedSelection() and the legacy mapping: an old record means what 
   });
 
   it('what is written reads back as itself: a selection is a fixed point of both', () => {
-    for (const selection of [NOTHING, { place: 'GB', remote: 'remote,onsite', pay_min: '100' }, { place: 'all', remote: 'unstated', pay_min: 'not-listed' }]) {
+    for (const selection of [NOTHING, { place: 'GB', remote: 'remote,onsite', pay_min: '100' }, { place: 'all', remote: 'unstated', pay_min: 'not-listed' }, { place: 'unstated', remote: 'all', pay_min: 'all' }]) {
       expect(readSavedSelection(normalizeSavedSelection(selection))).toEqual(selection);
     }
   });

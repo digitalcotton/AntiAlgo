@@ -214,6 +214,73 @@ describe('Board.astro: close spellings are said before the first row', () => {
   });
 });
 
+describe('Board.astro: the order in force is said once, above the rows, for a reader with no why panel', () => {
+  // The browser reads &quot; as the straight quote it is; the test reads it the same way.
+  const lineOf = (html: string) => html.match(/<p class="order-notice"[^>]*data-order-reason[^>]*>\s*([\s\S]*?)\s*<\/p>/)?.[1]?.replace(/&quot;/g, '"');
+  const BLIND = { jobs: JOBS, mode: 'server', ...SERVED, groups: servedGroups(), fit: false };
+
+  it('says best match, in rankReason\'s words and in the order the SQL uses, for a signed-out reader who typed words', async () => {
+    const html = await render({ ...BLIND, query: { ...DEFAULT_QUERY, q: 'designer', sort: 'best' } });
+    expect(lineOf(html)).toBe(
+      'Ordered by best match: where your words are found (the title, then the company name, then the rest of the posting), then the closer text match, then newer first.'
+    );
+    // Exactly one, server-rendered, above the first row, and it never names the number they cannot see.
+    expect(html.match(/data-order-reason/g)).toHaveLength(1);
+    expect(html.indexOf('data-order-reason')).toBeLessThan(html.indexOf('data-job-row'));
+    expect(lineOf(html)).not.toMatch(/Deets/);
+    for (const codePoint of [0x2014, 0x2013, 0x2018, 0x2019, 0x201c, 0x201d]) expect(html.includes(String.fromCodePoint(codePoint))).toBe(false);
+  });
+
+  it('says age for the bare board, because their unwritten Deets default is served as the age order', async () => {
+    const bare = await render({ ...BLIND, query: DEFAULT_QUERY });
+    expect(lineOf(bare)).toBe('Ordered by age: newest first, roles with no date last, then company and title A to Z.');
+    // The sort they chose is the sort said.
+    expect(lineOf(await render({ ...BLIND, query: { ...DEFAULT_QUERY, sort: 'age' } }))).toBe(lineOf(bare));
+    expect(lineOf(await render({ ...BLIND, query: { ...DEFAULT_QUERY, sort: 'comp' } }))).toBe(
+      'Ordered by pay: highest posted figure first, roles that post none last, then company and title A to Z.'
+    );
+    // And a chosen sort wins over best while words are typed.
+    expect(lineOf(await render({ ...BLIND, query: { ...DEFAULT_QUERY, q: 'designer', sort: 'comp' } }))).toMatch(/^Ordered by pay:/);
+  });
+
+  it('says the typo path\'s order under the close-spelling notice, quoting what was typed once, escaped', async () => {
+    const html = await render({ ...BLIND, fuzzy: true, query: { ...DEFAULT_QUERY, q: 'prodct desiner', sort: 'best' } });
+    expect(lineOf(html)).toBe('Ordered by best match: the closest spelling of "prodct desiner" first, then newer first.');
+    // The notice says which population this is; the order line says how it is ordered; both above the rows, in that order.
+    expect(html.indexOf('fuzzy-notice')).toBeLessThan(html.indexOf('data-order-reason'));
+    expect(html.indexOf('data-order-reason')).toBeLessThan(html.indexOf('data-job-row'));
+    const hostile = await render({ ...BLIND, fuzzy: true, query: { ...DEFAULT_QUERY, q: '<b>x</b>', sort: 'best' } });
+    expect(lineOf(hostile)).toContain('&lt;b&gt;x&lt;/b&gt;');
+    expect(lineOf(hostile)).not.toContain('<b>');
+  });
+
+  it('is not drawn for a signed-in reader, who has the per-row line and is not told twice', async () => {
+    const rows = [boardRowToJob(storedRow('1', { match_tier: 1, match_field: 'title' }))];
+    const html = await render({
+      jobs: rows, mode: 'server', boardPath: '/board', groups: servedGroups(), fit: true,
+      page: { total: 1, page: 1, pages: 1, per: 5 }, query: { ...DEFAULT_QUERY, q: 'product designer', sort: 'best' }
+    });
+    expect(html).not.toContain('data-order-reason');
+    expect(html).not.toContain('order-notice');
+    // They keep the per-row sentence, in the panel.
+    expect([...html.matchAll(/data-rank-reason/g)]).toHaveLength(1);
+    // And the blind reader has the line and no per-row sentence: one statement of the order each, never both.
+    const blind = await render({
+      jobs: rows, mode: 'server', boardPath: '/board', groups: servedGroups(), fit: false,
+      page: { total: 1, page: 1, pages: 1, per: 5 }, query: { ...DEFAULT_QUERY, q: 'product designer', sort: 'best' }
+    });
+    expect(blind).toContain('data-order-reason');
+    expect(blind).not.toContain('data-rank-reason');
+  });
+
+  it('is not drawn where there is nothing to be above or nothing to order: no rows, the teaser, the Pre-List', async () => {
+    const query = { ...DEFAULT_QUERY, q: 'designer', sort: 'best' };
+    expect(await render({ ...BLIND, jobs: [], page: { total: 0, page: 1, pages: 1, per: 5 }, query })).not.toContain('data-order-reason');
+    expect(await render({ ...BLIND, teaser: true, query })).not.toContain('data-order-reason');
+    expect(await render({ jobs: JOBS, fit: false })).not.toContain('data-order-reason');
+  });
+});
+
 describe('Board.astro: Best is the pressed sort while words are typed', () => {
   const segments = (html: string) => [...html.matchAll(/<a class="segment"[^>]*>/g)].map((m) => ({
     key: m[0].match(/data-sort-key="([^"]+)"/)![1], pressed: m[0].includes('aria-current="true"'), href: m[0].match(/href="([^"]*)"/)![1].replace(/&#38;|&amp;/g, '&')

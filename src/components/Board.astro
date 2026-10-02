@@ -11,6 +11,7 @@ import SortControl from './SortControl.astro';
 import StatTiles from './StatTiles.astro';
 import { ageHistogramFromJobs, clusterJobs, filterGroups, paginate, SORT_KEYS, type AgeHistogram, type FilterGroup, type Job, type SortKey } from '../lib/data';
 import { PER_PAGE_OPTIONS, boardHref, hiddenFields, pageSpan, stripValues, type BoardQuery, type BoardSort } from '../lib/board-query';
+import { orderReason } from '../lib/rank-reason';
 import type { Chip } from '../lib/search-parse';
 
 /**
@@ -24,9 +25,17 @@ import type { Chip } from '../lib/search-parse';
  * and it is carried, or choosing a Remote option would silently drop the field
  * the reader had picked from the links under the table.
  *
- * UNDER THE TABLE, TWO LINES. When a search fell back to close spellings, a line
- * above the rows says so, so a near match is never mistaken for a match. And
- * below them, "Fields these roles are filed under": the top families among the
+ * ABOVE THE ROWS, UP TO TWO LINES. When a search fell back to close spellings, a
+ * line says so, so a near match is never mistaken for a match. And a reader who has
+ * no why panel on the rows (no Deets column: a signed-out reader while fit_public
+ * is dark) gets ONE line that states the order in force ("Ordered by best match:
+ * ..."), worded by rank-reason.ts orderReason() from the same rules and the same
+ * ORDER BY the per-row sentence follows. A reader who has the panel keeps the
+ * per-row sentence and gets no second statement of it: the line is for the reader
+ * who would otherwise be told nothing, and an order nobody can read is the thing
+ * this product exists to refuse.
+ *
+ * UNDER THE TABLE, ONE LINE. Below the rows, "Fields these roles are filed under": the top families among the
  * rows the reader is looking at, as links (`fam=<id>`, navigation and not a strip
  * control). The Field is a classification of the title, not something an employer
  * stated, and 44% of rows sit between two families, so it is offered as a way to
@@ -175,6 +184,16 @@ const spanText =
     ? served.total === 0
       ? 'No rows'
       : `Rows ${span.first.toLocaleString()} to ${span.last.toLocaleString()} of ${served.total.toLocaleString()}`
+    : '';
+// THE ORDER, SAID ONCE, FOR A READER WITH NO PER-ROW REASON. The why panel (and the
+// sentence in it) is a Deets-reader's: JobTable draws neither without `fit`. So this
+// is drawn exactly when `fit` is false, and then for the order the reader is really
+// in (sortCurrent: their unwritten Deets default is served as age), with no Deets in
+// the best-match tail because the store was told they cannot see it (board.astro
+// deetsVisible). Nothing to say about a page with no rows.
+const orderLine =
+  serverMode && !fit && !teaser && served !== undefined && served.total > 0
+    ? orderReason({ sort: sortCurrent(q), query: q.q, fuzzy, deetsVisible: false })
     : '';
 const clearHref = serverMode
   ? boardHref(boardPath, q, {
@@ -330,6 +349,13 @@ const narrowedBeyondAge =
       <p class="fuzzy-notice" role="status" data-fuzzy-notice>
         No exact matches for "{q.q}". Showing close spellings.
       </p>
+    )}
+
+    {/* THE ORDER IN FORCE, for a reader who has no why panel to read it in (see
+        orderLine above). One server-rendered line on the table's top edge, below
+        the close-spelling notice when both show. */}
+    {orderLine !== '' && (
+      <p class="order-notice" data-order-reason>{orderLine}</p>
     )}
 
     {serverMode && served ? (
@@ -596,9 +622,11 @@ const narrowedBeyondAge =
 
   /* The two lines under the strip's results. Each is a band in the table's own
      box: the same surface, the same hairline edges, no gaps, nothing rounded.
-     The notice sits on the table's top edge and the field links under its bottom
-     one, so neither adds a border of its own where it meets the table. */
-  .fuzzy-notice {
+     The notices sit on the table's top edge (the order line under the
+     close-spelling one when both show, each a hairline apart) and the field links
+     under its bottom one, so none adds a border of its own where it meets the table. */
+  .fuzzy-notice,
+  .order-notice {
     margin: 0;
     padding: var(--space-300) var(--space-500);
     background: var(--color-surface);

@@ -406,6 +406,27 @@ test.describe('a saved board filter (commit 54435b9)', () => {
       await expect(stripValue(page, 'Location')).toHaveText('London, United Kingdom');
     });
   });
+
+  test('Not stated is a place the account can keep: saved as place=unstated, restored to the address, drawn as the chosen row', async ({ page }) => {
+    await withSavedSelection(page, async () => {
+      // The account validates a saved place through the address's own reader, and `unstated` is a value it reads now
+      // (it was dropped to "all" while no key could name the rows with no resolved country).
+      expect(await saveSelection(page, { place: 'unstated', remote: 'all', pay_min: 'all' })).toEqual({ place: 'unstated', remote: 'all', pay_min: 'all' });
+      await forgetBrowserCopy(page);
+      await arriveAtTheBoard(page);
+      await expect
+        .poll(() => page.url(), { timeout: 8_000, message: 'a bare arrival at the board never restored a saved Not stated' })
+        .toMatch(/\/board\?(?=.*place=unstated)/);
+      expect([...new URL(page.url()).searchParams.keys()], 'the restore carried more than the one place').toEqual(['place']);
+      await expect(stripValue(page, 'Location')).toHaveText('Not stated');
+      expect(await chipLabels(page)).toEqual(['Location not stated']);
+      // Choosing Worldwide takes it off the address and out of the account.
+      await pick(page, 'Location', 'Worldwide', /\/board\?(?!.*place=unstated)/);
+      await expect
+        .poll(() => savedSelection(page), { message: 'the account kept Not stated after the reader chose Worldwide' })
+        .toEqual(NOTHING_SAVED);
+    });
+  });
 });
 
 test.describe('the waitlist form, signed out (dead 2026-09-13 to 2026-09-20)', () => {

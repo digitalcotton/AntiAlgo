@@ -9,10 +9,15 @@
  * that must hold everywhere (a place, an ending, no forbidden punctuation,
  * deterministic), and it reads job-store.ts and fails when an ORDER BY changes
  * under a sentence that still describes the old one.
+ *
+ * Both voices are here: rankReason(), the per-row "Ranked 3rd: ..." line, and
+ * orderReason(), the order said once above the rows for a reader who has no why
+ * panel. Each has a variant for a reader who cannot see Deets, and the drift guard
+ * reads the best-match ORDER BY for both variants.
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ordinal, rankReason, type MatchField, type RankFacts } from './rank-reason';
+import { orderReason, ordinal, rankReason, type MatchField, type OrderFacts, type RankFacts } from './rank-reason';
 
 function facts(over: Partial<RankFacts> = {}): RankFacts {
   return {
@@ -189,6 +194,43 @@ describe('rankReason: sort=best on the typo path', () => {
   });
 });
 
+describe('rankReason: sort=best for a reader who cannot see Deets (signed out, fit_public dark)', () => {
+  const blind = (over: Partial<RankFacts> = {}) => facts({ deetsVisible: false, ...over });
+
+  it('exact words: the rung, the text match, then newer first, with no Deets step', () => {
+    expect(rankReason(blind({ tier: 1 }))).toBe('Ranked 3rd: every word you typed is in the title, then the closer text match, then newer first.');
+    expect(rankReason(blind({ tier: 0 }))).toBe('Ranked 3rd: the title is exactly what you typed, then the closer text match, then newer first.');
+    expect(rankReason(blind({ tier: 3, field: 'description' }))).toBe(
+      'Ranked 3rd: a word you typed is found only in the description, then the closer text match, then newer first.'
+    );
+  });
+
+  it('typo path: the close spelling and its similarity, then newer first', () => {
+    expect(rankReason(blind({ tier: null, fuzzy: true, fuzzyScore: 0.52, query: 'prodct desiner', position: 2 }))).toBe(
+      'Ranked 2nd: a close spelling of "prodct desiner" (similarity 0.52), then newer first.'
+    );
+  });
+
+  it('is the sighted sentence with the Deets step taken out, and nothing else', () => {
+    expect(rankReason(facts({ tier: 2 }))).toBe(
+      'Ranked 3rd: every word you typed is in the title or the company name, then the closer text match, then Deets 97, then newer first.'
+    );
+    expect(rankReason(blind({ tier: 2 }))).toBe('Ranked 3rd: every word you typed is in the title or the company name, then the closer text match, then newer first.');
+  });
+
+  it('Deets is the default only for a reader who can see it: with none typed it says nothing', () => {
+    expect(rankReason(blind({ tier: null, fuzzy: false }))).toBe('');
+    expect(rankReason(blind({ sort: 'fit' }))).toBe('');
+    // And the sighted default is unchanged.
+    expect(rankReason(facts({ sort: 'fit' }))).toBe('Ranked 3rd by Deets: 97 of 100, highest first, then company and title A to Z.');
+  });
+
+  it('a flag left out is a reader who can see: the sentences every other caller gets are unchanged', () => {
+    expect(rankReason(facts({ tier: 1 }))).toBe(rankReason(facts({ tier: 1, deetsVisible: true })));
+    expect(rankReason(facts({ tier: 1 }))).toContain('Deets 97');
+  });
+});
+
 describe('rankReason: the sorts a reader chooses', () => {
   it('Deets: the number, then the tie-break the SQL really uses', () => {
     expect(rankReason(facts({ sort: 'fit' }))).toBe(
@@ -330,6 +372,38 @@ describe('rankReason: the whole fact space', () => {
       expect(sentence.includes('a close spelling of'), JSON.stringify(f)).toBe(f.sort === 'best' && f.fuzzy);
     }
   });
+
+  describe('for a reader who cannot see Deets', () => {
+    const blind = all.map((f) => ({ ...f, deetsVisible: false }));
+
+    it('never names Deets, in any combination: an order must not lean on a number the reader cannot read', () => {
+      for (const f of blind) expect(rankReason(f), JSON.stringify(f)).not.toMatch(/Deets/);
+    });
+
+    it('says nothing, rather than something untrue, where the order IS Deets', () => {
+      for (const f of blind) {
+        const effective = f.sort === 'best' && !f.fuzzy && f.tier === null ? 'fit' : f.sort;
+        if (effective === 'fit') expect(rankReason(f), JSON.stringify(f)).toBe('');
+      }
+    });
+
+    it('is otherwise one sentence in the same shape as the sighted one, and the same words minus the Deets step', () => {
+      for (const f of blind) {
+        const sentence = rankReason(f);
+        if (sentence === '') continue;
+        expect(sentence, JSON.stringify(f)).toMatch(/^Ranked 41st( by (pay|age))?: .+\.$/);
+        const sighted = rankReason({ ...f, deetsVisible: true });
+        // The sighted sentence with its ", then Deets 97" step taken out is the blind one.
+        expect(sentence, JSON.stringify(f)).toBe(sighted.replace(/, then Deets \d+/, ''));
+      }
+    });
+
+    it('does not change a sort that never used Deets: pay and age read the same either way', () => {
+      for (const f of all.filter((x) => x.sort === 'comp' || x.sort === 'age')) {
+        expect(rankReason({ ...f, deetsVisible: false })).toBe(rankReason({ ...f, deetsVisible: true }));
+      }
+    });
+  });
 });
 
 /**
@@ -344,18 +418,56 @@ describe('rankReason: each sentence still describes the ORDER BY job-store.ts ru
 
   const ORDERS = {
     best: 'tier_n ASC, rank_n DESC, detail_total DESC, age_days ASC NULLS LAST, id ASC',
+    bestBlind: 'tier_n ASC, rank_n DESC, age_days ASC NULLS LAST, id ASC',
     typo: 'text_sim DESC, detail_total DESC, age_days ASC NULLS LAST, id ASC',
+    typoBlind: 'text_sim DESC, age_days ASC NULLS LAST, id ASC',
     fit: 'detail_total DESC, company ASC, title ASC, id ASC',
     comp: 'comp_top DESC NULLS LAST, company ASC, title ASC, id ASC',
     age: 'age_days ASC NULLS LAST, company ASC, title ASC, id ASC'
   };
 
-  it('the five orders are still the ones the sentences were written from', () => {
-    expect(source).toContain(`order = '${ORDERS.best}'`);
-    expect(source).toContain(`order = '${ORDERS.typo}'`);
+  /** The text of one allowlisted order table in job-store.ts, from its `const NAME = {` to `} as const;`. */
+  const table = (name: string): string => {
+    const start = source.indexOf(`const ${name} = {`);
+    expect(start, `${name} is gone from job-store.ts`).toBeGreaterThanOrEqual(0);
+    return source.slice(start, source.indexOf('} as const;', start));
+  };
+
+  it('the seven orders are still the ones the sentences were written from', () => {
+    // Each best-match order exists twice, with Deets and without (BEST_ORDER, FUZZY_ORDER),
+    // and each of the four strings is pinned here, not only the one a sighted reader gets.
+    expect(table('BEST_ORDER')).toContain(`withDeets: '${ORDERS.best}'`);
+    expect(table('BEST_ORDER')).toContain(`withoutDeets: '${ORDERS.bestBlind}'`);
+    expect(table('FUZZY_ORDER')).toContain(`withDeets: '${ORDERS.typo}'`);
+    expect(table('FUZZY_ORDER')).toContain(`withoutDeets: '${ORDERS.typoBlind}'`);
     expect(source).toContain(`fit: '${ORDERS.fit}'`);
     expect(source).toContain(`comp: '${ORDERS.comp}'`);
     expect(source).toContain(`age: '${ORDERS.age}'`);
+  });
+
+  it('the page hands the store the same fact that decides whether the reader sees Deets', () => {
+    const page = readFileSync(new URL('../pages/board.astro', import.meta.url), 'utf8');
+    // showFit is what draws the Deets column and the why panel (signed in, or fit_public lit): the
+    // flag is that, not a second opinion about who may see what.
+    expect(page).toContain('const showFit = signedIn || isOn(\'fit_public\');');
+    expect(page).toContain('const deetsVisible = showFit;');
+    expect(page).toMatch(/listBoardFiltered\(\{ \.\.\.boardFilterFromQuery\([^\n]*\), deetsVisible \}\)/);
+    // And the component says the order for exactly the reader the page told the store about.
+    const board = readFileSync(new URL('../components/Board.astro', import.meta.url), 'utf8');
+    expect(board).toContain('serverMode && !fit && !teaser && served !== undefined && served.total > 0');
+    expect(board).toContain('deetsVisible: false');
+  });
+
+  it('the variant is chosen by the flag the page passes, and by nothing the reader typed', () => {
+    expect(source).toContain('order = spec.deetsVisible ? BEST_ORDER.withDeets : BEST_ORDER.withoutDeets;');
+    expect(source).toContain('order = spec.deetsVisible ? FUZZY_ORDER.withDeets : FUZZY_ORDER.withoutDeets;');
+    // Both tables have exactly two entries: a third order would be a third sentence.
+    for (const name of ['BEST_ORDER', 'FUZZY_ORDER']) expect(table(name).match(/(withDeets|withoutDeets): '/g)).toHaveLength(2);
+    // The blind orders really do leave Deets out, and the sighted ones really do have it.
+    expect(ORDERS.bestBlind).not.toContain('detail_total');
+    expect(ORDERS.typoBlind).not.toContain('detail_total');
+    expect(ORDERS.best).toContain('detail_total');
+    expect(ORDERS.typo).toContain('detail_total');
   });
 
   /** Where each phrase falls in a sentence, in the order it is said. */
@@ -369,8 +481,18 @@ describe('rankReason: each sentence still describes the ORDER BY job-store.ts ru
     inOrder(rankReason(facts({ tier: 1 })), ['title', 'closer text match', 'Deets 97', 'newer first']);
   });
 
+  it('best without Deets: tier, then text rank, then newer first (tier_n, rank_n, age_days)', () => {
+    inOrder(rankReason(facts({ tier: 1, deetsVisible: false })), ['title', 'closer text match', 'newer first']);
+    expect(rankReason(facts({ tier: 1, deetsVisible: false }))).not.toContain('Deets');
+  });
+
   it('typo path: similarity, then Deets, then newer first (text_sim, detail_total, age_days)', () => {
     inOrder(rankReason(facts({ tier: null, fuzzy: true, fuzzyScore: 0.5 })), ['similarity', 'Deets 97', 'newer first']);
+  });
+
+  it('typo path without Deets: similarity, then newer first (text_sim, age_days)', () => {
+    inOrder(rankReason(facts({ tier: null, fuzzy: true, fuzzyScore: 0.5, deetsVisible: false })), ['similarity', 'newer first']);
+    expect(rankReason(facts({ tier: null, fuzzy: true, fuzzyScore: 0.5, deetsVisible: false }))).not.toContain('Deets');
   });
 
   it('Deets: high first, then company and title (detail_total DESC, company, title)', () => {
@@ -385,5 +507,166 @@ describe('rankReason: each sentence still describes the ORDER BY job-store.ts ru
   it('age: newest first, none last, then company and title (age_days ASC NULLS LAST, company, title)', () => {
     inOrder(rankReason(facts({ sort: 'age', ageDays: 3 })), ['newest first', 'company and title A to Z']);
     inOrder(rankReason(facts({ sort: 'age', ageDays: null })), ['no date', 'follows every dated row', 'company and title A to Z']);
+  });
+});
+
+/**
+ * THE ORDER SAID ONCE FOR THE LIST (orderReason): the one line above the rows for a
+ * reader with no why panel. Every sentence pinned word for word, the whole fact
+ * space swept for the properties that must hold everywhere, and the same drift
+ * guard as the per-row line: the phrases must still come in the order the ORDER BY
+ * runs its keys, with and without Deets.
+ */
+function order(over: Partial<OrderFacts> = {}): OrderFacts {
+  return { sort: 'best', query: 'product designer', fuzzy: false, deetsVisible: false, ...over };
+}
+
+describe('orderReason: the order in force, said once, for a reader who cannot see Deets', () => {
+  it('best match, exact words: where the words are found, the text match, then newer first', () => {
+    expect(orderReason(order())).toBe(
+      'Ordered by best match: where your words are found (the title, then the company name, then the rest of the posting), then the closer text match, then newer first.'
+    );
+  });
+
+  it('best match, typo path: the closest spelling, then newer first, quoting what was typed', () => {
+    expect(orderReason(order({ fuzzy: true, query: 'prodct desiner' }))).toBe(
+      'Ordered by best match: the closest spelling of "prodct desiner" first, then newer first.'
+    );
+    expect(orderReason(order({ fuzzy: true, query: '  prodct   "desiner"  ' }))).toBe(
+      'Ordered by best match: the closest spelling of "prodct desiner" first, then newer first.'
+    );
+    expect(orderReason(order({ fuzzy: true, query: 'x'.repeat(60) }))).toContain(`"${'x'.repeat(37)}..."`);
+  });
+
+  it('age: newest first, the undated last, then company and title', () => {
+    expect(orderReason(order({ sort: 'age', query: '' }))).toBe(
+      'Ordered by age: newest first, roles with no date last, then company and title A to Z.'
+    );
+  });
+
+  it('pay: the highest posted figure first, the ones that post none last, then company and title', () => {
+    expect(orderReason(order({ sort: 'comp', query: '' }))).toBe(
+      'Ordered by pay: highest posted figure first, roles that post none last, then company and title A to Z.'
+    );
+  });
+
+  it('a sort the reader chose is said whether or not words are typed, and the words do not change it', () => {
+    expect(orderReason(order({ sort: 'age', query: 'designer' }))).toBe(orderReason(order({ sort: 'age', query: '' })));
+    expect(orderReason(order({ sort: 'comp', fuzzy: true }))).toBe(orderReason(order({ sort: 'comp', fuzzy: false })));
+  });
+
+  it('Deets is the default order, and is not said to a reader who cannot see Deets', () => {
+    expect(orderReason(order({ sort: 'fit', query: '' }))).toBe('');
+    // best with nothing typed ranks nothing and reads as that same default.
+    expect(orderReason(order({ sort: 'best', query: '' }))).toBe('');
+    expect(orderReason(order({ sort: 'best', query: '   ' }))).toBe('');
+  });
+});
+
+describe('orderReason: for a reader who can see Deets it names it where the order uses it', () => {
+  const sighted = (over: Partial<OrderFacts> = {}) => order({ deetsVisible: true, ...over });
+
+  it('best match: Deets sits between the text match and the age, as it does in the SQL', () => {
+    expect(orderReason(sighted())).toBe(
+      'Ordered by best match: where your words are found (the title, then the company name, then the rest of the posting), then the closer text match, then Deets, highest first, then newer first.'
+    );
+    expect(orderReason(sighted({ fuzzy: true, query: 'prodct' }))).toBe(
+      'Ordered by best match: the closest spelling of "prodct" first, then Deets, highest first, then newer first.'
+    );
+  });
+
+  it('Deets, and best with nothing typed, say the Deets order', () => {
+    expect(orderReason(sighted({ sort: 'fit', query: '' }))).toBe('Ordered by Deets: highest first, then company and title A to Z.');
+    expect(orderReason(sighted({ sort: 'best', query: '' }))).toBe('Ordered by Deets: highest first, then company and title A to Z.');
+  });
+
+  it('pay and age are the same sentence either way', () => {
+    for (const sort of ['comp', 'age'] as const) expect(orderReason(sighted({ sort }))).toBe(orderReason(order({ sort })));
+  });
+});
+
+describe('orderReason: the whole fact space', () => {
+  const all: OrderFacts[] = [];
+  for (const sort of ['best', 'fit', 'comp', 'age'] as const)
+    for (const query of ['', 'designer', 'prodct desiner'])
+      for (const fuzzy of [false, true])
+        for (const deetsVisible of [false, true]) all.push({ sort, query, fuzzy, deetsVisible });
+
+  it('covers every sort, with and without words, both paths, both readers', () => {
+    expect(all).toHaveLength(48);
+  });
+
+  it('is one sentence beginning "Ordered by" and ending in one full stop, or nothing at all', () => {
+    for (const f of all) {
+      const sentence = orderReason(f);
+      if (sentence === '') continue;
+      expect(sentence, JSON.stringify(f)).toMatch(/^Ordered by (best match|Deets|pay|age): .+\.$/);
+      expect(sentence.slice(0, -1), JSON.stringify(f)).not.toContain('.');
+    }
+  });
+
+  it('is deterministic, and never prints an em dash, an en dash or a curly quote', () => {
+    for (const f of all) {
+      const sentence = orderReason(f);
+      expect(orderReason({ ...f })).toBe(sentence);
+      for (const char of FORBIDDEN) expect(sentence.includes(char), JSON.stringify(f)).toBe(false);
+    }
+  });
+
+  it('never names Deets to a reader who cannot see it, and says nothing where the order is Deets', () => {
+    for (const f of all.filter((x) => !x.deetsVisible)) {
+      const sentence = orderReason(f);
+      expect(sentence, JSON.stringify(f)).not.toMatch(/Deets/);
+      const isDeetsOrder = f.sort === 'fit' || (f.sort === 'best' && f.query === '' && !f.fuzzy);
+      if (isDeetsOrder) expect(sentence, JSON.stringify(f)).toBe('');
+    }
+  });
+
+  it('names the order in force and no other: one sort word per sentence, the typo path only on best', () => {
+    for (const f of all) {
+      const sentence = orderReason(f);
+      if (sentence === '') continue;
+      const named = ['best match', 'Deets', 'pay', 'age'].filter((word) => sentence.startsWith(`Ordered by ${word}`));
+      expect(named, JSON.stringify(f)).toHaveLength(1);
+      expect(sentence.includes('closest spelling'), JSON.stringify(f)).toBe(named[0] === 'best match' && f.fuzzy);
+    }
+  });
+});
+
+describe('orderReason: each sentence still describes the ORDER BY job-store.ts runs', () => {
+  /** Where each phrase falls in a sentence, in the order it is said. */
+  const inOrder = (sentence: string, phrases: string[]) => {
+    const at = phrases.map((p) => sentence.indexOf(p));
+    expect(at.every((i) => i >= 0), `${sentence} is missing one of ${phrases.join(' | ')}`).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+  };
+
+  it('best, with Deets: where found (tier_n), the text match (rank_n), Deets (detail_total), then newer first (age_days)', () => {
+    inOrder(orderReason(order({ deetsVisible: true })), ['where your words are found', 'closer text match', 'Deets', 'newer first']);
+  });
+
+  it('best, without Deets: where found (tier_n), the text match (rank_n), then newer first (age_days)', () => {
+    inOrder(orderReason(order()), ['where your words are found', 'closer text match', 'newer first']);
+  });
+
+  it('the tier ladder is said in the order the tiers are numbered: title, then company, then the rest', () => {
+    inOrder(orderReason(order()), ['the title', 'the company name', 'the rest of the posting']);
+  });
+
+  it('typo path: similarity (text_sim), Deets only when visible (detail_total), then newer first (age_days)', () => {
+    inOrder(orderReason(order({ fuzzy: true })), ['closest spelling', 'newer first']);
+    inOrder(orderReason(order({ fuzzy: true, deetsVisible: true })), ['closest spelling', 'Deets', 'newer first']);
+  });
+
+  it('pay: highest first, none last, then company and title (comp_top DESC NULLS LAST, company, title)', () => {
+    inOrder(orderReason(order({ sort: 'comp' })), ['highest posted figure first', 'post none last', 'company and title A to Z']);
+  });
+
+  it('age: newest first, none last, then company and title (age_days ASC NULLS LAST, company, title)', () => {
+    inOrder(orderReason(order({ sort: 'age' })), ['newest first', 'no date last', 'company and title A to Z']);
+  });
+
+  it('Deets: highest first, then company and title (detail_total DESC, company, title)', () => {
+    inOrder(orderReason(order({ sort: 'fit', deetsVisible: true })), ['highest first', 'company and title A to Z']);
   });
 });

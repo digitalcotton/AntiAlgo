@@ -22,6 +22,35 @@ export interface PlaceKey {
 }
 
 /**
+ * THE ONE `place=` VALUE THAT IS NOT A PLACE: `place=unstated`, the postings the
+ * board could not resolve to a country (jobs.place_country IS NULL). Location's
+ * "Not stated" row writes it, so a reader can ask for the roles whose place the
+ * employer never named, which is 18% of the live board and a fact worth asking for
+ * rather than a hole in the list.
+ *
+ * It cannot collide with a place key: every one of those starts with two UPPER CASE
+ * letters (parsePlaceKey), and this is eight lower case ones. It is deliberately
+ * not read by parsePlaceKey. That function answers "which country, region and city
+ * is this" and every caller of it binds the three parts into a predicate; an
+ * `unstated` it returned as a place with no country would be bound as "no place
+ * chosen" and match every row, silently, in a caller that forgot the case. So the
+ * one place that reads it as a filter, job-store.ts, asks isPlaceUnstated() first,
+ * and everything that only has to know whether an address is acceptable asks
+ * isPlaceKey().
+ */
+export const PLACE_UNSTATED = 'unstated';
+
+/** True for the one key that means "no resolved country". */
+export function isPlaceUnstated(key: string | null | undefined): boolean {
+  return key === PLACE_UNSTATED;
+}
+
+/** True for every value `place=` accepts: a place key (parsePlaceKey) or `unstated`. */
+export function isPlaceKey(key: string | null | undefined): boolean {
+  return isPlaceUnstated(key) || parsePlaceKey(key) !== null;
+}
+
+/**
  * A place key read strictly, or null.
  *
  *   GB                 a country (ISO 3166-1 alpha-2, upper case)
@@ -71,12 +100,17 @@ const REGION_IN_LABEL: ReadonlySet<string> = new Set(['US', 'CA', 'AU']);
  *   US-MD               Maryland
  *   GB/London           London, United Kingdom
  *   US-MD/Baltimore     Baltimore, MD
+ *   unstated            Location not stated
  *
  * The same four shapes jobs-derived.mjs placeOf() and the search lexicon print,
  * so the strip and the chip beside it say one thing. A key that does not parse
  * is returned as it came: a label is never the reason a control goes blank.
+ * `unstated` is worded in full, "Location not stated", because it is also the
+ * label of the search box's chip, where a bare "Not stated" would not say what is
+ * not stated; the Location menu's own row keeps its short name.
  */
 export function placeKeyLabel(key: string | null | undefined): string {
+  if (isPlaceUnstated(key)) return 'Location not stated';
   const place = parsePlaceKey(key);
   if (place === null) return typeof key === 'string' ? key : '';
   const country = (countryName(place.country) as string | null) ?? place.country;

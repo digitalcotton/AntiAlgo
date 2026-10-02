@@ -273,6 +273,42 @@ describe('what the page does with the words', () => {
     expect(sql).toContain('NULL::int AS match_tier, NULL::text AS match_field, NULL::float8 AS fuzzy_score');
     expect(sql).not.toContain('tq AS');
   });
+  it('breaks a best-match tie on Deets for a reader who can see it, and on age for one who cannot', async () => {
+    const orders = (sql: string) => sql.match(/ORDER BY [^\n]+/g) ?? [];
+    const WITH = 'ORDER BY tier_n ASC, rank_n DESC, detail_total DESC, age_days ASC NULLS LAST, id ASC';
+    const WITHOUT = 'ORDER BY tier_n ASC, rank_n DESC, age_days ASC NULLS LAST, id ASC';
+    // The flag left out is a reader who can see Deets: every caller that does not
+    // render rows (the counts, the typeahead, the harness) and the signed-in board.
+    await listBoardFiltered({ ...FILTER, sort: 'best' });
+    const sighted = statements();
+    expect(orders(sighted[1][0] as string)).toEqual([WITH, WITH]);
+    query.mockClear();
+    await listBoardFiltered({ ...FILTER, sort: 'best', deetsVisible: true });
+    expect(orders(statements()[1][0] as string)).toEqual([WITH, WITH]);
+    query.mockClear();
+    // A reader who cannot see Deets (no column, no why panel) is not ordered by it:
+    // the page's inner ORDER BY (which cuts the page) and its outer one both drop it.
+    await listBoardFiltered({ ...FILTER, sort: 'best', deetsVisible: false });
+    const blind = statements();
+    expect(orders(blind[1][0] as string)).toEqual([WITHOUT, WITHOUT]);
+    // Nothing else about the statement moved: the ranking still reads tier and ts_rank_cd,
+    // the page still binds the same values, and the COUNTS are the same statement and the
+    // same parameters, because the flag orders rows and counts none.
+    expect(blind[1][1]).toEqual(sighted[1][1]);
+    expect(blind[0][0]).toBe(sighted[0][0]);
+    expect(blind[0][1]).toEqual(sighted[0][1]);
+    expect(String(blind[1][0])).toContain('ts_rank_cd(m.search, tq.q_all) AS rank_n');
+  });
+  it('lets only best match read the flag: the reader\'s own sort is the sort they asked for, with or without Deets', async () => {
+    for (const sort of ['age', 'comp'] as const) {
+      query.mockClear();
+      await listBoardFiltered({ ...FILTER, q: '', sort });
+      const sighted = statements()[1][0] as string;
+      query.mockClear();
+      await listBoardFiltered({ ...FILTER, q: '', sort, deetsVisible: false });
+      expect(statements()[1][0]).toBe(sighted);
+    }
+  });
   it('states the tier ladder in SQL: the title is the words, then every word by weight', async () => {
     await listBoardFiltered({ ...FILTER, sort: 'best' });
     const sql = statements()[1][0] as string;
@@ -371,6 +407,50 @@ describe('the new filters', () => {
     expect(sql).toContain('($17::text IS NULL OR place_admin1 = $17::text)');
     expect(sql).toContain('($18::text IS NULL OR place_city = $18::text)');
   });
+  it('binds place=unstated as the country, as the literal the predicate tests for, in the count and the page alike', async () => {
+    await listBoardFiltered({ ...FILTER, q: '', place: 'unstated' });
+    for (const [, params] of statements()) expect((params as unknown[]).slice(15, 18)).toEqual(['unstated', null, null]);
+    const sql = statements()[0][0] as string;
+    // Rows with NO resolved country, and only when the keyword is bound: for every other
+    // value the three comparisons are exactly what they were.
+    expect(sql).toContain("CASE WHEN $16::text = 'unstated' THEN place_country IS NULL");
+    expect(sql).toContain('($16::text IS NULL OR place_country = $16::text)');
+    // A place that is set is a control that is set: the count statement stores its flags once.
+    expect(sql).toContain('flags AS MATERIALIZED');
+    // Near misses are no place at all, never the keyword.
+    for (const near of ['Unstated', 'UNSTATED', 'unstated ', 'none', 'unstated/London']) {
+      query.mockClear();
+      await listBoardFiltered({ ...FILTER, q: '', place: near });
+      expect(statements()[0][1].slice(15, 18), near).toEqual([null, null, null]);
+    }
+  });
+  it('lists every country the live board holds, at zero where the filters left none, and never over a counted one', async () => {
+    query.mockResolvedValue({ rows: [{ ...COUNT_ROW, places: { US: 5, '': 2 }, place_universe: ['DE', 'FR', 'GB', 'US'] }] });
+    const result = await listBoardFiltered(FILTER);
+    expect(result.counts.place).toEqual({ countries: { US: 5, DE: 0, FR: 0, GB: 0 }, notStated: 2 });
+    // A universe that holds a counted country leaves its count alone.
+    expect(result.counts.place.countries.US).toBe(5);
+    // The row set the words found may be empty, and still every country is listed.
+    query.mockResolvedValue({ rows: [{ ...COUNT_ROW, total: 0, places: null, place_universe: ['DE', 'GB'] }] });
+    expect((await listBoardFiltered(FILTER)).counts.place).toEqual({ countries: { DE: 0, GB: 0 }, notStated: 0 });
+    // Nothing on the board, or a statement that returns no universe: the counted ones, as before.
+    query.mockResolvedValue({ rows: [{ ...COUNT_ROW, places: { US: 2, '': 1 }, place_universe: null }] });
+    expect((await listBoardFiltered(FILTER)).counts.place).toEqual({ countries: { US: 2 }, notStated: 1 });
+  });
+  it('reads the list of countries off the live rows, as names and not as counts, beside the one CTE', async () => {
+    await listBoardFiltered(FILTER);
+    const sql = statements()[0][0] as string;
+    // A skip scan of the partial index on live rows: the literal predicate is what lets Postgres use it.
+    expect(sql).toContain("SELECT min(place_country) FROM jobs WHERE status <> 'killed' AND place_country IS NOT NULL");
+    expect(sql).toContain("SELECT min(place_country) FROM jobs WHERE status <> 'killed' AND place_country > live_country.c");
+    expect(sql).toContain('AS place_universe');
+    // It takes no part in any number: the places are still counted from the CTE's flags, over every
+    // control but the place, and the universe is read from `jobs`, never from them.
+    expect(sql).toContain('FROM flags WHERE keep_base AND (miss & 15) = 0 GROUP BY place_country');
+    expect(sql.split('place_universe')[0].split('\n').at(-1)).not.toContain('flags');
+    // It binds nothing, so the statement's parameters did not move.
+    expect(statements()[0][1]).toHaveLength(21);
+  });
   it('binds the company as an exact match, trimmed, and not at all when blank', async () => {
     await listBoardFiltered({ ...FILTER, company: ' Figma ' });
     expect(statements()[0][1][18]).toBe('Figma');
@@ -458,6 +538,22 @@ describe('the typo path', () => {
     const fuzzyPage = query.mock.calls.filter(([sql]) => String(sql).includes('<% j.title') && !String(sql).includes('flags AS'))[0];
     expect(String(fuzzyPage[0])).toContain('ORDER BY text_sim DESC, detail_total DESC, age_days ASC NULLS LAST, id ASC');
     expect(String(fuzzyPage[0])).toContain("NULL::int AS match_tier, 'title'::text AS match_field, page.text_sim AS fuzzy_score");
+  });
+  it('orders the typo path by similarity and then age, with no Deets, for a reader who cannot see Deets', async () => {
+    exactMissThen(7);
+    await listBoardFiltered({ ...FILTER, q: 'prodct desiner', sort: 'best', deetsVisible: false });
+    const page = query.mock.calls.filter(([sql]) => String(sql).includes('<% j.title') && !String(sql).includes('flags AS'))[0];
+    const orders = String(page[0]).match(/ORDER BY [^\n]+/g);
+    expect(orders).toEqual(['ORDER BY text_sim DESC, age_days ASC NULLS LAST, id ASC', 'ORDER BY text_sim DESC, age_days ASC NULLS LAST, id ASC']);
+    // Left at its default the same call is ordered as it always was.
+    query.mockClear();
+    exactMissThen(7);
+    await listBoardFiltered({ ...FILTER, q: 'prodct desiner', sort: 'best' });
+    const sighted = query.mock.calls.filter(([sql]) => String(sql).includes('<% j.title') && !String(sql).includes('flags AS'))[0];
+    expect(String(sighted[0]).match(/ORDER BY [^\n]+/g)).toEqual([
+      'ORDER BY text_sim DESC, detail_total DESC, age_days ASC NULLS LAST, id ASC',
+      'ORDER BY text_sim DESC, detail_total DESC, age_days ASC NULLS LAST, id ASC'
+    ]);
   });
   it('sends the words too short to misspell as exact title prefixes in the same statement', async () => {
     exactMissThen(1);
@@ -915,6 +1011,22 @@ describe('the planner is told the heap is cheap for a statement that carries wor
     query.mockClear();
     await countBoardTotals([{ ...FILTER, q: '', place: 'GB' }]);
     expect(settingCalls()).toHaveLength(0);
+  });
+  it('counts place=unstated with the same predicate the board applies, and narrows to the rows with no country', async () => {
+    query.mockResolvedValue({ rows: [{ t0: 4, t1: 9 }] });
+    const totals = await countBoardTotals([
+      { ...FILTER, q: '', place: 'unstated' },
+      { ...FILTER, q: '', place: 'GB' }
+    ]);
+    expect(totals).toEqual([4, 9]);
+    const [sql, params] = statements()[0];
+    // The suggestion's own predicate is the board's (placeMatchSql), so its count cannot drift from the table's.
+    expect(String(sql)).toContain("CASE WHEN $20::text = 'unstated' THEN place_country IS NULL");
+    expect(params).toEqual(expect.arrayContaining(['unstated', 'GB']));
+    // Bound after the nineteen shared parameters, three a place: the first filter's, then the second's.
+    expect((params as unknown[]).slice(19, 25)).toEqual(['unstated', null, null, 'GB', null, null]);
+    // Without words the statement reads only the rows the places can match, as a NULL probe for this one.
+    expect(String(sql)).toContain('(place_country IS NULL) OR (place_country = $23::text)');
   });
   it('does not set it for the typo path, whose predicate is a trigram one on its own connection', async () => {
     query.mockImplementation(async (sql: string) => {

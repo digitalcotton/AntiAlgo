@@ -283,7 +283,7 @@ describe('Filters.astro: the strip is Location, Remote and Comp, and the Field i
 });
 
 describe('Filters.astro: Location is geography, one select named for the place parameter', () => {
-  it('is a real select named place, Worldwide first, the countries by count, Not stated last and disabled', async () => {
+  it('is a real select named place, Worldwide first, the countries by count, Not stated last (a zero here, so muted)', async () => {
     const cell = cellOf(await renderStripGroups(), 'Location');
     expect(cell).toMatch(/<select[^>]*data-filter-group="place"[^>]*name="place"[^>]*data-autosubmit/);
     const options = [...cell.matchAll(/<option value="([^"]*)"([^>]*)>\s*([^<]*?)\s*<\/option>/g)].map((m) => ({ value: m[1], attrs: m[2], label: m[3] }));
@@ -299,9 +299,61 @@ describe('Filters.astro: Location is geography, one select named for the place p
     expect(options[0].attrs).toMatch(/\sselected/);
     // The counts ride as data for the script's rows.
     expect(options.map((o) => o.attrs.match(/data-count="(\d+)"/)?.[1])).toEqual(['6', '3', '1', '1', '1', '0']);
-    // Not stated is drawn and refused, with or without a count.
+    // Not stated is a choice now, so it is refused only the way a zero is: here it has no rows.
     expect(options.at(-1)!.attrs).toMatch(/\sdisabled/);
     expect(options.slice(0, -1).every((o) => !/\sdisabled/.test(o.attrs))).toBe(true);
+  });
+
+  it('draws Not stated as a live choice named place=unstated whenever it has rows, and keeps its own label when chosen', async () => {
+    const { facetGroupsFromCounts } = await import('../lib/data');
+    const withRows = { ...COUNTS, place: { countries: { US: 3, CA: 1, IN: 1, GB: 1 }, notStated: 4 } };
+    const render = async (place: string, chips: Record<string, unknown>[] = []) => {
+      const container = await AstroContainer.create();
+      return container.renderToString(Filters, {
+        props: {
+          groups: facetGroupsFromCounts(withRows, { ...NONE, place }),
+          mode: 'server', action: '/board', selected: { place, pay_min: 'all' }, chips, chipRemoveHrefs: chips.map(() => '/board')
+        }
+      });
+    };
+    const optionOf = (cell: string, value: string) => cell.match(new RegExp(`<option value="${value}"([^>]*)>\\s*([^<]*?)\\s*</option>`));
+    // Live, selectable, and carrying its count.
+    let not = optionOf(cellOf(await render('all'), 'Location'), 'unstated')!;
+    expect(not[1]).not.toMatch(/\sdisabled/);
+    expect(not[1]).toMatch(/data-count="4"/);
+    expect(not[2]).toBe('Not stated');
+    // Chosen: the selected option, and the chip beside it ("Location not stated") does not rename it.
+    const chip = { kind: 'place', key: 'unstated', label: 'Location not stated' };
+    const chosen = cellOf(await render('unstated', [chip]), 'Location');
+    not = optionOf(chosen, 'unstated')!;
+    expect(not[1]).toMatch(/\sselected/);
+    expect(not[2]).toBe('Not stated');
+    expect(chosen).toMatch(/<option value="all"(?![^>]*selected)/);
+    // The strip owns place, so the box carries no hidden copy of it.
+    expect(await render('unstated', [chip])).not.toMatch(/<input type="hidden" name="place"/);
+  });
+
+  it('draws every country it is handed, a zero muted and refused, and a chosen zero live so it can be undone', async () => {
+    const { facetGroupsFromCounts } = await import('../lib/data');
+    const zeros = { ...COUNTS, total: 5, place: { countries: { US: 5, FR: 0, DE: 0, CA: 0 }, notStated: 0 } };
+    const render = async (place: string) => {
+      const container = await AstroContainer.create();
+      return container.renderToString(Filters, {
+        props: { groups: facetGroupsFromCounts(zeros, { ...NONE, place }), mode: 'server', action: '/board', selected: { place, pay_min: 'all' } }
+      });
+    };
+    const options = (cell: string) => [...cell.matchAll(/<option value="([^"]*)"([^>]*)>\s*([^<]*?)\s*<\/option>/g)].map((m) => ({ value: m[1], attrs: m[2], label: m[3] }));
+    const none = options(cellOf(await render('all'), 'Location'));
+    // Present, in the list, after the country with rows, in name order (Canada, France, Germany).
+    expect(none.map((o) => o.value)).toEqual(['all', 'US', 'CA', 'FR', 'DE', 'unstated']);
+    expect(none.map((o) => o.attrs.match(/data-count="(\d+)"/)![1])).toEqual(['5', '5', '0', '0', '0', '0']);
+    // ... and disabled: a zero is drawn and refused.
+    expect(none.filter((o) => /\sdisabled/.test(o.attrs)).map((o) => o.value)).toEqual(['CA', 'FR', 'DE', 'unstated']);
+    // The one the address already names stays live, so the reader can see what is chosen and undo it.
+    const chosen = options(cellOf(await render('FR'), 'Location'));
+    expect(chosen.find((o) => o.value === 'FR')!.attrs).toMatch(/\sselected/);
+    expect(chosen.find((o) => o.value === 'FR')!.attrs).not.toMatch(/\sdisabled/);
+    expect(chosen.filter((o) => /\sdisabled/.test(o.attrs)).map((o) => o.value)).toEqual(['CA', 'DE', 'unstated']);
   });
 
   it('holds a city the address chose as its own selected option, labelled like the chip beside it', async () => {

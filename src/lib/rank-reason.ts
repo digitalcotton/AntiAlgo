@@ -20,6 +20,19 @@
  *   pay                 the largest posted figure (none last), company, title, id
  *   age                 age in days (none last), company, title, id
  *
+ * TWO VARIANTS OF THE BEST ORDERS: WITH DEETS AND WITHOUT. A reader who cannot see
+ * Deets (a signed-out reader while fit_public is dark: no Deets column, no why
+ * panel) is not ordered by it, because an order they cannot read is one they cannot
+ * check. job-store.ts BEST_ORDER and FUZZY_ORDER each hold both, chosen by the
+ * filter's `deetsVisible`; for that reader best is tier, text rank, age, id and the
+ * typo path is similarity, age, id, and these sentences drop the Deets step to
+ * say so. The no-Deets variants are read by the same drift guard.
+ *
+ * TWO VOICES, ONE VOCABULARY. rankReason() is the per-row sentence, "Ranked 3rd:
+ * ...", in a row's why panel for a reader who has one. orderReason() is the order
+ * said once for the whole list, "Ordered by best match: ...", above the rows for a
+ * reader who has no panel to say it in. Both are built from the same clauses.
+ *
  * Two keys are left out of the words on purpose. `id` is only the last
  * tie-break that keeps a page from shuffling between loads, and no two postings a
  * reader could compare ever reach it. And the text rank (Postgres ts_rank_cd) is
@@ -71,6 +84,9 @@ export interface RankFacts {
   ageBasis?: AgeBasis;
   /** Whether the row has a pay figure the pay sort can read (the sort key, comp_top). */
   payStated: boolean;
+  /** Whether the reader can see Deets; the best-match orders break a tie on it
+      only when they can (job-store.ts BEST_ORDER). Absent is true. */
+  deetsVisible?: boolean;
 }
 
 /** The tie-break every non-text sort ends on, in plain words. */
@@ -142,8 +158,11 @@ function tierClause(tier: number, field: MatchField | null): string | null {
 export function rankReason(facts: RankFacts): string {
   if (!Number.isFinite(facts.position) || facts.position < 1) return '';
   const place = ordinal(facts.position);
+  const deetsVisible = facts.deetsVisible !== false;
   const deets = Number.isFinite(facts.deets) ? facts.deets : null;
-  const deetsStep = deets === null ? null : `Deets ${deets}`;
+  // A reader who cannot see Deets is not ordered by it, so the sentence has no
+  // such step to name (the best orders), and the Deets order cannot be worded.
+  const deetsStep = deets === null || !deetsVisible ? null : `Deets ${deets}`;
 
   // The default order is Deets: `best` with nothing to rank on is that order.
   const wordsRanked = facts.fuzzy || facts.tier !== null;
@@ -168,7 +187,7 @@ export function rankReason(facts: RankFacts): string {
       return `Ranked ${place}: ${group}, then ${keys.join(', then ')}.`;
     }
     case 'fit':
-      return deets === null
+      return deetsStep === null
         ? ''
         : `Ranked ${place} by Deets: ${deets} of 100, highest first, ${THEN_COMPANY}.`;
     case 'comp':
@@ -182,6 +201,78 @@ export function rankReason(facts: RankFacts): string {
     default: {
       // A sort added to BoardSort without a sentence is a type error here, on
       // purpose: a new order must say how it orders before it can ship.
+      const unnamed: never = sort;
+      void unnamed;
+      return '';
+    }
+  }
+}
+
+/** What the whole list's order is built from; the same facts a row's sentence reads
+    that do not belong to one row. */
+export interface OrderFacts {
+  /** The sort the rows are in, as the reader is shown it: a signed-out reader's
+      unwritten Deets default is already the age order (board.astro servedSort). */
+  sort: BoardSort;
+  /** The words as typed. */
+  query: string;
+  /** True when the close-spelling (typo) path answered, so the order is by similarity. */
+  fuzzy: boolean;
+  /** Whether the reader can see Deets; see RankFacts. */
+  deetsVisible: boolean;
+}
+
+/**
+ * THE ORDER, SAID ONCE FOR THE LIST. A signed-in reader has a why panel on every
+ * row with rankReason() at the top of it. A reader who has no panel (no Deets, no
+ * why) used to get no reason at all, and an order nobody can read is the thing this
+ * product refuses, so for them the same rules are said in one line above the rows:
+ *
+ *   best, exact words  "Ordered by best match: where your words are found (the
+ *                      title, then the company name, then the rest of the
+ *                      posting), then the closer text match, then newer first."
+ *   best, typo path    "Ordered by best match: the closest spelling of "prodct" first,
+ *                      then newer first."
+ *   pay                "Ordered by pay: highest posted figure first, roles that
+ *                      post none last, then company and title A to Z."
+ *   age                "Ordered by age: newest first, roles with no date last, then
+ *                      company and title A to Z."
+ *   Deets              "Ordered by Deets: highest first, then company and title A to Z."
+ *
+ * The clauses are rankReason's, and so are the orders: each follows the same ORDER BY
+ * job-store.ts runs, tie-breaks included, which rank-reason.test.ts holds the strings
+ * of. With Deets visible the best sentences name it where the SQL uses it, between
+ * the text and the age; without, they do not, because the SQL does not. Deets is the
+ * default order and is only worded for a reader who can see it: a Deets order said
+ * to a reader with no Deets would name the number they cannot read, so that
+ * combination is empty, and so is anything the facts cannot state truthfully.
+ *
+ * Same voice as the row's line (the facts first, "then" between the keys) and the
+ * same punctuation rules: no em dash, no curly quote, the query between straight
+ * quotes. Pure, like rankReason.
+ */
+export function orderReason(facts: OrderFacts): string {
+  const wordsTyped = echoQuery(facts.query) !== '' || facts.fuzzy;
+  // `best` with no words ranks nothing and is the default order, Deets.
+  const sort = facts.sort === 'best' && !wordsTyped ? 'fit' : facts.sort;
+
+  switch (sort) {
+    case 'best': {
+      const tail = [facts.deetsVisible ? 'Deets, highest first' : null, 'newer first'].filter((key): key is string => key !== null);
+      if (facts.fuzzy) {
+        const typed = echoQuery(facts.query);
+        const of = typed === '' ? 'your words' : `"${typed}"`;
+        return `Ordered by best match: the closest spelling of ${of} first, then ${tail.join(', then ')}.`;
+      }
+      return `Ordered by best match: where your words are found (the title, then the company name, then the rest of the posting), then ${['the closer text match', ...tail].join(', then ')}.`;
+    }
+    case 'fit':
+      return facts.deetsVisible ? `Ordered by Deets: highest first, ${THEN_COMPANY}.` : '';
+    case 'comp':
+      return `Ordered by pay: highest posted figure first, roles that post none last, ${THEN_COMPANY}.`;
+    case 'age':
+      return `Ordered by age: newest first, roles with no date last, ${THEN_COMPANY}.`;
+    default: {
       const unnamed: never = sort;
       void unnamed;
       return '';

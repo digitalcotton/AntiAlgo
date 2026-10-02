@@ -16,6 +16,16 @@ import { expect, test, type Locator, type Page } from 'playwright/test';
  * prove "a zero is drawn, muted and refused" on the real page without arranging
  * anything. If the seed changes, these are the numbers to change with it.
  *
+ * THE FIXTURE HAS NO ROW WITH NO PLACE, SO "NOT STATED" IS A ZERO HERE, AND SAYS SO.
+ * The tests of Location's Not stated row prove what the fixture can: it is drawn,
+ * counted and refused while it has no rows; the address can still name it
+ * (`place=unstated`) and then it is the chosen, live row, its chip reads "Location
+ * not stated", and Worldwide takes it off. That pressing the row returns exactly
+ * its rows is proved where there are rows to return: job-store.db.test.ts on a
+ * known spread of places, and the same menu driven by hand against the 6,712-row
+ * board in antialgo_dev (see the report). Adding a seventh fixture row would move
+ * every number in every spec that reads this board.
+ *
  * WHAT A BROWSER ENGINE ADDS. The strip is a form the script enhances, and its
  * claims are sequences: a press on a row must not move focus off the control
  * (.claude/rules/dropdown-focus.md), one menu opens at a time across the strip
@@ -93,7 +103,7 @@ test.describe('Location: geography, one choice, and the same state as the chip',
       { label: 'Canada', count: '1', disabled: false },
       { label: 'India', count: '1', disabled: false },
       { label: 'United Kingdom', count: '1', disabled: false },
-      // The largest absence on the real board; here it is zero. Present either way, and refused.
+      // The largest absence on the real board; here it is zero. Present either way, and refused while it is.
       { label: 'Not stated', count: '0', disabled: true }
     ]);
     await expect(row(menu, 'Worldwide')).toHaveAttribute('aria-selected', 'true');
@@ -146,6 +156,154 @@ test.describe('Location: geography, one choice, and the same state as the chip',
     await choose(page, menu, 'India', /[?&]place=IN(?:&|$)/);
     expect(params(page).getAll('place')).toEqual(['IN']);
     expect(await total(page)).toBe(1);
+  });
+});
+
+test.describe('Location keeps every country the board holds: a zero is drawn and refused, never dropped', () => {
+  test('under Remote the three countries with no remote posting are still listed, at zero, after the one that has it', async ({ page }) => {
+    // The one remote posting is in Canada. The counts used to name only the countries that had rows under the
+    // other filters, so choosing Remote took the United States, India and the United Kingdom out of the list and a
+    // reader could not tell a country with nothing from a country the board never had.
+    await openBoard(page, '?remote=remote');
+    expect(await total(page)).toBe(1);
+    await trigger(page, 'Location').click();
+    const menu = open(page);
+    expect(await readRows(menu)).toEqual([
+      { label: 'Worldwide', count: '1', disabled: false },
+      { label: 'Canada', count: '1', disabled: false },
+      // Zeros sort after the countries with rows, and among themselves by name.
+      { label: 'India', count: '0', disabled: true },
+      { label: 'United Kingdom', count: '0', disabled: true },
+      { label: 'United States', count: '0', disabled: true },
+      { label: 'Not stated', count: '0', disabled: true }
+    ]);
+    // Refused for real: the row is a disabled button, it is muted by the menu's own dead voice, and a click that
+    // reaches it changes nothing.
+    const before = page.url();
+    const dead = row(menu, 'India');
+    await expect(dead).toBeDisabled();
+    await expect(dead).toHaveAttribute('aria-disabled', 'true');
+    const colours = await dead.evaluate((el) => ({ row: getComputedStyle(el).color, live: getComputedStyle(el.parentElement!.querySelector('[role="option"]:not(:disabled)')!).color }));
+    expect(colours.row).not.toBe(colours.live);
+    await dead.dispatchEvent('click');
+    await page.waitForTimeout(250);
+    expect(page.url()).toBe(before);
+    // And the one that has a row still works.
+    await choose(page, menu, 'Canada', /[?&]place=CA(?:&|$)/);
+    expect(await total(page)).toBe(1);
+  });
+
+  test('a country the reader chose that the other filters leave empty stays live, so it can be undone, and its siblings stay listed', async ({ page }) => {
+    await openBoard(page, '?remote=remote&place=IN');
+    expect(await total(page)).toBe(0);
+    await expect(trigger(page, 'Location')).toHaveText('India');
+    await trigger(page, 'Location').click();
+    const menu = open(page);
+    expect(await readRows(menu)).toEqual([
+      { label: 'Worldwide', count: '1', disabled: false },
+      { label: 'Canada', count: '1', disabled: false },
+      // India is zero under Remote and is the choice: refused would strand the reader on an empty board.
+      { label: 'India', count: '0', disabled: false },
+      { label: 'United Kingdom', count: '0', disabled: true },
+      { label: 'United States', count: '0', disabled: true },
+      { label: 'Not stated', count: '0', disabled: true }
+    ]);
+    await expect(row(menu, 'India')).toHaveAttribute('aria-selected', 'true');
+    await choose(page, menu, 'Worldwide', /\/board\?(?!.*place=IN)/);
+    expect(await total(page)).toBe(1);
+  });
+
+  test('words that match nothing leave every country in the list, every one at zero', async ({ page }) => {
+    await openBoard(page, '?q=xqzvwk');
+    expect(await total(page)).toBe(0);
+    await trigger(page, 'Location').click();
+    const rows = await readRows(open(page));
+    // All at zero, so by name: Worldwide first, Not stated last, the four countries between.
+    expect(rows.map((r) => r.label)).toEqual(['Worldwide', 'Canada', 'India', 'United Kingdom', 'United States', 'Not stated']);
+    expect(rows.every((r) => r.count === '0')).toBe(true);
+    // Every one is refused, but for Worldwide, which clears.
+    expect(rows.filter((r) => r.disabled).map((r) => r.label)).toEqual(['Canada', 'India', 'United Kingdom', 'United States', 'Not stated']);
+  });
+});
+
+test.describe('Not stated is a place the address can ask for (place=unstated)', () => {
+  test('is refused while it has no rows; named by the address it is the chosen row, live, with a chip that says what it is', async ({ page }) => {
+    await openBoard(page);
+    await trigger(page, 'Location').click();
+    await expect(row(open(page), 'Not stated')).toBeDisabled();
+    await page.keyboard.press('Escape');
+
+    await openBoard(page, '?place=unstated');
+    await expect(trigger(page, 'Location')).toHaveText('Not stated');
+    expect(await total(page)).toBe(0);
+    // The box and the dropdown are one state: the chip is the same fact, worded in full because the box has no label.
+    await expect(page.locator('.sb-chip .sb-chip-label')).toHaveText(['Location not stated']);
+    await trigger(page, 'Location').click();
+    const menu = open(page);
+    expect(await readRows(menu)).toEqual([
+      // Counted over everything but the place, so each row says what choosing it would leave.
+      { label: 'Worldwide', count: '6', disabled: false },
+      { label: 'United States', count: '3', disabled: false },
+      { label: 'Canada', count: '1', disabled: false },
+      { label: 'India', count: '1', disabled: false },
+      { label: 'United Kingdom', count: '1', disabled: false },
+      // Zero, and chosen: live, so it can be undone, and it keeps its own name (the chip's is longer).
+      { label: 'Not stated', count: '0', disabled: false }
+    ]);
+    await expect(row(menu, 'Not stated')).toHaveAttribute('aria-selected', 'true');
+    await expect(row(menu, 'Worldwide')).toHaveAttribute('aria-selected', 'false');
+    // Worldwide takes it off again.
+    await choose(page, menu, 'Worldwide', /\/board\?(?!.*place=unstated)/);
+    expect(await total(page)).toBe(6);
+    await expect(page.locator('.sb-chip')).toHaveCount(0);
+  });
+
+  test('the chip removes it and only it, and a choice of another place replaces it: one place, never two', async ({ page }) => {
+    await openBoard(page, '?q=designer&place=unstated&remote=remote');
+    const chip = page.locator('.sb-chip', { hasText: 'Location not stated' });
+    await expect(chip).toHaveCount(1);
+    await Promise.all([page.waitForURL((url) => !url.searchParams.has('place')), chip.locator('.sb-chip-x').click()]);
+    // The words and the other filter stay.
+    expect(params(page).get('q')).toBe('designer');
+    expect(params(page).getAll('remote')).toEqual(['remote']);
+    await expect(page.locator('.sb-chip', { hasText: 'Location not stated' })).toHaveCount(0);
+
+    await openBoard(page, '?place=unstated');
+    await trigger(page, 'Location').click();
+    await choose(page, open(page), 'United States', /[?&]place=US(?:&|$)/);
+    expect(params(page).getAll('place')).toEqual(['US']);
+    expect(await total(page)).toBe(3);
+  });
+
+  test('is read through every link on the page: the sort and the pager keep it, and the clear link takes it off', async ({ page }) => {
+    await openBoard(page, '?place=unstated&q=designer');
+    const hrefs = await page.locator('a.segment').evaluateAll((links) => links.map((a) => (a as HTMLAnchorElement).getAttribute('href') ?? ''));
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const href of hrefs) expect(href).toContain('place=unstated');
+    // An empty board offers the way back, and it clears the place too.
+    const clear = page.locator('a.clear-filters');
+    await expect(clear).toHaveCount(1);
+    expect(await clear.getAttribute('href')).not.toContain('place=');
+  });
+
+  test('without script, a stale unstated is a harmless address: the select holds it, Apply keeps it, no error', async ({ browser, baseURL }) => {
+    const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
+    try {
+      const page = await context.newPage();
+      const response = await page.goto('/board?place=unstated', { waitUntil: 'domcontentloaded' });
+      expect(response?.status()).toBe(200);
+      // The chosen option is live (a zero that is chosen can be undone); it is the select's value and Apply carries it.
+      await expect(page.locator('select[name="place"]')).toHaveValue('unstated');
+      await expect(page.locator('select[name="place"] option[value="unstated"]')).not.toHaveAttribute('disabled', '');
+      await Promise.all([page.waitForURL(/\/board\?/), page.locator('.filter-apply').click()]);
+      expect(new URL(page.url()).searchParams.getAll('place')).toEqual(['unstated']);
+      // And Worldwide undoes it.
+      await page.locator('select[name="place"]').selectOption('all');
+      await Promise.all([page.waitForURL((url) => !url.searchParams.has('place') || url.searchParams.get('place') === 'all'), page.locator('.filter-apply').click()]);
+      expect(await page.locator('.page-span').first().textContent()).toMatch(/of 6\b/);
+    } finally {
+      await context.close();
+    }
   });
 });
 
@@ -589,7 +747,8 @@ test.describe('without JavaScript: the strip is real fields and the Apply button
       await expect(pay).toBeVisible();
       await expect(how).toHaveCount(4);
       for (const box of await how.all()) await expect(box).toBeVisible();
-      // The refused ones are refused in plain HTML too.
+      // The refused ones are refused in plain HTML too: Not stated is a zero on this board, so it is a
+      // refused option like every other zero (it is a real choice whenever it has rows).
       // (An <option> is checked by its attribute: engines disagree on whether
       // toBeDisabled looks at the option itself or at the select that holds it.)
       await expect(page.locator('select[name="place"] option[value="unstated"]')).toHaveAttribute('disabled', '');
@@ -643,6 +802,97 @@ test.describe('without JavaScript: the strip is real fields and the Apply button
     } finally {
       await context.close();
     }
+  });
+});
+
+test.describe('the order in force is said once, above the rows, for a reader with no why panel', () => {
+  // This file is signed out, which is the reader this is for: no Deets column, no why panel, so the order
+  // is told in one line above the rows instead of in a panel they do not have.
+  const line = (page: Page): Locator => page.locator('[data-order-reason]');
+  const ORDER_AGE = 'Ordered by age: newest first, roles with no date last, then company and title A to Z.';
+  const ORDER_BEST =
+    'Ordered by best match: where your words are found (the title, then the company name, then the rest of the posting), then the closer text match, then newer first.';
+
+  test('the bare board says age, because a reader who cannot see Deets is served the age order', async ({ page }) => {
+    await openBoard(page);
+    await expect(line(page)).toHaveCount(1);
+    await expect(line(page)).toHaveText(ORDER_AGE);
+    // Above the first row, and on the table's top edge.
+    const above = await line(page).boundingBox();
+    const first = await page.locator('[data-job-row]').first().boundingBox();
+    expect(above!.y + above!.height).toBeLessThanOrEqual(first!.y + 1);
+    // The sort control says the same thing: Age is the one pressed, and there is no Deets segment.
+    await expect(page.locator('a.segment[aria-current="true"]')).toHaveAttribute('data-sort-key', 'age');
+    await expect(page.locator('a.segment[data-sort-key="fit"]')).toHaveCount(0);
+    // And there is no per-row reason: no panel, no sentence in the markup.
+    await expect(page.locator('[data-rank-reason]')).toHaveCount(0);
+    await expect(page.locator('[data-why-toggle]')).toHaveCount(0);
+  });
+
+  test('words typed say best match, without the Deets they cannot see; a chosen sort is the one said', async ({ page }) => {
+    await openBoard(page, '?q=designer');
+    await expect(line(page)).toHaveText(ORDER_BEST);
+    expect(await total(page)).toBeGreaterThan(1);
+    await expect(line(page)).not.toContainText('Deets');
+    await expect(page.locator('a.segment[aria-current="true"]')).toHaveAttribute('data-sort-key', 'best');
+
+    await openBoard(page, '?q=designer&sort=comp');
+    await expect(line(page)).toHaveText('Ordered by pay: highest posted figure first, roles that post none last, then company and title A to Z.');
+    await openBoard(page, '?q=designer&sort=age');
+    await expect(line(page)).toHaveText(ORDER_AGE);
+    // Following the sort control changes the line with it.
+    await Promise.all([page.waitForURL(/sort=comp/), page.locator('a.segment[data-sort-key="comp"]').click()]);
+    await expect(line(page)).toHaveText(/^\s*Ordered by pay:/);
+  });
+
+  test('a close spelling says so first and then how it is ordered, and no word is ever the same twice', async ({ page }) => {
+    await openBoard(page, '?q=prodct%20desiner');
+    await expect(page.locator('[data-fuzzy-notice]')).toHaveText('No exact matches for "prodct desiner". Showing close spellings.');
+    await expect(line(page)).toHaveText('Ordered by best match: the closest spelling of "prodct desiner" first, then newer first.');
+    const [notice, order, first] = await Promise.all([
+      page.locator('[data-fuzzy-notice]').boundingBox(),
+      line(page).boundingBox(),
+      page.locator('[data-job-row]').first().boundingBox()
+    ]);
+    expect(notice!.y).toBeLessThan(order!.y);
+    expect(order!.y + order!.height).toBeLessThanOrEqual(first!.y + 1);
+  });
+
+  test('is not there when there is no row to be above, and uses no dash or curly quote', async ({ page }) => {
+    await openBoard(page, '?q=xqzvwk');
+    expect(await total(page)).toBe(0);
+    await expect(line(page)).toHaveCount(0);
+    await openBoard(page, '?q=designer');
+    const text = (await line(page).textContent()) ?? '';
+    for (const codePoint of [0x2014, 0x2013, 0x2018, 0x2019, 0x201c, 0x201d]) expect(text.includes(String.fromCodePoint(codePoint))).toBe(false);
+  });
+
+  test('is in the page the server sends: it is there with scripting off', async ({ browser, baseURL }) => {
+    const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
+    try {
+      const page = await context.newPage();
+      await page.goto('/board?q=designer', { waitUntil: 'domcontentloaded' });
+      await expect(line(page)).toHaveText(ORDER_BEST);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test.describe('a signed-in reader has the per-row sentence and is not told twice', () => {
+    test.use({ storageState: '.sweep/auth/member.json' });
+
+    test('no line above the rows; each row carries its own "Ranked" sentence in its panel', async ({ page }) => {
+      await openBoard(page, '?q=designer');
+      await expect(page.locator('[data-job-table]')).toBeAttached();
+      // A real signed-in session, or this passes for the wrong reason: the Deets segment is there and the table has a why toggle.
+      await expect(page.locator('a.segment[data-sort-key="fit"]')).toHaveCount(1);
+      await expect(page.locator('[data-why-toggle]').first()).toBeVisible();
+      await expect(line(page)).toHaveCount(0);
+      const sentences = await page.locator('[data-rank-reason]').allTextContents();
+      expect(sentences.length).toBeGreaterThan(1);
+      // The sentence they get does name Deets: they can read it.
+      expect(sentences[0]).toMatch(/^Ranked 1st: .*then Deets \d+, then newer first\.$/);
+    });
   });
 });
 

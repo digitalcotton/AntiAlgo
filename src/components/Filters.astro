@@ -2,6 +2,7 @@
 import SearchBox from './SearchBox.astro';
 import type { FilterGroup, FilterOption } from '../lib/data';
 import { chipsToParams, type Chip } from '../lib/search-parse';
+import { PLACE_UNSTATED } from '../lib/place-key';
 import { withBase } from '../../site.config.mjs';
 
 /**
@@ -166,10 +167,12 @@ const ownedNames = stripGroups.map((group) => group.key);
 // THE PLACE THE ADDRESS CHOSE, BY THE CHIP'S OWN NAME. facetGroupsFromCounts holds
 // a city or region the address names as an option and labels it from its key
 // (place-key.ts); the chip beside it carries the lexicon's label, and the two
-// must read alike. A bare country keeps the country list's own name.
+// must read alike. A bare country keeps the country list's own name, and so does
+// Not stated: its chip says "Location not stated" because the box has no cell
+// label beside it, and the cell already has one.
 const placeChip = chips.find((chip): chip is Extract<Chip, { kind: 'place' }> => chip.kind === 'place');
 const cells: FilterGroup[] = stripGroups.map((group) =>
-  group.key === 'place' && placeChip !== undefined && placeChip.key.length > 2
+  group.key === 'place' && placeChip !== undefined && placeChip.key.length > 2 && placeChip.key !== PLACE_UNSTATED
     ? { ...group, options: group.options.map((option) => (option.value === placeChip.key ? { ...option, label: placeChip.label } : option)) }
     : group
 );

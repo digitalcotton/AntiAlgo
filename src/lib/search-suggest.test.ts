@@ -427,7 +427,9 @@ describe('boardFilterFromQuery: the store\'s filter for a query', () => {
 
   it('is the filter board.astro asks the store for', () => {
     const page = readFileSync(new URL('../pages/board.astro', import.meta.url), 'utf8');
-    expect(page).toContain('listBoardFiltered(boardFilterFromQuery(');
+    // The shared function builds it; the one thing the page adds is whether the reader can see Deets
+    // (which only an ordering reads), as a spread over it, never a second reading of the address.
+    expect(page).toContain('listBoardFiltered({ ...boardFilterFromQuery(');
   });
 });
 
