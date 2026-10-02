@@ -18,9 +18,11 @@
    - Hide zero-count rows in the typeahead's Places and Companies. The "show the
      zero" rule fits fixed dropdowns (Remote, Comp, Location); in search-as-you-type
      it is clutter — seven dead places under London.
-   - Collapse near-duplicate places: "London, Canada" (`CA/London`, any province)
-     and "London, ON" (`CA-ON/London`) are the same city listed twice.
-2. **Seven decisions** in the report's "Decisions that are yours": EU → Europe and a
+   - ~~Collapse near-duplicate places~~ — **corrected after checking the rows**:
+     only 3 of the 5 "London, Canada" jobs are London, Ontario; the other 2 are
+     London, UK, wrongly paired with Canada from a multi-place list. That is a
+     wider bug (24 of 99 multi-place postings): report decision 8.
+2. **Eight decisions** in the report's "Decisions that are yours": EU → Europe and a
    Middle East & Africa region; an applied filter shown twice (chip + dropdown); the
    long Location list; Remote ticks submit one at a time; delete the old
    suggestions JSON / build script / `familyFromSearch()`; ESCO categories (needs a

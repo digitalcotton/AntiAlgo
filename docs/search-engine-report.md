@@ -156,6 +156,33 @@ relative gains hold.
    on the Mac mini, both of which need your approval.
 7. A pre-existing accepted gate finding (`gate-invariants` check 3) passed its
    "review by" date on 2026-10-01.
+8. **A posting that lists several places is given one city, often the wrong
+   one.** Found after this report, checking "London, Canada" in the typeahead.
+   99 live postings list places separated by " / "; each was given a single
+   city, and 24 of those are wrong: a city from the list paired with a different
+   country from the list or from the upstream code.
+   - "United States / Canada / London" → *London, Canada* (2 rows; London, UK)
+   - "London / Germany" → *London, Germany*; "London / Ireland / … / United
+     States" → *London, United States* (2)
+   - "New York / Canada / United States" → *New York, Canada*; "United Kingdom /
+     New York / …" → *New York, United Kingdom* (2)
+   - "Canada / Europe / United States" → a city called *Europe* (9 rows across
+     Poland, Canada, United States); also *Apac* (2), *All France* (3)
+
+   Postings that name one place were checked the same way (the 30 largest groups
+   of a city filed under an unusual country): all real places — London, ON;
+   Cambridge, ON; Melbourne, FL; London, OH.
+
+   The fix is a choice: **(a)** a posting that lists several places gets no city
+   and reads "Multiple locations" — small; or **(b)** it counts under every place
+   it names, which is what someone searching London wants, but one posting then
+   has several places and the count rules change with it.
+
+   Separately, the real "London, Canada" rows (3 of the 5; the posting says
+   "London, Canada" and the title says London, Ontario) are the same city as
+   *London, ON* and should be filed there: a city named with its country but no
+   province takes the province when the board knows only one city of that name
+   in that country.
 
 ---
 
