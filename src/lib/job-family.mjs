@@ -38,7 +38,9 @@
  * Support Engineering" contains four family words. The first rule that matches
  * wins, so the list below is sorted by how strongly a term identifies a family,
  * not alphabetically. Moving a rule changes classifications; the coverage
- * harness in job-family.test.ts is what catches that.
+ * harness in job-family.test.ts is what catches that. The one other input is
+ * NOT_AN_EXTENSION, below: the short list of words the prefix rule may not read
+ * as a stem, which keeps `Salesforce` from being `sales`.
  */
 
 /**
@@ -129,7 +131,14 @@ export function familyFromSearch(q) {
 /** @type {ReadonlyArray<readonly [string, readonly string[]]>} */
 const RULES = [
   // --- claimed early, because a later bare word would take them wrongly ---
-  ['legal', ['legal engineering', 'contract law']],
+  // `counsel` is here and not in the legal rule further down because a lawyer's
+  // title usually names the practice first: Commercial Counsel, Product
+  // Counsel and Marketing Counsel would each be taken by sales, product and
+  // marketing, which sit above that rule, the moment social care stopped
+  // claiming the word. It does not reach the person who counsels: Counselor
+  // and Counselling are barred from it (see NOT_AN_EXTENSION) and are read by
+  // social-care's own terms.
+  ['legal', ['legal engineering', 'contract law', 'counsel']],
   ['finance', ['value engineering', 'financial engineering',
     'budget analysis', 'budget'
   ,
@@ -137,6 +146,11 @@ const RULES = [
   ]],
   ['sales', ['sales engineer', 'solutions engineer', 'pre-sales', 'presales']],
   ['science', ['research engineer', 'research scientist']],
+  // A data center is a building full of servers, and the people in it rack,
+  // cable and replace hardware. The bare `data` that follows is the word for
+  // analysis, so `Data Center Technician` was filed under Data & AI, next to
+  // the data scientists, for as long as the word `center` was not read.
+  ['it-infra', ['data center', 'data centre', 'datacenter', 'datacentre']],
 
   // --- health, ahead of everything that shares its words ---
   ['health', [
@@ -151,7 +165,8 @@ const RULES = [
     'health', 'soins', 'therapeutique', 'occupational health', 'sante'
   ]],
   ['social-care', [
-    'social work', 'social science', 'psychology', 'psycholog', 'counsel', 'chaplain',
+    'social work', 'social science', 'psychology', 'psycholog', 'counselor', 'counsellor',
+    'counseling', 'counselling', 'chaplain',
     'community care', 'direct support', 'caregiver', 'care worker', 'youth work',
     'rehabilitation', 'welfare'
   ]],
@@ -198,6 +213,15 @@ const RULES = [
     'infrastructure', 'devops', 'site reliability', 'cloud', 'platform engineering', 'it'
   ,
     'solutions architect', 'architect'
+  ,
+    // A Salesforce administrator configures a platform, which is IT work. It
+    // is not a seller (the prefix rule filed it under sales, reading
+    // `Salesforce` as `sales`) and not office administration, where the bare
+    // `administrator` would put it once the prefix is barred.
+    // The phrase stops at `admin` so Salesforce Admin and Administrator both
+    // land here, and it is NOT a bare `salesforce`, which would also take
+    // Salesforce Developer out of software.
+    'salesforce admin'
   ]],
   ['software', [
     'software development', 'software engineering', 'software engineer', 'software',
@@ -231,7 +255,7 @@ const RULES = [
     'finance', 'accounting', 'accountant', 'controller', 'treasury', 'audit', 'tax',
     'payroll', 'procurement', 'contracting', 'buchhaltung'
   ]],
-  ['legal', ['legal', 'attorney', 'counsel', 'paralegal', 'compliance', 'regulatory', 'recht']],
+  ['legal', ['legal', 'attorney', 'paralegal', 'compliance', 'regulatory', 'recht']],
   ['people', [
     'human resources', 'people operations', 'people', 'recruiting', 'recruitment',
     'talent acquisition', 'talent', 'hr', 'personal'
@@ -456,6 +480,29 @@ const RULES = [
     // Kostendeskundige Installatietechniek, and `installatietechniek` is
     // already trades.
     'werktuigbouw'
+  ]],
+
+  // -------------------------------------------------------------------------
+  // THE REPAIR BLOCK, 2026-10-02. Not new vocabulary: these are the homes for
+  // words that NOT_AN_EXTENSION stopped the prefix rule from misfiling, so a
+  // barred word lands in the family it belongs to and not in none. Last, like
+  // the blocks above, so each can only place a row that nothing earlier claims.
+  // -------------------------------------------------------------------------
+  ['health', [
+    // Operating-theatre nurse and technician, which `operations` was claiming
+    // through the prefix rule (Operationssjuksköterska, OTA).
+    'operationssjukskoterska', 'operationstechnische'
+  ]],
+  ['manufacturing', [
+    // Dutch for production. `product` was claiming it as a prefix, which filed
+    // every Productie Operator and Productiemedewerker under Product.
+    'productie'
+  ]],
+  ['trades', [
+    // German for technician, which `technik` was claiming as a prefix and
+    // filing under software. Whole-word and prefix, so Techniker:in and
+    // Technikerarbeit come with it; Servicetechniker is a different word.
+    'techniker'
   ]]
 ];
 
@@ -500,10 +547,105 @@ function normalise(text) {
  */
 const PREFIX_MIN = 5;
 
+/**
+ * WORDS THAT ONLY BEGIN WITH A TERM (2026-10-02). The prefix rule is right
+ * about stems and blind to coincidence, and a length floor cannot tell them
+ * apart: `sales` is the stem of `salespeople` and also the first five letters
+ * of `Salesforce`, a CRM product that has nothing to do with selling.
+ * `Salesforce Administrator` was a sales job on the strength of it.
+ *
+ * Measured over the corpus fixture, 577 (term, word) pairs matched ONLY as a
+ * prefix. Nearly all are what the rule is for: engineer / engineering, driver /
+ * drivers, and the stems chosen to be stems (veterin, elektro, medizin, radiolog).
+ * The ones below are a different word. Each was found by reading every pair and
+ * checking which family the match decided. Each entry carries its reason, and
+ * a count, where one is given, is the number of prefix matches on that fixture.
+ *
+ * A TABLE, NOT A SMARTER RULE, on purpose. A minimum suffix length or a
+ * dictionary would be one more thing a member cannot read, and this value
+ * decides what a member is not shown. This list can be argued with line by line.
+ *
+ * WHAT A BAR DOES AND DOES NOT DO. It closes the PREFIX route only: a barred
+ * word is skipped, and any later rule that wants it still gets it, so
+ * `production` leaves `product` and is picked up by manufacturing's own
+ * `production`, and a lone `Sales` is still sales. A word is barred when it
+ * STARTS with an entry, which is how one entry covers the plural and the
+ * compounds (`productie` also bars `productiemedewerker`). Entries are single
+ * words, written the way normalise() writes them, and a new false positive is
+ * one more line here, never a re-ordering of the rules.
+ *
+ * @type {ReadonlyMap<string, readonly string[]>}
+ */
+const NOT_AN_EXTENSION = new Map(
+  Object.entries({
+    // A product, not the act of selling. 121 matches; it filed a Salesforce
+    // Administrator and a Salesforce Project Manager under sales.
+    sales: ['salesforce'],
+    // The factory floor, the Dutch word for it, and productivity are not
+    // product management. `production` alone was 449 matches and filed every
+    // Production Controller and Production Team Member under Product.
+    product: ['production', 'productie', 'productiv'],
+    // Fire protection in German, Dutch and Swedish, and two place names.
+    // Brandschutz is not a brand.
+    brand: [
+      'brandschutz', 'brandveilig', 'brandskydd', 'brandtatning', 'brandenburg', 'brandermill'
+    ],
+    // A children's nursery is not a nurse.
+    nurse: ['nursery'],
+    // Developmental disabilities services are social care, not software.
+    development: ['developmental'],
+    // Designated Managing Broker is not design.
+    design: ['designated'],
+    // Personalization and personality; the German Personal (staff) is kept.
+    personal: ['personaliz', 'personalis', 'personalit'],
+    // A city in Ontario, which turns up in titles ("Detailer - Kitchener").
+    kitchen: ['kitchener'],
+    // A town in Illinois ("Maintenance Technician - Carpentersville").
+    carpenter: ['carpentersville'],
+    // A medical-school clerkship is not office clerking.
+    clerk: ['clerkship'],
+    // Spanish for a staff template, and Swedish for planting.
+    plant: ['plantilla', 'plantering'],
+    // The adjective, not the HR noun: "Talented Driven Professional".
+    talent: ['talented'],
+    // German for a mobile service ("Mobiler Autoglasmonteur"), not mobile apps.
+    mobile: ['mobiler'],
+    // Developing countries, not software development.
+    entwicklung: ['entwicklungsland'],
+    // German `Schüler` is a pupil, so a Schülerpraktikum is an internship FOR
+    // pupils, not a job in a school. Intern postings are left null on purpose
+    // (see the first tail block), and these now are.
+    schule: ['schuler'],
+    // The German technician is a tradesman; `technik` is the technology.
+    // Filed Kfz-Techniker and Gebäudeautomation technicians under software.
+    // `techniker` is a trades term in the last block below, beside `technician`.
+    technik: ['techniker'],
+    // The operating-theatre nurse and technician are health, not operations;
+    // both are health terms in the last block below.
+    operations: ['operationssjukskoterska', 'operationstechnische'],
+    // The person who counsels is social care's, and `counsel` is the lawyer.
+    // Without this the early legal rule would claim every Counselor.
+    counsel: ['counselor', 'counsellor', 'counseling', 'counselling']
+  }).map(([term, words]) => [normalise(term).trim(), words])
+);
+
+/**
+ * Whether `term` occurs in `haystack` as a whole word, or (for a long enough
+ * term) at the start of a word that NOT_AN_EXTENSION does not bar.
+ */
 function matches(haystack, term) {
   const t = normalise(term).trim();
   if (haystack.includes(' ' + t + ' ')) return true;
-  return t.length >= PREFIX_MIN && haystack.includes(' ' + t);
+  if (t.length < PREFIX_MIN) return false;
+  const barred = NOT_AN_EXTENSION.get(t);
+  if (!barred) return haystack.includes(' ' + t);
+  // A bar belongs to a word, and a haystack can hold the term twice, so every
+  // occurrence is tried: one barred word must not hide a good one beside it.
+  for (let at = haystack.indexOf(' ' + t); at !== -1; at = haystack.indexOf(' ' + t, at + 1)) {
+    const word = haystack.slice(at + 1, haystack.indexOf(' ', at + 1));
+    if (!barred.some((b) => word.startsWith(b))) return true;
+  }
+  return false;
 }
 
 /**
