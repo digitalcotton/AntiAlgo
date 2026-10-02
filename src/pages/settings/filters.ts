@@ -43,8 +43,8 @@
  * the caller already has a plan for.
  */
 import type { APIContext } from 'astro';
-import { filterGroups, verifiedJobs } from '../../lib/data';
-import { normalizeFilterSelection, suppressApplied } from '../../lib/filters';
+import { verifiedJobs } from '../../lib/data';
+import { suppressApplied } from '../../lib/filters';
 import { getFilterState, saveFilterState } from '../../lib/filters-store';
 import { listApplications } from '../../lib/desk-store';
 
@@ -108,13 +108,19 @@ export async function POST(context: APIContext): Promise<Response> {
 
   const raw =
     body !== null && typeof body === 'object' ? (body as Record<string, unknown>).selection : undefined;
+  // A selection is an object. Anything else (no `selection` at all, a string, a
+  // list) is not a malformed value to be read as "nothing chosen": saving it
+  // would wipe what this person had saved, on a request the strip never sends.
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return new Response(JSON.stringify({ error: 'Malformed request body.' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 
-  // Validated against the live groups, never trusted as posted: see
-  // normalizeFilterSelection()'s own comment on why that vocabulary is
-  // enforced here and not by a database constraint.
-  const groups = filterGroups(verifiedJobs());
-  const selection = normalizeFilterSelection(raw, groups);
-  const stored = await saveFilterState(viewer.userId, selection);
+  // Validated by saveFilterState(), through the address's own parsers (see
+  // filters-store.ts's header), never trusted as posted.
+  const stored = await saveFilterState(viewer.userId, raw);
 
   return new Response(JSON.stringify({ selection: stored.selection }), {
     status: 200,

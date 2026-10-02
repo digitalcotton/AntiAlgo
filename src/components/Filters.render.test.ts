@@ -439,3 +439,52 @@ describe('Filters.astro: the strip\'s menus follow the repo\'s dropdown rules', 
     expect(SOURCE).toContain('closeMenus(cell)');
   });
 });
+
+describe('Filters.astro: a saved selection comes back whole, including what the bare board does not list', () => {
+  it('marks Location and Comp as open: the address accepts a city, a region and a typed floor the list never draws', async () => {
+    const html = await renderStripGroups();
+    expect(cellOf(html, 'Location')).toMatch(/<select[^>]*data-filter-group="place"[^>]*data-open-values/);
+    expect(cellOf(html, 'Comp')).toMatch(/<select[^>]*data-filter-group="pay_min"[^>]*data-open-values/);
+  });
+
+  it('marks no other select: a list drawn exhaustively (the Pre-List\'s Comp and Location) keeps its own rule', async () => {
+    const html = await renderFilters();
+    for (const group of ['location', 'comp', 'freshness']) {
+      expect(html, group).toMatch(new RegExp(`<select[^>]*data-filter-group="${group}"`));
+    }
+    expect(html).not.toContain('data-open-values');
+  });
+
+  it('restores an open select\'s saved value without asking whether the bare board lists it, and a closed one only if it still does', () => {
+    const restore = SOURCE.slice(SOURCE.indexOf('function applySelection'), SOURCE.indexOf('function persistSelection'));
+    expect(restore).toMatch(/!select\.hasAttribute\('data-open-values'\) && !Array\.from\(select\.options\)\.some\(/);
+    // One navigation, and only from the board's own bare address: the guard the home page's "flip" needed.
+    expect(restore).toContain("if (window.location.search !== '' || !boardPath) return;");
+    expect(restore).toContain('if (here !== boardPath.replace(/\\/$/, \'\')) return;');
+  });
+
+  it('keeps the cleared-on-the-board rule: a bare board reached from the board is an empty selection, not an arrival', () => {
+    expect(SOURCE).toContain('function clearedOnTheBoard');
+    expect(SOURCE).toContain("if (serverMode && (window.location.search !== '' || cleared)) persistSelection();");
+  });
+
+  it('lets only a strip that has the saved controls write the record: the Pre-List\'s own Comp select must not save over it', () => {
+    // One definition of who owns the record, and both writes (the account's and the browser's copy) ask it.
+    expect(SOURCE.match(/const savesTheStrip = /g)).toHaveLength(1);
+    expect(SOURCE).toContain("const savesTheStrip = !serverMode || multis.length > 0 || selects.some((select) => select.hasAttribute('data-open-values'));");
+    expect(SOURCE).toMatch(/function persistSelection\(\): void \{\s*if \(!savesTheStrip\) return;/);
+    expect(SOURCE).toContain('if (savesTheStrip) writeJSON(window.localStorage, FILTERS_KEY, currentSelection());');
+    // And no other write of the record exists.
+    expect(SOURCE.match(/writeJSON\(window\.localStorage, FILTERS_KEY/g)).toHaveLength(2);
+    expect(SOURCE.match(/method: 'POST'/g)).toHaveLength(1);
+  });
+
+  it('writes the strip as the three names the account keeps, and writes no freshness', () => {
+    const current = SOURCE.slice(SOURCE.indexOf('function currentSelection'), SOURCE.indexOf('THE READER EMPTIED THE BOARD'));
+    // Every key comes from a control on the page: a select's group or a checkbox group's. The strip has
+    // Location (place), Remote (remote) and Comp (pay_min); there is no Freshness control to write one.
+    expect(current).toContain("selection[group] = select.value;");
+    expect(current).toContain("selection[group] = tickedOf(cell).join(',') || 'all';");
+    expect(current).not.toContain('freshness');
+  });
+});

@@ -1,4 +1,6 @@
-import { expect, test } from 'playwright/test';
+import { mkdirSync, rmSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { expect, test, type Locator, type Page } from 'playwright/test';
 
 /**
  * Interaction specs: the ones that only fail under a real browser engine, never
@@ -126,6 +128,90 @@ test.describe('the come-ready title dropdown (.claude/rules/dropdown-focus.md)',
   });
 });
 
+/**
+ * THE MEMBER'S SAVED SELECTION IS ONE ROW, AND EVERY TEST BELOW SHARES IT.
+ * webkit-interactions and firefox-interactions both sign in as `member`, and
+ * `routes.signedin.spec.ts` does too, so a test that saves a selection to the
+ * account and a test that expects the account to be empty are talking about the
+ * same row. They run in parallel, in two engines, so without a rule one of them
+ * finds the other's selection where it expected none. The rule: the tests that
+ * write the account take a lock (a directory is the one atomic thing the
+ * filesystem offers every worker), start from nothing saved, and leave nothing
+ * saved. `.sweep/` is where a run's own files go and is git-ignored.
+ */
+const SAVED_LOCK = join(process.cwd(), '.sweep', 'locks', 'member-saved-filters');
+const SAVED_LOCK_STALE_MS = 90_000;
+const NOTHING_SAVED = { place: 'all', remote: 'all', pay_min: 'all' };
+
+async function saveSelection(page: Page, selection: unknown): Promise<unknown> {
+  const response = await page.request.post('/settings/filters', { data: { selection } });
+  expect(response.status(), 'POST /settings/filters').toBe(200);
+  return ((await response.json()) as { selection: unknown }).selection;
+}
+
+async function savedSelection(page: Page): Promise<unknown> {
+  const response = await page.request.get('/settings/filters');
+  expect(response.status(), 'GET /settings/filters: the member is signed in').toBe(200);
+  return ((await response.json()) as { selection: unknown }).selection;
+}
+
+async function withSavedSelection(page: Page, body: () => Promise<void>): Promise<void> {
+  test.setTimeout(90_000);
+  mkdirSync(dirname(SAVED_LOCK), { recursive: true });
+  for (;;) {
+    try {
+      mkdirSync(SAVED_LOCK);
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      // A lock a crashed run left behind is not worth waiting for.
+      try {
+        if (Date.now() - statSync(SAVED_LOCK).mtimeMs > SAVED_LOCK_STALE_MS) rmSync(SAVED_LOCK, { recursive: true, force: true });
+      } catch {
+        /* Released between the two calls: take it on the next turn. */
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+  }
+  try {
+    await saveSelection(page, {});
+    await body();
+  } finally {
+    // Whatever the page was still saving has landed by now: every test below
+    // waits for the account to say what it expects before it moves on.
+    await saveSelection(page, {}).catch(() => undefined);
+    rmSync(SAVED_LOCK, { recursive: true, force: true });
+  }
+}
+
+const exactly = (text: string): RegExp => new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+const stripCell = (page: Page, name: string): Locator =>
+  page.locator('.filters-row > .filter').filter({ has: page.locator('.filter-label', { hasText: exactly(name) }) });
+const stripValue = (page: Page, name: string): Locator => stripCell(page, name).locator('.filter-value');
+
+/** Open a strip control, press one of its rows, and wait for the form it submits to land on an address that matches. */
+async function pick(page: Page, control: string, option: string, address: RegExp): Promise<void> {
+  await stripValue(page, control).click();
+  const menu = page.locator('.filters > .menu:not([hidden])');
+  const row = menu.locator('[role="option"]', { has: page.locator('.menu-label', { hasText: exactly(option) }) });
+  await Promise.all([page.waitForURL(address), row.click()]);
+  await expect(page.locator('[data-filters][data-js]')).toBeAttached();
+}
+
+/** Forget what this browser kept, so only the account can bring a selection back. */
+async function forgetBrowserCopy(page: Page): Promise<void> {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => window.localStorage.removeItem('ti-index-filters:v1'));
+}
+
+/** Arrive at the bare board from another page of the site, the way a link or the nav does. On Firefox this promise can
+    reject with NS_BINDING_ABORTED when the restore navigates at once; the poll the caller makes reads the address instead. */
+async function arriveAtTheBoard(page: Page): Promise<void> {
+  await page.goto('/board', { waitUntil: 'domcontentloaded', referer: new URL('/', page.url()).href }).catch(() => undefined);
+}
+
+const chipLabels = (page: Page): Promise<string[]> => page.locator('.sb-chip .sb-chip-label').allTextContents();
+
 test.describe('a saved board filter (commit 54435b9)', () => {
   /**
    * src/components/Filters.astro's applySelection() only replaces the address
@@ -138,64 +224,187 @@ test.describe('a saved board filter (commit 54435b9)', () => {
    * the board would pass on a regression of exactly that line.
    */
   test('restores on /board and does not restore on /', async ({ page }) => {
-    // remote=onsite and place=US: the seeded test-db fixture (scripts/test-db.mjs)
-    // has one remote job, no hybrid and five on-site, and three of its six are in
-    // the United States. The strip draws every option now, zero ones muted, so
-    // nothing here depends on an option surviving; these two are simply the ones
-    // with rows, so the saved selection is a real narrowing of the board. The two
-    // controls are different mechanisms (a checkbox group and a select), so both
-    // have to come back.
-    const setResponse = await page.goto('/board?remote=onsite&place=US', { waitUntil: 'domcontentloaded' });
-    expect(setResponse?.status(), '/board?remote=onsite&place=US').toBeLessThan(400);
-    await expect(page.locator('[data-filter-multi="remote"] input[value="onsite"]')).toBeChecked();
-    await expect(page.locator('[data-filter-group="place"]')).toHaveValue('US');
+    await withSavedSelection(page, async () => {
+      // remote=onsite and place=US: the seeded test-db fixture (scripts/test-db.mjs)
+      // has one remote job, no hybrid and five on-site, and three of its six are in
+      // the United States. The strip draws every option now, zero ones muted, so
+      // nothing here depends on an option surviving; these two are simply the ones
+      // with rows, so the saved selection is a real narrowing of the board. The two
+      // controls are different mechanisms (a checkbox group and a select), so both
+      // have to come back.
+      const setResponse = await page.goto('/board?remote=onsite&place=US', { waitUntil: 'domcontentloaded' });
+      expect(setResponse?.status(), '/board?remote=onsite&place=US').toBeLessThan(400);
+      await expect(page.locator('[data-filter-multi="remote"] input[value="onsite"]')).toBeChecked();
+      await expect(page.locator('[data-filter-group="place"]')).toHaveValue('US');
 
-    // 2. Reload the board's bare address. The saved selection must restore:
-    //    this is the spec confirming a real saved-filter feature exists at
-    //    all, not just that nothing crashes.
-    //
-    // Not page.goto() + page.waitForURL(): the redirect this is waiting for
-    // is itself a same-tab client navigation the page's own script fires
-    // almost immediately after DOMContentLoaded (Filters.astro's
-    // applySelection()), and on Firefox that lands squarely on a known
-    // Playwright/Gecko rough edge — the original navigation's own promise
-    // (goto, or a waitForURL racing the 'load' event behind it) rejects with
-    // NS_BINDING_ABORTED because Gecko tears down the first document before
-    // it ever settles. Polling page.url() reads the frame's current address
-    // without hooking into that per-navigation promise machinery at all, so
-    // it has nothing to abort.
-    await page.goto('/board').catch(() => {
-      /* Ignore: on Firefox this promise itself can reject with
-         NS_BINDING_ABORTED for the reason above, even though the
-         navigation it started completes and the poll below observes it. */
+      // 2. Reload the board's bare address. The saved selection must restore:
+      //    this is the spec confirming a real saved-filter feature exists at
+      //    all, not just that nothing crashes.
+      //
+      // Not page.goto() + page.waitForURL(): the redirect this is waiting for
+      // is itself a same-tab client navigation the page's own script fires
+      // almost immediately after DOMContentLoaded (Filters.astro's
+      // applySelection()), and on Firefox that lands squarely on a known
+      // Playwright/Gecko rough edge — the original navigation's own promise
+      // (goto, or a waitForURL racing the 'load' event behind it) rejects with
+      // NS_BINDING_ABORTED because Gecko tears down the first document before
+      // it ever settles. Polling page.url() reads the frame's current address
+      // without hooking into that per-navigation promise machinery at all, so
+      // it has nothing to abort.
+      await page.goto('/board').catch(() => {
+        /* Ignore: on Firefox this promise itself can reject with
+           NS_BINDING_ABORTED for the reason above, even though the
+           navigation it started completes and the poll below observes it. */
+      });
+      await expect
+        .poll(() => page.url(), {
+          timeout: 5_000,
+          message: 'the board never redirected to its own saved selection after a bare reload'
+        })
+        .toMatch(/\/board\?(?=.*remote=onsite)(?=.*place=US)/);
+      await expect(page.locator('[data-filter-multi="remote"] input[value="onsite"]')).toBeChecked();
+      await expect(page.locator('[data-filter-group="place"]')).toHaveValue('US');
+
+      // 3. The regression itself: the SAME saved selection must NOT restore on
+      //    the home page, which embeds the identical Board/Filters component in
+      //    server mode with the same boardPath. Bare navigation, no query — if
+      //    54435b9's guard (`here !== boardPath`) is ever lost, this is a
+      //    window.location.replace to /board?remote=onsite&place=US and the assertion
+      //    below is what catches it.
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      // Give the restore script a beat to run and (wrongly) navigate if the
+      // guard is gone; a fixed wait rather than waitForURL because the pass
+      // condition here is that nothing happens.
+      await page.waitForTimeout(500);
+      const url = new URL(page.url());
+      expect(
+        url.pathname === '/' && url.search === '',
+        `/ ended up at ${page.url()} after loading with a saved board filter in localStorage. ` +
+          'Filters.astro\'s applySelection() must only redirect on the board\'s own bare address ' +
+          '(the guard commit 54435b9 added) — this is the home page "flip" bug, restored.'
+      ).toBe(true);
     });
-    await expect
-      .poll(() => page.url(), {
-        timeout: 5_000,
-        message: 'the board never redirected to its own saved selection after a bare reload'
-      })
-      .toMatch(/\/board\?(?=.*remote=onsite)(?=.*place=US)/);
-    await expect(page.locator('[data-filter-multi="remote"] input[value="onsite"]')).toBeChecked();
-    await expect(page.locator('[data-filter-group="place"]')).toHaveValue('US');
+  });
 
-    // 3. The regression itself: the SAME saved selection must NOT restore on
-    //    the home page, which embeds the identical Board/Filters component in
-    //    server mode with the same boardPath. Bare navigation, no query — if
-    //    54435b9's guard (`here !== boardPath`) is ever lost, this is a
-    //    window.location.replace to /board?remote=onsite&place=US and the assertion
-    //    below is what catches it.
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    // Give the restore script a beat to run and (wrongly) navigate if the
-    // guard is gone; a fixed wait rather than waitForURL because the pass
-    // condition here is that nothing happens.
-    await page.waitForTimeout(500);
-    const url = new URL(page.url());
-    expect(
-      url.pathname === '/' && url.search === '',
-      `/ ended up at ${page.url()} after loading with a saved board filter in localStorage. ` +
-        'Filters.astro\'s applySelection() must only redirect on the board\'s own bare address ' +
-        '(the guard commit 54435b9 added) — this is the home page "flip" bug, restored.'
-    ).toBe(true);
+  /**
+   * THE ACCOUNT KEEPS THE STRIP (2026-10-02). The strip writes place, remote
+   * (several) and a pay floor, and the account's saved selection used to keep
+   * only the first strip's location, comp and freshness, so a member's new
+   * choices lived in one browser's localStorage and nowhere else. Each test
+   * below throws the browser's copy away before it comes back, so what restores
+   * can only have come from the account.
+   */
+  test('the account brings back Location, two Remote kinds and a floor, with no browser memory of them', async ({ page }) => {
+    await withSavedSelection(page, async () => {
+      await page.goto('/board', { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('[data-filters][data-js]')).toBeAttached();
+
+      // THE ORDER IS THE FIXTURE'S. Every option is counted under the OTHER filters and a zero is refused, so a
+      // choice only works while it still leaves a row. The one remote posting is in Canada and every on-site one is
+      // elsewhere: Location first would leave Remote at zero, and no country holds both. Arrangements first, then a
+      // country that has some of either (the United States: three), then a floor one of those clears ($150k at Figma).
+      await pick(page, 'Remote', 'Remote', /\/board\?(?=.*remote=remote)/);
+      await pick(page, 'Remote', 'On-site', /\/board\?(?=.*remote=remote)(?=.*remote=onsite)/);
+      await pick(page, 'Location', 'United States', /[?&]place=US(?:&|$)/);
+      await pick(page, 'Comp', '$100k+', /[?&]pay_min=100(?:&|$)/);
+      await expect(stripValue(page, 'Remote')).toHaveText('Remote + On-site');
+
+      // The account says so, in the same three names the strip writes.
+      await expect
+        .poll(() => savedSelection(page), { message: 'the account never held the strip the member had just chosen' })
+        .toEqual({ place: 'US', remote: 'remote,onsite', pay_min: '100' });
+
+      // Leave, forget this browser's copy, and come back to the bare board from elsewhere.
+      await forgetBrowserCopy(page);
+      await arriveAtTheBoard(page);
+      await expect
+        .poll(() => page.url(), { timeout: 8_000, message: 'a bare arrival at the board never restored the selection the account holds' })
+        .toMatch(/\/board\?(?=.*place=US)(?=.*remote=remote(?:%2C|,)onsite)(?=.*pay_min=100)/);
+      await expect(stripValue(page, 'Location')).toHaveText('United States');
+      await expect(stripValue(page, 'Remote')).toHaveText('Remote + On-site');
+      await expect(stripValue(page, 'Comp')).toHaveText('$100k+');
+    });
+  });
+
+  test('clearing the board from the board stays cleared, in the account as well as the browser', async ({ page }) => {
+    await withSavedSelection(page, async () => {
+      expect(await saveSelection(page, { place: 'US', remote: 'onsite', pay_min: '100' })).toEqual({ place: 'US', remote: 'onsite', pay_min: '100' });
+      await forgetBrowserCopy(page);
+      await arriveAtTheBoard(page);
+      await expect
+        .poll(() => page.url(), { timeout: 8_000, message: 'a bare arrival at the board never restored the selection the account holds' })
+        .toMatch(/\/board\?(?=.*place=US)(?=.*remote=onsite)(?=.*pay_min=100)/);
+      await expect(stripValue(page, 'Location')).toHaveText('United States');
+      await expect.poll(() => chipLabels(page)).toEqual(['United States', 'On-site', '$100k+']);
+      await expect(page.locator('[data-filters][data-js]')).toBeAttached();
+
+      // Take every filter off with its own x. The last one lands on a bare /board reached FROM the board,
+      // which is an emptied selection and not an arrival: nothing restores, and the account is told.
+      await Promise.all([
+        page.waitForURL((url) => !url.searchParams.has('place')),
+        page.locator('.sb-chip', { hasText: 'United States' }).locator('.sb-chip-x').click()
+      ]);
+      await Promise.all([
+        page.waitForURL((url) => !url.searchParams.has('remote')),
+        page.locator('.sb-chip', { hasText: 'On-site' }).locator('.sb-chip-x').click()
+      ]);
+      await expect(page.locator('[data-filters][data-js]')).toBeAttached();
+      await Promise.all([
+        page.waitForURL((url) => url.pathname === '/board' && url.search === ''),
+        page.locator('.sb-chip', { hasText: '$100k+' }).locator('.sb-chip-x').click()
+      ]);
+      // Give a (wrong) restore its moment: it is a client navigation the script fires at once.
+      await page.waitForTimeout(700);
+      expect(new URL(page.url()).search, 'the last filter was put back by the saved selection').toBe('');
+      await expect(stripValue(page, 'Location')).toHaveText('Worldwide');
+      await expect(stripValue(page, 'Remote')).toHaveText('All');
+      await expect(stripValue(page, 'Comp')).toHaveText('Any');
+
+      await expect
+        .poll(() => savedSelection(page), { message: 'the account still held the selection the member had just cleared' })
+        .toEqual(NOTHING_SAVED);
+
+      // And it stays cleared for a fresh arrival with no browser memory at all.
+      await forgetBrowserCopy(page);
+      await arriveAtTheBoard(page);
+      await page.waitForTimeout(700);
+      expect(new URL(page.url()).search, 'a cleared account selection came back on a fresh arrival').toBe('');
+    });
+  });
+
+  test('a selection written in the first strip\'s names comes back as the strip it means', async ({ page }) => {
+    await withSavedSelection(page, async () => {
+      // location is the old name of remote, a band is its lower bound as a floor, and freshness is no longer offered.
+      expect(await saveSelection(page, { location: 'onsite', comp: '150-200', freshness: 'fresh' })).toEqual({
+        place: 'all',
+        remote: 'onsite',
+        pay_min: '150'
+      });
+      await forgetBrowserCopy(page);
+      await arriveAtTheBoard(page);
+      await expect
+        .poll(() => page.url(), { timeout: 8_000, message: 'a bare arrival at the board never restored the selection the account holds' })
+        .toMatch(/\/board\?(?=.*remote=onsite)(?=.*pay_min=150)/);
+      const address = new URL(page.url()).searchParams;
+      expect([...address.keys()].sort(), 'the restore carried an old name or a freshness to the address').toEqual(['pay_min', 'remote']);
+      await expect(stripValue(page, 'Remote')).toHaveText('On-site');
+      await expect(stripValue(page, 'Comp')).toHaveText('$150k+');
+    });
+  });
+
+  test('a city and a floor the board does not list restore too: the address reads them, so the restore carries them', async ({ page }) => {
+    await withSavedSelection(page, async () => {
+      // The bare board lists countries and the standard floors. A city (a search-box chip sets one) and a typed
+      // floor are on no such list, and a restore that asked "is it an option?" would drop them and keep the rest.
+      expect(await saveSelection(page, { place: 'GB/London', remote: 'all', pay_min: '175' })).toEqual({ place: 'GB/London', remote: 'all', pay_min: '175' });
+      await forgetBrowserCopy(page);
+      await arriveAtTheBoard(page);
+      await expect
+        .poll(() => page.url(), { timeout: 8_000, message: 'a bare arrival at the board never restored the account\'s selection' })
+        .toMatch(/\/board\?(?=.*place=GB%2FLondon)(?=.*pay_min=175)/);
+      await expect(stripValue(page, 'Comp')).toHaveText('$175k+');
+      await expect(stripValue(page, 'Location')).toHaveText('London, United Kingdom');
+    });
   });
 });
 

@@ -67,8 +67,9 @@ import { withBase } from '../../site.config.mjs';
  * land together, disclosed honestly in the banner's own count rather than
  * hidden.
  *
- * DETERMINISTIC, NEVER A GUESS. Every value src/lib/filters.ts's
- * normalizeFilterSelection() will not vouch for falls back to 'all', and
+ * DETERMINISTIC, NEVER A GUESS. Every value a saved selection holds that the
+ * address's own parsers will not vouch for falls back to 'all'
+ * (src/lib/filters-store.ts's normalizeSavedSelection()), and
  * suppressApplied() suppresses by id membership alone. Nothing here ranks,
  * scores or reorders a row; MASTER-SPEC F10's own ban on that is the same
  * ban whether the row is being filtered, suppressed or dimmed.
@@ -211,6 +212,12 @@ const widest = (group: FilterGroup): string => {
 // The two controls whose values are names a reader needs whole (a country, two
 // arrangements) get a wider ceiling than the 14ch the rest cap at.
 const wide = (group: FilterGroup): boolean => group.key === 'place' || group.multi === true;
+// A select whose list is only what the board holds right now, while the address
+// accepts more: any place key (a city, a region, a country with nothing under the
+// other filters) and any pay floor in the search box's bounds. A saved value of
+// one of these may name an option the bare board does not draw, and the restore
+// must carry it to the address all the same (see applySelection).
+const openValues = (group: FilterGroup): boolean => group.key === 'place' || group.key === 'pay_min';
 ---
 
 <div
@@ -358,6 +365,7 @@ const wide = (group: FilterGroup): boolean => group.key === 'place' || group.mul
               <select
                 class="filter-select mono"
                 data-filter-group={group.key}
+                data-open-values={openValues(group) ? '' : undefined}
                 autocomplete="off"
                 name={serverMode ? group.key : undefined}
                 data-autosubmit={serverMode ? '' : undefined}
@@ -803,6 +811,17 @@ const wide = (group: FilterGroup): boolean => group.key === 'place' || group.mul
     return Array.from(cell.querySelectorAll<HTMLInputElement>('input[data-multi-option]:checked')).map((box) => box.value);
   }
 
+  /**
+   * WHO MAY WRITE THE SAVED SELECTION. It is the board's strip, Location (place),
+   * Remote (remote) and Comp (pay_min), one record per person. The Pre-List draws
+   * a Comp select of its own (`comp`, a list of bands), and on any visit with a
+   * query string it wrote `{comp: 'all'}` over that record: measured on
+   * 2026-10-02, a paid member's saved place, arrangements and floor read back as
+   * nothing after one /prelist?sort=age. A strip with none of the saved controls
+   * reads the record and never writes it, here or in the browser's copy.
+   */
+  const savesTheStrip = !serverMode || multis.length > 0 || selects.some((select) => select.hasAttribute('data-open-values'));
+
   function currentSelection(): Record<string, string> {
     const selection: Record<string, string> = {};
     for (const select of selects) {
@@ -840,11 +859,11 @@ const wide = (group: FilterGroup): boolean => group.key === 'place' || group.mul
   /** Sets every select to a stored value and announces each change through
       the same index:filter event a click would, so JobTable.astro applies a
       restored selection through the one path it already trusts rather than
-      through a second, script-only entry point into its state. Values this
-      page's own selects do not offer (a stale save, a retired band) are
+      through a second, script-only entry point into its state. Values a
+      closed select does not offer (a stale save, a retired band) are
       skipped rather than forced: the same "unknown falls back to what is
-      already showing" restraint normalizeFilterSelection() states for the
-      server-side half of this same validation. */
+      already showing" restraint the server-side half applies when it reads a
+      saved selection through the address's own parsers (filters-store.ts). */
   function applySelection(selection: unknown): void {
     if (!selection || typeof selection !== 'object') return;
     const source = selection as Record<string, unknown>;
@@ -870,7 +889,13 @@ const wide = (group: FilterGroup): boolean => group.key === 'place' || group.mul
         const group = select.getAttribute('data-filter-group');
         const value = group ? source[group] : undefined;
         if (typeof value !== 'string' || value === 'all') continue;
-        if (!Array.from(select.options).some((option) => option.value === value)) continue;
+        // A select the page lists exhaustively keeps only what it still offers.
+        // An open one (Location, Comp) takes the saved value to the address as
+        // it is: the list holds what the board has under no filters, and a saved
+        // city, region or typed floor is on no such list, but the address reads
+        // all of them. The server has already vouched for an account's copy
+        // (filters-store.ts) and drops anything the browser's copy got wrong.
+        if (!select.hasAttribute('data-open-values') && !Array.from(select.options).some((option) => option.value === value)) continue;
         params.set(group as string, value);
         any = true;
       }
@@ -901,6 +926,7 @@ const wide = (group: FilterGroup): boolean => group.key === 'place' || group.mul
   }
 
   function persistSelection(): void {
+    if (!savesTheStrip) return;
     const selection = currentSelection();
     writeJSON(window.localStorage, FILTERS_KEY, selection);
     if (signedIn && accountFiltersUrl) {
@@ -1062,7 +1088,7 @@ const wide = (group: FilterGroup): boolean => group.key === 'place' || group.mul
     // state for longer than a local read requires.
     if (serverMode && (window.location.search !== '' || cleared)) {
       // The address states the selection; that is now the saved one.
-      writeJSON(window.localStorage, FILTERS_KEY, currentSelection());
+      if (savesTheStrip) writeJSON(window.localStorage, FILTERS_KEY, currentSelection());
     } else {
       applySelection(readJSON(window.localStorage, FILTERS_KEY));
     }
