@@ -31,6 +31,8 @@
  * finding.
  */
 import {
+  ageOf,
+  compTop,
   sweptAt,
   type Ease,
   type Fit,
@@ -38,6 +40,8 @@ import {
   type PostedYcRole,
   type SourceSystem
 } from './data';
+import type { BoardSort } from './board-query';
+import type { MatchField, RankFacts } from './rank-reason';
 
 /** One row as the board store hands it back: the tracker record plus db/018. */
 export interface BoardRow {
@@ -76,6 +80,80 @@ export interface BoardRow {
   killed_on: Date | string | null;
   kill_first_published: Date | string | null;
   kill_pipeline: string | null;
+}
+
+/**
+ * The three facts a text search adds to a row (job-store.ts BoardListRow): the
+ * rung a row sits on, the field that completed the match, and the similarity
+ * the typo path ordered by. Optional here because most callers (the Desk, the
+ * draft room) hand this adapter a plain BoardRow with none of them.
+ */
+export interface BoardMatchColumns {
+  match_tier?: number | null;
+  match_field?: MatchField | null;
+  fuzzy_score?: number | null;
+}
+
+/** The same three facts as a row's view model carries them. */
+export interface MatchFacts {
+  tier: number | null;
+  field: MatchField | null;
+  fuzzyScore: number | null;
+}
+
+/**
+ * WHERE THE MATCH FACTS TRAVEL. The Job type (src/lib/data.ts) is shared by every
+ * surface and has no place for them, and a field added to a Job would leak into
+ * every consumer that serialises one (the draft room, the Desk). So they ride
+ * beside the Job, keyed by the Job object itself: written here, when the row is
+ * mapped, and read by rankFactsOf() below when the table words a row's "ranked
+ * because" line. Weak, so a request's rows are collected with the request, and
+ * keyed by object, so nothing carries over between two requests that happen to
+ * share an id. boardRowToJob keeps its one-argument signature on purpose:
+ * `rows.map(boardRowToJob)` passes the index as a second argument.
+ */
+const MATCH_FACTS = new WeakMap<Job, MatchFacts>();
+
+/** The match facts a Job was mapped with, or null for a Job that never carried any. */
+export function matchFactsOf(job: Job): MatchFacts | null {
+  return MATCH_FACTS.get(job) ?? null;
+}
+
+/**
+ * The facts rankReason() words, for one row of the board's page. Null for a Job
+ * that did not come from the store's text-aware read, so a row with nothing to
+ * say gets no line rather than an invented one.
+ *
+ *   position  the row's place in the WHOLE result: the page offset plus its place
+ *             in the rows the store returned (never its place after clustering)
+ *   sort      the sort the store ran
+ *   query     the words as typed
+ *
+ * Age and pay are read the way the cells and the sorts read them: ageOf() is the
+ * count the Age cell prints and the SQL age_days mirrors, and compTop() is the
+ * pay sort's own key (comp_top), not compShort(), so "no figure" here means the
+ * row really does sort last.
+ */
+export function rankFactsOf(
+  job: Job,
+  context: { sort: BoardSort; position: number; query: string }
+): RankFacts | null {
+  const match = MATCH_FACTS.get(job);
+  if (!match) return null;
+  const age = ageOf(job);
+  return {
+    position: context.position,
+    sort: context.sort,
+    tier: match.tier,
+    field: match.field,
+    fuzzy: match.fuzzyScore !== null,
+    fuzzyScore: match.fuzzyScore,
+    query: context.query,
+    deets: job.fit.total,
+    ageDays: age ? age.days : null,
+    ageBasis: age && age.basis === 'first_observed' ? 'first_seen' : 'posted',
+    payStated: compTop(job) !== null
+  };
 }
 
 /**
@@ -135,7 +213,7 @@ function fitOf(row: BoardRow): Fit {
  * A tracked posting as a Job. Ease stays null on purpose (see the file header),
  * which JobRow renders as an apply link with no fabricated friction line.
  */
-export function boardRowToJob(row: BoardRow): Job {
+export function boardRowToJob(row: BoardRow & BoardMatchColumns): Job {
   const apply = row.url ?? '';
   const ease: Ease | null = null;
   const closed = row.status === 'killed';
@@ -188,6 +266,16 @@ export function boardRowToJob(row: BoardRow): Job {
     const closedOn = dateOnly(row.killed_on);
     if (closedOn) job.closed_on = closedOn;
     if (row.kill_reason) job.closed_reason = row.kill_reason;
+  }
+  // A row from listBoardFiltered carries the three match columns, null when no
+  // words were typed. Present-but-null is recorded too: that row still has a
+  // line to say (its sort), where a row that never had the columns does not.
+  if ('match_tier' in row || 'match_field' in row || 'fuzzy_score' in row) {
+    MATCH_FACTS.set(job, {
+      tier: row.match_tier ?? null,
+      field: row.match_field ?? null,
+      fuzzyScore: row.fuzzy_score ?? null
+    });
   }
   return job;
 }

@@ -24,6 +24,7 @@ import {
   type SortRanks
 } from '../lib/data';
 import { jobPath } from '../data/nav';
+import { rankReason, type RankFacts } from '../lib/rank-reason';
 
 /**
  * One row of the index table, to the approved canvas: fit with its why
@@ -75,6 +76,13 @@ import { jobPath } from '../data/nav';
  * altogether. Stating it here, unconditionally, is the fix: one row, one
  * verification fact, in one place.
  *
+ * THE RANKED-BECAUSE LINE opens the why panel: one sentence naming the rule that
+ * put this row where it is, worded by rankReason() (src/lib/rank-reason.ts) from
+ * the `because` facts the table hands it. It is server-rendered inside the panel
+ * that is already in the markup, so the noscript rule that opens every panel
+ * opens it too. A row with no facts, or facts that cannot be worded truthfully,
+ * draws no line at all: never an empty element, never a guess.
+ *
  * THE DATA ATTRIBUTES are the filter and sort island's whole interface. Writing
  * the facets here means filtering never has to ship the data to the browser: the
  * rows already know which buckets they are in, and the controls only have to
@@ -98,6 +106,14 @@ interface Props {
    * orders rows by an integer instead of re-deriving what "sort by comp" means.
    */
   ranks?: SortRanks;
+  /**
+   * The facts behind this row's place in the result (the sort, its true rank in
+   * the whole result, the text-match rung), worded as the first line of the why
+   * panel. Supplied by JobTable only where the rows are in a server order. Not
+   * the same thing as `ranks`: those are integers for the browser to sort by,
+   * these are the reason a reader is shown.
+   */
+  because?: RankFacts;
   /** Pre-hidden because it belongs to a later page. Keeps the first paint and
       the island's first state identical, so nothing moves on load. */
   hidden?: boolean;
@@ -111,13 +127,14 @@ interface Props {
   class?: string;
 }
 
-const { job, surface = 'raised', ranks, hidden = false, fit = true, class: className, hrefFor } = Astro.props;
+const { job, surface = 'raised', ranks, because, hidden = false, fit = true, class: className, hrefFor } = Astro.props;
 const titleHref = hrefFor ? hrefFor(job) : jobPath(job.slug);
 
 const age = ageOf(job);
 const observed = firstSeen(job);
 const facets = facetsOf(job);
 const panelId = `why-${job.slug}`;
+const rankLine = because ? rankReason(because) : '';
 const isClosed = job.status === 'closed';
 const top = compTop(job);
 const place = locationShort(job.location);
@@ -341,6 +358,7 @@ const verificationLabel = `${
 
   {fit && (
     <div class="why-panel" id={panelId} hidden data-why-panel>
+      {rankLine && <p class="rank-reason" data-rank-reason>{rankLine}</p>}
       <FitBars job={job} heading={`Why ${job.fit.total}`} />
     </div>
   )}
@@ -589,6 +607,17 @@ const verificationLabel = `${
     padding-top: var(--space-300);
     border-top: var(--border-hairline) solid var(--color-line);
     max-width: var(--layout-measure);
+  }
+
+  /* The ranked-because line, first in the panel. Sans, because it is us saying
+     how the order was made, not a machine reading; full foreground, because it
+     is the sentence the panel is opened for. */
+  .rank-reason {
+    margin: 0 0 var(--space-300);
+    font-size: var(--size-100);
+    line-height: var(--leading-snug);
+    color: var(--color-foreground);
+    text-wrap: pretty;
   }
 
   /* A closed row keeps its place in the record and loses its emphasis. Grey,

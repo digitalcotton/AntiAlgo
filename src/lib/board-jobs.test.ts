@@ -10,8 +10,8 @@
  * left the feed) renders closed with no fabricated facts.
  */
 import { describe, expect, it } from 'vitest';
-import { boardRowToJob, killPipelineLabel, type BoardRow } from './board-jobs';
-import { sourceLabel } from './data';
+import { boardRowToJob, killPipelineLabel, matchFactsOf, rankFactsOf, type BoardMatchColumns, type BoardRow } from './board-jobs';
+import { ageOf, sourceLabel, sweepDate } from './data';
 
 function row(over: Partial<BoardRow> = {}): BoardRow {
   return {
@@ -166,5 +166,114 @@ describe('killPipelineLabel', () => {
     expect(killPipelineLabel('crawl')).toBe('the wide crawl');
     expect(killPipelineLabel('sweep')).toBe('the verified sweep');
     expect(killPipelineLabel(null)).toBe('the verified sweep');
+  });
+});
+
+/**
+ * THE MATCH FACTS ride beside the Job, not on it. A text search adds three
+ * columns to a row (job-store.ts BoardListRow); the Job type has no place for
+ * them and every other consumer of boardRowToJob (the Desk, the draft room)
+ * must keep getting exactly the Job it always got.
+ */
+describe('boardRowToJob: the match facts travel beside the Job', () => {
+  const matched = (over: BoardMatchColumns = {}): BoardRow & BoardMatchColumns => ({
+    ...row(),
+    match_tier: 1,
+    match_field: 'title',
+    fuzzy_score: null,
+    ...over
+  });
+
+  it('records the three columns a text search adds, readable from the Job', () => {
+    const job = boardRowToJob(matched({ match_tier: 3, match_field: 'description' }));
+    expect(matchFactsOf(job)).toEqual({ tier: 3, field: 'description', fuzzyScore: null });
+    const typo = boardRowToJob(matched({ match_tier: null, match_field: 'title', fuzzy_score: 0.52 }));
+    expect(matchFactsOf(typo)).toEqual({ tier: null, field: 'title', fuzzyScore: 0.52 });
+  });
+
+  it('records a row whose three columns are present but null (no words typed): it still has its sort to say', () => {
+    const job = boardRowToJob({ ...row(), match_tier: null, match_field: null, fuzzy_score: null });
+    expect(matchFactsOf(job)).toEqual({ tier: null, field: null, fuzzyScore: null });
+  });
+
+  it('a row that never carried the columns records nothing, so it draws no line', () => {
+    expect(matchFactsOf(boardRowToJob(row()))).toBeNull();
+  });
+
+  it('leaves the Job exactly as it was: the same record with or without the columns', () => {
+    expect(boardRowToJob(matched())).toEqual(boardRowToJob(row()));
+    expect(Object.keys(boardRowToJob(matched()))).toEqual(Object.keys(boardRowToJob(row())));
+    expect(JSON.stringify(boardRowToJob(matched()))).toBe(JSON.stringify(boardRowToJob(row())));
+  });
+
+  it('works as a bare Array.map callback, which hands it the index as a second argument', () => {
+    const jobs = [matched({ match_tier: 0 }), matched({ match_tier: 2, match_field: 'company' })].map(boardRowToJob);
+    expect(jobs.map((j) => matchFactsOf(j)?.tier)).toEqual([0, 2]);
+  });
+
+  it('keys the facts to the Job object, so two rows with one id do not share them', () => {
+    const a = boardRowToJob(matched({ match_tier: 1 }));
+    const b = boardRowToJob(matched({ match_tier: 3, match_field: 'description' }));
+    expect(matchFactsOf(a)?.tier).toBe(1);
+    expect(matchFactsOf(b)?.tier).toBe(3);
+  });
+});
+
+describe('rankFactsOf: the facts the ranked-because line is worded from', () => {
+  const ctx = { sort: 'best' as const, position: 28, query: 'product designer' };
+  const matched = (over: Partial<BoardRow> & BoardMatchColumns = {}) => ({
+    ...row(),
+    match_tier: 1,
+    match_field: 'title' as const,
+    fuzzy_score: null,
+    ...over
+  });
+
+  it('carries the position, the sort, the words, the rung and the Deets', () => {
+    const job = boardRowToJob(matched({ detail_total: 91 }));
+    expect(rankFactsOf(job, ctx)).toMatchObject({
+      position: 28,
+      sort: 'best',
+      query: 'product designer',
+      tier: 1,
+      field: 'title',
+      fuzzy: false,
+      fuzzyScore: null,
+      deets: 91
+    });
+  });
+
+  it('is on the typo path exactly when the row carries a similarity', () => {
+    const typo = rankFactsOf(boardRowToJob(matched({ match_tier: null, fuzzy_score: 0.44 })), ctx);
+    expect(typo).toMatchObject({ fuzzy: true, fuzzyScore: 0.44, tier: null });
+    expect(rankFactsOf(boardRowToJob(matched()), ctx)?.fuzzy).toBe(false);
+  });
+
+  it('reads the age the Age cell reads, and says whether it was posted or first seen', () => {
+    const posted = boardRowToJob(matched({ published: '2026-08-20T09:00:00.000Z' }));
+    expect(rankFactsOf(posted, ctx)).toMatchObject({ ageDays: ageOf(posted)?.days, ageBasis: 'posted' });
+    const seen = boardRowToJob(matched({ published: null, first_seen: '2000-01-01' }));
+    expect(rankFactsOf(seen, ctx)).toMatchObject({ ageDays: ageOf(seen)?.days, ageBasis: 'first_seen' });
+    expect(ageOf(seen)?.days).toBeGreaterThan(1000);
+  });
+
+  it('a row with no date to count from has no age', () => {
+    const undated = boardRowToJob(matched({ published: null, first_seen: sweepDate() }));
+    expect(ageOf(undated)).toBeNull();
+    expect(rankFactsOf(undated, ctx)?.ageDays).toBeNull();
+  });
+
+  it('pay is stated when the pay SORT can read a figure (comp_top), not when a range merely exists', () => {
+    expect(rankFactsOf(boardRowToJob(matched({ comp_posted: '$150k-$180k' })), ctx)?.payStated).toBe(true);
+    expect(rankFactsOf(boardRowToJob(matched({ comp_posted: null })), ctx)?.payStated).toBe(false);
+    expect(rankFactsOf(boardRowToJob(matched({ comp_posted: 'Competitive' })), ctx)?.payStated).toBe(false);
+    // A structured range with no posted text: the cell shows a figure, but the
+    // pay sort's key (comp_top) is null, so the row really does sort last.
+    const rangeOnly = matched({ comp_posted: null, comp_range: { min: 120000, max: 150000, currency: 'USD', interval: 'year', source: 'ats' } });
+    expect(rankFactsOf(boardRowToJob(rangeOnly), ctx)?.payStated).toBe(false);
+  });
+
+  it('is null for a Job that never carried match facts', () => {
+    expect(rankFactsOf(boardRowToJob(row()), ctx)).toBeNull();
   });
 });
