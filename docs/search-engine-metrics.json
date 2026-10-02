@@ -1,14 +1,14 @@
 {
   "meta": {
     "generated_by": "npm run eval:search (test/eval/search.eval.ts)",
-    "measured_at": "2026-10-02T16:37:04.254Z",
-    "elapsed_s": 161,
-    "head": "968864f",
+    "measured_at": "2026-10-02T20:27:23.536Z",
+    "elapsed_s": 193,
+    "head": "c789102",
     "engine_files_modified_in_tree": [],
     "node": "v22.23.1",
     "load": {
-      "at_start": 5.66650390625,
-      "at_end": 5.095703125,
+      "at_start": 2.4189453125,
+      "at_end": 2.908203125,
       "cpu_count": 12
     }
   },
@@ -63,10 +63,10 @@
         "fuzzy_rate": 0,
         "title_equivalent_hit10": 100,
         "latency_ms": {
-          "p50": 6.9,
-          "p95": 35.7,
-          "p99": 94,
-          "max": 216.3
+          "p50": 8.8,
+          "p95": 35.1,
+          "p99": 68.4,
+          "max": 162.7
         }
       },
       "old_baseline": {
@@ -92,9 +92,9 @@
         "title_equivalent_hit10": 97,
         "latency_ms": {
           "p50": 1.1,
-          "p95": 2.8,
-          "p99": 3.5,
-          "max": 5.4
+          "p95": 1.8,
+          "p99": 2.2,
+          "max": 3.3
         }
       },
       "exact_id_ceiling": {
@@ -115,10 +115,10 @@
         "fuzzy_rate": 0,
         "title_equivalent_hit10": 100,
         "latency_ms": {
-          "p50": 4.6,
-          "p95": 17,
-          "p99": 24.8,
-          "max": 30.3
+          "p50": 6.9,
+          "p95": 18.4,
+          "p99": 27,
+          "max": 32
         }
       },
       "old_baseline": {
@@ -143,10 +143,10 @@
         "fuzzy_rate": null,
         "title_equivalent_hit10": 0,
         "latency_ms": {
-          "p50": 1,
-          "p95": 2,
-          "p99": 3.2,
-          "max": 3.9
+          "p50": 1.1,
+          "p95": 1.8,
+          "p99": 2.2,
+          "max": 2.7
         }
       },
       "new_title_misses": []
@@ -162,10 +162,10 @@
         "fuzzy_rate": 0,
         "title_equivalent_hit10": 100,
         "latency_ms": {
-          "p50": 5.9,
-          "p95": 32.4,
-          "p99": 63.1,
-          "max": 155.3
+          "p50": 8.3,
+          "p95": 34.2,
+          "p99": 66.7,
+          "max": 158.7
         }
       },
       "old_baseline": {
@@ -191,9 +191,9 @@
         "title_equivalent_hit10": 97,
         "latency_ms": {
           "p50": 1.1,
-          "p95": 2.7,
-          "p99": 3.4,
-          "max": 4.4
+          "p95": 1.8,
+          "p99": 2,
+          "max": 2.7
         }
       },
       "exact_id_ceiling": {
@@ -214,10 +214,10 @@
         "fuzzy_rate": 0,
         "title_equivalent_hit10": 96.7,
         "latency_ms": {
-          "p50": 5.9,
-          "p95": 32.7,
-          "p99": 65.5,
-          "max": 155.3
+          "p50": 8.2,
+          "p95": 34.5,
+          "p99": 70.2,
+          "max": 160.6
         }
       },
       "old_baseline": {
@@ -242,10 +242,10 @@
         "fuzzy_rate": null,
         "title_equivalent_hit10": 0,
         "latency_ms": {
-          "p50": 1.1,
-          "p95": 2.8,
-          "p99": 3.3,
-          "max": 4.5
+          "p50": 1,
+          "p95": 1.7,
+          "p99": 2,
+          "max": 2.2
         }
       },
       "new_title_misses": [
@@ -350,10 +350,10 @@
         "fuzzy_rate": 96,
         "title_equivalent_hit10": 96,
         "latency_ms": {
-          "p50": 17.8,
-          "p95": 33.5,
-          "p99": 68.9,
-          "max": 139.6
+          "p50": 22.4,
+          "p95": 40.2,
+          "p99": 75.3,
+          "max": 145.8
         }
       },
       "old_baseline": {
@@ -379,9 +379,9 @@
         "title_equivalent_hit10": 0,
         "latency_ms": {
           "p50": 0.8,
-          "p95": 1.5,
-          "p99": 2.2,
-          "max": 3.7
+          "p95": 1.4,
+          "p99": 1.8,
+          "max": 2
         }
       },
       "new_title_misses": [
@@ -967,7 +967,7 @@
     },
     "country_coverage": {
       "resolved_now": {
-        "rows": 30574,
+        "rows": 30580,
         "of": 37286,
         "pct": 82,
         "source": "jobs.place_country IS NOT NULL (what the board serves)"
@@ -986,17 +986,17 @@
       "script_agrees_with_column": true
     },
     "place_script": {
-      "cities_learned": 549,
+      "cities_learned": 544,
       "holdout_by_row": {
         "held_out": 3005,
-        "resolved": 2924,
-        "correct": 2861,
+        "resolved": 2925,
+        "correct": 2862,
         "accuracy_pct": 97.85,
         "misses_where_text_names_the_other_country": 62,
         "table_only": {
-          "rows": 96,
-          "placed": 30,
-          "correct": 30
+          "rows": 87,
+          "placed": 22,
+          "correct": 22
         }
       },
       "holdout_by_string": {
@@ -1006,17 +1006,17 @@
         "accuracy_pct": 97.01,
         "misses_where_text_names_the_other_country": 83,
         "table_only": {
-          "rows": 77,
-          "placed": 8,
-          "correct": 8
+          "rows": 76,
+          "placed": 7,
+          "correct": 7
         }
       },
       "coverage": {
         "rows": 37286,
         "upstream_country": 15023,
-        "placeof_country": 30574,
-        "placeof_rows": 37286,
-        "newly_resolved": 15559,
+        "place_country": 30580,
+        "place_rows": 37286,
+        "newly_resolved": 15560,
         "rows_without_upstream": 22263,
         "resolved_only_by_learned_table": 3631,
         "largest_unresolved": [
@@ -1065,14 +1065,14 @@
     },
     "place_script_output": [
       "build-place-table: 37286 live rows, 15023 with a valid upstream country",
-      "  learned 549 cities (>= 3 rows, >= 95% agreeing on the country)",
+      "  learned 544 cities (>= 3 rows, >= 95% agreeing on the country)",
       "  with a state: 298",
       "holdout A: seeded 220, 80/20 by row",
-      "  held out           3005 rows (table learned on the rest: 467 cities)",
-      "  country resolved   2924 (97.3%), of which 2894 from the text alone",
-      "  country correct    2861 of 2924 resolved (97.8%) against the upstream code",
+      "  held out           3005 rows (table learned on the rest: 462 cities)",
+      "  country resolved   2925 (97.3%), of which 2903 from the text alone",
+      "  country correct    2862 of 2925 resolved (97.8%) against the upstream code",
       "  of the 63 misses, 62 are rows where the text spells out the other country",
-      "  table-only rows    96 the string alone cannot place; the table placed 30 (31.3%), 30 correct (100.0% of those placed)",
+      "  table-only rows    87 the string alone cannot place; the table placed 22 (25.3%), 22 correct (100.0% of those placed)",
       "  most common misses (location => answer, truth):",
       "       9  Albuquerque, New Mexico => US (truth MX) [text contradicts upstream]",
       "       8  Sydney, New South Wales, AUS => AU (truth GB) [text contradicts upstream]",
@@ -1087,11 +1087,11 @@
       "       2  Mumbai, IN => IN (truth US) [text contradicts upstream]",
       "       2  Ontario, CA, US => US (truth CA) [text contradicts upstream]",
       "holdout B: 80/20 by DISTINCT STRING, so the test strings were never seen",
-      "  held out           2865 rows (table learned on the rest: 455 cities)",
-      "  country resolved   2779 (97.0%), of which 2771 from the text alone",
+      "  held out           2865 rows (table learned on the rest: 450 cities)",
+      "  country resolved   2779 (97.0%), of which 2772 from the text alone",
       "  country correct    2696 of 2779 resolved (97.0%) against the upstream code",
       "  of the 83 misses, 83 are rows where the text spells out the other country",
-      "  table-only rows    77 the string alone cannot place; the table placed 8 (10.4%), 8 correct (100.0% of those placed)",
+      "  table-only rows    76 the string alone cannot place; the table placed 7 (9.2%), 7 correct (100.0% of those placed)",
       "  most common misses (location => answer, truth):",
       "      38  Albuquerque, New Mexico => US (truth MX) [text contradicts upstream]",
       "      11  Ontario, CA, US => US (truth CA) [text contradicts upstream]",
@@ -1107,8 +1107,8 @@
       "       1  Rieti, RI, Italy => IT (truth US) [text contradicts upstream]",
       "coverage over every live row",
       "  upstream country   15023 of 37286 (40.3%)   <- the baseline",
-      "  placeOf country    30574 of 37286 (82.0%)",
-      "  newly resolved     15559 of the 22263 rows with no upstream country (69.9%), 3631 of them only because of the learned table",
+      "  place country      30580 of 37286 (82.0%)",
+      "  newly resolved     15560 of the 22263 rows with no upstream country (69.9%), 3631 of them only because of the learned table",
       "  text contradicts upstream on 305 rows with a country (text reads a different one, single place)",
       "  largest unresolved strings:",
       "     1290  \"Multiple Locations\"",
@@ -1132,14 +1132,14 @@
     "place_cities_json_sha256": "17aa9439fb6b1e9d8e693f57235782400272d6a6f84bed40ea871eeda8509f56",
     "region_distribution": {
       "now": {
-        "US East": 8409,
-        "Unknown": 6608,
-        "US West": 6315,
+        "US East": 8432,
+        "Unknown": 6607,
+        "US West": 6293,
         "EU": 5714,
-        "US Central": 5555,
+        "US Central": 5557,
         "APAC": 1997,
         "UK": 1319,
-        "Canada": 932,
+        "Canada": 930,
         "LATAM": 437
       },
       "baseline": {
@@ -1155,7 +1155,7 @@
     },
     "non_us_country_in_a_us_region": {
       "by_resolved_country_now": 0,
-      "by_upstream_code_now": 167,
+      "by_upstream_code_now": 171,
       "by_upstream_code_baseline": 979,
       "largest_upstream_code_cases": [
         {
@@ -1218,7 +1218,7 @@
     },
     "canada_in_a_us_region": {
       "by_resolved_country_now": 0,
-      "by_upstream_code_now": 26
+      "by_upstream_code_now": 30
     },
     "remote_unresolved_rows_in_a_us_region": 597
   },
@@ -1245,10 +1245,10 @@
       "total": 37286,
       "fuzzy": false,
       "latency_ms": {
-        "p50": 105.2,
-        "p95": 108.8,
-        "p99": 109.1,
-        "max": 109.1
+        "p50": 116.8,
+        "p95": 120.3,
+        "p99": 122.6,
+        "max": 122.6
       }
     },
     "one_word": {
@@ -1257,10 +1257,10 @@
       "total": 387,
       "fuzzy": false,
       "latency_ms": {
-        "p50": 5.9,
-        "p95": 6.1,
-        "p99": 6.2,
-        "max": 6.2
+        "p50": 7.5,
+        "p95": 7.7,
+        "p99": 9.5,
+        "max": 9.5
       }
     },
     "three_words": {
@@ -1269,10 +1269,10 @@
       "total": 123,
       "fuzzy": false,
       "latency_ms": {
-        "p50": 5.7,
-        "p95": 6,
-        "p99": 6.7,
-        "max": 6.7
+        "p50": 7.7,
+        "p95": 8,
+        "p99": 10.2,
+        "max": 10.2
       }
     },
     "typo": {
@@ -1281,10 +1281,10 @@
       "total": 251,
       "fuzzy": true,
       "latency_ms": {
-        "p50": 24.7,
-        "p95": 24.8,
-        "p99": 25.7,
-        "max": 25.7
+        "p50": 29.5,
+        "p95": 29.9,
+        "p99": 30,
+        "max": 30
       }
     },
     "words_place_remote_pay": {
@@ -1293,10 +1293,10 @@
       "total": 28,
       "fuzzy": false,
       "latency_ms": {
-        "p50": 5.2,
-        "p95": 5.3,
-        "p99": 5.3,
-        "max": 5.3
+        "p50": 7.8,
+        "p95": 8.1,
+        "p99": 9.7,
+        "max": 9.7
       }
     },
     "broad_word": {
@@ -1305,21 +1305,21 @@
       "total": 6218,
       "fuzzy": false,
       "latency_ms": {
-        "p50": 56.9,
-        "p95": 57.9,
-        "p99": 59.1,
-        "max": 59.1
+        "p50": 57.9,
+        "p95": 65.8,
+        "p99": 71.3,
+        "max": 71.3
       }
     }
   },
   "suggest_setup": {
     "crawl_instant": "2026-09-26T07:33:10.000Z",
     "vocabulary": {
-      "countries": 95,
+      "countries": 109,
       "adminAreas": 66,
-      "cities": 3464,
+      "cities": 3562,
       "companies": 1421,
-      "placePhrases": 3278,
+      "placePhrases": 3380,
       "titles": 26717,
       "titleWords": 11820
     },
@@ -1330,9 +1330,9 @@
       "places": 300
     },
     "latency_ms": {
-      "lexicon_build": 166.4,
-      "lexicon_assemble": 124,
-      "lexicon_read": 41.7
+      "lexicon_build": 185.8,
+      "lexicon_assemble": 127,
+      "lexicon_read": 58
     }
   },
   "typeahead_titles": {
@@ -1348,26 +1348,26 @@
     "variants": {
       "last_word_4": {
         "n": 500,
-        "missed": 15,
-        "in_top_8": 97,
-        "at_1": 86.2,
-        "in_top_3": 95,
+        "missed": 16,
+        "in_top_8": 96.8,
+        "at_1": 86,
+        "in_top_3": 94.8,
         "median_rank_when_found": 1,
-        "mrr": 0.906,
-        "no_completions": 1.6,
-        "typed_text_read_as_a_chip": 28,
-        "missed_where_the_typed_text_was_read_as_a_chip": 8,
+        "mrr": 0.904,
+        "no_completions": 1.8,
+        "typed_text_read_as_a_chip": 29,
+        "missed_where_the_typed_text_was_read_as_a_chip": 9,
         "where_the_typed_fragment_has_a_letter_or_digit": {
           "n": 500,
-          "missed": 15,
-          "in_top_8": 97,
-          "at_1": 86.2,
-          "in_top_3": 95,
+          "missed": 16,
+          "in_top_8": 96.8,
+          "at_1": 86,
+          "in_top_3": 94.8,
           "median_rank_when_found": 1,
-          "mrr": 0.906,
-          "no_completions": 1.6,
-          "typed_text_read_as_a_chip": 28,
-          "missed_where_the_typed_text_was_read_as_a_chip": 8
+          "mrr": 0.904,
+          "no_completions": 1.8,
+          "typed_text_read_as_a_chip": 29,
+          "missed_where_the_typed_text_was_read_as_a_chip": 9
         },
         "misses": [
           {
@@ -1399,6 +1399,12 @@
             "top3": []
           },
           {
+            "title": "Technical Product Marketing Manager, Piper AI SDR Agent",
+            "typed": "Technical Product Marketing Manager, Piper AI SDR Agen",
+            "completions": 0,
+            "top3": []
+          },
+          {
             "title": "Growth Associate (St. Louis, MO)",
             "typed": "Growth Associate (St. Louis, MO)",
             "completions": 0,
@@ -1418,16 +1424,6 @@
               "Senior CUDA Test Development Software Engineer, SDET",
               "Senior Software Development Engineer in Test - SDET",
               "Senior Software Development Engineer in Test"
-            ]
-          },
-          {
-            "title": "Software Tester",
-            "typed": "Software Test",
-            "completions": 8,
-            "top3": [
-              "Deep Learning Software Engineering Intern, Test Development - 2027",
-              "Senior CUDA Test Development Software Engineer, SDET",
-              "Senior Software Development Engineer in Test - SDET"
             ]
           }
         ]
@@ -1540,26 +1536,26 @@
       },
       "first_word_4": {
         "n": 500,
-        "missed": 341,
-        "in_top_8": 31.8,
+        "missed": 342,
+        "in_top_8": 31.6,
         "at_1": 12.4,
         "in_top_3": 21.6,
         "median_rank_when_found": 2,
         "mrr": 0.183,
-        "no_completions": 0.6,
-        "typed_text_read_as_a_chip": 3,
-        "missed_where_the_typed_text_was_read_as_a_chip": 3,
+        "no_completions": 0.8,
+        "typed_text_read_as_a_chip": 4,
+        "missed_where_the_typed_text_was_read_as_a_chip": 4,
         "where_the_typed_fragment_has_a_letter_or_digit": {
           "n": 500,
-          "missed": 341,
-          "in_top_8": 31.8,
+          "missed": 342,
+          "in_top_8": 31.6,
           "at_1": 12.4,
           "in_top_3": 21.6,
           "median_rank_when_found": 2,
           "mrr": 0.183,
-          "no_completions": 0.6,
-          "typed_text_read_as_a_chip": 3,
-          "missed_where_the_typed_text_was_read_as_a_chip": 3
+          "no_completions": 0.8,
+          "typed_text_read_as_a_chip": 4,
+          "missed_where_the_typed_text_was_read_as_a_chip": 4
         },
         "misses": [
           {
@@ -1759,7 +1755,7 @@
         "n": 200,
         "found": 181,
         "found_pct": 90.5,
-        "at_1_pct": 57,
+        "at_1_pct": 58,
         "median_rank_when_found": 1,
         "by_letters": {
           "3": {
@@ -1817,8 +1813,8 @@
             "wanted": "US-DE/New Castle",
             "offered": [
               "US-NY",
-              "US/New York",
-              "US-NY/New York"
+              "US-NY/New York",
+              "US-NJ"
             ]
           },
           {
@@ -1826,8 +1822,8 @@
             "wanted": "US-MO/Maryland Heights",
             "offered": [
               "US-MD",
-              "US-WV/Martinsburg",
-              "CA-ON/Markham"
+              "FR/Marseille",
+              "US-GA/Marietta"
             ]
           },
           {
@@ -1852,18 +1848,18 @@
       },
       "by_distinct_name": {
         "n": 200,
-        "found": 176,
-        "found_pct": 88,
+        "found": 175,
+        "found_pct": 87.5,
         "at_1_pct": 47.5,
         "median_rank_when_found": 1,
         "by_letters": {
           "3": {
             "n": 65,
-            "found_pct": 78.5
+            "found_pct": 75.4
           },
           "4": {
             "n": 61,
-            "found_pct": 88.5
+            "found_pct": 90.2
           },
           "5": {
             "n": 74,
@@ -1885,8 +1881,8 @@
             "wanted": "FR/Marcq-en-Barœul",
             "offered": [
               "US-MD",
-              "US-WV/Martinsburg",
-              "CA-ON/Markham"
+              "FR/Marseille",
+              "US-GA/Marietta"
             ]
           },
           {
@@ -1926,12 +1922,12 @@
             ]
           },
           {
-            "typed": "Mont",
-            "wanted": "US-PA/Montoursville",
+            "typed": "Glen",
+            "wanted": "US-IL/Glenview",
             "offered": [
-              "US-MT",
-              "CA-QC/Montreal",
-              "US-AL/Montgomery"
+              "US-NY/Glen Cove",
+              "US-AZ/Glendale",
+              "US-MD/Glen Burnie"
             ]
           },
           {
@@ -2088,28 +2084,28 @@
       "cases_with_no_filter": 126
     },
     "text": {
-      "cases_whose_text_states_a_fact": 147,
-      "cases_with_an_offer": 8,
-      "cases_the_board_answers_on_the_typo_path": 29,
-      "cases_whose_total_is_zero": 285
+      "cases_whose_text_states_a_fact": 149,
+      "cases_with_an_offer": 5,
+      "cases_the_board_answers_on_the_typo_path": 28,
+      "cases_whose_total_is_zero": 289
     },
     "totals_checked": 500,
     "total_mismatches": 0,
-    "items_checked": 3177,
+    "items_checked": 3224,
     "items_by_group": {
-      "titles": 731,
-      "companies": 1126,
-      "facts": 110,
-      "places": 1210
+      "titles": 715,
+      "companies": 1130,
+      "facts": 107,
+      "places": 1272
     },
     "items_that_count_something_by_group": {
-      "titles": 731,
-      "companies": 285,
-      "facts": 40,
-      "places": 354
+      "titles": 715,
+      "companies": 290,
+      "facts": 41,
+      "places": 361
     },
-    "items_with_count_zero": 1767,
-    "distinct_addresses_counted_by_the_board": 3046,
+    "items_with_count_zero": 1817,
+    "distinct_addresses_counted_by_the_board": 3093,
     "item_mismatches": 0,
     "mismatches": 0,
     "first_mismatches": [],
@@ -2121,14 +2117,17 @@
       "differing": []
     },
     "strip_invariants": {
-      "definition": "on the board each case's text lands on, from listBoardFiltered's counts: remote kinds (remote + hybrid + onsite + unstated) sum to the total with no remote filter; country counts + the not-stated count sum to the total with no place filter; pay.any is the total with no pay filter. When the control IS set, the comparison is with the same board taken with that control let go.",
+      "definition": "on the board each case's text lands on, from listBoardFiltered's counts: remote kinds (remote + hybrid + onsite + unstated) sum to the total with no remote filter; worldwide (place.all) is the total with no place filter, and the country counts + the not-stated count are never fewer than it (a posting that lists two countries is in both) and each country's count is the rows its own filter returns; pay.any is the total with no pay filter. When the control IS set, the comparison is with the same board taken with that control let go.",
       "checked": {
         "remote kinds sum to the remote-free total (remote set)": 176,
-        "countries + not stated sum to the total (no place filter)": 357,
+        "worldwide equals the total (no place filter)": 356,
+        "countries + not stated cover the total (no place filter)": 356,
+        "a country count equals the rows its own filter returns": 500,
         "pay any equals the total (no pay filter)": 348,
         "pay any equals the pay-free total (pay set)": 152,
         "remote kinds sum to the total (no remote filter)": 324,
-        "countries + not stated sum to the place-free total (place set)": 143
+        "worldwide equals the place-free total (place set)": 144,
+        "countries + not stated cover the place-free total (place set)": 144
       },
       "states_checked": 500,
       "violations": 0,
@@ -2139,10 +2138,10 @@
   "suggest_latency": {
     "seed": 20261003,
     "cold_requests_by_rows_the_board_shows": {
-      "no rows": 109,
-      "1 to 99 rows": 50,
-      "100 to 999 rows": 32,
-      "1,000 rows or more": 9
+      "no rows": 111,
+      "1 to 99 rows": 44,
+      "100 to 999 rows": 35,
+      "1,000 rows or more": 10
     },
     "queries": 200,
     "queries_with_a_filter": 149,
@@ -2157,78 +2156,78 @@
     "latency_ms": {
       "cold": {
         "p50": 8.5,
-        "p95": 50.1,
-        "p99": 76.6,
-        "max": 80.3,
-        "share_under_100_ms": 100
+        "p95": 56.6,
+        "p99": 80.7,
+        "max": 133.8,
+        "share_under_100_ms": 99.5
       },
       "warm": {
-        "p50": 1.4,
+        "p50": 1.3,
         "p95": 3.4,
-        "p99": 4.1,
+        "p99": 4,
         "max": 4.3,
         "share_under_100_ms": 100
       },
       "cold_by_rows_the_board_shows": {
         "no rows": {
-          "p50": 7.6,
-          "p95": 37.5,
-          "p99": 63.6,
-          "max": 67.4,
+          "p50": 7.2,
+          "p95": 38.1,
+          "p99": 66.4,
+          "max": 66.6,
           "share_under_100_ms": 100
         },
         "1 to 99 rows": {
-          "p50": 7.8,
-          "p95": 43.2,
-          "p99": 74.9,
-          "max": 74.9,
-          "share_under_100_ms": 100
-        },
-        "100 to 999 rows": {
-          "p50": 16.3,
-          "p95": 77.8,
-          "p99": 80.3,
-          "max": 80.3,
-          "share_under_100_ms": 100
-        },
-        "1,000 rows or more": {
-          "p50": 34.1,
-          "p95": 76.6,
+          "p50": 7.9,
+          "p95": 46,
           "p99": 76.6,
           "max": 76.6,
           "share_under_100_ms": 100
+        },
+        "100 to 999 rows": {
+          "p50": 16.7,
+          "p95": 80.7,
+          "p99": 82.3,
+          "max": 82.3,
+          "share_under_100_ms": 100
+        },
+        "1,000 rows or more": {
+          "p50": 35.3,
+          "p95": 133.8,
+          "p99": 133.8,
+          "max": 133.8,
+          "share_under_100_ms": 90
         }
       },
       "slowest_cold": [
         {
+          "text": "For",
+          "search": "",
+          "ms": 133.8
+        },
+        {
           "text": "Custo",
           "search": "pay_min=not-listed",
-          "ms": 80.3
+          "ms": 82.3
         },
         {
           "text": "150k Seni",
           "search": "place=US&remote=remote,hybrid,onsite",
-          "ms": 77.8
+          "ms": 80.7
         },
         {
           "text": "Senior Software",
           "search": "",
-          "ms": 76.6
+          "ms": 79.6
         },
         {
           "text": "remote Busi",
           "search": "age_max=14",
-          "ms": 74.9
-        },
-        {
-          "text": "Software remote",
-          "search": "",
-          "ms": 71.4
+          "ms": 76.6
         }
       ],
       "load": {
-        "at_start": 3.96923828125,
-        "at_end": 3.8115234375,
+        "at_start": 4.576171875,
+        "at_end": 4.28955078125,
         "cpu_count": 12
       }
     }
@@ -2298,21 +2297,21 @@
     {
       "measure": "live rows with a resolved country",
       "target": "from 42% to >= 85%",
-      "measured": "82% (30,574 of 37,286); the baseline file says 40.3%, not 42%",
+      "measured": "82% (30,580 of 37,286); the baseline file says 40.3%, not 42%",
       "verdict": "MISS",
       "note": "The largest unresolved strings are \"Multiple Locations\", \"N Locations\", \"Remote\", blank and \"Worldwide\": places the text does not name."
     },
     {
       "measure": "place holdout accuracy",
       "target": ">= 97%",
-      "measured": "97.85% by row (2861/2924); 97.01% by never-seen string (2696/2779)",
+      "measured": "97.85% by row (2862/2925); 97.01% by never-seen string (2696/2779)",
       "verdict": "PASS",
       "note": "Against the upstream code. 62 of 63 and 83 of 83 misses are rows where the text spells out the other country (Albuquerque, New Mexico coded MX), so the upstream code is the likelier error."
     },
     {
       "measure": "non-US countries in a US region",
       "target": "0",
-      "measured": "0 by resolved country; 167 by upstream code (baseline 979)",
+      "measured": "0 by resolved country; 171 by upstream code (baseline 979)",
       "verdict": "PASS",
       "note": "Judged on the resolved country, which is what the region now reads. The upstream-code residue is rows whose text names a US place (see the data section)."
     },
@@ -2382,26 +2381,26 @@
     {
       "measure": "search p95, local",
       "target": "<= 150 ms",
-      "measured": "108.8 / 6.1 / 6 / 24.8 / 5.3 / 57.9 ms across the six shapes",
+      "measured": "120.3 / 7.7 / 8 / 29.9 / 8.1 / 65.8 ms across the six shapes",
       "verdict": "PASS"
     },
     {
       "measure": "suggest p95, local",
       "target": "<= 100 ms",
-      "measured": "50.1 ms cold (memo emptied before each of 200 requests), 3.4 ms warm; 100% of cold requests under 100 ms",
+      "measured": "56.6 ms cold (memo emptied before each of 200 requests), 3.4 ms warm; 99.5% of cold requests under 100 ms",
       "verdict": "PASS",
       "note": "Judged on the cold figure, the slower of the two: it is the first request for text the process has not counted before. Warm is a repeat of a request just made. Local Postgres, the handler called in process: no network, no CDN."
     },
     {
       "measure": "counts contract exactness",
       "target": "100%",
-      "measured": "3,677 of 3,677 exact (3,177 items, 500 totals, 500 seeded cases); 0 mismatches, 0 shape violations, 500 of 500 memo answers identical to the cold ones",
+      "measured": "3,724 of 3,724 exact (3,224 items, 500 totals, 500 seeded cases); 0 mismatches, 0 shape violations, 500 of 500 memo answers identical to the cold ones",
       "verdict": "PASS"
     },
     {
       "measure": "strip invariants (exclusive groups sum to the total)",
       "target": "0 violations",
-      "measured": "0 violations in 1,500 checks over 500 boards",
+      "measured": "0 violations in 2,500 checks over 500 boards",
       "verdict": "PASS"
     },
     {
@@ -2412,5 +2411,5 @@
       "note": "Through the route's own GET handler called in process; the header it returns is read, a CDN honouring it is not tested."
     }
   ],
-  "fingerprint": "1d43c69b62aad7e0d4b6d0581dcc7f3b421b13adda4b67e52a5e3693bbb0c443"
+  "fingerprint": "7bfe30cb79c10f9c3c4be72afd9120e2a4157848020ba473b1e645c5e00aa663"
 }
