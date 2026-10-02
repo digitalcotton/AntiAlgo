@@ -486,14 +486,17 @@ async function seedFixtures(client) {
            -- says what production would say.
            derived_fam_source,
            -- db/220, appended for the same reason: the numbers above stay put.
-           place_country, place_admin1, place_city, place_label
+           place_country, place_admin1, place_city, place_label,
+           -- db/222, every place the posting lists, appended again.
+           place_keys, place_leaves
          ) VALUES (
            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
            $11, $12, $13, $14, false, $15, $16,
            $17, $18, $19, 'tracked', 'live', NULL,
            $20, $21, $22, $23,
            $24, $25, $26, $27, $28,
-           $29, $30, $31, $32
+           $29, $30, $31, $32,
+           $33, $34
          )`,
         [
           raw.id, raw.company, raw.title, raw.url, raw.location, raw.country, raw.remote,
@@ -504,7 +507,8 @@ async function seedFixtures(client) {
           d.derived_tier, d.derived_fam, d.derived_region, d.derived_friction,
           d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k,
           d.derived_fam_source ?? null,
-          d.place_country, d.place_admin1, d.place_city, d.place_label
+          d.place_country, d.place_admin1, d.place_city, d.place_label,
+          d.place_keys, d.place_leaves
         ]
       );
     }

@@ -27,13 +27,15 @@ describe('upsertSql', () => {
   // first feed to state it and 3,132 of its 4,909 postings are pools.
   // 38 since 2026-10-02: db/220 added place_country, place_admin1, place_city
   // and place_label, written by placeOf() in src/lib/jobs-derived.mjs.
-  it('binds 38 placeholders for a single row, starting at $1', () => {
+  // 40 the same day: db/222 added place_keys and place_leaves, every place a
+  // posting lists, written by placesOf() through the same derivedFor().
+  it('binds 40 placeholders for a single row, starting at $1', () => {
     const sql = upsertSql(1);
     expect(sql).toContain(
       '($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,' +
-      '$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38'
+      '$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40'
     );
-    expect(sql).not.toContain('$39');
+    expect(sql).not.toContain('$41');
   });
 
   it('numbers each row consecutively with no gaps or repeats', () => {
@@ -102,11 +104,28 @@ describe('upsertSql', () => {
     }
   });
 
+  it('carries the place arrays, in the slots the ingest binds them to', () => {
+    // The two arrays are the last two bound values of values() in
+    // scripts/ingest-jobs.mjs, straight after place_label. Swapped, the board
+    // would filter on the leaves and count the keys, and every row would still
+    // insert: the keys are a superset of the leaves, so nothing would refuse.
+    const sql = upsertSql(1);
+    const cols = sql.slice(sql.indexOf('(') + 1, sql.indexOf(')')).split(',').map((s) => s.trim());
+    const at = cols.indexOf('place_keys');
+    expect(cols.slice(at, at + 2)).toEqual(['place_keys', 'place_leaves']);
+    expect(cols[at - 1]).toBe('place_label');
+    expect(at + 1).toBe(39);
+    expect(at + 2).toBe(COLUMNS_PER_ROW);
+    for (const c of ['place_keys', 'place_leaves']) {
+      expect(sql).toContain(`${c}=EXCLUDED.${c}`);
+    }
+  });
+
   it('refuses a batch Postgres would reject, before anything is sent', () => {
-    // 65535 / 38 columns. It was 2184 at 30, 2114 at 31, 1985 at 33 and 1927 at
-    // 34; a wider row means fewer rows fit in one statement, and the ingest's
-    // batch size is derived from this rather than guessed.
-    expect(MAX_ROWS_PER_STATEMENT).toBe(1724);
+    // 65535 / 40 columns. It was 2184 at 30, 2114 at 31, 1985 at 33, 1927 at 34
+    // and 1724 at 38; a wider row means fewer rows fit in one statement, and the
+    // ingest's batch size is derived from this rather than guessed.
+    expect(MAX_ROWS_PER_STATEMENT).toBe(1638);
     expect(() => upsertSql(MAX_ROWS_PER_STATEMENT)).not.toThrow();
     expect(() => upsertSql(MAX_ROWS_PER_STATEMENT + 1)).toThrow(/65535/);
     expect(() => assertBatchFits(10_000)).toThrow(/Lower --batch/);

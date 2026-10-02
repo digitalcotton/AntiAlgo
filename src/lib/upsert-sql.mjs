@@ -30,7 +30,7 @@
  */
 
 /** Columns bound per row. Must match values() in scripts/ingest-jobs.mjs. */
-export const COLUMNS_PER_ROW = 38;
+export const COLUMNS_PER_ROW = 40;
 
 /** Postgres refuses a statement carrying more bound parameters than this. */
 export const MAX_PARAMETERS = 65535;
@@ -47,6 +47,7 @@ const HEAD = `
                     derived_tier, derived_fam, derived_fam_source, derived_region, derived_friction,
                     priced, comp_min_k, comp_max_k, comp_mid_k,
                     place_country, place_admin1, place_city, place_label,
+                    place_keys, place_leaves,
                     status, kill_id, ingested_at)
   VALUES `;
 
@@ -72,6 +73,7 @@ const TAIL = `
     comp_max_k=EXCLUDED.comp_max_k, comp_mid_k=EXCLUDED.comp_mid_k,
     place_country=EXCLUDED.place_country, place_admin1=EXCLUDED.place_admin1,
     place_city=EXCLUDED.place_city, place_label=EXCLUDED.place_label,
+    place_keys=EXCLUDED.place_keys, place_leaves=EXCLUDED.place_leaves,
     status='live', kill_id=NULL, ingested_at=now()`;
 
 /**

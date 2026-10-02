@@ -195,23 +195,27 @@ nightly publish (03:30 ET) is the only writer of rows; it fast-forwards its copy
 of this repo to `main` before it loads, so it picks up the new code by itself.
 
 **Migrations, in order:** 219 (search vector + trigram), 220 (place columns),
-221 (title/company vector). Each takes its exclusive lock for milliseconds and
+221 (title/company vector), 222 (`place_keys` and `place_leaves`: every place a
+posting lists; docs/every-place-plan.md). Each takes its exclusive lock for milliseconds and
 waits at most 5 s for in-flight reads, then fails the build rather than freeze
 the board; the fills run under row locks (readers unaffected). Expect ~40 s of
 build time on 37k rows. Both extensions (`pg_trgm`, `unaccent`) are trusted on
 Neon.
 
 **The one gap to close.** The migrations fill the search vectors themselves, but
-the place columns and the corrected regions come from the ingest code. Until the
-next nightly load they are **empty in production** — the Location list would be
-bare. Close it either way:
+the place columns, the `place_keys` / `place_leaves` arrays (db/222 adds them
+empty, and an empty array reads as "Not stated") and the corrected regions come
+from the ingest code. Until the next nightly load they are **empty in
+production** — the Location list would be bare. Close it either way:
 
 - **A.** Deploy in the evening and let 03:30 ET fill them; or
 - **B.** Right after the deploy, once, against production:
   ```bash
   DATABASE_URL_UNPOOLED='<production unpooled URL>' node scripts/backfill-derived.mjs --all
   ```
-  (~30 s locally; it rewrites derived columns only.)
+  (~30 s locally; it rewrites derived columns only. It writes the two arrays as
+  well as the place columns; its receipt ends with how many rows list a place
+  and how many list several.)
 
 **Then check:**
 ```bash

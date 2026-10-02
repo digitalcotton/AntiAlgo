@@ -357,7 +357,10 @@ function values(j) {
     d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k,
     // Where the posting is (db/220), from the same derivedFor() call. Null is
     // an answer: a posting that prints no place has none, and the column says so.
-    d.place_country, d.place_admin1, d.place_city, d.place_label
+    d.place_country, d.place_admin1, d.place_city, d.place_label,
+    // Every place it lists (db/222), the arrays the board filters on. A JS array
+    // is bound as a Postgres array, an empty one as '{}': "Not stated", never null.
+    d.place_keys, d.place_leaves
   ];
 }
 
