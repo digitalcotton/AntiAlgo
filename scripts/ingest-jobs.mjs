@@ -338,7 +338,10 @@ function values(j) {
     // a pool" is a different fact from "it is not one".
     typeof j.pipeline === 'boolean' ? j.pipeline : null,
     d.derived_tier, d.derived_fam, d.derived_fam_source, d.derived_region, d.derived_friction,
-    d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k
+    d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k,
+    // Where the posting is (db/220), from the same derivedFor() call. Null is
+    // an answer: a posting that prints no place has none, and the column says so.
+    d.place_country, d.place_admin1, d.place_city, d.place_label
   ];
 }
 

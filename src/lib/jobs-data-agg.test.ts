@@ -18,7 +18,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { liveAggregates, killAggregates, boardFacts, LADDER } from './jobs-data-agg';
 import { NO_FILTERS, GROUP_DEFS, groupTitlePattern, type Filters } from './jobs-data-filters';
 import { listBoardAll, listAllKills } from './job-store';
-import { tierFromTitle, derivedFor, regionOf, payOf, frictionOf } from './jobs-derived.mjs';
+import { tierFromTitle, derivedFor, payOf, frictionOf } from './jobs-derived.mjs';
 
 const HAVE_DB = Boolean(process.env.DATABASE_URL || process.env.DATABASE_URL_UNPOOLED);
 const d = HAVE_DB ? describe : describe.skip;
@@ -79,7 +79,7 @@ beforeAll(async () => {
         // disagree about until 2026-09-28.
         fam: derivedFor(r).derived_fam,
         tier: tierFromTitle(r.title),
-        region: regionOf(r.country || r.location || ''),
+        region: derivedFor(r).derived_region,
         remote: Boolean(r.remote),
         priced: pay.priced, min: pay.min_k, max: pay.max_k, mid: pay.mid_k,
         age: typeof r.days_up === 'number' ? r.days_up : null,

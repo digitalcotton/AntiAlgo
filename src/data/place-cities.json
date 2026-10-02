@@ -1,0 +1,3299 @@
+{
+  "_about": "City to country (and state) learned from live rows that carry an upstream country: >= 3 rows, >= 95% agreeing. Built by scripts/build-place-table.mjs; do not edit by hand. n is the number of rows behind the entry.",
+  "cities": {
+    "aarhus": {
+      "city": "Aarhus",
+      "country": "DK",
+      "admin1": null,
+      "n": 5
+    },
+    "addison": {
+      "city": "Addison",
+      "country": "US",
+      "admin1": "IL",
+      "n": 4
+    },
+    "aix en provence": {
+      "city": "Aix-en-Provence",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "akron": {
+      "city": "Akron",
+      "country": "US",
+      "admin1": "OH",
+      "n": 8
+    },
+    "albuquerque": {
+      "city": "Albuquerque",
+      "country": "US",
+      "admin1": "NM",
+      "n": 3
+    },
+    "alconbury": {
+      "city": "Alconbury",
+      "country": "GB",
+      "admin1": null,
+      "n": 13
+    },
+    "aldie": {
+      "city": "Aldie",
+      "country": "US",
+      "admin1": "VA",
+      "n": 10
+    },
+    "aleido germany gmbh munchen": {
+      "city": "Aleido Germany GmbH München",
+      "country": "DE",
+      "admin1": null,
+      "n": 4
+    },
+    "alessandria": {
+      "city": "Alessandria",
+      "country": "IT",
+      "admin1": null,
+      "n": 4
+    },
+    "alexandria": {
+      "city": "Alexandria",
+      "country": "US",
+      "admin1": null,
+      "n": 4
+    },
+    "algete": {
+      "city": "Algete",
+      "country": "ES",
+      "admin1": null,
+      "n": 4
+    },
+    "all france": {
+      "city": "All France",
+      "country": "FR",
+      "admin1": null,
+      "n": 12
+    },
+    "amersham": {
+      "city": "Amersham",
+      "country": "GB",
+      "admin1": null,
+      "n": 3
+    },
+    "amiens": {
+      "city": "Amiens",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "amsterdam": {
+      "city": "Amsterdam",
+      "country": "NL",
+      "admin1": null,
+      "n": 72
+    },
+    "anaheim": {
+      "city": "Anaheim",
+      "country": "US",
+      "admin1": "CA",
+      "n": 25
+    },
+    "ancona": {
+      "city": "Ancona",
+      "country": "IT",
+      "admin1": null,
+      "n": 3
+    },
+    "anderson": {
+      "city": "Anderson",
+      "country": "US",
+      "admin1": "IN",
+      "n": 10
+    },
+    "andrews afb": {
+      "city": "Andrews AFB",
+      "country": "US",
+      "admin1": "MD",
+      "n": 3
+    },
+    "annapolis": {
+      "city": "Annapolis",
+      "country": "US",
+      "admin1": "MD",
+      "n": 5
+    },
+    "annapolis junction": {
+      "city": "Annapolis Junction",
+      "country": "US",
+      "admin1": "MD",
+      "n": 4
+    },
+    "annecy": {
+      "city": "Annecy",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "ansbach": {
+      "city": "Ansbach",
+      "country": "DE",
+      "admin1": null,
+      "n": 4
+    },
+    "anywhere in belgium": {
+      "city": "Anywhere in Belgium",
+      "country": "BE",
+      "admin1": null,
+      "n": 8
+    },
+    "anywhere in france": {
+      "city": "Anywhere in France",
+      "country": "FR",
+      "admin1": null,
+      "n": 16
+    },
+    "anywhere in the u s": {
+      "city": "Anywhere in the U.S.",
+      "country": "US",
+      "admin1": null,
+      "n": 20
+    },
+    "apex": {
+      "city": "Apex",
+      "country": "US",
+      "admin1": "NC",
+      "n": 4
+    },
+    "arizona city": {
+      "city": "Arizona City",
+      "country": "US",
+      "admin1": "AZ",
+      "n": 3
+    },
+    "arlington": {
+      "city": "Arlington",
+      "country": "US",
+      "admin1": null,
+      "n": 116
+    },
+    "ashburn": {
+      "city": "Ashburn",
+      "country": "US",
+      "admin1": "VA",
+      "n": 6
+    },
+    "ashland": {
+      "city": "Ashland",
+      "country": "US",
+      "admin1": null,
+      "n": 3
+    },
+    "atlanta": {
+      "city": "Atlanta",
+      "country": "US",
+      "admin1": "GA",
+      "n": 38
+    },
+    "auburn": {
+      "city": "Auburn",
+      "country": "US",
+      "admin1": "IN",
+      "n": 4
+    },
+    "augsburg": {
+      "city": "Augsburg",
+      "country": "DE",
+      "admin1": null,
+      "n": 7
+    },
+    "augusta": {
+      "city": "Augusta",
+      "country": "US",
+      "admin1": "GA",
+      "n": 3
+    },
+    "aurora": {
+      "city": "Aurora",
+      "country": "US",
+      "admin1": null,
+      "n": 12
+    },
+    "austin": {
+      "city": "Austin",
+      "country": "US",
+      "admin1": "TX",
+      "n": 103
+    },
+    "aviano": {
+      "city": "Aviano",
+      "country": "IT",
+      "admin1": null,
+      "n": 3
+    },
+    "bakersfield": {
+      "city": "Bakersfield",
+      "country": "US",
+      "admin1": "CA",
+      "n": 3
+    },
+    "baltimore": {
+      "city": "Baltimore",
+      "country": "US",
+      "admin1": "MD",
+      "n": 4
+    },
+    "barbourville": {
+      "city": "Barbourville",
+      "country": "US",
+      "admin1": "KY",
+      "n": 3
+    },
+    "barcelona": {
+      "city": "Barcelona",
+      "country": "ES",
+      "admin1": null,
+      "n": 33
+    },
+    "barr": {
+      "city": "Barr",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "barrie": {
+      "city": "Barrie",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 5
+    },
+    "bartenheim": {
+      "city": "Bartenheim",
+      "country": "FR",
+      "admin1": null,
+      "n": 5
+    },
+    "baton rouge": {
+      "city": "Baton Rouge",
+      "country": "US",
+      "admin1": "LA",
+      "n": 3
+    },
+    "baumholder": {
+      "city": "Baumholder",
+      "country": "DE",
+      "admin1": null,
+      "n": 5
+    },
+    "beckley": {
+      "city": "Beckley",
+      "country": "US",
+      "admin1": "WV",
+      "n": 3
+    },
+    "bedfordshire": {
+      "city": "Bedfordshire",
+      "country": "GB",
+      "admin1": null,
+      "n": 9
+    },
+    "bellevue": {
+      "city": "Bellevue",
+      "country": "US",
+      "admin1": "WA",
+      "n": 105
+    },
+    "bellingham": {
+      "city": "Bellingham",
+      "country": "US",
+      "admin1": null,
+      "n": 4
+    },
+    "bengaluru": {
+      "city": "Bengaluru",
+      "country": "IN",
+      "admin1": null,
+      "n": 183
+    },
+    "berlin": {
+      "city": "Berlin",
+      "country": "DE",
+      "admin1": null,
+      "n": 132
+    },
+    "berwick": {
+      "city": "Berwick",
+      "country": "US",
+      "admin1": "PA",
+      "n": 35
+    },
+    "bessemer city": {
+      "city": "Bessemer City",
+      "country": "US",
+      "admin1": "NC",
+      "n": 3
+    },
+    "bethesda": {
+      "city": "Bethesda",
+      "country": "US",
+      "admin1": "MD",
+      "n": 5
+    },
+    "blackstone": {
+      "city": "Blackstone",
+      "country": "US",
+      "admin1": null,
+      "n": 19
+    },
+    "boardman": {
+      "city": "Boardman",
+      "country": "US",
+      "admin1": "OR",
+      "n": 19
+    },
+    "boca raton": {
+      "city": "Boca Raton",
+      "country": "US",
+      "admin1": "FL",
+      "n": 5
+    },
+    "boise": {
+      "city": "Boise",
+      "country": "US",
+      "admin1": "ID",
+      "n": 3
+    },
+    "bolingbrook": {
+      "city": "Bolingbrook",
+      "country": "US",
+      "admin1": "IL",
+      "n": 3
+    },
+    "bonita springs": {
+      "city": "Bonita Springs",
+      "country": "US",
+      "admin1": "FL",
+      "n": 10
+    },
+    "bordeaux": {
+      "city": "Bordeaux",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "boston": {
+      "city": "Boston",
+      "country": "US",
+      "admin1": "MA",
+      "n": 26
+    },
+    "botany": {
+      "city": "Botany",
+      "country": "AU",
+      "admin1": null,
+      "n": 4
+    },
+    "boulder": {
+      "city": "Boulder",
+      "country": "US",
+      "admin1": "CO",
+      "n": 6
+    },
+    "boulogne billancourt": {
+      "city": "Boulogne Billancourt",
+      "country": "FR",
+      "admin1": null,
+      "n": 7
+    },
+    "bradenton": {
+      "city": "Bradenton",
+      "country": "US",
+      "admin1": "FL",
+      "n": 4
+    },
+    "brampton": {
+      "city": "Brampton",
+      "country": "CA",
+      "admin1": null,
+      "n": 3
+    },
+    "brentwood": {
+      "city": "Brentwood",
+      "country": "US",
+      "admin1": "TN",
+      "n": 4
+    },
+    "brest": {
+      "city": "Brest",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "bromley": {
+      "city": "Bromley",
+      "country": "GB",
+      "admin1": null,
+      "n": 3
+    },
+    "brookline": {
+      "city": "Brookline",
+      "country": "US",
+      "admin1": "MA",
+      "n": 3
+    },
+    "brooklyn": {
+      "city": "Brooklyn",
+      "country": "US",
+      "admin1": "NY",
+      "n": 3
+    },
+    "brown s hotel": {
+      "city": "Brown's Hotel",
+      "country": "GB",
+      "admin1": null,
+      "n": 14
+    },
+    "brunssum": {
+      "city": "Brunssum",
+      "country": "NL",
+      "admin1": null,
+      "n": 3
+    },
+    "brussels": {
+      "city": "Brussels",
+      "country": "BE",
+      "admin1": null,
+      "n": 30
+    },
+    "bundesweit": {
+      "city": "bundesweit",
+      "country": "DE",
+      "admin1": null,
+      "n": 5
+    },
+    "burnaby": {
+      "city": "Burnaby",
+      "country": "CA",
+      "admin1": null,
+      "n": 4
+    },
+    "cadiz": {
+      "city": "Cádiz",
+      "country": "ES",
+      "admin1": null,
+      "n": 5
+    },
+    "caen": {
+      "city": "Caen",
+      "country": "FR",
+      "admin1": null,
+      "n": 5
+    },
+    "calgary": {
+      "city": "Calgary",
+      "country": "CA",
+      "admin1": "AB",
+      "n": 25
+    },
+    "camp courtney okinawa": {
+      "city": "Camp Courtney Okinawa",
+      "country": "JP",
+      "admin1": null,
+      "n": 3
+    },
+    "camp foster": {
+      "city": "Camp Foster",
+      "country": "JP",
+      "admin1": null,
+      "n": 13
+    },
+    "canton": {
+      "city": "Canton",
+      "country": "US",
+      "admin1": "MS",
+      "n": 79
+    },
+    "capitol heights": {
+      "city": "Capitol Heights",
+      "country": "US",
+      "admin1": "MD",
+      "n": 3
+    },
+    "carentan les marais": {
+      "city": "Carentan-les-Marais",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "carmel": {
+      "city": "Carmel",
+      "country": "US",
+      "admin1": "IN",
+      "n": 9
+    },
+    "cary": {
+      "city": "Cary",
+      "country": "US",
+      "admin1": null,
+      "n": 3
+    },
+    "castelgomberto": {
+      "city": "Castelgomberto",
+      "country": "IT",
+      "admin1": null,
+      "n": 4
+    },
+    "cedar rapids": {
+      "city": "Cedar Rapids",
+      "country": "US",
+      "admin1": "IA",
+      "n": 12
+    },
+    "chalampe": {
+      "city": "Chalampé",
+      "country": "FR",
+      "admin1": null,
+      "n": 5
+    },
+    "chantilly": {
+      "city": "Chantilly",
+      "country": "US",
+      "admin1": "VA",
+      "n": 6
+    },
+    "chapel hill": {
+      "city": "Chapel Hill",
+      "country": "US",
+      "admin1": "NC",
+      "n": 4
+    },
+    "charleston": {
+      "city": "Charleston",
+      "country": "US",
+      "admin1": "SC",
+      "n": 12
+    },
+    "charlotte": {
+      "city": "Charlotte",
+      "country": "US",
+      "admin1": "NC",
+      "n": 9
+    },
+    "chattanooga": {
+      "city": "Chattanooga",
+      "country": "US",
+      "admin1": "TN",
+      "n": 9
+    },
+    "chennai": {
+      "city": "Chennai",
+      "country": "IN",
+      "admin1": null,
+      "n": 48
+    },
+    "chesapeake": {
+      "city": "Chesapeake",
+      "country": "US",
+      "admin1": "VA",
+      "n": 7
+    },
+    "chestertown": {
+      "city": "Chestertown",
+      "country": "US",
+      "admin1": "MD",
+      "n": 3
+    },
+    "chicago": {
+      "city": "Chicago",
+      "country": "US",
+      "admin1": "IL",
+      "n": 62
+    },
+    "cincinnati": {
+      "city": "Cincinnati",
+      "country": "US",
+      "admin1": "OH",
+      "n": 3
+    },
+    "clearwater": {
+      "city": "Clearwater",
+      "country": "US",
+      "admin1": "FL",
+      "n": 3
+    },
+    "clermont": {
+      "city": "Clermont",
+      "country": "US",
+      "admin1": "FL",
+      "n": 3
+    },
+    "cleveland": {
+      "city": "Cleveland",
+      "country": "US",
+      "admin1": "OH",
+      "n": 5
+    },
+    "clichy": {
+      "city": "Clichy",
+      "country": "FR",
+      "admin1": null,
+      "n": 8
+    },
+    "clinton": {
+      "city": "Clinton",
+      "country": "US",
+      "admin1": "TN",
+      "n": 17
+    },
+    "cologne": {
+      "city": "Köln",
+      "country": "DE",
+      "admin1": null,
+      "n": 25
+    },
+    "colorado springs": {
+      "city": "Colorado Springs",
+      "country": "US",
+      "admin1": "CO",
+      "n": 6
+    },
+    "columbia": {
+      "city": "Columbia",
+      "country": "US",
+      "admin1": null,
+      "n": 9
+    },
+    "columbus": {
+      "city": "Columbus",
+      "country": "US",
+      "admin1": "OH",
+      "n": 12
+    },
+    "copenhagen": {
+      "city": "Copenhagen",
+      "country": "DK",
+      "admin1": null,
+      "n": 18
+    },
+    "coppell": {
+      "city": "Coppell",
+      "country": "US",
+      "admin1": "TX",
+      "n": 5
+    },
+    "cork": {
+      "city": "Cork",
+      "country": "IE",
+      "admin1": null,
+      "n": 4
+    },
+    "cornaredo": {
+      "city": "Cornaredo",
+      "country": "IT",
+      "admin1": null,
+      "n": 10
+    },
+    "cortland": {
+      "city": "Cortland",
+      "country": "US",
+      "admin1": "NY",
+      "n": 8
+    },
+    "costa mesa": {
+      "city": "Costa Mesa",
+      "country": "US",
+      "admin1": "CA",
+      "n": 4
+    },
+    "cottbus": {
+      "city": "Cottbus",
+      "country": "DE",
+      "admin1": null,
+      "n": 9
+    },
+    "courbevoie": {
+      "city": "Courbevoie",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "coventry": {
+      "city": "Coventry",
+      "country": "GB",
+      "admin1": null,
+      "n": 3
+    },
+    "croydon": {
+      "city": "Croydon",
+      "country": "GB",
+      "admin1": null,
+      "n": 3
+    },
+    "culver city": {
+      "city": "Culver City",
+      "country": "US",
+      "admin1": "CA",
+      "n": 17
+    },
+    "cupertino": {
+      "city": "Cupertino",
+      "country": "US",
+      "admin1": "CA",
+      "n": 10
+    },
+    "cypress": {
+      "city": "Cypress",
+      "country": "US",
+      "admin1": "TX",
+      "n": 4
+    },
+    "dallas": {
+      "city": "Dallas",
+      "country": "US",
+      "admin1": "TX",
+      "n": 34
+    },
+    "daly city": {
+      "city": "Daly City",
+      "country": "US",
+      "admin1": "CA",
+      "n": 8
+    },
+    "daphne": {
+      "city": "Daphne",
+      "country": "US",
+      "admin1": "AL",
+      "n": 10
+    },
+    "dartford": {
+      "city": "Dartford",
+      "country": "GB",
+      "admin1": null,
+      "n": 5
+    },
+    "davenport": {
+      "city": "Davenport",
+      "country": "US",
+      "admin1": "IA",
+      "n": 4
+    },
+    "dayton": {
+      "city": "Dayton",
+      "country": "US",
+      "admin1": null,
+      "n": 5
+    },
+    "daytona beach": {
+      "city": "Daytona Beach",
+      "country": "US",
+      "admin1": "FL",
+      "n": 4
+    },
+    "delft": {
+      "city": "Delft",
+      "country": "NL",
+      "admin1": null,
+      "n": 3
+    },
+    "denver": {
+      "city": "Denver",
+      "country": "US",
+      "admin1": "CO",
+      "n": 28
+    },
+    "des moines": {
+      "city": "Des Moines",
+      "country": "US",
+      "admin1": "IA",
+      "n": 5
+    },
+    "detroit": {
+      "city": "Detroit",
+      "country": "US",
+      "admin1": "MI",
+      "n": 5
+    },
+    "dijon": {
+      "city": "Dijon",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "dortmund": {
+      "city": "Dortmund",
+      "country": "DE",
+      "admin1": null,
+      "n": 3
+    },
+    "draguignan": {
+      "city": "Draguignan",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "dublin": {
+      "city": "Dublin",
+      "country": "IE",
+      "admin1": null,
+      "n": 181
+    },
+    "duisburg": {
+      "city": "Duisburg",
+      "country": "DE",
+      "admin1": null,
+      "n": 4
+    },
+    "duluth": {
+      "city": "Duluth",
+      "country": "US",
+      "admin1": "GA",
+      "n": 3
+    },
+    "durham": {
+      "city": "Durham",
+      "country": "US",
+      "admin1": "NC",
+      "n": 21
+    },
+    "dusseldorf": {
+      "city": "Düsseldorf",
+      "country": "DE",
+      "admin1": null,
+      "n": 3
+    },
+    "east peoria": {
+      "city": "East Peoria",
+      "country": "US",
+      "admin1": "IL",
+      "n": 10
+    },
+    "eastern": {
+      "city": "Eastern",
+      "country": "US",
+      "admin1": "NE",
+      "n": 3
+    },
+    "easton": {
+      "city": "Easton",
+      "country": "US",
+      "admin1": null,
+      "n": 10
+    },
+    "edinburgh": {
+      "city": "Edinburgh",
+      "country": "GB",
+      "admin1": null,
+      "n": 3
+    },
+    "edmonton": {
+      "city": "Edmonton",
+      "country": "CA",
+      "admin1": "AB",
+      "n": 14
+    },
+    "el paso": {
+      "city": "El Paso",
+      "country": "US",
+      "admin1": "TX",
+      "n": 3
+    },
+    "emporia": {
+      "city": "Emporia",
+      "country": "US",
+      "admin1": "VA",
+      "n": 3
+    },
+    "enfield": {
+      "city": "Enfield",
+      "country": "GB",
+      "admin1": null,
+      "n": 3
+    },
+    "englewood": {
+      "city": "Englewood",
+      "country": "US",
+      "admin1": "CO",
+      "n": 9
+    },
+    "enns": {
+      "city": "Enns",
+      "country": "AT",
+      "admin1": null,
+      "n": 4
+    },
+    "erlanger": {
+      "city": "Erlanger",
+      "country": "US",
+      "admin1": "KY",
+      "n": 4
+    },
+    "espoo": {
+      "city": "Espoo",
+      "country": "FI",
+      "admin1": null,
+      "n": 12
+    },
+    "essen": {
+      "city": "Essen",
+      "country": "DE",
+      "admin1": null,
+      "n": 5
+    },
+    "evansville": {
+      "city": "Evansville",
+      "country": "US",
+      "admin1": "IN",
+      "n": 7
+    },
+    "eygelshoven": {
+      "city": "Eygelshoven",
+      "country": "NL",
+      "admin1": null,
+      "n": 3
+    },
+    "fairburn": {
+      "city": "Fairburn",
+      "country": "US",
+      "admin1": "GA",
+      "n": 3
+    },
+    "fairfax": {
+      "city": "Fairfax",
+      "country": "US",
+      "admin1": "VA",
+      "n": 5
+    },
+    "fairhope": {
+      "city": "Fairhope",
+      "country": "US",
+      "admin1": "AL",
+      "n": 3
+    },
+    "fairless hills": {
+      "city": "Fairless Hills",
+      "country": "US",
+      "admin1": "PA",
+      "n": 36
+    },
+    "flagstaff": {
+      "city": "Flagstaff",
+      "country": "US",
+      "admin1": "AZ",
+      "n": 3
+    },
+    "florence": {
+      "city": "Florence",
+      "country": "US",
+      "admin1": null,
+      "n": 4
+    },
+    "fort myers": {
+      "city": "Fort Myers",
+      "country": "US",
+      "admin1": "FL",
+      "n": 5
+    },
+    "framingham": {
+      "city": "Framingham",
+      "country": "US",
+      "admin1": "MA",
+      "n": 5
+    },
+    "frankfort": {
+      "city": "Frankfort",
+      "country": "US",
+      "admin1": null,
+      "n": 3
+    },
+    "frankfurt am main": {
+      "city": "Frankfurt am Main",
+      "country": "DE",
+      "admin1": null,
+      "n": 3
+    },
+    "franklin": {
+      "city": "Franklin",
+      "country": "US",
+      "admin1": null,
+      "n": 4
+    },
+    "frederick": {
+      "city": "Frederick",
+      "country": "US",
+      "admin1": "MD",
+      "n": 22
+    },
+    "fredericksburg": {
+      "city": "Fredericksburg",
+      "country": "US",
+      "admin1": "VA",
+      "n": 8
+    },
+    "frederikssund": {
+      "city": "Frederikssund",
+      "country": "DK",
+      "admin1": null,
+      "n": 7
+    },
+    "freeport": {
+      "city": "Freeport",
+      "country": "US",
+      "admin1": "NY",
+      "n": 3
+    },
+    "freiburg": {
+      "city": "Freiburg",
+      "country": "DE",
+      "admin1": null,
+      "n": 4
+    },
+    "gainesville": {
+      "city": "Gainesville",
+      "country": "US",
+      "admin1": null,
+      "n": 12
+    },
+    "gaithersburg": {
+      "city": "Gaithersburg",
+      "country": "US",
+      "admin1": "MD",
+      "n": 8
+    },
+    "garden island": {
+      "city": "Garden Island",
+      "country": "AU",
+      "admin1": null,
+      "n": 10
+    },
+    "garner": {
+      "city": "Garner",
+      "country": "US",
+      "admin1": "NC",
+      "n": 6
+    },
+    "gavle": {
+      "city": "Gävle",
+      "country": "SE",
+      "admin1": null,
+      "n": 4
+    },
+    "gdynia": {
+      "city": "Gdynia",
+      "country": "PL",
+      "admin1": null,
+      "n": 4
+    },
+    "germersheim": {
+      "city": "Germersheim",
+      "country": "DE",
+      "admin1": null,
+      "n": 3
+    },
+    "gessate": {
+      "city": "Gessate",
+      "country": "IT",
+      "admin1": null,
+      "n": 5
+    },
+    "ghent": {
+      "city": "Ghent",
+      "country": "BE",
+      "admin1": null,
+      "n": 24
+    },
+    "gibbon": {
+      "city": "Gibbon",
+      "country": "US",
+      "admin1": "NE",
+      "n": 5
+    },
+    "glasgow": {
+      "city": "Glasgow",
+      "country": "GB",
+      "admin1": null,
+      "n": 3
+    },
+    "glen cove": {
+      "city": "Glen Cove",
+      "country": "US",
+      "admin1": "NY",
+      "n": 9
+    },
+    "glendale": {
+      "city": "Glendale",
+      "country": "US",
+      "admin1": "AZ",
+      "n": 4
+    },
+    "gothenburg": {
+      "city": "Göteborg",
+      "country": "SE",
+      "admin1": null,
+      "n": 16
+    },
+    "grand prairie": {
+      "city": "Grand Prairie",
+      "country": "US",
+      "admin1": "TX",
+      "n": 4
+    },
+    "grand rapids": {
+      "city": "Grand Rapids",
+      "country": "US",
+      "admin1": "MI",
+      "n": 3
+    },
+    "green bay": {
+      "city": "Green Bay",
+      "country": "US",
+      "admin1": "WI",
+      "n": 13
+    },
+    "greencastle": {
+      "city": "Greencastle",
+      "country": "US",
+      "admin1": "PA",
+      "n": 3
+    },
+    "greensburg": {
+      "city": "Greensburg",
+      "country": "US",
+      "admin1": "PA",
+      "n": 8
+    },
+    "greenville": {
+      "city": "Greenville",
+      "country": "US",
+      "admin1": null,
+      "n": 9
+    },
+    "gurgaon": {
+      "city": "Gurgaon",
+      "country": "IN",
+      "admin1": null,
+      "n": 9
+    },
+    "gurugram": {
+      "city": "Gurugram",
+      "country": "IN",
+      "admin1": null,
+      "n": 3
+    },
+    "hagerstown": {
+      "city": "Hagerstown",
+      "country": "US",
+      "admin1": "MD",
+      "n": 4
+    },
+    "halmstad": {
+      "city": "Halmstad",
+      "country": "SE",
+      "admin1": null,
+      "n": 4
+    },
+    "hamburg": {
+      "city": "Hamburg",
+      "country": "DE",
+      "admin1": null,
+      "n": 6
+    },
+    "hamilton": {
+      "city": "Hamilton",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 8
+    },
+    "hampton": {
+      "city": "Hampton",
+      "country": "US",
+      "admin1": "VA",
+      "n": 4
+    },
+    "hannibal": {
+      "city": "Hannibal",
+      "country": "US",
+      "admin1": "MO",
+      "n": 6
+    },
+    "hannover": {
+      "city": "Hannover",
+      "country": "DE",
+      "admin1": null,
+      "n": 6
+    },
+    "hanover": {
+      "city": "Hanover",
+      "country": "US",
+      "admin1": "MD",
+      "n": 9
+    },
+    "hanscom afb": {
+      "city": "Hanscom AFB",
+      "country": "US",
+      "admin1": "MA",
+      "n": 21
+    },
+    "harlan": {
+      "city": "Harlan",
+      "country": "US",
+      "admin1": "KY",
+      "n": 5
+    },
+    "hartford": {
+      "city": "Hartford",
+      "country": "US",
+      "admin1": "CT",
+      "n": 5
+    },
+    "hayward": {
+      "city": "Hayward",
+      "country": "US",
+      "admin1": "CA",
+      "n": 5
+    },
+    "hazard": {
+      "city": "Hazard",
+      "country": "US",
+      "admin1": "KY",
+      "n": 16
+    },
+    "hebron": {
+      "city": "Hebron",
+      "country": "US",
+      "admin1": "KY",
+      "n": 5
+    },
+    "heijningen": {
+      "city": "Heijningen",
+      "country": "NL",
+      "admin1": null,
+      "n": 4
+    },
+    "helsingborg": {
+      "city": "Helsingborg",
+      "country": "SE",
+      "admin1": null,
+      "n": 4
+    },
+    "helsinki": {
+      "city": "Helsinki",
+      "country": "FI",
+      "admin1": null,
+      "n": 12
+    },
+    "hemel hempstead": {
+      "city": "Hemel Hempstead",
+      "country": "GB",
+      "admin1": null,
+      "n": 10
+    },
+    "henderson": {
+      "city": "Henderson",
+      "country": "US",
+      "admin1": null,
+      "n": 8
+    },
+    "hendersonville": {
+      "city": "Hendersonville",
+      "country": "US",
+      "admin1": "TN",
+      "n": 4
+    },
+    "hermiston": {
+      "city": "Hermiston",
+      "country": "US",
+      "admin1": "OR",
+      "n": 5
+    },
+    "herndon": {
+      "city": "Herndon",
+      "country": "US",
+      "admin1": "VA",
+      "n": 35
+    },
+    "hilliard": {
+      "city": "Hilliard",
+      "country": "US",
+      "admin1": "OH",
+      "n": 16
+    },
+    "hillsboro": {
+      "city": "Hillsboro",
+      "country": "US",
+      "admin1": "OR",
+      "n": 3
+    },
+    "hilter am teutoburger wald": {
+      "city": "Hilter am Teutoburger Wald",
+      "country": "DE",
+      "admin1": null,
+      "n": 9
+    },
+    "hinsdale": {
+      "city": "Hinsdale",
+      "country": "US",
+      "admin1": "IL",
+      "n": 5
+    },
+    "hockessin": {
+      "city": "Hockessin",
+      "country": "US",
+      "admin1": "DE",
+      "n": 5
+    },
+    "hohenfels": {
+      "city": "Hohenfels",
+      "country": "DE",
+      "admin1": null,
+      "n": 3
+    },
+    "hollister": {
+      "city": "Hollister",
+      "country": "US",
+      "admin1": "CA",
+      "n": 3
+    },
+    "hollywood": {
+      "city": "Hollywood",
+      "country": "US",
+      "admin1": "FL",
+      "n": 6
+    },
+    "hopkinsville": {
+      "city": "Hopkinsville",
+      "country": "US",
+      "admin1": "KY",
+      "n": 3
+    },
+    "houston": {
+      "city": "Houston",
+      "country": "US",
+      "admin1": "TX",
+      "n": 12
+    },
+    "humble": {
+      "city": "Humble",
+      "country": "US",
+      "admin1": "TX",
+      "n": 3
+    },
+    "hyderabad": {
+      "city": "Hyderabad",
+      "country": "IN",
+      "admin1": null,
+      "n": 17
+    },
+    "ile de france": {
+      "city": "Île-de-France",
+      "country": "FR",
+      "admin1": null,
+      "n": 4
+    },
+    "independence": {
+      "city": "Independence",
+      "country": "US",
+      "admin1": null,
+      "n": 3
+    },
+    "indianapolis": {
+      "city": "Indianapolis",
+      "country": "US",
+      "admin1": "IN",
+      "n": 16
+    },
+    "indore": {
+      "city": "Indore",
+      "country": "IN",
+      "admin1": null,
+      "n": 3
+    },
+    "innisfil": {
+      "city": "Innisfil",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 4
+    },
+    "irvine": {
+      "city": "Irvine",
+      "country": "US",
+      "admin1": "CA",
+      "n": 8
+    },
+    "irving": {
+      "city": "Irving",
+      "country": "US",
+      "admin1": "TX",
+      "n": 6
+    },
+    "itasca": {
+      "city": "Itasca",
+      "country": "US",
+      "admin1": "IL",
+      "n": 15
+    },
+    "ithaca": {
+      "city": "Ithaca",
+      "country": "US",
+      "admin1": "NY",
+      "n": 17
+    },
+    "iwakuni": {
+      "city": "Iwakuni",
+      "country": "JP",
+      "admin1": null,
+      "n": 5
+    },
+    "jackson": {
+      "city": "Jackson",
+      "country": "US",
+      "admin1": null,
+      "n": 3
+    },
+    "jacksonville": {
+      "city": "Jacksonville",
+      "country": "US",
+      "admin1": "FL",
+      "n": 9
+    },
+    "jersey city": {
+      "city": "Jersey City",
+      "country": "US",
+      "admin1": "NJ",
+      "n": 5
+    },
+    "jessup": {
+      "city": "Jessup",
+      "country": "US",
+      "admin1": "MD",
+      "n": 4
+    },
+    "johnson city": {
+      "city": "Johnson City",
+      "country": "US",
+      "admin1": "TN",
+      "n": 3
+    },
+    "jonkoping": {
+      "city": "Jönköping",
+      "country": "SE",
+      "admin1": null,
+      "n": 6
+    },
+    "kadena air base okinawa": {
+      "city": "Kadena Air Base Okinawa",
+      "country": "JP",
+      "admin1": null,
+      "n": 8
+    },
+    "kaiserslautern": {
+      "city": "Kaiserslautern",
+      "country": "DE",
+      "admin1": null,
+      "n": 9
+    },
+    "kamloops": {
+      "city": "Kamloops",
+      "country": "CA",
+      "admin1": "BC",
+      "n": 4
+    },
+    "kanata": {
+      "city": "Kanata",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 3
+    },
+    "kansas city": {
+      "city": "Kansas City",
+      "country": "US",
+      "admin1": null,
+      "n": 6
+    },
+    "kenosha": {
+      "city": "Kenosha",
+      "country": "US",
+      "admin1": "WI",
+      "n": 5
+    },
+    "kingsport": {
+      "city": "Kingsport",
+      "country": "US",
+      "admin1": "TN",
+      "n": 4
+    },
+    "kingston": {
+      "city": "Kingston",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 3
+    },
+    "kirkland": {
+      "city": "Kirkland",
+      "country": "US",
+      "admin1": "WA",
+      "n": 7
+    },
+    "kitchener": {
+      "city": "Kitchener",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 11
+    },
+    "klippan": {
+      "city": "Klippan",
+      "country": "SE",
+      "admin1": null,
+      "n": 3
+    },
+    "knoxville": {
+      "city": "Knoxville",
+      "country": "US",
+      "admin1": "TN",
+      "n": 14
+    },
+    "konstanz": {
+      "city": "Konstanz",
+      "country": "DE",
+      "admin1": null,
+      "n": 10
+    },
+    "krakow": {
+      "city": "Kraków",
+      "country": "PL",
+      "admin1": null,
+      "n": 5
+    },
+    "la roche sur yon": {
+      "city": "La Roche-sur-Yon",
+      "country": "FR",
+      "admin1": null,
+      "n": 4
+    },
+    "la rochelle": {
+      "city": "La Rochelle",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "lake city": {
+      "city": "Lake City",
+      "country": "US",
+      "admin1": "FL",
+      "n": 3
+    },
+    "lake worth": {
+      "city": "Lake Worth",
+      "country": "US",
+      "admin1": "FL",
+      "n": 3
+    },
+    "lakenheath": {
+      "city": "Lakenheath",
+      "country": "GB",
+      "admin1": null,
+      "n": 11
+    },
+    "lakewood": {
+      "city": "Lakewood",
+      "country": "US",
+      "admin1": null,
+      "n": 3
+    },
+    "landstuhl": {
+      "city": "Landstuhl",
+      "country": "DE",
+      "admin1": null,
+      "n": 5
+    },
+    "lansdale": {
+      "city": "Lansdale",
+      "country": "US",
+      "admin1": "PA",
+      "n": 4
+    },
+    "las vegas": {
+      "city": "Las Vegas",
+      "country": "US",
+      "admin1": "NV",
+      "n": 20
+    },
+    "le havre": {
+      "city": "Le Havre",
+      "country": "FR",
+      "admin1": null,
+      "n": 6
+    },
+    "lebanon": {
+      "city": "Lebanon",
+      "country": "US",
+      "admin1": null,
+      "n": 15
+    },
+    "leeds": {
+      "city": "Leeds",
+      "country": "GB",
+      "admin1": null,
+      "n": 10
+    },
+    "leesburg": {
+      "city": "Leesburg",
+      "country": "US",
+      "admin1": null,
+      "n": 3
+    },
+    "leighton buzzard": {
+      "city": "Leighton Buzzard",
+      "country": "GB",
+      "admin1": null,
+      "n": 3
+    },
+    "levittown": {
+      "city": "Levittown",
+      "country": "US",
+      "admin1": "NY",
+      "n": 3
+    },
+    "lewisham": {
+      "city": "Lewisham",
+      "country": "GB",
+      "admin1": null,
+      "n": 4
+    },
+    "lexington": {
+      "city": "Lexington",
+      "country": "US",
+      "admin1": "KY",
+      "n": 13
+    },
+    "lille": {
+      "city": "Lille",
+      "country": "FR",
+      "admin1": null,
+      "n": 5
+    },
+    "limoges": {
+      "city": "Limoges",
+      "country": "FR",
+      "admin1": null,
+      "n": 5
+    },
+    "lincolnton": {
+      "city": "Lincolnton",
+      "country": "US",
+      "admin1": "NC",
+      "n": 3
+    },
+    "lisboa": {
+      "city": "Lisboa",
+      "country": "PT",
+      "admin1": null,
+      "n": 15
+    },
+    "lisbon": {
+      "city": "Lisbon",
+      "country": "PT",
+      "admin1": null,
+      "n": 14
+    },
+    "lisburn": {
+      "city": "Lisburn",
+      "country": "GB",
+      "admin1": null,
+      "n": 9
+    },
+    "lithia springs": {
+      "city": "Lithia Springs",
+      "country": "US",
+      "admin1": "GA",
+      "n": 10
+    },
+    "little rock": {
+      "city": "Little Rock",
+      "country": "US",
+      "admin1": "AR",
+      "n": 4
+    },
+    "livonia": {
+      "city": "Livonia",
+      "country": "US",
+      "admin1": "MI",
+      "n": 23
+    },
+    "livorno": {
+      "city": "Livorno",
+      "country": "IT",
+      "admin1": null,
+      "n": 3
+    },
+    "livron sur drome": {
+      "city": "Livron-sur-Drôme",
+      "country": "FR",
+      "admin1": null,
+      "n": 6
+    },
+    "london": {
+      "city": "London",
+      "country": "GB",
+      "admin1": null,
+      "n": 325
+    },
+    "long prairie": {
+      "city": "Long Prairie",
+      "country": "US",
+      "admin1": "MN",
+      "n": 13
+    },
+    "longs": {
+      "city": "Longs",
+      "country": "US",
+      "admin1": "SC",
+      "n": 3
+    },
+    "los angeles": {
+      "city": "Los Angeles",
+      "country": "US",
+      "admin1": "CA",
+      "n": 32
+    },
+    "los gatos": {
+      "city": "Los Gatos",
+      "country": "US",
+      "admin1": "CA",
+      "n": 3
+    },
+    "louisville": {
+      "city": "Louisville",
+      "country": "US",
+      "admin1": "KY",
+      "n": 4
+    },
+    "lund": {
+      "city": "Lund",
+      "country": "SE",
+      "admin1": null,
+      "n": 4
+    },
+    "lyon": {
+      "city": "Lyon",
+      "country": "FR",
+      "admin1": null,
+      "n": 14
+    },
+    "madison": {
+      "city": "Madison",
+      "country": "US",
+      "admin1": null,
+      "n": 6
+    },
+    "madrid": {
+      "city": "Madrid",
+      "country": "ES",
+      "admin1": null,
+      "n": 60
+    },
+    "malmo": {
+      "city": "Malmö",
+      "country": "SE",
+      "admin1": null,
+      "n": 12
+    },
+    "manassas": {
+      "city": "Manassas",
+      "country": "US",
+      "admin1": "VA",
+      "n": 13
+    },
+    "mantova": {
+      "city": "Mantova",
+      "country": "IT",
+      "admin1": null,
+      "n": 6
+    },
+    "markham": {
+      "city": "Markham",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 11
+    },
+    "maryland heights": {
+      "city": "Maryland Heights",
+      "country": "US",
+      "admin1": "MO",
+      "n": 5
+    },
+    "matthews": {
+      "city": "Matthews",
+      "country": "US",
+      "admin1": "NC",
+      "n": 3
+    },
+    "media": {
+      "city": "Media",
+      "country": "US",
+      "admin1": "PA",
+      "n": 4
+    },
+    "memphis": {
+      "city": "Memphis",
+      "country": "US",
+      "admin1": "TN",
+      "n": 4
+    },
+    "menomonee falls": {
+      "city": "Menomonee Falls",
+      "country": "US",
+      "admin1": "WI",
+      "n": 4
+    },
+    "merritt island": {
+      "city": "Merritt Island",
+      "country": "US",
+      "admin1": "FL",
+      "n": 5
+    },
+    "mesa": {
+      "city": "Mesa",
+      "country": "US",
+      "admin1": "AZ",
+      "n": 8
+    },
+    "mesquite": {
+      "city": "Mesquite",
+      "country": "US",
+      "admin1": null,
+      "n": 3
+    },
+    "metzingen": {
+      "city": "Metzingen",
+      "country": "DE",
+      "admin1": null,
+      "n": 9
+    },
+    "mexico city": {
+      "city": "Mexico City",
+      "country": "MX",
+      "admin1": null,
+      "n": 105
+    },
+    "miami": {
+      "city": "Miami",
+      "country": "US",
+      "admin1": "FL",
+      "n": 9
+    },
+    "middlesboro": {
+      "city": "Middlesboro",
+      "country": "US",
+      "admin1": "KY",
+      "n": 4
+    },
+    "milan": {
+      "city": "Milan",
+      "country": "IT",
+      "admin1": null,
+      "n": 16
+    },
+    "milano": {
+      "city": "Milano",
+      "country": "IT",
+      "admin1": null,
+      "n": 12
+    },
+    "mildenhall": {
+      "city": "Mildenhall",
+      "country": "GB",
+      "admin1": null,
+      "n": 10
+    },
+    "milton keynes": {
+      "city": "Milton Keynes",
+      "country": "GB",
+      "admin1": null,
+      "n": 3
+    },
+    "milwaukee": {
+      "city": "Milwaukee",
+      "country": "US",
+      "admin1": "WI",
+      "n": 5
+    },
+    "minneapolis": {
+      "city": "Minneapolis",
+      "country": "US",
+      "admin1": "MN",
+      "n": 6
+    },
+    "misawa afb": {
+      "city": "Misawa AFB",
+      "country": "JP",
+      "admin1": null,
+      "n": 9
+    },
+    "mississauga": {
+      "city": "Mississauga",
+      "country": "CA",
+      "admin1": null,
+      "n": 6
+    },
+    "mobile": {
+      "city": "Mobile",
+      "country": "US",
+      "admin1": "AL",
+      "n": 32
+    },
+    "monroe": {
+      "city": "Monroe",
+      "country": "US",
+      "admin1": null,
+      "n": 4
+    },
+    "monterey park": {
+      "city": "Monterey Park",
+      "country": "US",
+      "admin1": "CA",
+      "n": 21
+    },
+    "montgomery": {
+      "city": "Montgomery",
+      "country": "US",
+      "admin1": null,
+      "n": 10
+    },
+    "montpellier": {
+      "city": "Montpellier",
+      "country": "FR",
+      "admin1": null,
+      "n": 6
+    },
+    "montreal": {
+      "city": "Montreal",
+      "country": "CA",
+      "admin1": "QC",
+      "n": 37
+    },
+    "montreuil": {
+      "city": "Montreuil",
+      "country": "FR",
+      "admin1": null,
+      "n": 8
+    },
+    "moorestown": {
+      "city": "Moorestown",
+      "country": "US",
+      "admin1": "NJ",
+      "n": 3
+    },
+    "morrisville": {
+      "city": "Morrisville",
+      "country": "US",
+      "admin1": "NC",
+      "n": 19
+    },
+    "mumbai": {
+      "city": "Mumbai",
+      "country": "IN",
+      "admin1": null,
+      "n": 14
+    },
+    "munich": {
+      "city": "Munich",
+      "country": "DE",
+      "admin1": null,
+      "n": 94
+    },
+    "murfreesboro": {
+      "city": "Murfreesboro",
+      "country": "US",
+      "admin1": "TN",
+      "n": 6
+    },
+    "murfressboro": {
+      "city": "Murfressboro",
+      "country": "US",
+      "admin1": "TN",
+      "n": 4
+    },
+    "murray": {
+      "city": "Murray",
+      "country": "US",
+      "admin1": "UT",
+      "n": 3
+    },
+    "nagoya": {
+      "city": "Nagoya",
+      "country": "JP",
+      "admin1": null,
+      "n": 3
+    },
+    "nantes": {
+      "city": "Nantes",
+      "country": "FR",
+      "admin1": null,
+      "n": 8
+    },
+    "naperville": {
+      "city": "Naperville",
+      "country": "US",
+      "admin1": "IL",
+      "n": 3
+    },
+    "naples": {
+      "city": "Naples",
+      "country": "IT",
+      "admin1": null,
+      "n": 10
+    },
+    "nashville": {
+      "city": "Nashville",
+      "country": "US",
+      "admin1": "TN",
+      "n": 18
+    },
+    "natick": {
+      "city": "Natick",
+      "country": "US",
+      "admin1": "MA",
+      "n": 8
+    },
+    "new albany": {
+      "city": "New Albany",
+      "country": "US",
+      "admin1": "OH",
+      "n": 6
+    },
+    "new carlisle": {
+      "city": "New Carlisle",
+      "country": "US",
+      "admin1": "IN",
+      "n": 9
+    },
+    "new castle": {
+      "city": "New Castle",
+      "country": "US",
+      "admin1": null,
+      "n": 4
+    },
+    "new delhi": {
+      "city": "New Delhi",
+      "country": "IN",
+      "admin1": null,
+      "n": 6
+    },
+    "new florence": {
+      "city": "New Florence",
+      "country": "US",
+      "admin1": "MO",
+      "n": 13
+    },
+    "new york": {
+      "city": "New York",
+      "country": "US",
+      "admin1": "NY",
+      "n": 175
+    },
+    "newark": {
+      "city": "Newark",
+      "country": "US",
+      "admin1": null,
+      "n": 11
+    },
+    "newcastle upon tyne": {
+      "city": "Newcastle upon Tyne",
+      "country": "GB",
+      "admin1": null,
+      "n": 7
+    },
+    "newnan": {
+      "city": "Newnan",
+      "country": "US",
+      "admin1": "GA",
+      "n": 4
+    },
+    "nice": {
+      "city": "Nice",
+      "country": "FR",
+      "admin1": null,
+      "n": 6
+    },
+    "nimes": {
+      "city": "Nîmes",
+      "country": "FR",
+      "admin1": null,
+      "n": 4
+    },
+    "noblesville": {
+      "city": "Noblesville",
+      "country": "US",
+      "admin1": "IN",
+      "n": 8
+    },
+    "noida": {
+      "city": "Noida",
+      "country": "IN",
+      "admin1": null,
+      "n": 12
+    },
+    "norfolk": {
+      "city": "Norfolk",
+      "country": "US",
+      "admin1": null,
+      "n": 4
+    },
+    "norrtalje": {
+      "city": "Norrtälje",
+      "country": "SE",
+      "admin1": null,
+      "n": 5
+    },
+    "north bay": {
+      "city": "North Bay",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 10
+    },
+    "north haven": {
+      "city": "North Haven",
+      "country": "US",
+      "admin1": "CT",
+      "n": 3
+    },
+    "north kingstown": {
+      "city": "North Kingstown",
+      "country": "US",
+      "admin1": "RI",
+      "n": 9
+    },
+    "north reading": {
+      "city": "North Reading",
+      "country": "US",
+      "admin1": "MA",
+      "n": 13
+    },
+    "northridge": {
+      "city": "Northridge",
+      "country": "US",
+      "admin1": "CA",
+      "n": 5
+    },
+    "nottingham": {
+      "city": "Nottingham",
+      "country": "GB",
+      "admin1": null,
+      "n": 4
+    },
+    "nurnberg": {
+      "city": "Nürnberg",
+      "country": "DE",
+      "admin1": null,
+      "n": 5
+    },
+    "oak creek": {
+      "city": "Oak Creek",
+      "country": "US",
+      "admin1": "WI",
+      "n": 3
+    },
+    "oakland": {
+      "city": "Oakland",
+      "country": "US",
+      "admin1": "CA",
+      "n": 4
+    },
+    "ocala": {
+      "city": "Ocala",
+      "country": "US",
+      "admin1": "FL",
+      "n": 7
+    },
+    "oceanside": {
+      "city": "Oceanside",
+      "country": "US",
+      "admin1": null,
+      "n": 3
+    },
+    "offutt afb": {
+      "city": "Offutt AFB",
+      "country": "US",
+      "admin1": "NE",
+      "n": 15
+    },
+    "ogden": {
+      "city": "Ogden",
+      "country": "US",
+      "admin1": "UT",
+      "n": 5
+    },
+    "okinawa island": {
+      "city": "Okinawa Island",
+      "country": "JP",
+      "admin1": null,
+      "n": 4
+    },
+    "oklahoma city": {
+      "city": "Oklahoma City",
+      "country": "US",
+      "admin1": "OK",
+      "n": 10
+    },
+    "omaha": {
+      "city": "Omaha",
+      "country": "US",
+      "admin1": "NE",
+      "n": 7
+    },
+    "orlando": {
+      "city": "Orlando",
+      "country": "US",
+      "admin1": "FL",
+      "n": 14
+    },
+    "orleans": {
+      "city": "Orléans",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "oslo": {
+      "city": "Oslo",
+      "country": "NO",
+      "admin1": null,
+      "n": 31
+    },
+    "ottawa": {
+      "city": "Ottawa",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 6
+    },
+    "overland park": {
+      "city": "Overland Park",
+      "country": "US",
+      "admin1": "KS",
+      "n": 3
+    },
+    "owego": {
+      "city": "Owego",
+      "country": "US",
+      "admin1": "NY",
+      "n": 4
+    },
+    "owen sound": {
+      "city": "Owen Sound",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 6
+    },
+    "owosso": {
+      "city": "Owosso",
+      "country": "US",
+      "admin1": "MI",
+      "n": 4
+    },
+    "pacera sweden": {
+      "city": "Pacera Sweden",
+      "country": "SE",
+      "admin1": null,
+      "n": 3
+    },
+    "palatine": {
+      "city": "Palatine",
+      "country": "US",
+      "admin1": "IL",
+      "n": 8
+    },
+    "palm bay": {
+      "city": "Palm Bay",
+      "country": "US",
+      "admin1": "FL",
+      "n": 3
+    },
+    "palo alto": {
+      "city": "Palo Alto",
+      "country": "US",
+      "admin1": "CA",
+      "n": 4
+    },
+    "paris": {
+      "city": "Paris",
+      "country": "FR",
+      "admin1": null,
+      "n": 242
+    },
+    "parma heights": {
+      "city": "Parma Heights",
+      "country": "US",
+      "admin1": "OH",
+      "n": 5
+    },
+    "pasadena": {
+      "city": "Pasadena",
+      "country": "US",
+      "admin1": null,
+      "n": 10
+    },
+    "pau": {
+      "city": "Pau",
+      "country": "FR",
+      "admin1": null,
+      "n": 4
+    },
+    "pembroke": {
+      "city": "Pembroke",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 7
+    },
+    "pensacola": {
+      "city": "Pensacola",
+      "country": "US",
+      "admin1": "FL",
+      "n": 7
+    },
+    "pepperell": {
+      "city": "Pepperell",
+      "country": "US",
+      "admin1": "MA",
+      "n": 4
+    },
+    "perth": {
+      "city": "Perth",
+      "country": "AU",
+      "admin1": null,
+      "n": 3
+    },
+    "pflugerville": {
+      "city": "Pflugerville",
+      "country": "US",
+      "admin1": "TX",
+      "n": 5
+    },
+    "philadelphia": {
+      "city": "Philadelphia",
+      "country": "US",
+      "admin1": "PA",
+      "n": 27
+    },
+    "phoenix": {
+      "city": "Phoenix",
+      "country": "US",
+      "admin1": "AZ",
+      "n": 23
+    },
+    "pittsburgh": {
+      "city": "Pittsburgh",
+      "country": "US",
+      "admin1": "PA",
+      "n": 42
+    },
+    "plain city": {
+      "city": "Plain City",
+      "country": "US",
+      "admin1": "OH",
+      "n": 3
+    },
+    "plainfield": {
+      "city": "Plainfield",
+      "country": "US",
+      "admin1": null,
+      "n": 4
+    },
+    "plainview": {
+      "city": "Plainview",
+      "country": "US",
+      "admin1": "NY",
+      "n": 5
+    },
+    "poitiers": {
+      "city": "Poitiers",
+      "country": "FR",
+      "admin1": null,
+      "n": 7
+    },
+    "port melbourne": {
+      "city": "Port Melbourne",
+      "country": "AU",
+      "admin1": null,
+      "n": 7
+    },
+    "portage": {
+      "city": "Portage",
+      "country": "US",
+      "admin1": null,
+      "n": 3
+    },
+    "portland": {
+      "city": "Portland",
+      "country": "US",
+      "admin1": "OR",
+      "n": 4
+    },
+    "porto": {
+      "city": "Porto",
+      "country": "PT",
+      "admin1": null,
+      "n": 5
+    },
+    "portsmouth": {
+      "city": "Portsmouth",
+      "country": "US",
+      "admin1": "VA",
+      "n": 3
+    },
+    "prestonsburg": {
+      "city": "Prestonsburg",
+      "country": "US",
+      "admin1": "KY",
+      "n": 6
+    },
+    "pune": {
+      "city": "Pune",
+      "country": "IN",
+      "admin1": null,
+      "n": 27
+    },
+    "puteaux": {
+      "city": "Puteaux",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "raleigh": {
+      "city": "Raleigh",
+      "country": "US",
+      "admin1": "NC",
+      "n": 25
+    },
+    "ramstein": {
+      "city": "Ramstein",
+      "country": "DE",
+      "admin1": null,
+      "n": 11
+    },
+    "redmond": {
+      "city": "Redmond",
+      "country": "US",
+      "admin1": "WA",
+      "n": 72
+    },
+    "reims": {
+      "city": "Reims",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "renfrew": {
+      "city": "Renfrew",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 3
+    },
+    "rennes": {
+      "city": "Rennes",
+      "country": "FR",
+      "admin1": null,
+      "n": 12
+    },
+    "reno": {
+      "city": "Reno",
+      "country": "US",
+      "admin1": "NV",
+      "n": 10
+    },
+    "reston": {
+      "city": "Reston",
+      "country": "US",
+      "admin1": "VA",
+      "n": 4
+    },
+    "richardson": {
+      "city": "Richardson",
+      "country": "US",
+      "admin1": "TX",
+      "n": 8
+    },
+    "rio de janeiro": {
+      "city": "Rio de Janeiro",
+      "country": "BR",
+      "admin1": null,
+      "n": 3
+    },
+    "river falls": {
+      "city": "River Falls",
+      "country": "US",
+      "admin1": "WI",
+      "n": 3
+    },
+    "riverside": {
+      "city": "Riverside",
+      "country": "US",
+      "admin1": "CA",
+      "n": 8
+    },
+    "riverview": {
+      "city": "Riverview",
+      "country": "US",
+      "admin1": "FL",
+      "n": 8
+    },
+    "rock hill": {
+      "city": "Rock Hill",
+      "country": "US",
+      "admin1": "SC",
+      "n": 8
+    },
+    "rockville": {
+      "city": "Rockville",
+      "country": "US",
+      "admin1": null,
+      "n": 3
+    },
+    "rockville centre": {
+      "city": "Rockville Centre",
+      "country": "US",
+      "admin1": "NY",
+      "n": 4
+    },
+    "roma": {
+      "city": "Roma",
+      "country": "IT",
+      "admin1": null,
+      "n": 7
+    },
+    "rome": {
+      "city": "Rome",
+      "country": "IT",
+      "admin1": null,
+      "n": 7
+    },
+    "roosendaal": {
+      "city": "Roosendaal",
+      "country": "NL",
+      "admin1": null,
+      "n": 8
+    },
+    "roskilde": {
+      "city": "Roskilde",
+      "country": "DK",
+      "admin1": null,
+      "n": 4
+    },
+    "rota": {
+      "city": "Rota",
+      "country": "ES",
+      "admin1": null,
+      "n": 4
+    },
+    "rotterdam": {
+      "city": "Rotterdam",
+      "country": "NL",
+      "admin1": null,
+      "n": 9
+    },
+    "rouen": {
+      "city": "Rouen",
+      "country": "FR",
+      "admin1": null,
+      "n": 7
+    },
+    "roy": {
+      "city": "Roy",
+      "country": "US",
+      "admin1": "UT",
+      "n": 4
+    },
+    "sacramento": {
+      "city": "Sacramento",
+      "country": "US",
+      "admin1": "CA",
+      "n": 4
+    },
+    "saint jean de la ruelle": {
+      "city": "Saint-Jean-de-la-Ruelle",
+      "country": "FR",
+      "admin1": null,
+      "n": 4
+    },
+    "saint laurent du var": {
+      "city": "Saint-Laurent-du-Var",
+      "country": "FR",
+      "admin1": null,
+      "n": 4
+    },
+    "saint nazaire": {
+      "city": "Saint-Nazaire",
+      "country": "FR",
+      "admin1": null,
+      "n": 10
+    },
+    "saint quentin fallavier": {
+      "city": "Saint-Quentin-Fallavier",
+      "country": "FR",
+      "admin1": null,
+      "n": 4
+    },
+    "salem": {
+      "city": "Salem",
+      "country": "US",
+      "admin1": "OR",
+      "n": 3
+    },
+    "salt lake city": {
+      "city": "Salt Lake City",
+      "country": "US",
+      "admin1": "UT",
+      "n": 29
+    },
+    "san antonio": {
+      "city": "San Antonio",
+      "country": "US",
+      "admin1": "TX",
+      "n": 14
+    },
+    "san diego": {
+      "city": "San Diego",
+      "country": "US",
+      "admin1": "CA",
+      "n": 15
+    },
+    "san francisco": {
+      "city": "San Francisco",
+      "country": "US",
+      "admin1": "CA",
+      "n": 129
+    },
+    "san gabriel": {
+      "city": "San Gabriel",
+      "country": "US",
+      "admin1": "CA",
+      "n": 9
+    },
+    "san jose": {
+      "city": "San Jose",
+      "country": "US",
+      "admin1": "CA",
+      "n": 3
+    },
+    "san marcos": {
+      "city": "San Marcos",
+      "country": "US",
+      "admin1": "TX",
+      "n": 3
+    },
+    "santa clara": {
+      "city": "Santa Clara",
+      "country": "US",
+      "admin1": "CA",
+      "n": 633
+    },
+    "santa monica": {
+      "city": "Santa Monica",
+      "country": "US",
+      "admin1": "CA",
+      "n": 5
+    },
+    "sao paulo": {
+      "city": "Sao Paulo",
+      "country": "BR",
+      "admin1": null,
+      "n": 81
+    },
+    "sarasota": {
+      "city": "Sarasota",
+      "country": "US",
+      "admin1": "FL",
+      "n": 3
+    },
+    "sasebo": {
+      "city": "Sasebo",
+      "country": "JP",
+      "admin1": null,
+      "n": 5
+    },
+    "scott afb": {
+      "city": "Scott AFB",
+      "country": "US",
+      "admin1": "IL",
+      "n": 4
+    },
+    "seattle": {
+      "city": "Seattle",
+      "country": "US",
+      "admin1": "WA",
+      "n": 436
+    },
+    "sebring": {
+      "city": "Sebring",
+      "country": "US",
+      "admin1": "FL",
+      "n": 3
+    },
+    "seclin": {
+      "city": "Seclin",
+      "country": "FR",
+      "admin1": null,
+      "n": 4
+    },
+    "setubal": {
+      "city": "Setúbal",
+      "country": "PT",
+      "admin1": null,
+      "n": 3
+    },
+    "sheffield": {
+      "city": "Sheffield",
+      "country": "GB",
+      "admin1": null,
+      "n": 4
+    },
+    "short pump": {
+      "city": "Short Pump",
+      "country": "US",
+      "admin1": "VA",
+      "n": 3
+    },
+    "sigonella sicily": {
+      "city": "Sigonella Sicily",
+      "country": "IT",
+      "admin1": null,
+      "n": 16
+    },
+    "silver spring": {
+      "city": "Silver Spring",
+      "country": "US",
+      "admin1": "MD",
+      "n": 4
+    },
+    "simcoe": {
+      "city": "Simcoe",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 3
+    },
+    "singapore suntec tower": {
+      "city": "Singapore-Suntec Tower",
+      "country": "SG",
+      "admin1": null,
+      "n": 10
+    },
+    "skokie": {
+      "city": "Skokie",
+      "country": "US",
+      "admin1": "IL",
+      "n": 3
+    },
+    "slinfold": {
+      "city": "Slinfold",
+      "country": "GB",
+      "admin1": null,
+      "n": 6
+    },
+    "somerset": {
+      "city": "Somerset",
+      "country": "US",
+      "admin1": null,
+      "n": 3
+    },
+    "south bend": {
+      "city": "South Bend",
+      "country": "US",
+      "admin1": "IN",
+      "n": 3
+    },
+    "south williamson": {
+      "city": "South Williamson",
+      "country": "US",
+      "admin1": "KY",
+      "n": 4
+    },
+    "spangdahlem": {
+      "city": "Spangdahlem",
+      "country": "DE",
+      "admin1": null,
+      "n": 13
+    },
+    "sparks": {
+      "city": "Sparks",
+      "country": "US",
+      "admin1": "NV",
+      "n": 33
+    },
+    "springdale": {
+      "city": "Springdale",
+      "country": "US",
+      "admin1": "OH",
+      "n": 3
+    },
+    "springfield": {
+      "city": "Springfield",
+      "country": "US",
+      "admin1": null,
+      "n": 30
+    },
+    "st albans": {
+      "city": "St Albans",
+      "country": "GB",
+      "admin1": null,
+      "n": 5
+    },
+    "st louis": {
+      "city": "St. Louis",
+      "country": "US",
+      "admin1": "MO",
+      "n": 13
+    },
+    "st thomas": {
+      "city": "St Thomas",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 4
+    },
+    "stanlow": {
+      "city": "Stanlow",
+      "country": "GB",
+      "admin1": null,
+      "n": 3
+    },
+    "staunton": {
+      "city": "Staunton",
+      "country": "US",
+      "admin1": "VA",
+      "n": 3
+    },
+    "stavanger": {
+      "city": "Stavanger",
+      "country": "NO",
+      "admin1": null,
+      "n": 9
+    },
+    "sterling": {
+      "city": "Sterling",
+      "country": "US",
+      "admin1": null,
+      "n": 9
+    },
+    "stockholm": {
+      "city": "Stockholm",
+      "country": "SE",
+      "admin1": null,
+      "n": 105
+    },
+    "stratford": {
+      "city": "Stratford",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 3
+    },
+    "stuttgart": {
+      "city": "Stuttgart",
+      "country": "DE",
+      "admin1": null,
+      "n": 18
+    },
+    "sudbury": {
+      "city": "Sudbury",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 6
+    },
+    "sumter": {
+      "city": "Sumter",
+      "country": "US",
+      "admin1": "SC",
+      "n": 4
+    },
+    "sunnyvale": {
+      "city": "Sunnyvale",
+      "country": "US",
+      "admin1": "CA",
+      "n": 21
+    },
+    "sydney": {
+      "city": "Sydney",
+      "country": "AU",
+      "admin1": null,
+      "n": 47
+    },
+    "sykesville": {
+      "city": "Sykesville",
+      "country": "US",
+      "admin1": "MD",
+      "n": 4
+    },
+    "sylacauga": {
+      "city": "Sylacauga",
+      "country": "US",
+      "admin1": "AL",
+      "n": 3
+    },
+    "syosset": {
+      "city": "Syosset",
+      "country": "US",
+      "admin1": "NY",
+      "n": 3
+    },
+    "taby": {
+      "city": "Täby",
+      "country": "SE",
+      "admin1": null,
+      "n": 4
+    },
+    "tallahassee": {
+      "city": "Tallahassee",
+      "country": "US",
+      "admin1": "FL",
+      "n": 4
+    },
+    "tampa": {
+      "city": "Tampa",
+      "country": "US",
+      "admin1": "FL",
+      "n": 15
+    },
+    "tempe": {
+      "city": "Tempe",
+      "country": "US",
+      "admin1": "AZ",
+      "n": 17
+    },
+    "tepotzotlan": {
+      "city": "Tepotzotlán",
+      "country": "MX",
+      "admin1": null,
+      "n": 4
+    },
+    "ternay": {
+      "city": "Ternay",
+      "country": "FR",
+      "admin1": null,
+      "n": 4
+    },
+    "tettenweis": {
+      "city": "Tettenweis",
+      "country": "DE",
+      "admin1": null,
+      "n": 6
+    },
+    "the hague": {
+      "city": "The Hague",
+      "country": "NL",
+      "admin1": null,
+      "n": 6
+    },
+    "thue et mue": {
+      "city": "Thue et Mue",
+      "country": "FR",
+      "admin1": null,
+      "n": 3
+    },
+    "tokyo": {
+      "city": "Tokyo",
+      "country": "JP",
+      "admin1": null,
+      "n": 145
+    },
+    "torino": {
+      "city": "Torino",
+      "country": "IT",
+      "admin1": null,
+      "n": 5
+    },
+    "toronto": {
+      "city": "Toronto",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 170
+    },
+    "torrance": {
+      "city": "Torrance",
+      "country": "US",
+      "admin1": "CA",
+      "n": 5
+    },
+    "toulouse": {
+      "city": "Toulouse",
+      "country": "FR",
+      "admin1": null,
+      "n": 8
+    },
+    "troy": {
+      "city": "Troy",
+      "country": "US",
+      "admin1": "MI",
+      "n": 5
+    },
+    "troyes": {
+      "city": "Troyes",
+      "country": "FR",
+      "admin1": null,
+      "n": 4
+    },
+    "tucson": {
+      "city": "Tucson",
+      "country": "US",
+      "admin1": "AZ",
+      "n": 7
+    },
+    "uk and i": {
+      "city": "Uk&i",
+      "country": "GB",
+      "admin1": null,
+      "n": 7
+    },
+    "umatilla": {
+      "city": "Umatilla",
+      "country": "US",
+      "admin1": "OR",
+      "n": 6
+    },
+    "umea": {
+      "city": "Umeå",
+      "country": "SE",
+      "admin1": null,
+      "n": 10
+    },
+    "union city": {
+      "city": "Union City",
+      "country": "US",
+      "admin1": "GA",
+      "n": 4
+    },
+    "upton": {
+      "city": "Upton",
+      "country": "US",
+      "admin1": "MA",
+      "n": 4
+    },
+    "valdosta": {
+      "city": "Valdosta",
+      "country": "US",
+      "admin1": "GA",
+      "n": 3
+    },
+    "vancouver": {
+      "city": "Vancouver",
+      "country": "CA",
+      "admin1": "BC",
+      "n": 71
+    },
+    "varmdo": {
+      "city": "Värmdö",
+      "country": "SE",
+      "admin1": null,
+      "n": 5
+    },
+    "vaxjo": {
+      "city": "Växjö",
+      "country": "SE",
+      "admin1": null,
+      "n": 3
+    },
+    "velizy villacoublay": {
+      "city": "Vélizy-Villacoublay",
+      "country": "FR",
+      "admin1": null,
+      "n": 4
+    },
+    "vicenza": {
+      "city": "Vicenza",
+      "country": "IT",
+      "admin1": null,
+      "n": 7
+    },
+    "vienna": {
+      "city": "Vienna",
+      "country": "AT",
+      "admin1": null,
+      "n": 16
+    },
+    "virginia beach": {
+      "city": "Virginia Beach",
+      "country": "US",
+      "admin1": "VA",
+      "n": 5
+    },
+    "waco": {
+      "city": "Waco",
+      "country": "US",
+      "admin1": "TX",
+      "n": 3
+    },
+    "waltham": {
+      "city": "Waltham",
+      "country": "US",
+      "admin1": "MA",
+      "n": 9
+    },
+    "wantagh": {
+      "city": "Wantagh",
+      "country": "US",
+      "admin1": "NY",
+      "n": 6
+    },
+    "warner robins": {
+      "city": "Warner Robins",
+      "country": "US",
+      "admin1": "GA",
+      "n": 5
+    },
+    "warrendale": {
+      "city": "Warrendale",
+      "country": "US",
+      "admin1": "PA",
+      "n": 7
+    },
+    "warsaw": {
+      "city": "Warsaw",
+      "country": "PL",
+      "admin1": null,
+      "n": 8
+    },
+    "warszawa": {
+      "city": "Warszawa",
+      "country": "PL",
+      "admin1": null,
+      "n": 25
+    },
+    "warwick": {
+      "city": "Warwick",
+      "country": "GB",
+      "admin1": null,
+      "n": 3
+    },
+    "washington": {
+      "city": "Washington",
+      "country": "US",
+      "admin1": "DC",
+      "n": 23
+    },
+    "weesp": {
+      "city": "Weesp",
+      "country": "NL",
+      "admin1": null,
+      "n": 4
+    },
+    "west heath": {
+      "city": "West Heath",
+      "country": "GB",
+      "admin1": null,
+      "n": 3
+    },
+    "westboro": {
+      "city": "Westboro",
+      "country": "US",
+      "admin1": "WI",
+      "n": 3
+    },
+    "westford": {
+      "city": "Westford",
+      "country": "US",
+      "admin1": "MA",
+      "n": 9
+    },
+    "whittier": {
+      "city": "Whittier",
+      "country": "US",
+      "admin1": "CA",
+      "n": 7
+    },
+    "wichita falls": {
+      "city": "Wichita Falls",
+      "country": "US",
+      "admin1": "TX",
+      "n": 3
+    },
+    "wiesbaden": {
+      "city": "Wiesbaden",
+      "country": "DE",
+      "admin1": null,
+      "n": 13
+    },
+    "wilmington": {
+      "city": "Wilmington",
+      "country": "US",
+      "admin1": null,
+      "n": 18
+    },
+    "winchester": {
+      "city": "Winchester",
+      "country": "US",
+      "admin1": null,
+      "n": 6
+    },
+    "windsor": {
+      "city": "Windsor",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 9
+    },
+    "winnipeg": {
+      "city": "Winnipeg",
+      "country": "CA",
+      "admin1": "MB",
+      "n": 11
+    },
+    "winter haven": {
+      "city": "Winter Haven",
+      "country": "US",
+      "admin1": "FL",
+      "n": 4
+    },
+    "woodbridge": {
+      "city": "Woodbridge",
+      "country": "US",
+      "admin1": "NJ",
+      "n": 5
+    },
+    "woodstock": {
+      "city": "Woodstock",
+      "country": "CA",
+      "admin1": "ON",
+      "n": 7
+    },
+    "wooster": {
+      "city": "Wooster",
+      "country": "US",
+      "admin1": "OH",
+      "n": 3
+    },
+    "worcester": {
+      "city": "Worcester",
+      "country": "US",
+      "admin1": "MA",
+      "n": 23
+    },
+    "wright city": {
+      "city": "Wright City",
+      "country": "US",
+      "admin1": "MO",
+      "n": 9
+    },
+    "wright patterson afb": {
+      "city": "Wright Patterson AFB",
+      "country": "US",
+      "admin1": "OH",
+      "n": 5
+    },
+    "wroclaw": {
+      "city": "Wrocław",
+      "country": "PL",
+      "admin1": null,
+      "n": 10
+    },
+    "yokosuka naval base": {
+      "city": "Yokosuka Naval Base",
+      "country": "JP",
+      "admin1": null,
+      "n": 4
+    },
+    "yokota air base": {
+      "city": "Yokota Air Base",
+      "country": "JP",
+      "admin1": null,
+      "n": 5
+    },
+    "zurich": {
+      "city": "Zurich",
+      "country": "CH",
+      "admin1": null,
+      "n": 16
+    }
+  }
+}
