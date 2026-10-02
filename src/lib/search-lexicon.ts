@@ -3,9 +3,14 @@
  * board. This is the real `Lexicon` that search-parse.ts takes as an argument,
  * plus the two prefix lookups the typeahead needs.
  *
- * WHAT IT IS MADE FROM. Three GROUP BY reads of the live rows, nothing else:
- * (country, admin1, city, label) with a row count, (company) with a row count,
- * and (title) with a row count. No place, company or title word comes from a
+ * WHAT IT IS MADE FROM. Four GROUP BY reads of the live rows, nothing else: the
+ * places that postings list, as the most specific key of each (jobs.place_leaves,
+ * db/222) with a row count; the country and admin-area keys (jobs.place_keys)
+ * with an exact row count; (company) with a row count; and (title) with a row
+ * count. A posting that lists several places is under each of them, so the
+ * country and admin totals are counted from the keys, once per posting, and not
+ * summed from the places, which would count a posting twice for two cities in
+ * one country. No place, company or title word comes from a
  * file or a gazetteer, so the box can only ever recognise something the board
  * carries: a reader who types a city with no postings gets a word, never a chip
  * that counts zero. The two tables that name things (country names and aliases,
@@ -92,18 +97,26 @@
 import { db } from './db';
 import { boardRowsLoadedAt, getBoardStats } from './job-store';
 import { ADMIN_NAMES, CITY_ALIAS_NAMES, COUNTRY_ALIAS_NAMES, countryName } from './jobs-derived.mjs';
+import { parsePlaceKey, placeKeyLabel } from './place-key';
 import { LEXICON_MAX_WORDS, normalisePhrase, type Lexicon } from './search-parse';
 
 // ---------------------------------------------------------------------------
 // Shapes
 // ---------------------------------------------------------------------------
 
-/** One (country, admin1, city, label) group of live rows, as the database counts it. */
+/** One (country, admin1, city, label) group of live rows, as the database counts it:
+ *  the rows that list this place as one of theirs. */
 export interface PlaceRow {
   country: string;
   admin1: string | null;
   city: string | null;
   label: string | null;
+  rows: number;
+}
+/** How many live rows list one country or admin-area key (`GB`, `US-MD`), each row
+ *  once however many places of that country it lists. */
+export interface KeyRow {
+  key: string;
   rows: number;
 }
 export interface CompanyRow {
@@ -117,6 +130,11 @@ export interface TitleRow {
 /** Everything the lexicon is built from. Plain data, so a test builds one by hand. */
 export interface LexiconRows {
   places: PlaceRow[];
+  /** The exact country and admin-area totals, from the keys. loadLexiconRows
+   *  always supplies them. Absent, buildLexicon sums them from `places`, which is
+   *  the same number only while no posting lists two places in one country (a
+   *  hand-built fixture of one place a row). */
+  keys?: KeyRow[];
   companies: CompanyRow[];
   titles: TitleRow[];
 }
@@ -419,10 +437,12 @@ export function buildLexicon(input: LexiconRows, boardRowsAt: string | null = nu
   for (const p of input.places) {
     const country = String(p.country ?? '').toUpperCase();
     if (country === '' || !(p.rows > 0)) continue;
-    countryRows.set(country, (countryRows.get(country) ?? 0) + p.rows);
-    if (p.admin1 !== null && p.admin1 !== '') {
-      const key = `${country}-${p.admin1}`;
-      adminRows.set(key, (adminRows.get(key) ?? 0) + p.rows);
+    if (input.keys === undefined) {
+      countryRows.set(country, (countryRows.get(country) ?? 0) + p.rows);
+      if (p.admin1 !== null && p.admin1 !== '') {
+        const key = `${country}-${p.admin1}`;
+        adminRows.set(key, (adminRows.get(key) ?? 0) + p.rows);
+      }
     }
     if (p.city !== null && p.city !== '') {
       const id = `${country}|${p.admin1 ?? ''}|${p.city}`;
@@ -434,6 +454,14 @@ export function buildLexicon(input: LexiconRows, boardRowsAt: string | null = nu
         held.rows += p.rows;
       }
     }
+  }
+
+  // The exact totals, when the database counted them: a country or an admin area
+  // is as many rows as list it, not as many places as they list.
+  for (const k of input.keys ?? []) {
+    if (!(k.rows > 0)) continue;
+    if (/^[A-Z]{2}$/.test(k.key)) countryRows.set(k.key, k.rows);
+    else if (/^[A-Z]{2}-[A-Z0-9]{1,3}$/.test(k.key)) adminRows.set(k.key, k.rows);
   }
 
   const byKey = new Map<string, PlaceEntity>(); // every key as written, and the unambiguous ones normalised
@@ -698,21 +726,35 @@ export function buildLexicon(input: LexiconRows, boardRowsAt: string | null = nu
 // ---------------------------------------------------------------------------
 
 /**
- * The three reads, in parallel. `count(*)::int` because the pg driver returns a
+ * The four reads, in parallel. `count(*)::int` because the pg driver returns a
  * bigint as a string and a string row count would compare as text. Each is one
  * GROUP BY over the live rows, so what leaves the database is a few thousand
- * short rows (3.6k place groups, 1.4k companies, 26.7k titles on the local
- * board of 37k rows), never the postings.
+ * short rows (the place groups, 1.4k companies, 26.7k titles on the local board
+ * of 37k rows), never the postings.
+ *
+ * THE PLACES come from the leaves: one key per place a posting lists, so a
+ * posting that lists London and Berlin is a row in each city's group. Only a
+ * leaf with a city is a city group, and its label is placeKeyLabel(leaf), which
+ * is the label placeOf writes into place_label for the same place (a test holds
+ * the two equal for every one-place row on the board). A key with a slash in it
+ * is a city key and one without is a country or a region, which is how the two
+ * reads below split the keys: the countries and regions are counted from
+ * place_keys itself, so no posting is counted twice in a country.
  */
 export async function loadLexiconRows(): Promise<LexiconRows> {
   const pool = db();
-  const [places, companies, titles] = await Promise.all([
-    pool.query<PlaceRow>(
-      `SELECT place_country AS country, place_admin1 AS admin1, place_city AS city, place_label AS label,
-              count(*)::int AS rows
-         FROM jobs
-        WHERE status = 'live' AND place_country IS NOT NULL
-        GROUP BY place_country, place_admin1, place_city, place_label`
+  const [leaves, keys, companies, titles] = await Promise.all([
+    pool.query<{ leaf: string; rows: number }>(
+      `SELECT leaf, count(*)::int AS rows
+         FROM jobs, unnest(place_leaves) AS leaf
+        WHERE status = 'live' AND position('/' in leaf) > 0
+        GROUP BY leaf`
+    ),
+    pool.query<KeyRow>(
+      `SELECT k AS key, count(*)::int AS rows
+         FROM jobs, unnest(place_keys) AS k
+        WHERE status = 'live' AND position('/' in k) = 0
+        GROUP BY k`
     ),
     pool.query<CompanyRow>(
       `SELECT company, count(*)::int AS rows FROM jobs
@@ -723,7 +765,13 @@ export async function loadLexiconRows(): Promise<LexiconRows> {
         WHERE status = 'live' AND title IS NOT NULL AND title <> '' GROUP BY title`
     )
   ]);
-  return { places: places.rows, companies: companies.rows, titles: titles.rows };
+  const places: PlaceRow[] = [];
+  for (const { leaf, rows } of leaves.rows) {
+    const key = parsePlaceKey(leaf);
+    if (key === null || key.city === null) continue;
+    places.push({ country: key.country, admin1: key.admin1, city: key.city, label: placeKeyLabel(leaf), rows });
+  }
+  return { places, keys: keys.rows, companies: companies.rows, titles: titles.rows };
 }
 
 interface Cached {

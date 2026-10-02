@@ -20,6 +20,7 @@ import {
 } from './search-lexicon';
 import { chipsFromParams, chipsToParams, LEXICON_MAX_WORDS, normalisePhrase, parseSearch, type Chip } from './search-parse';
 import { db } from './db';
+import { placeKeyLabel } from './place-key';
 
 const HAVE_DB = Boolean(process.env.DATABASE_URL || process.env.DATABASE_URL_UNPOOLED);
 const dbDescribe = HAVE_DB ? describe : describe.skip;
@@ -573,13 +574,45 @@ dbDescribe('the lexicon on the local board', () => {
     });
 
     it('reports a count for what it holds, and the counts are the board\'s own', async () => {
+      // A country or an admin area is counted once however many postings list it and however many of its
+      // places they list: the distinct keys, which is what the board's own Location list holds.
       const { rows: c } = await db().query<{ countries: number; admins: number }>(
-        `SELECT count(DISTINCT place_country)::int AS countries,
-                count(DISTINCT (place_country, place_admin1)) FILTER (WHERE place_admin1 IS NOT NULL)::int AS admins
-           FROM jobs WHERE status = 'live' AND place_country IS NOT NULL`
+        `SELECT count(DISTINCT k) FILTER (WHERE length(k) = 2)::int AS countries,
+                count(DISTINCT k) FILTER (WHERE k ~ '^[A-Z]{2}-[^/]+$')::int AS admins
+           FROM jobs, unnest(place_keys) AS k WHERE status = 'live'`
       );
       expect(lex.stats.countries).toBe(c[0]?.countries);
       expect(lex.stats.adminAreas).toBe(c[0]?.admins);
+    });
+
+    it('counts a country by the postings that list it, once each, however many of its places they list', async () => {
+      // A posting that lists London and Manchester is one row of the United Kingdom, not two: the country's
+      // total is counted from the keys. A city's own count is the postings that list it.
+      const { rows: listed } = await db().query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM jobs WHERE status = 'live' AND place_keys @> ARRAY['GB']`
+      );
+      const { rows: places } = await db().query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM jobs, unnest(place_leaves) AS leaf
+          WHERE status = 'live' AND (leaf = 'GB' OR leaf LIKE 'GB/%')`
+      );
+      const gb = lex.placesByPrefix('united kingdom', 5).find((p) => p.key === 'GB');
+      expect(gb?.rows).toBe(listed[0]?.n);
+      // The sum of its places is more than the country: some posting lists two places in it.
+      expect(places[0]?.n).toBeGreaterThan(listed[0]?.n ?? 0);
+    });
+
+    it('labels every city leaf as place_label labels the same place, for every posting that lists one place', async () => {
+      // The lexicon takes its city groups from place_leaves and labels each with placeKeyLabel. For a posting
+      // that lists exactly one place, place_label is that place's label, so the two must be one string. All of
+      // them, not a sample.
+      const { rows: one } = await db().query<{ leaf: string; label: string; n: number }>(
+        `SELECT place_leaves[1] AS leaf, place_label AS label, count(*)::int AS n FROM jobs
+          WHERE status = 'live' AND cardinality(place_leaves) = 1 AND place_city IS NOT NULL
+          GROUP BY 1, 2`
+      );
+      expect(one.length).toBeGreaterThan(1000);
+      const wrong = one.filter((r) => placeKeyLabel(r.leaf) !== r.label).map((r) => `${r.leaf}: ${placeKeyLabel(r.leaf)} vs ${r.label}`);
+      expect(wrong.slice(0, 10)).toEqual([]);
     });
   });
 
@@ -709,7 +742,7 @@ dbDescribe('the lexicon on the local board', () => {
       const hits = lex.placesByPrefix('lon', 8);
       expect(hits[0]?.key).toBe('GB/London');
       const { rows: n } = await db().query<{ n: number }>(
-        `SELECT count(*)::int AS n FROM jobs WHERE status = 'live' AND place_country = 'GB' AND place_city = 'London'`
+        `SELECT count(*)::int AS n FROM jobs WHERE status = 'live' AND place_keys @> ARRAY['GB/London']`
       );
       expect(hits[0]?.rows).toBe(n[0]?.n);
     });
@@ -798,21 +831,21 @@ dbDescribe('the lexicon on the local board', () => {
     it('builds once for concurrent requests (single flight), and again for the next crawl instant', async () => {
       const a = await Promise.all(Array.from({ length: 8 }, () => getLexicon('2026-10-01T00:00:00.000Z')));
       expect(new Set(a).size).toBe(1);
-      expect(jobsReads()).toBe(3); // places, companies, titles, once
+      expect(jobsReads()).toBe(4); // place leaves, place keys, companies, titles, once
       const again = await getLexicon('2026-10-01T00:00:00.000Z');
       expect(again).toBe(a[0]);
-      expect(jobsReads()).toBe(3);
+      expect(jobsReads()).toBe(4);
       const next = await getLexicon('2026-10-02T00:00:00.000Z');
       expect(next).not.toBe(a[0]);
       expect(next.boardRowsAt).toBe('2026-10-02T00:00:00.000Z');
-      expect(jobsReads()).toBe(6);
+      expect(jobsReads()).toBe(8);
     });
 
     it('reads the crawl instant itself when the caller does not pass one, and reuses the build', async () => {
       const first = await getLexicon();
       const second = await getLexicon();
       expect(second).toBe(first);
-      expect(jobsReads()).toBe(3);
+      expect(jobsReads()).toBe(4);
     });
 
     it('does not cache a failed build; the next request tries again', async () => {

@@ -390,7 +390,7 @@ function parsePlaceReport(stdout: string) {
   const b = block('holdout B', 'coverage over every live row');
   const cov = block('coverage over every live row', null);
   const [upstream, upstreamOf] = grab(cov, /upstream country\s+(\d+) of (\d+)/, 'upstream coverage');
-  const [placed, placedOf] = grab(cov, /placeOf country\s+(\d+) of (\d+)/, 'placeOf coverage');
+  const [placed, placedOf] = grab(cov, /place country\s+(\d+) of (\d+)/, 'place coverage');
   const [newly, noUpstream, byTable] = grab(cov, /newly resolved\s+(\d+) of the (\d+) rows with no upstream country \([\d.]+%\), (\d+) of them only because of the learned table/, 'newly resolved');
   const [learned] = grab(stdout, /learned (\d+) cities/, 'learned cities');
   const unresolved = [...cov.matchAll(/^\s+(\d+)\s+("(?:[^"\\]|\\.)*")$/gm)].slice(0, 10).map((m) => ({ location: JSON.parse(m[2]) as string, rows: Number(m[1]) }));
@@ -401,8 +401,8 @@ function parsePlaceReport(stdout: string) {
     coverage: {
       rows: upstreamOf,
       upstream_country: upstream,
-      placeof_country: placed,
-      placeof_rows: placedOf,
+      place_country: placed,
+      place_rows: placedOf,
       newly_resolved: newly,
       rows_without_upstream: noUpstream,
       resolved_only_by_learned_table: byTable,
@@ -1006,7 +1006,7 @@ describe('search engine evaluation', () => {
         resolved_now: { rows: counts.placed, of: counts.live, pct: pct1(counts.placed, counts.live), source: 'jobs.place_country IS NOT NULL (what the board serves)' },
         upstream_code_now: { rows: counts.upstream, of: counts.live, pct: pct1(counts.upstream, counts.live), source: 'jobs.country is a two-letter code (the baseline\'s definition)' },
         upstream_code_baseline: { rows: dataBaseline.rows_with_country, of: dataBaseline.live_rows, pct: pct1(dataBaseline.rows_with_country, dataBaseline.live_rows) },
-        script_agrees_with_column: place.coverage.placeof_country === counts.placed
+        script_agrees_with_column: place.coverage.place_country === counts.placed
       },
       place_script: place,
       place_script_output: run.stdout.split('\n').filter(Boolean),
@@ -1032,7 +1032,7 @@ describe('search engine evaluation', () => {
       delta_points: round((100 * classified) / total - 100 * CLASSIFIER_BEFORE, 2)
     };
     log(`country coverage ${report.data.country_coverage.resolved_now.pct}%, classifier ${report.classifier.coverage_now}`);
-    expect(place.coverage.placeof_country, 'the place script and the column must agree').toBe(counts.placed);
+    expect(place.coverage.place_country, 'the place script and the column must agree').toBe(counts.placed);
     expect(before, 'place-cities.json must be byte-identical after a dry run').toBe(after);
     expect(gitClean, 'git must see no change in place-cities.json').toBe(true);
   });
@@ -1284,7 +1284,19 @@ describe('search engine evaluation', () => {
       const paySet = landing.payMin !== null || landing.compNotListed || landing.comp !== 'all';
       const kinds = page.counts.remote;
       check(remoteSet ? 'remote kinds sum to the remote-free total (remote set)' : 'remote kinds sum to the total (no remote filter)', kinds.remote + kinds.hybrid + kinds.onsite + kinds.unstated, remoteSet ? await totalWith({ remote: [], location: 'all' }) : page.total);
-      check(placeSet ? 'countries + not stated sum to the place-free total (place set)' : 'countries + not stated sum to the total (no place filter)', addUp(Object.values(page.counts.place.countries)) + page.counts.place.notStated, placeSet ? await totalWith({ place: null }) : page.total);
+      // A posting is under every place it lists (db/222), so the countries and Not stated no longer add up to
+      // the board: a posting that lists two countries is in both. What must hold is that Worldwide (place.all)
+      // is the place-free total, that the sum never falls short of it, and that every country's count is what
+      // its own filter returns (the first country the page lists, one case at a time; the typeahead items
+      // above cover the rest, and job-store.db.test.ts covers all of them).
+      const placeFree = placeSet ? await totalWith({ place: null }) : page.total;
+      const placeSum = addUp(Object.values(page.counts.place.countries)) + page.counts.place.notStated;
+      check(placeSet ? 'worldwide equals the place-free total (place set)' : 'worldwide equals the total (no place filter)', page.counts.place.all, placeFree);
+      check(placeSet ? 'countries + not stated cover the place-free total (place set)' : 'countries + not stated cover the total (no place filter)', Math.min(placeSum, placeFree), placeFree);
+      const firstCountry = Object.keys(page.counts.place.countries).sort()[i % Object.keys(page.counts.place.countries).length];
+      if (firstCountry !== undefined) {
+        check('a country count equals the rows its own filter returns', page.counts.place.countries[firstCountry] as number, await totalWith({ place: firstCountry }));
+      }
       check(paySet ? 'pay any equals the pay-free total (pay set)' : 'pay any equals the total (no pay filter)', page.counts.pay.any, paySet ? await totalWith({ payMin: null, comp: 'all', compNotListed: false }) : page.total);
 
       const parse = body.parsed;
@@ -1360,7 +1372,7 @@ describe('search engine evaluation', () => {
       shape_violation_count: addUp(outcomes.map((o) => o.shape.length)),
       memo_pass: { cases: cases.length, identical_to_the_cold_answer: cases.length - differing.length, differing: differing.slice(0, MISMATCHES_LISTED) },
       strip_invariants: {
-        definition: 'on the board each case\'s text lands on, from listBoardFiltered\'s counts: remote kinds (remote + hybrid + onsite + unstated) sum to the total with no remote filter; country counts + the not-stated count sum to the total with no place filter; pay.any is the total with no pay filter. When the control IS set, the comparison is with the same board taken with that control let go.',
+        definition: 'on the board each case\'s text lands on, from listBoardFiltered\'s counts: remote kinds (remote + hybrid + onsite + unstated) sum to the total with no remote filter; worldwide (place.all) is the total with no place filter, and the country counts + the not-stated count are never fewer than it (a posting that lists two countries is in both) and each country\'s count is the rows its own filter returns; pay.any is the total with no pay filter. When the control IS set, the comparison is with the same board taken with that control let go.',
         checked: stripChecked,
         states_checked: outcomes.length,
         violations: stripViolations.length,

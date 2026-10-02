@@ -666,7 +666,7 @@ dbDescribe('the suggestions, against the local board', () => {
       expect(london.map((c) => c.title)).not.toEqual(open.map((c) => c.title));
       for (const c of london) {
         const { rows } = await db().query<{ n: number }>(
-          `SELECT count(*)::int AS n FROM jobs WHERE status = 'live' AND title = $1 AND place_country = 'GB' AND place_city = 'London'`,
+          `SELECT count(*)::int AS n FROM jobs WHERE status = 'live' AND title = $1 AND place_keys @> ARRAY['GB/London']`,
           [c.title]
         );
         expect(rows[0]?.n, c.title).toBeGreaterThan(0);

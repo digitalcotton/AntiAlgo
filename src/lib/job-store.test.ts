@@ -28,9 +28,10 @@ import {
   listBoardFiltered,
   listBoardTitleCandidates
 } from './job-store';
+import { ISO_COUNTRIES } from './jobs-derived.mjs';
 
 /** A count row as the database returns it: totals, the text total, and the places JSON. */
-const COUNT_ROW = { total: 3, text_total: 3, location_all: 3, location_remote: 1, location_onsite: 2, places: { US: 2, '': 1 } };
+const COUNT_ROW = { total: 3, text_total: 3, location_all: 3, location_remote: 1, location_onsite: 2, places: { US: 2, '': 1 }, place_all: 3 };
 
 beforeEach(() => {
   query.mockReset();
@@ -403,18 +404,23 @@ describe('the new filters', () => {
     await listBoardFiltered({ ...FILTER, place: "x'; DROP TABLE jobs; --" });
     expect(statements()[0][1].slice(15, 18)).toEqual([null, null, null]);
     const sql = statements()[0][0] as string;
-    expect(sql).toContain('($16::text IS NULL OR place_country = $16::text)');
-    expect(sql).toContain('($17::text IS NULL OR place_admin1 = $17::text)');
-    expect(sql).toContain('($18::text IS NULL OR place_city = $18::text)');
+    // The key the filter names, rebuilt from the three parameters in the grammar of place-key.ts, must
+    // be among the keys the posting lists (db/222); none of the three is read from a column of its own.
+    expect(sql).toContain(
+      "$16::text IS NULL OR place_keys @> ARRAY[$16::text || COALESCE('-' || $17::text, '') || COALESCE('/' || $18::text, '')]::text[]"
+    );
+    expect(sql).not.toContain('place_country');
+    expect(sql).not.toContain('place_admin1');
+    expect(sql).not.toContain('place_city');
   });
   it('binds place=unstated as the country, as the literal the predicate tests for, in the count and the page alike', async () => {
     await listBoardFiltered({ ...FILTER, q: '', place: 'unstated' });
     for (const [, params] of statements()) expect((params as unknown[]).slice(15, 18)).toEqual(['unstated', null, null]);
     const sql = statements()[0][0] as string;
-    // Rows with NO resolved country, and only when the keyword is bound: for every other
-    // value the three comparisons are exactly what they were.
-    expect(sql).toContain("CASE WHEN $16::text = 'unstated' THEN place_country IS NULL");
-    expect(sql).toContain('($16::text IS NULL OR place_country = $16::text)');
+    // Rows that list NO place (an empty place_keys), and only when the keyword is bound: for every
+    // other value the key is looked for in the list.
+    expect(sql).toContain("CASE WHEN $16::text = 'unstated' THEN cardinality(place_keys) = 0");
+    expect(sql).toContain('$16::text IS NULL OR place_keys @> ARRAY[');
     // A place that is set is a control that is set: the count statement stores its flags once.
     expect(sql).toContain('flags AS MATERIALIZED');
     // Near misses are no place at all, never the keyword.
@@ -427,26 +433,31 @@ describe('the new filters', () => {
   it('lists every country the live board holds, at zero where the filters left none, and never over a counted one', async () => {
     query.mockResolvedValue({ rows: [{ ...COUNT_ROW, places: { US: 5, '': 2 }, place_universe: ['DE', 'FR', 'GB', 'US'] }] });
     const result = await listBoardFiltered(FILTER);
-    expect(result.counts.place).toEqual({ countries: { US: 5, DE: 0, FR: 0, GB: 0 }, notStated: 2 });
+    expect(result.counts.place).toEqual({ countries: { US: 5, DE: 0, FR: 0, GB: 0 }, notStated: 2, all: 3 });
     // A universe that holds a counted country leaves its count alone.
     expect(result.counts.place.countries.US).toBe(5);
     // The row set the words found may be empty, and still every country is listed.
-    query.mockResolvedValue({ rows: [{ ...COUNT_ROW, total: 0, places: null, place_universe: ['DE', 'GB'] }] });
-    expect((await listBoardFiltered(FILTER)).counts.place).toEqual({ countries: { DE: 0, GB: 0 }, notStated: 0 });
+    query.mockResolvedValue({ rows: [{ ...COUNT_ROW, total: 0, places: null, place_all: 0, place_universe: ['DE', 'GB'] }] });
+    expect((await listBoardFiltered(FILTER)).counts.place).toEqual({ countries: { DE: 0, GB: 0 }, notStated: 0, all: 0 });
     // Nothing on the board, or a statement that returns no universe: the counted ones, as before.
     query.mockResolvedValue({ rows: [{ ...COUNT_ROW, places: { US: 2, '': 1 }, place_universe: null }] });
-    expect((await listBoardFiltered(FILTER)).counts.place).toEqual({ countries: { US: 2 }, notStated: 1 });
+    expect((await listBoardFiltered(FILTER)).counts.place).toEqual({ countries: { US: 2 }, notStated: 1, all: 3 });
   });
   it('reads the list of countries off the live rows, as names and not as counts, beside the one CTE', async () => {
     await listBoardFiltered(FILTER);
     const sql = statements()[0][0] as string;
-    // A skip scan of the partial index on live rows: the literal predicate is what lets Postgres use it.
-    expect(sql).toContain("SELECT min(place_country) FROM jobs WHERE status <> 'killed' AND place_country IS NOT NULL");
-    expect(sql).toContain("SELECT min(place_country) FROM jobs WHERE status <> 'killed' AND place_country > live_country.c");
+    // One probe of the GIN index on place_keys per ISO code, each ending at its first live row: the
+    // literal predicate is what lets Postgres use the partial index. The codes are written from
+    // jobs-derived.mjs's own list, all 250 of them, never from input.
+    expect(sql).toContain("WHERE EXISTS (SELECT 1 FROM jobs WHERE status <> 'killed' AND place_keys @> ARRAY[c])");
+    const codes = /unnest\(ARRAY\[((?:'[A-Z]{2}',?)+)\]::text\[\]\) AS c/.exec(sql)?.[1].match(/[A-Z]{2}/g) ?? [];
+    expect(codes).toHaveLength(250);
+    expect(codes).toEqual([...ISO_COUNTRIES]);
     expect(sql).toContain('AS place_universe');
     // It takes no part in any number: the places are still counted from the CTE's flags, over every
     // control but the place, and the universe is read from `jobs`, never from them.
-    expect(sql).toContain('FROM flags WHERE keep_base AND (miss & 15) = 0 GROUP BY place_country');
+    expect(sql).toContain('FROM flags f LEFT JOIN LATERAL unnest(f.place_keys) AS u(k) ON length(u.k) = 2');
+    expect(sql).toContain('WHERE keep_base AND (miss & 15) = 0 GROUP BY 1');
     expect(sql.split('place_universe')[0].split('\n').at(-1)).not.toContain('flags');
     // It binds nothing, so the statement's parameters did not move.
     expect(statements()[0][1]).toHaveLength(21);
@@ -466,7 +477,9 @@ describe('the new filters', () => {
           ...COUNT_ROW,
           location_hybrid: 4, location_unstated: 5,
           comp_all: 9, 'comp_not-listed': 6, pay_100: 3, pay_150: 2, pay_200: 1, pay_250: 1, pay_300: 0,
-          places: { US: 5, GB: 3, '': 2 }
+          places: { US: 5, GB: 3, '': 2 },
+          // Nine, not ten: the posting that lists both the US and Britain is in both counts and once here.
+          place_all: 9
         }
       ]
     });
@@ -482,9 +495,11 @@ describe('the new filters', () => {
       expect(line).toContain('(miss & 29) = 0');
     }
     expect(result.counts.pay).toEqual({ any: 9, notListed: 6, floors: { '100': 3, '150': 2, '200': 1, '250': 1, '300': 0 } });
-    // The places come from the same statement as one JSON object; '' is "no country".
-    expect(result.counts.place).toEqual({ countries: { US: 5, GB: 3 }, notStated: 2 });
-    expect(sql).toContain('FROM flags WHERE keep_base AND (miss & 15) = 0 GROUP BY place_country');
+    // The places come from the same statement as one JSON object; '' is "no place listed". Worldwide
+    // is counted on its own (the place control left out), not added up from the countries.
+    expect(result.counts.place).toEqual({ countries: { US: 5, GB: 3 }, notStated: 2, all: 9 });
+    expect(sql).toContain('WHERE keep_base AND (miss & 15) = 0 GROUP BY 1');
+    expect(sql.split('\n').find((l) => l.includes('AS place_all'))).toContain('keep_base AND (miss & 15) = 0');
     // The age strip answers to the same words, pay, place and company: one keep clause.
     query.mockClear();
     query.mockResolvedValue({ rows: [] });
@@ -506,7 +521,7 @@ describe('the typo path', () => {
       const text = String(sql);
       if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK' || text.includes('set_config')) return { rows: [] };
       const fuzzy = text.includes('<% j.title');
-      if (text.includes('flags AS')) return { rows: [{ ...COUNT_ROW, total: fuzzy ? 7 : 0, text_total: fuzzy ? fuzzyTotal : 0, places: fuzzy ? { US: 7 } : null }] };
+      if (text.includes('flags AS')) return { rows: [{ ...COUNT_ROW, total: fuzzy ? 7 : 0, text_total: fuzzy ? fuzzyTotal : 0, places: fuzzy ? { US: 7 } : null, place_all: fuzzy ? 7 : 0 }] };
       return { rows: [{ id: fuzzy ? 'close' : 'none', match_tier: null, match_field: fuzzy ? 'title' : null, fuzzy_score: fuzzy ? 0.524 : null }], params };
     });
   }
@@ -516,7 +531,7 @@ describe('the typo path', () => {
     const result = await listBoardFiltered({ ...FILTER, q: 'prodct desiner', sort: 'best' });
     expect(result.fuzzy).toBe(true);
     expect(result.total).toBe(7);
-    expect(result.counts.place).toEqual({ countries: { US: 7 }, notStated: 0 });
+    expect(result.counts.place).toEqual({ countries: { US: 7 }, notStated: 0, all: 7 });
     expect(result.rows[0]).toMatchObject({ id: 'close', match_tier: null, match_field: 'title', fuzzy_score: 0.524 });
     const sent = query.mock.calls.map(([sql]) => String(sql));
     // BEGIN, the threshold as a TRANSACTION-LOCAL setting (bound, not interpolated), the statements, COMMIT.
@@ -1012,7 +1027,7 @@ describe('the planner is told the heap is cheap for a statement that carries wor
     await countBoardTotals([{ ...FILTER, q: '', place: 'GB' }]);
     expect(settingCalls()).toHaveLength(0);
   });
-  it('counts place=unstated with the same predicate the board applies, and narrows to the rows with no country', async () => {
+  it('counts place=unstated with the same predicate the board applies, and narrows to the rows that list no place', async () => {
     query.mockResolvedValue({ rows: [{ t0: 4, t1: 9 }] });
     const totals = await countBoardTotals([
       { ...FILTER, q: '', place: 'unstated' },
@@ -1021,12 +1036,13 @@ describe('the planner is told the heap is cheap for a statement that carries wor
     expect(totals).toEqual([4, 9]);
     const [sql, params] = statements()[0];
     // The suggestion's own predicate is the board's (placeMatchSql), so its count cannot drift from the table's.
-    expect(String(sql)).toContain("CASE WHEN $20::text = 'unstated' THEN place_country IS NULL");
+    expect(String(sql)).toContain("CASE WHEN $20::text = 'unstated' THEN cardinality(place_keys) = 0");
     expect(params).toEqual(expect.arrayContaining(['unstated', 'GB']));
     // Bound after the nineteen shared parameters, three a place: the first filter's, then the second's.
     expect((params as unknown[]).slice(19, 25)).toEqual(['unstated', null, null, 'GB', null, null]);
-    // Without words the statement reads only the rows the places can match, as a NULL probe for this one.
-    expect(String(sql)).toContain('(place_country IS NULL) OR (place_country = $23::text)');
+    // Without words the statement reads only the rows the places can match: an empty-array test for this
+    // one, and for the other the array-contains probe the GIN index on place_keys answers.
+    expect(String(sql)).toContain("(place_keys = '{}') OR (place_keys @> ARRAY[$23::text || COALESCE('-' || $24::text, '') || COALESCE('/' || $25::text, '')]::text[])");
   });
   it('does not set it for the typo path, whose predicate is a trigram one on its own connection', async () => {
     query.mockImplementation(async (sql: string) => {

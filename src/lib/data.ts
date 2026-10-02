@@ -2333,7 +2333,10 @@ export interface StripCounts {
   remote?: Record<string, number>;
   /** `floors` is cumulative and keyed by the floor in thousands. */
   pay?: { any: number; notListed: number; floors: Record<string, number> };
-  place?: { countries: Record<string, number>; notStated: number };
+  /** `all` is what the board shows with no place chosen (the Worldwide option's
+      number). Optional so a caller that cannot count it falls back to the sum of
+      the rest, which is only right while no posting lists two countries. */
+  place?: { countries: Record<string, number>; notStated: number; all?: number };
 }
 
 /** What the address has chosen, as far as the strip needs to know. `location`,
@@ -2416,9 +2419,11 @@ function placeGroup(place: NonNullable<StripCounts['place']>, total: number, sel
   const countries = Object.entries(place.countries)
     .map(([code, count]) => ({ code, count, name: (countryName(code) as string | null) ?? code }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  // Worldwide is what the board would show with no place chosen: every country's
-  // rows and the rows with none. The store counts them over the same population.
-  const everywhere = countries.reduce((sum, country) => sum + country.count, 0) + place.notStated;
+  // Worldwide is what the board would show with no place chosen. The store counts
+  // it over the same population (place.all), because a posting that lists two
+  // countries is under both of them: the countries and Not stated added up would
+  // count it twice, and Worldwide would print more than the board returns.
+  const everywhere = place.all ?? countries.reduce((sum, country) => sum + country.count, 0) + place.notStated;
   const options: FilterOption[] = [{ value: 'all', label: 'Worldwide', count: everywhere }];
 
   // THE PLACE THE ADDRESS HAS CHOSEN, WHEN THE LIST BELOW CANNOT SHOW IT: a city
@@ -2437,9 +2442,9 @@ function placeGroup(place: NonNullable<StripCounts['place']>, total: number, sel
   }
 
   for (const country of countries) options.push({ value: country.code, label: country.name, count: country.count });
-  // Drawn last and never hidden: 6,712 of 37,286 live rows are in it, and an
-  // absence is shown, not left out. It is a real choice (`place=unstated`, the
-  // rows with no resolved country), so it is live while it has rows and a muted
+  // Drawn last and never hidden: 6,602 of 37,286 live rows are in it (2026-10-02),
+  // and an absence is shown, not left out. It is a real choice (`place=unstated`,
+  // the rows that list no place), so it is live while it has rows and a muted
   // zero when the other filters leave it none, like every country above it.
   options.push({ value: PLACE_UNSTATED, label: 'Not stated', count: place.notStated });
   return { key: 'place', label: 'Location', options };

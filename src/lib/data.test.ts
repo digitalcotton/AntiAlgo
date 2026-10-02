@@ -402,6 +402,18 @@ describe('facetGroupsFromCounts: the board (stated-fact counts)', () => {
     ]);
   });
 
+  it('Location: Worldwide prints the store\'s own count, because a posting that lists two countries is under both', async () => {
+    // The countries and Not stated add up to 100 here, and the board holds 97: three postings list two
+    // countries each and are in both counts (db/222). Worldwide returns the whole board, so it must print
+    // 97, and every country keeps the rows its own filter returns.
+    const { facetGroupsFromCounts } = await import('./data');
+    const place = facetGroupsFromCounts({ ...counts, place: { ...counts.place, all: 97 } }, ALL).find((g) => g.key === 'place')!;
+    expect(place.options[0]).toMatchObject({ value: 'all', label: 'Worldwide', count: 97 });
+    expect(place.options.slice(1).map((o) => [o.value, o.count])).toEqual([
+      ['US', 60], ['CA', 12], ['GB', 12], ['IN', 4], ['unstated', 12]
+    ]);
+  });
+
   it('Remote: a multi group of the four arrangements, each with its own count, All first', async () => {
     const { facetGroupsFromCounts } = await import('./data');
     const remote = facetGroupsFromCounts(counts, ALL).find((g) => g.key === 'remote')!;

@@ -9,18 +9,29 @@
  * hardest requirement, that EVERY COUNT EQUALS THE ROWS THE OPTION RETURNS.
  *
  * It needs the board in a local database with db/219 (jobs.search and the trigram
- * indexes), db/220 (jobs.place_*) and db/221 (jobs.search_tc) applied. Without a connection string it
+ * indexes), db/220 (jobs.place_*), db/221 (jobs.search_tc) and db/222 (jobs.place_keys
+ * and place_leaves) applied, and the backfill run. Without a connection string it
  * skips rather than passing, so a green run on a machine with no database cannot
  * be mistaken for a proof (same rule as jobs-data-agg.test.ts and
  * comp-top-sql.test.ts). It reads and never writes a row of any real table.
  *
  * TWO PHASES, ONE CONNECTION. The first half runs on the real columns. The
  * second shadows `jobs` with a SESSION-LOCAL view that is the real table with
- * place_country, place_admin1, place_city and place_label replaced by a fixed
- * spread (a hash of the id), so the place predicate and the place counts are
- * tested against known places whatever state the real backfill is in, and the
- * place invariant is checked on rows that really carry places. The view lives and
- * dies with this connection and nothing else can see it.
+ * place_keys and place_leaves replaced by a fixed spread (a hash of the id) that
+ * includes postings listing two places, one of them in two countries, so the place
+ * predicate and the place counts are tested against known places whatever state
+ * the real backfill is in, and the place invariant is checked on rows that really
+ * list several. The view lives and dies with this connection and nothing else can
+ * see it.
+ *
+ * A POSTING IS IN EVERY PLACE IT LISTS (docs/every-place-plan.md). So the countries'
+ * counts and Not stated no longer add up to the board: a posting that lists two
+ * countries is in both. What holds instead, and is proved below on the real board and
+ * on the known spread, is that each count is exactly the rows its own filter returns,
+ * Not stated is exactly the rows that list no place, Worldwide (place.all) is the
+ * board with no place chosen, and the sum of the countries and Not stated exceeds
+ * that by exactly the number of extra countries the postings list: equal when no
+ * posting lists two countries, and not otherwise.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
@@ -50,6 +61,7 @@ import { FUZZY_WORD_THRESHOLD, PAY_FLOORS_K, buildSearchQuery, compileMatch, cou
 import { REMOTE_KINDS } from './board-query';
 import { COMP_BANDS } from './data';
 import { FAMILY_IDS } from './job-family.mjs';
+import { placeKeysOf, placeLeafOf } from './jobs-derived.mjs';
 
 /** Is there a database with the columns this ticket reads? Asked once, before any test is declared. */
 async function haveSchema(): Promise<boolean> {
@@ -60,9 +72,9 @@ async function haveSchema(): Promise<boolean> {
     const { rows } = await probe.query(
       `SELECT count(*)::int AS n FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'jobs'
-          AND column_name IN ('search', 'search_tc', 'place_country', 'place_admin1', 'place_city', 'place_label')`
+          AND column_name IN ('search', 'search_tc', 'place_country', 'place_admin1', 'place_city', 'place_label', 'place_keys', 'place_leaves')`
     );
-    return rows[0].n === 6;
+    return rows[0].n === 8;
   } catch {
     return false;
   } finally {
@@ -71,7 +83,7 @@ async function haveSchema(): Promise<boolean> {
 }
 const READY = await haveSchema();
 const d = READY ? describe : describe.skip;
-if (!READY) console.warn('job-store.db.test.ts: skipped. It needs DATABASE_URL and a jobs table with search, search_tc and place_* (db/219, db/220, db/221).');
+if (!READY) console.warn('job-store.db.test.ts: skipped. It needs DATABASE_URL and a jobs table with search, search_tc, place_* and place_keys (db/219, db/220, db/221, db/222).');
 
 let conn: pg.Client;
 const SWEEP = new Date().toISOString().slice(0, 10);
@@ -79,6 +91,8 @@ const BASE: BoardFilter = { q: '', location: 'all', comp: 'all', freshness: 'all
 const list = (over: Partial<BoardFilter> = {}) => listBoardFiltered({ ...BASE, ...over });
 const sql = async (text: string, params: unknown[] = []) => (await conn.query(text, params)).rows;
 const one = async (text: string, params: unknown[] = []) => Object.values((await sql(text, params))[0])[0] as number;
+/** How many countries a row lists: its two letter keys. The one definition the place tests count by. */
+const COUNTRIES_OF = `(SELECT count(*) FROM unnest(place_keys) AS k WHERE length(k) = 2)`;
 
 /** A seeded generator, so a failure names a combination that can be replayed. */
 function seeded(seed: number) {
@@ -419,7 +433,10 @@ d('the typo path', () => {
     expect(c.pay.any).toBe(res.total);
     expect(c.freshness.all).toBe(res.total);
     expect(c.family.all).toBe(res.total);
-    expect(Object.values(c.place.countries).reduce((a, b) => a + b, 0) + c.place.notStated).toBe(res.total);
+    // Worldwide is this population, and the countries and Not stated add up to at least it (a posting that
+    // lists two countries is in both).
+    expect(c.place.all).toBe(res.total);
+    expect(Object.values(c.place.countries).reduce((a, b) => a + b, 0) + c.place.notStated).toBeGreaterThanOrEqual(res.total);
     const strip = await listBoardAgeHistogram({ sweepDate: SWEEP, q: 'prodct desiner' });
     const measurable = (await list({ q: 'prodct desiner', ageMin: -100000, ageMax: 100000 })).total;
     expect(strip.total).toBe(measurable);
@@ -493,21 +510,48 @@ d('the predicates, on the real columns', () => {
     expect((await list({ company: 'No Such Employer, Ltd.' })).total).toBe(0);
   });
 
-  it('keeps the places the backfill has resolved, by country, region and city, and none that are not there', async () => {
-    const [{ country }] = await sql(`SELECT place_country AS country FROM jobs WHERE status <> 'killed' AND place_country IS NOT NULL GROUP BY 1 ORDER BY count(*) DESC LIMIT 1`).then((r) => (r.length ? r : [{ country: 'US' }]));
-    expect((await list({ place: country })).total).toBe(await one(`SELECT count(*)::int FROM jobs WHERE status <> 'killed' AND place_country = $1`, [country]));
+  it('keeps the postings that list a place, by country, region and city, and none that do not', async () => {
+    const [{ country }] = await sql(
+      `SELECT k AS country FROM jobs, unnest(place_keys) AS k WHERE status <> 'killed' AND length(k) = 2 GROUP BY 1 ORDER BY count(*) DESC LIMIT 1`
+    ).then((r) => (r.length ? r : [{ country: 'US' }]));
+    expect((await list({ place: country })).total).toBe(await one(`SELECT count(*)::int FROM jobs WHERE status <> 'killed' AND place_keys @> ARRAY[$1]`, [country]));
     expect((await list({ place: 'ZZ' })).total).toBe(0);
     expect((await list({ place: 'not a place' })).total).toBe((await list()).total);
   });
 
-  it('keeps the rows with no resolved country for place=unstated, and its count is the rows it returns', async () => {
-    const noCountry = await one(`SELECT count(*)::int FROM jobs WHERE status <> 'killed' AND place_country IS NULL`);
+  it('finds a posting under every city it lists, and a country it lists is a country it is counted in', async () => {
+    // The first London of the board: the rows that list it are the rows the filter returns, and some of
+    // them list another place too, which is the point of the change.
+    const london = await one(`SELECT count(*)::int FROM jobs WHERE status <> 'killed' AND place_keys @> ARRAY['GB/London']`);
+    expect((await list({ place: 'GB/London' })).total).toBe(london);
+    const alsoElsewhere = await one(`SELECT count(*)::int FROM jobs WHERE status <> 'killed' AND place_keys @> ARRAY['GB/London'] AND cardinality(place_leaves) > 1`);
+    expect(alsoElsewhere).toBeGreaterThan(0);
+    // A row that lists a country in a list is in that country's count, whatever else it lists. The
+    // smallest such country, so the rows to walk are few.
+    const [{ id, country }] = await sql(
+      `SELECT j.id, c AS country,
+              (SELECT count(*) FROM jobs w WHERE w.status <> 'killed' AND w.place_keys @> ARRAY[c]) AS n
+         FROM jobs j, unnest(j.place_keys) AS c
+        WHERE j.status <> 'killed' AND length(c) = 2 AND ${COUNTRIES_OF} >= 2
+        ORDER BY n, j.id LIMIT 1`
+    );
+    const ids = new Set<string>();
+    for (let page = 1; ; page++) {
+      const got = await list({ place: country as string, page, perPage: 100 });
+      got.rows.forEach((r) => ids.add(r.id as string));
+      if (got.rows.length < 100) break;
+    }
+    expect(ids.has(id as string), `${id} under ${country}`).toBe(true);
+  }, 60_000);
+
+  it('keeps the rows that list no place for place=unstated, and its count is the rows it returns', async () => {
+    const noCountry = await one(`SELECT count(*)::int FROM jobs WHERE status <> 'killed' AND cardinality(place_keys) = 0`);
     expect(noCountry).toBeGreaterThan(0);
     const unstated = await list({ place: 'unstated', perPage: 100 });
     expect(unstated.total).toBe(noCountry);
     expect(unstated.counts.place.notStated).toBe(noCountry);
     // Every row it hands back is one of those, not merely the right number of rows.
-    const ids = new Set((await sql(`SELECT id FROM jobs WHERE status <> 'killed' AND place_country IS NULL`)).map((r) => r.id as string));
+    const ids = new Set((await sql(`SELECT id FROM jobs WHERE status <> 'killed' AND cardinality(place_keys) = 0`)).map((r) => r.id as string));
     expect(unstated.rows).toHaveLength(100);
     for (const row of unstated.rows) expect(ids.has(row.id), row.id).toBe(true);
     // A near miss is no place: the board runs unnarrowed, as for any malformed key.
@@ -516,7 +560,7 @@ d('the predicates, on the real columns', () => {
   });
 
   it('lists every country the live board holds, whatever the words and filters leave, and none that it does not', async () => {
-    const universe = (await sql(`SELECT DISTINCT place_country AS c FROM jobs WHERE status <> 'killed' AND place_country IS NOT NULL ORDER BY 1`)).map((r) => r.c as string);
+    const universe = (await sql(`SELECT DISTINCT k AS c FROM jobs, unnest(place_keys) AS k WHERE status <> 'killed' AND length(k) = 2 ORDER BY 1`)).map((r) => r.c as string);
     expect(universe.length).toBeGreaterThan(10);
     const filters: Partial<BoardFilter>[] = [
       {},
@@ -540,6 +584,38 @@ d('the predicates, on the real columns', () => {
     expect(Object.values(nothing.counts.place.countries).every((n) => n === 0)).toBe(true);
     expect(nothing.counts.place.notStated).toBe(0);
   });
+
+  it('adds the countries and Not stated up to the board plus the extra countries postings list, and Worldwide is the board', async () => {
+    const sumOf = (c: Awaited<ReturnType<typeof list>>['counts']) => Object.values(c.place.countries).reduce((a, b) => a + b, 0) + c.place.notStated;
+    // The extra countries: a posting that lists n countries is counted n times across the countries, once in the board.
+    const extra = await one(`SELECT coalesce(sum(${COUNTRIES_OF} - 1), 0)::int FROM jobs WHERE status <> 'killed' AND ${COUNTRIES_OF} >= 1`);
+    // 477 live rows list several countries on the local board (2026-10-02): the sum is more than the board.
+    expect(extra).toBeGreaterThan(0);
+    for (const over of [{}, { q: 'designer' }, { remote: ['remote'] }] as Partial<BoardFilter>[]) {
+      const res = await list(over);
+      expect(res.counts.place.all, JSON.stringify(over)).toBe(res.total);
+      expect(sumOf(res.counts), JSON.stringify(over)).toBeGreaterThanOrEqual(res.total);
+    }
+    // Unfiltered it is exact: the board plus every extra country, no more and no fewer.
+    const bare = await list();
+    expect(sumOf(bare.counts)).toBe(bare.total + extra);
+  }, 120_000);
+
+  it('gives every country a count that is exactly the rows its own filter returns, and Not stated the rows that list none', async () => {
+    // All of them, not a sample: the whole list the strip draws, on the bare board and under a filter with words,
+    // and then the same questions asked the typeahead's way (the sargable form, one statement).
+    for (const over of [{}, { q: 'designer', remote: ['remote'] }] as Partial<BoardFilter>[]) {
+      const { counts } = await list(over);
+      const countries = Object.keys(counts.place.countries);
+      expect(countries.length).toBeGreaterThan(100);
+      const asked = await countBoardTotals([...countries, 'unstated'].map((place) => ({ ...BASE, ...over, place })));
+      for (const [i, country] of [...countries, 'unstated'].entries()) {
+        const want = country === 'unstated' ? counts.place.notStated : counts.place.countries[country];
+        expect((await list({ ...over, place: country })).total, `${JSON.stringify(over)} :: ${country}`).toBe(want);
+        expect(asked[i], `${JSON.stringify(over)} :: ${country} (countBoardTotals)`).toBe(want);
+      }
+    }
+  }, 300_000);
 
   it('draws the age strip over exactly the rows and counts the table shows, for exact words and filters alike', async () => {
     const cases: Partial<BoardFilter>[] = [
@@ -620,14 +696,18 @@ async function checkCountsContract(filter: Partial<BoardFilter>, label: string, 
   const families = [...FAMILY_IDS, 'unplaced'].filter((id) => c.family[id] > 0);
   for (const id of [...families].sort(() => rnd.next() - 0.5).slice(0, 3)) await expectEq(`family.${id}`, c.family[id], { families: [id] });
   await expectEq('family.all', c.family.all, { families: [] });
-  // The places: each country's count is the rows with that country chosen; together with the
-  // rows that have none they are the board with no place chosen.
+  // The places. Worldwide (place.all) is the board with no place chosen, counted on its own. Each country's
+  // count is the rows with that country chosen (sampled below, and every one of them in its own test), and
+  // a posting that lists two countries is in both, so the countries and Not stated add up to AT LEAST the
+  // board: never fewer, and more by exactly the extra countries postings list (proved on the whole board
+  // in 'adds the countries and Not stated up to the board plus the extra countries').
   const noPlace = await total({ place: null });
-  expect(Object.values(c.place.countries).reduce((a, b) => a + b, 0) + c.place.notStated, `${label} :: places sum`).toBe(noPlace);
+  await expectEq('place.all', c.place.all, { place: null });
+  expect(Object.values(c.place.countries).reduce((a, b) => a + b, 0) + c.place.notStated, `${label} :: places sum`).toBeGreaterThanOrEqual(noPlace);
   checked += 1;
   // EVERY COUNTRY THE LIVE BOARD HOLDS IS LISTED, whatever the other filters leave it: a zero is shown, never
   // dropped. The universe is asked of the table directly, so it is not the store checking itself.
-  const universe = (await sql(`SELECT DISTINCT place_country AS c FROM jobs WHERE status <> 'killed' AND place_country IS NOT NULL ORDER BY 1`)).map((r) => r.c as string);
+  const universe = (await sql(`SELECT DISTINCT k AS c FROM jobs, unnest(place_keys) AS k WHERE status <> 'killed' AND length(k) = 2 ORDER BY 1`)).map((r) => r.c as string);
   expect(Object.keys(c.place.countries).sort(), `${label} :: every country the live board holds is listed :: ${JSON.stringify(filter)}`).toEqual(universe);
   checked += 1;
   const countries = Object.keys(c.place.countries).sort(() => rnd.next() - 0.5).slice(0, countryBudget);
@@ -647,7 +727,7 @@ d('THE INVARIANT, on the real columns: every count equals the rows its option re
     const vocabulary = {
       // Not stated is a place a combination may hold, so every count is also proved under it.
       countries: [
-        ...(await sql(`SELECT place_country AS c FROM jobs WHERE status <> 'killed' AND place_country IS NOT NULL GROUP BY 1 ORDER BY count(*) DESC LIMIT 8`)).map((r) => r.c as string),
+        ...(await sql(`SELECT k AS c FROM jobs, unnest(place_keys) AS k WHERE status <> 'killed' AND length(k) = 2 GROUP BY 1 ORDER BY count(*) DESC LIMIT 8`)).map((r) => r.c as string),
         'unstated'
       ],
       companies: (await sql(`SELECT company AS c FROM jobs WHERE status <> 'killed' GROUP BY 1 ORDER BY count(*) DESC LIMIT 12`)).map((r) => r.c as string)
@@ -687,39 +767,75 @@ d('THE INVARIANT, on the real columns: every count equals the rows its option re
 
 /* ===================================================================== */
 d('THE INVARIANT and the place predicate, on a known spread of places', () => {
-  /** The statement that makes the shadow view, with `detail_total` as whatever expression it is given:
-      the ordering test below turns Deets upside down and watches what moves. */
-  let makeView: (detail: string) => string;
+  /** The places each tenth of the board lists, by a hash of the id. Postings 1 and 5 list two places:
+      slot 1 two cities of one state (a country counted once), slot 5 two cities in two countries (a
+      posting in both counts). The keys are written by the one definition (placeKeysOf), not restated. */
+  type Spread = Array<Array<{ country: string; admin1: string | null; city: string | null }>>;
+  const SPREAD: Spread = [
+    [{ country: 'US', admin1: 'MD', city: 'Baltimore' }],
+    [{ country: 'US', admin1: 'MD', city: 'Bethesda' }, { country: 'US', admin1: 'MD', city: 'Baltimore' }],
+    [{ country: 'US', admin1: 'TX', city: 'Austin' }],
+    [{ country: 'US', admin1: 'CA', city: 'San Francisco' }],
+    [{ country: 'GB', admin1: null, city: 'London' }],
+    [{ country: 'GB', admin1: null, city: 'Manchester' }, { country: 'DE', admin1: null, city: 'Berlin' }],
+    [{ country: 'CA', admin1: 'ON', city: 'Toronto' }],
+    [{ country: 'DE', admin1: null, city: 'Berlin' }],
+    [],
+    []
+  ];
+  /** The same spread with slot 5 listing Manchester only: no posting lists two countries. */
+  const ONE_COUNTRY_EACH: Spread = SPREAD.map((places, slot) => (slot === 5 ? [places[0]!] : places));
+
+  /** The statement that makes the shadow view, over the spread table of its name, with `detail_total` as
+      whatever expression it is given: the ordering test below turns Deets upside down and watches what moves. */
+  let makeView: (detail: string, spreadTable?: string) => string;
   beforeAll(async () => {
-    // The real table with its four place columns replaced by a fixed spread. Session-local:
-    // CREATE TEMP VIEW writes no row of any table, and `jobs` below this line means the view.
+    // The real table with its two place arrays replaced by a fixed spread. Session-local: the spread is a
+    // TEMP TABLE of (id, place_keys, place_leaves) with its own GIN index, and `jobs` below this line means a
+    // TEMP VIEW that joins it to the real rows. Nothing here writes a row of any real table. It is a table and
+    // not a CASE inside the view because the country list probes the index once per ISO code, and over an
+    // unindexed view each of the 250 probes would read the whole board.
     const names: string[] = (await sql(
       `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'jobs'
-          AND column_name NOT IN ('place_country', 'place_admin1', 'place_city', 'place_label') ORDER BY ordinal_position`
+          AND column_name NOT IN ('place_keys', 'place_leaves') ORDER BY ordinal_position`
     )).map((r) => r.column_name as string);
     const slot = `abs(hashtext(j.id)) % 10`;
-    const pick = (values: (string | null)[]) =>
-      `CASE ${slot} ${values.map((v, i) => `WHEN ${i} THEN ${v === null ? 'NULL::text' : `'${v.replace(/'/g, "''")}'`}`).join(' ')} END`;
-    //                       0         1         2        3          4          5               6          7         8     9
-    const country = pick(['US', 'US', 'US', 'US', 'GB', 'GB', 'CA', 'DE', null, null]);
-    const admin = pick(['MD', 'MD', 'TX', 'CA', null, null, 'ON', null, null, null]);
-    const city = pick(['Baltimore', 'Bethesda', 'Austin', 'San Francisco', 'London', 'Manchester', 'Toronto', 'Berlin', null, null]);
-    const label = pick(['Baltimore, MD', 'Bethesda, MD', 'Austin, TX', 'San Francisco, CA', 'London, United Kingdom', 'Manchester, United Kingdom', 'Toronto, ON', 'Berlin, Germany', null, null]);
-    makeView = (detail) =>
-      `CREATE TEMP VIEW jobs AS SELECT ${names.map((c) => (c === 'detail_total' ? `${detail} AS detail_total` : `j.${c}`)).join(', ')}, ${country} AS place_country, ${admin} AS place_admin1, ${city} AS place_city, ${label} AS place_label FROM public.jobs j`;
+    const literal = (values: string[]) => (values.length === 0 ? `'{}'::text[]` : `ARRAY[${values.map((v) => `'${v.replace(/'/g, "''")}'`).join(', ')}]::text[]`);
+    const pick = (spread: Spread, of: (places: Spread[number]) => string[]) =>
+      `CASE ${slot} ${spread.map((places, i) => `WHEN ${i} THEN ${literal(of(places))}`).join(' ')} END`;
+    const keys = (places: Spread[number]) => [...new Set(places.flatMap(placeKeysOf))].sort();
+    const leaves = (places: Spread[number]) => [...new Set(places.map(placeLeafOf))].sort();
+    for (const [table, spread] of [['spread', SPREAD], ['spread_single', ONE_COUNTRY_EACH]] as const) {
+      await conn.query(`CREATE TEMP TABLE ${table} AS SELECT j.id, ${pick(spread, keys)} AS place_keys, ${pick(spread, leaves)} AS place_leaves FROM public.jobs j`);
+      await conn.query(`ALTER TABLE ${table} ADD PRIMARY KEY (id)`);
+      await conn.query(`CREATE INDEX ON ${table} USING gin (place_keys)`);
+      await conn.query(`ANALYZE ${table}`);
+    }
+    makeView = (detail, spreadTable = 'spread') =>
+      `CREATE TEMP VIEW jobs AS SELECT ${names.map((c) => (c === 'detail_total' ? `${detail} AS detail_total` : `j.${c}`)).join(', ')}, s.place_keys, s.place_leaves FROM public.jobs j JOIN pg_temp.${spreadTable} s ON s.id = j.id`;
     await conn.query(makeView('j.detail_total'));
   });
   afterAll(async () => {
-    if (READY) await conn.query('DROP VIEW IF EXISTS pg_temp.jobs');
+    if (READY) {
+      await conn.query('DROP VIEW IF EXISTS pg_temp.jobs');
+      await conn.query('DROP TABLE IF EXISTS pg_temp.spread, pg_temp.spread_single');
+    }
   });
 
   const live = `status <> 'killed'`;
   it('keeps a country, a region within it, and a city within that, and nothing with no place', async () => {
     const n = (where: string) => one(`SELECT count(*)::int FROM jobs WHERE ${live} AND ${where}`);
-    expect((await list({ place: 'US' })).total).toBe(await n(`place_country = 'US'`));
-    expect((await list({ place: 'US-MD' })).total).toBe(await n(`place_country = 'US' AND place_admin1 = 'MD'`));
-    expect((await list({ place: 'US-MD/Baltimore' })).total).toBe(await n(`place_country = 'US' AND place_admin1 = 'MD' AND place_city = 'Baltimore'`));
-    expect((await list({ place: 'GB/London' })).total).toBe(await n(`place_country = 'GB' AND place_city = 'London'`));
+    expect((await list({ place: 'US' })).total).toBe(await n(`place_keys @> ARRAY['US']`));
+    expect((await list({ place: 'US-MD' })).total).toBe(await n(`place_keys @> ARRAY['US-MD']`));
+    expect((await list({ place: 'US-MD/Baltimore' })).total).toBe(await n(`place_keys @> ARRAY['US-MD/Baltimore']`));
+    expect((await list({ place: 'GB/London' })).total).toBe(await n(`place_keys @> ARRAY['GB/London']`));
+    // The three tenths that list Baltimore (slots 0 and 1) and the one that lists Berlin as well as Manchester:
+    // a posting is under every place it lists, so a city of the second place of a list is found.
+    expect((await list({ place: 'DE/Berlin' })).total).toBe(await n(`abs(hashtext(id)) % 10 IN (5, 7)`));
+    expect((await list({ place: 'GB/Manchester' })).total).toBe(await n(`abs(hashtext(id)) % 10 = 5`));
+    // "Baltimore, any state" is a key of its own, and here the same rows as Baltimore, MD.
+    expect((await list({ place: 'US/Baltimore' })).total).toBe(await n(`abs(hashtext(id)) % 10 IN (0, 1)`));
+    expect((await list({ place: 'US/Baltimore' })).total).toBe((await list({ place: 'US-MD/Baltimore' })).total);
     // A city with a country that does not hold it, and a region on a country with none: nothing, not an error.
     expect((await list({ place: 'DE/London' })).total).toBe(0);
     expect((await list({ place: 'GB-MD' })).total).toBe(0);
@@ -728,20 +844,21 @@ d('THE INVARIANT and the place predicate, on a known spread of places', () => {
     for (const bad of ['us', 'US-', 'GB/', '-MD', 'US MD', 'GB/ London']) expect((await list({ place: bad })).total, bad).toBe(everything);
     // An apostrophe is part of a city's name (O'Fallon), so this IS a key: a city that does not exist. It is bound, not interpolated.
     expect((await list({ place: "US-MD/Balti'; DROP TABLE jobs; --" })).total).toBe(0);
-    // A place is a filter the rows with no place fail.
+    // A place is a filter the rows that list none fail, and a row that lists two countries passes both: the
+    // four countries add up to the rows that list a place plus the one extra country slot 5 lists.
     expect((await list({ place: 'US' })).total + (await list({ place: 'GB' })).total + (await list({ place: 'CA' })).total + (await list({ place: 'DE' })).total).toBe(
-      everything - (await n('place_country IS NULL'))
+      everything - (await n('cardinality(place_keys) = 0')) + (await n(`abs(hashtext(id)) % 10 = 5`))
     );
   });
 
   it('keeps exactly the rows with no place for place=unstated, in the rows, the counts, the age strip and the suggestion counts', async () => {
     const n = (where: string) => one(`SELECT count(*)::int FROM jobs WHERE ${live} AND ${where}`);
-    const noPlace = await n('place_country IS NULL');
+    const noPlace = await n('cardinality(place_keys) = 0');
     // 2 of every 10 ids fall in the two empty slots, so this is a real share of the board, not a corner.
     expect(noPlace).toBeGreaterThan(1000);
     expect((await list({ place: 'unstated' })).total).toBe(noPlace);
     // Every row returned is one with no place: ids are compared with the view, not counted.
-    const ids = new Set((await sql(`SELECT id FROM jobs WHERE ${live} AND place_country IS NULL`)).map((r) => r.id as string));
+    const ids = new Set((await sql(`SELECT id FROM jobs WHERE ${live} AND cardinality(place_keys) = 0`)).map((r) => r.id as string));
     const page = await list({ place: 'unstated', perPage: 100, page: 3 });
     expect(page.rows).toHaveLength(100);
     for (const row of page.rows) expect(ids.has(row.id), row.id).toBe(true);
@@ -750,10 +867,12 @@ d('THE INVARIANT and the place predicate, on a known spread of places', () => {
       const base = await list(over);
       expect((await list({ ...over, place: 'unstated' })).total, JSON.stringify(over)).toBe(base.counts.place.notStated);
     }
-    // The three places and Not stated partition the board: choosing one excludes the others.
+    // Not stated is the one place that excludes every other: a row that lists a place is not in it and one
+    // that lists none is in no country, so it and the four countries cover the board with the one posting
+    // that lists two countries counted twice.
     expect(
       (await list({ place: 'US' })).total + (await list({ place: 'GB' })).total + (await list({ place: 'CA' })).total + (await list({ place: 'DE' })).total + (await list({ place: 'unstated' })).total
-    ).toBe((await list()).total);
+    ).toBe((await list()).total + (await n(`abs(hashtext(id)) % 10 = 5`)));
     // The age strip is drawn over exactly these rows.
     const { sort, page: pg, perPage, ageMin, ageMax, ...filters } = { ...BASE, place: 'unstated' };
     void sort; void pg; void perPage; void ageMin; void ageMax;
@@ -762,7 +881,7 @@ d('THE INVARIANT and the place predicate, on a known spread of places', () => {
     const [bare, withWords, twoOfThem] = await countBoardTotals([{ ...BASE, place: 'unstated' }, { ...BASE, q: 'engineer', place: 'unstated' }, { ...BASE, place: 'GB' }]);
     expect(bare).toBe(noPlace);
     expect(withWords).toBe((await list({ q: 'engineer', place: 'unstated' })).total);
-    expect(twoOfThem).toBe(await n(`place_country = 'GB'`));
+    expect(twoOfThem).toBe(await n(`place_keys @> ARRAY['GB']`));
   });
 
   it('orders a search by Deets only for a reader who can see it: turn Deets upside down and the other order does not move', async () => {
@@ -805,14 +924,37 @@ d('THE INVARIANT and the place predicate, on a known spread of places', () => {
     }
   }, 300_000);
 
-  it('lists every country the board holds at zero under filters that leave it none, with the sum still the board', async () => {
+  it('adds the countries and Not stated up to the board plus the extra countries, and to exactly the board when no posting lists two', async () => {
+    const sumOf = (c: Awaited<ReturnType<typeof list>>['counts']) => Object.values(c.place.countries).reduce((a, b) => a + b, 0) + c.place.notStated;
+    const base = await list();
+    // Slot 5 lists two countries, so the sum is the board plus those rows.
+    const extra = await one(`SELECT count(*)::int FROM jobs WHERE ${live} AND abs(hashtext(id)) % 10 = 5`);
+    expect(extra).toBeGreaterThan(1000);
+    expect(base.counts.place.all).toBe(base.total);
+    expect(sumOf(base.counts)).toBe(base.total + extra);
+    // The same board where no posting lists two countries: the sum IS the board, exactly.
+    await conn.query('DROP VIEW pg_temp.jobs');
+    await conn.query(makeView('j.detail_total', 'spread_single'));
+    try {
+      const single = await list();
+      expect(single.total).toBe(base.total);
+      expect(single.counts.place.all).toBe(single.total);
+      expect(sumOf(single.counts)).toBe(single.total);
+    } finally {
+      await conn.query('DROP VIEW pg_temp.jobs');
+      await conn.query(makeView('j.detail_total'));
+    }
+  });
+
+  it('lists every country the board holds at zero under filters that leave it none, with Worldwide still the board', async () => {
     const universe = ['CA', 'DE', 'GB', 'US'];
     // The rarest company's one posting: three of the four countries (or all four) are empty under it.
     const [{ company }] = await sql(`SELECT company FROM jobs WHERE ${live} GROUP BY company ORDER BY count(*), company LIMIT 1`);
     const rare = await list({ company });
     expect(Object.keys(rare.counts.place.countries).sort()).toEqual(universe);
     expect(Object.values(rare.counts.place.countries).filter((c) => c === 0).length).toBeGreaterThanOrEqual(2);
-    expect(Object.values(rare.counts.place.countries).reduce((a, b) => a + b, 0) + rare.counts.place.notStated).toBe(rare.total);
+    expect(rare.counts.place.all).toBe(rare.total);
+    expect(Object.values(rare.counts.place.countries).reduce((a, b) => a + b, 0) + rare.counts.place.notStated).toBeGreaterThanOrEqual(rare.total);
     // The same under words that match nothing (every country, all zero) and under a typo.
     const none = await list({ q: 'xqzvwk nonexistentword' });
     expect(Object.keys(none.counts.place.countries).sort()).toEqual(universe);
@@ -829,12 +971,13 @@ d('THE INVARIANT and the place predicate, on a known spread of places', () => {
   it('counts the places over everything but the place filter, and tells the rows with none apart', async () => {
     const all = await list();
     expect(all.counts.place.countries).toEqual({
-      US: await one(`SELECT count(*)::int FROM jobs WHERE ${live} AND place_country = 'US'`),
-      GB: await one(`SELECT count(*)::int FROM jobs WHERE ${live} AND place_country = 'GB'`),
-      CA: await one(`SELECT count(*)::int FROM jobs WHERE ${live} AND place_country = 'CA'`),
-      DE: await one(`SELECT count(*)::int FROM jobs WHERE ${live} AND place_country = 'DE'`)
+      US: await one(`SELECT count(*)::int FROM jobs WHERE ${live} AND place_keys @> ARRAY['US']`),
+      GB: await one(`SELECT count(*)::int FROM jobs WHERE ${live} AND place_keys @> ARRAY['GB']`),
+      CA: await one(`SELECT count(*)::int FROM jobs WHERE ${live} AND place_keys @> ARRAY['CA']`),
+      DE: await one(`SELECT count(*)::int FROM jobs WHERE ${live} AND place_keys @> ARRAY['DE']`)
     });
-    expect(all.counts.place.notStated).toBe(await one(`SELECT count(*)::int FROM jobs WHERE ${live} AND place_country IS NULL`));
+    expect(all.counts.place.notStated).toBe(await one(`SELECT count(*)::int FROM jobs WHERE ${live} AND cardinality(place_keys) = 0`));
+    expect(all.counts.place.all).toBe(all.total);
     // With a place CHOSEN the counts are still over the board without it: each country says what choosing it would leave.
     const chosen = await list({ place: 'GB', remote: ['remote'], q: 'engineer' });
     const without = await list({ remote: ['remote'], q: 'engineer' });

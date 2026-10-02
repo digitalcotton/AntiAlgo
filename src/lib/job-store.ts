@@ -18,6 +18,7 @@ import type { AgeHistogram, AgeBucket } from './data';
 import { COMP_TOP_PATTERN } from './data';
 import { normalizeTitle } from './ledger-titles';
 import { FAMILY_IDS } from './job-family.mjs';
+import { ISO_COUNTRIES } from './jobs-derived.mjs';
 import { SEARCH_MAX_CHARS } from './search-parse';
 import { PLACE_UNSTATED, isPlaceUnstated, parsePlaceKey, type BoardSort } from './board-query';
 
@@ -222,13 +223,17 @@ export interface FacetCounts {
    *  the whole pay control out, so each is what that choice would leave. */
   pay: { any: number; notListed: number; floors: Record<string, number> };
   /** The places, counted over everything but the place filter itself: each
-   *  country's rows, and the rows with no resolved country (`place=unstated`),
-   *  counted apart. Together they sum to what the board would show with no place
-   *  chosen. EVERY COUNTRY THE LIVE BOARD HOLDS IS A KEY, at 0 where the other
+   *  country's rows, and the rows that list no place (`place=unstated`), counted
+   *  apart. A posting is counted under EVERY country it lists (db/222), so each
+   *  number is exactly the rows its own filter returns, and together they add up
+   *  to MORE than the board holds whenever a posting lists two countries.
+   *  `all` is therefore counted on its own: what the board would show with no
+   *  place chosen, the number the Worldwide option prints and returns.
+   *  EVERY COUNTRY THE LIVE BOARD HOLDS IS A KEY, at 0 where the other
    *  filters leave it nothing: a country is never dropped from the list because
    *  the words, the pay floor or the arrangement emptied it, since an absence
    *  cannot be told from a country the board never had. */
-  place: { countries: Record<string, number>; notStated: number };
+  place: { countries: Record<string, number>; notStated: number; all: number };
 }
 
 /** The pay floors the counts offer, in thousands (the plan's Comp control:
@@ -341,22 +346,51 @@ const FUZZY_ORDER = {
  * drift from the table's. The arguments are the PARAMETER NAMES to read (`$16`),
  * never values.
  *
+ * A POSTING IS IN EVERY PLACE IT LISTS (db/222, 2026-10-02). jobs.place_keys holds
+ * every key of every place the posting lists, at every level (GB, US-MD,
+ * GB/London, US/Baltimore, US-MD/Baltimore: placesOf() in jobs-derived.mjs), so a
+ * place filter of any level is one question, "does this posting's list hold this
+ * key", answered by a GIN index. The key is rebuilt here from the three
+ * parameters, in the grammar place-key.ts owns: the country, then `-` and the
+ * region if one is named, then `/` and the city if one is. What this replaced was
+ * three equalities on the columns of the ONE place a posting had been reduced to,
+ * which is why a job listing London and Berlin was found under neither. place_keys
+ * is NOT NULL, so unlike those columns it has no NULL case to coalesce.
+ *
  * `unstated` TRAVELS IN THE COUNTRY PARAMETER. The country is bound as the
  * literal PLACE_UNSTATED (placeBinding), which no country code can equal, and the
- * predicate then asks for the rows with NO resolved country instead of the rows in
- * one. That keeps the statement's parameters exactly where they were (the tests
- * pin them, and the search words are numbered from the end of them), and the
- * keyword is written into the text from this file's own constant, never from input.
+ * predicate then asks for the rows that list NO place (an empty place_keys) instead
+ * of the rows that list one. That keeps the statement's parameters exactly where
+ * they were (the tests pin them, and the search words are numbered from the end of
+ * them), and the keyword is written into the text from this file's own constant,
+ * never from input.
  */
+function placeKeySql(country: string, admin1: string, city: string): string {
+  return `${country}::text || COALESCE('-' || ${admin1}::text, '') || COALESCE('/' || ${city}::text, '')`;
+}
 function placeMatchSql(country: string, admin1: string, city: string): string {
-  return `COALESCE(CASE WHEN ${country}::text = '${PLACE_UNSTATED}' THEN place_country IS NULL
-                   ELSE (${country}::text IS NULL OR place_country = ${country}::text)
-                    AND (${admin1}::text IS NULL OR place_admin1 = ${admin1}::text)
-                    AND (${city}::text IS NULL OR place_city = ${city}::text) END, false)`;
+  return `CASE WHEN ${country}::text = '${PLACE_UNSTATED}' THEN cardinality(place_keys) = 0
+                   ELSE ${country}::text IS NULL OR place_keys @> ARRAY[${placeKeySql(country, admin1, city)}]::text[] END`;
 }
 function companyMatchSql(name: string): string {
   return `(${name}::text IS NULL OR company = ${name}::text)`;
 }
+
+/**
+ * EVERY COUNTRY THE LIVE BOARD HOLDS, as one subquery: for each of the 250 ISO
+ * codes, does a live row list it (one probe of the GIN index on place_keys), and
+ * the codes that pass, in order. The codes are written into the statement from
+ * jobs-derived.mjs's own constant, never from input, and checked here to be two
+ * upper case letters, so nothing a reader types can reach this text.
+ */
+const PLACE_UNIVERSE_SQL = (() => {
+  for (const code of ISO_COUNTRIES) {
+    if (!/^[A-Z]{2}$/.test(code)) throw new Error(`job-store: ${JSON.stringify(code)} is not an ISO country code`);
+  }
+  return `(SELECT array_agg(c ORDER BY c)
+            FROM unnest(ARRAY[${ISO_COUNTRIES.map((code) => `'${code}'`).join(',')}]::text[]) AS c
+           WHERE EXISTS (SELECT 1 FROM jobs WHERE status <> 'killed' AND place_keys @> ARRAY[c]))`;
+})();
 
 /**
  * The facets, computed in SQL exactly as data.ts computes them in TypeScript
@@ -429,7 +463,7 @@ WITH base AS (
          j.posting_id, j.department, j.comp_posted, j.comp_range, j.days_up, j.first_seen, j.last_seen,
          j.detail_total, j.detail_components, j.source, NULL::text AS description, j.status, j.kill_id,
          j.derived_fam, j.derived_fam_source,
-         j.search, j.search_tc, j.place_country, j.place_admin1, j.place_city,
+         j.search, j.search_tc, j.place_keys,
          CASE WHEN jsonb_typeof(j.comp_range->'min') = 'number' THEN (j.comp_range->>'min')::numeric END AS comp_min,
          ${KILL_COLUMNS},
          -- WHERE THE WORK HAPPENS. This read the location TEXT only, and the
@@ -505,9 +539,11 @@ matched AS (
          -- kept nor counted as left out. resolvePay() binds a floor only while
          -- no band and no not-listed is chosen.
          COALESCE($15::numeric IS NULL OR comp_min >= $15::numeric * 1000, false) AS match_pay,
-         -- THE PLACE. Country, then region, then city, each applied only when
-         -- the key names it. A posting with no resolved place has no country to
-         -- be inside, so it fails any place that is set (NULL, coalesced).
+         -- THE PLACE. The one key the filter names (country, then region, then
+         -- city, each only when the key says it) must be among the keys the
+         -- posting lists, so a posting is inside every place it lists. One that
+         -- lists no place is inside none and fails any place that is set;
+         -- 'unstated' is the one key that reaches it.
          ${placeMatchSql('$16', '$17', '$18')} AS match_place,
          ${companyMatchSql('$19')} AS match_company,
          ($6::text = 'all' OR facet_freshness = $6::text) AS match_freshness,
@@ -684,31 +720,41 @@ function facetCountSql(mode: TextMode, titleClause: string, materialize: boolean
     `${on('family')} AS family_all`,
     `${on('family', ' AND derived_fam IS NULL')} AS family_unplaced`,
     ...FAMILY_IDS.map((id) => `${on('family', ` AND derived_fam = '${id}'`)} AS "family_${id}"`),
-    // The places, counted over everything but the place filter. The empty key
-    // is the rows with no resolved country (`place=unstated` reaches them).
-    // NULL (not an empty object) when no row qualifies.
-    `(SELECT jsonb_object_agg(coalesce(place_country, ''), n)
-        FROM (SELECT place_country, count(*)::int AS n FROM flags WHERE ${keep('place')} GROUP BY place_country) p) AS places`,
+    // What the board shows with no place chosen: the Worldwide option's number.
+    // It is NOT the countries and Not stated added up, now that a posting lists
+    // every country it names and is counted under each.
+    `${on('place')} AS place_all`,
+    // The places, counted over everything but the place filter. A posting is
+    // counted once under each country it lists (a country is a two letter key,
+    // and keys are distinct, so never twice under one), and the empty key is the
+    // rows that list none (`place=unstated` reaches them): the LEFT JOIN gives a
+    // row with no keys one NULL, which is the '' entry. So each number is exactly
+    // the rows its own filter returns, and the numbers add up to MORE than the
+    // total whenever a posting lists two countries. NULL (not an empty object)
+    // when no row qualifies.
+    `(SELECT jsonb_object_agg(k, n)
+        FROM (SELECT coalesce(u.k, '') AS k, count(*)::int AS n
+                FROM flags f LEFT JOIN LATERAL unnest(f.place_keys) AS u(k) ON length(u.k) = 2
+               WHERE ${keep('place')} GROUP BY 1) p) AS places`,
     // EVERY COUNTRY THE LIVE BOARD HOLDS, so a country the other filters leave
     // nothing is a zero in the list and not a missing row (readCounts adds the
     // zeros). It cannot come from `flags`: the search words are in the CTE's
     // WHERE as well as in match_q, so under words `flags` holds only the rows
     // the words found. It is a list of NAMES, not a count, so it is read straight
     // off the table and takes no part in any number: every count above still comes
-    // from the one CTE. A recursive skip over jobs_live_place_country_idx (find the
-    // smallest country, then the smallest larger one) reads one index entry per
-    // country, 95 of them, where DISTINCT reads all 30,574: 1 ms against 6. The
-    // literal status <> 'killed' is what lets Postgres use the partial index.
-    `(WITH RECURSIVE live_country(c) AS (
-        SELECT min(place_country) FROM jobs WHERE status <> 'killed' AND place_country IS NOT NULL
-        UNION ALL
-        SELECT (SELECT min(place_country) FROM jobs WHERE status <> 'killed' AND place_country > live_country.c)
-          FROM live_country WHERE live_country.c IS NOT NULL
-      ) SELECT array_agg(c) FROM live_country WHERE c IS NOT NULL) AS place_universe`
+    // from the one CTE. One probe of the GIN index on place_keys per ISO code
+    // (PLACE_UNIVERSE_SQL): 4.2 ms at the median (40 runs, local, 2026-10-02) for
+    // the 109 countries the board holds, where a DISTINCT over unnest(place_keys)
+    // reads every key of every row and took 24 ms. (The recursive skip this
+    // replaced took 0.6 ms on place_country, which is a btree; an array has no
+    // order to skip along, and a GIN index only answers a bitmap scan, so a
+    // country as common as the US reads its whole posting list.) The literal
+    // status <> 'killed' is what lets Postgres use the partial index.
+    `${PLACE_UNIVERSE_SQL} AS place_universe`
   ];
   return `${boardFacetCte(mode)}
 , flags AS ${materialize ? 'MATERIALIZED' : 'NOT MATERIALIZED'} (
-  SELECT facet_location, facet_comp, facet_freshness, derived_fam, comp_min, place_country,
+  SELECT facet_location, facet_comp, facet_freshness, derived_fam, comp_min, place_keys,
          COALESCE(${[...SCOPE_FLAGS, titleClause].join(' AND ')}, false) AS scope_ok,
          COALESCE(${[...FIXED_FLAGS, titleClause].join(' AND ')}, false) AS keep_base,
          (${CONTROLS.map((c) => `(NOT COALESCE(${CONTROL_FLAGS[c]}, false))::int * ${bit(c)}`).join(' + ')}) AS miss
@@ -1430,7 +1476,7 @@ async function readCounts(conn: Queryable, setup: Setup): Promise<{ counts: Face
         ['unplaced', c.family_unplaced ?? 0],
         ...FAMILY_IDS.map((id) => [id, c[`family_${id}`] ?? 0] as const)
       ]),
-      place: { countries, notStated }
+      place: { countries, notStated, all: c.place_all ?? 0 }
     }
   };
 }
@@ -1725,7 +1771,7 @@ function totalsSignature(f: BoardFilter): string {
  *     are written from.
  *   - Filters with no words share one more, which reads only the rows their places
  *     and companies can match (their sargable forms, so the indexes on
- *     place_country and company are used), or every row when one of them names
+ *     place_keys and company are used), or every row when one of them names
  *     neither (the board with no place and no company).
  *   - Text with no word in it matches nothing: zero, with no statement.
  *
@@ -1813,11 +1859,12 @@ async function countGroup(group: readonly BoardFilter[]): Promise<number[]> {
           params.push(place.country, place.admin1, place.city);
           const [c, a, y] = [params.length - 2, params.length - 1, params.length].map((n) => `$${n}`) as [string, string, string];
           own.push(placeMatchSql(c, a, y));
-          // `unstated` reads the rows with no country, which the same index answers
-          // as a NULL probe; every other key is an equality on what it names.
-          sargable.push(place.country === PLACE_UNSTATED ? 'place_country IS NULL' : `place_country = ${c}::text`);
-          if (place.admin1 !== null) sargable.push(`place_admin1 = ${a}::text`);
-          if (place.city !== null) sargable.push(`place_city = ${y}::text`);
+          // `unstated` reads the rows that list no place, an empty array; every
+          // other key is one array-contains probe of the GIN index, the same
+          // question the predicate above asks.
+          sargable.push(
+            place.country === PLACE_UNSTATED ? `place_keys = '{}'` : `place_keys @> ARRAY[${placeKeySql(c, a, y)}]::text[]`
+          );
         }
         const company = f.company?.trim();
         if (company) {

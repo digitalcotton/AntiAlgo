@@ -33,8 +33,9 @@
  *     that says whether the table generalises. The same strings recur night
  *     after night, so a SECOND holdout is cut by distinct location string:
  *     every string the table is tested on is one it never saw.
- *   - overall coverage: the share of all live rows for which placeOf(location,
- *     country) yields a country, against the share that had a country upstream.
+ *   - overall coverage: the share of all live rows whose stored place has a
+ *     country (summaryOf over placesOf, which is what jobs.place_country holds),
+ *     against the share that had a country upstream.
  *
  * Usage:
  *   node scripts/build-place-table.mjs            read the local DB, write the file
@@ -46,7 +47,7 @@
 import { writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { readPlace, placeOf, isoCountry, cityKey } from '../src/lib/jobs-derived.mjs';
+import { readPlace, placeOf, placesOf, summaryOf, isoCountry, cityKey } from '../src/lib/jobs-derived.mjs';
 
 export const MIN_ROWS = 3;
 export const MIN_AGREE = 0.95;
@@ -266,7 +267,10 @@ async function main() {
   for (const r of rows) {
     const had = Boolean(isoCountry(r.country));
     if (had) upstreamCountry += 1; else noUpstream += 1;
-    const p = placeOf(r.location, r.country, cities);
+    // The place the board stores for the row (jobs.place_country): the one place a list reduces to, so
+    // this number and the column are one definition. The holdouts above stay on placeOf, which is the
+    // one-place reading the table is learned and scored by.
+    const p = summaryOf(placesOf(r.location, r.country, cities), r.country);
     if (p.country) {
       resolvedAll += 1;
       if (!had) {
@@ -283,7 +287,7 @@ async function main() {
   }
   console.log('coverage over every live row');
   console.log(`  upstream country   ${upstreamCountry} of ${rows.length} (${pct(upstreamCountry, rows.length)})   <- the baseline`);
-  console.log(`  placeOf country    ${resolvedAll} of ${rows.length} (${pct(resolvedAll, rows.length)})`);
+  console.log(`  place country      ${resolvedAll} of ${rows.length} (${pct(resolvedAll, rows.length)})`);
   console.log(`  newly resolved     ${resolvedNoUpstream} of the ${noUpstream} rows with no upstream country (${pct(resolvedNoUpstream, noUpstream)}), ${resolvedByTable} of them only because of the learned table`);
   console.log(`  text contradicts upstream on ${overridden} rows with a country (text reads a different one, single place)`);
   const un = [...unresolved.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, 15);
