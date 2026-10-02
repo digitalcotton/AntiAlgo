@@ -1,6 +1,7 @@
 ---
-import SEARCH_SUGGESTIONS from '../data/search-suggestions.json';
+import SearchBox from './SearchBox.astro';
 import type { FilterGroup } from '../lib/data';
+import { chipsToParams, type Chip } from '../lib/search-parse';
 import { withBase } from '../../site.config.mjs';
 
 /**
@@ -84,6 +85,15 @@ interface Props {
   titleChoices?: { core: readonly string[]; stretch: readonly string[] };
   /** Server mode: the titles the address already has checked. */
   selectedTitles?: readonly string[];
+  /** Server mode: the facts the search box has already turned into chips, with
+      the address that removes each one (parallel arrays). Absent: no chips. */
+  chips?: Chip[];
+  chipRemoveHrefs?: string[];
+  /** Server mode: the suggestion endpoint, the sweep instant its counts are for,
+      and the board's current parameters, sent with every request. */
+  suggestPath?: string;
+  sweepV?: string;
+  baseParams?: Record<string, string>;
   class?: string;
 }
 
@@ -96,6 +106,11 @@ const {
   query = '',
   titleChoices,
   selectedTitles = [],
+  chips = [],
+  chipRemoveHrefs = [],
+  suggestPath = withBase('/board/suggest'),
+  sweepV = '',
+  baseParams = {},
   class: className
 } = Astro.props;
 const titleShelves: { key: 'core' | 'stretch'; label: string; titles: readonly string[] }[] = titleChoices
@@ -114,6 +129,11 @@ const serverMode = mode === 'server';
 // In server mode the control row IS the form: one element, so a select's
 // change submits it and a no-script reader's Apply button does the same.
 const Row = serverMode ? 'form' : 'div';
+// The search box writes a hidden field for every chip it draws (SearchBox.astro),
+// so a hidden field of the same name handed in by the page is dropped here: a
+// parameter is submitted once, and by the thing the reader can see.
+const chipNames = new Set(Object.keys(chipsToParams(chips)));
+const carried = hidden.filter(([name]) => !chipNames.has(name));
 
 /**
  * What one option reads as: its label alone (2026-09-11). The count used to
@@ -151,62 +171,50 @@ const widest = (group: FilterGroup): string =>
     Age", "DIM SEEN on".
   */}
   <Row class="filters-row" method={serverMode ? 'get' : undefined} action={serverMode ? action : undefined}>
-    {serverMode && hidden.map(([name, value]) => <input type="hidden" name={name} value={value} />)}
+    {serverMode && carried.map(([name, value]) => <input type="hidden" name={name} value={value} />)}
     {/*
-      SEARCH. A plain text box that narrows the table to rows whose title or
-      company contains what you type. Deterministic and exact, a substring
-      test, never a ranking and never a chat box (MASTER-SPEC F10). In server
-      mode it is the form's q field and Enter submits; in client mode it
-      announces as you type. The glyph is decoration; the label is the
-      visible placeholder, which type=search keeps until text lands.
+      SEARCH. In server mode it is the search box (SearchBox.astro): the form's
+      q field, the facts already stated drawn as chips inside it, and a grouped,
+      counted suggestion panel under it. Enter submits the words; nothing is
+      converted silently. In client mode (/prelist) it stays the plain box that
+      announces as you type, because the table controller there filters rows it
+      already holds and listens for exactly that event. The glyph is decoration;
+      the label is the visible placeholder, which type=search keeps until text
+      lands.
+
+      THE NATIVE DATALIST THIS REPLACED IS GONE (2026-10-02). It listed field
+      names beside titles, so a field name typed into the box was converted to a
+      Field filter by a silent 302; it could not group, count or be ordered
+      across groups either. scripts/build-search-suggestions.mjs, which wrote its
+      list, is left in place; only src/lib/job-family.test.ts still reads its
+      output (src/data/search-suggestions.json).
     */}
-    <label class="filter filter-search">
-      <span class="search-glyph mono" aria-hidden="true">&#9906;</span>
-      <span class="visually-hidden">Search</span>
-      <input
-        type="search"
-        class="search-input mono"
-        data-job-search
-        name={serverMode ? 'q' : undefined}
-        value={serverMode ? query : undefined}
-        placeholder="Title, company or field"
-        autocomplete="off"
-        list={serverMode ? 'board-suggest' : undefined}
-        spellcheck="false"
-        enterkeyhint="search"
-      />
-    </label>
-    {/*
-      THE SUGGESTIONS. A native datalist, so the browser draws and filters it
-      and there is no combobox to get wrong — this repo has already paid for a
-      custom one once (a dropdown press that blurred its own field in Safari
-      and Firefox; see the mousedown refusal below).
-
-      IT IS A SET OF SHORTCUTS, NOT A CATALOGUE, and must never be read as one:
-      22,978 of the board's 26,385 distinct titles occur exactly once, so no
-      fixed list can describe this corpus. What it does is meet the reader who
-      types "des" or "nurse" with phrases that actually return rows, on a
-      control that until now offered no vocabulary at all while the Field
-      select beside it offered a closed one.
-
-      The count on each option is what the SEARCH returns, not how many rows
-      carry that exact title. On this board those differ by two orders of
-      magnitude — "Software Engineer" is 12 rows by exact title and 1,276 by
-      search — and a suggestion that promises 12 and delivers 1,276 is worse
-      than none. Built by scripts/build-search-suggestions.mjs.
-
-      The 22 field names are in the list too, and they are the one kind of
-      entry that is not a search: board.astro resolves an exact field name to
-      the Field control instead (familyFromSearch), because "Healthcare &
-      Medicine" as a substring returns nothing.
-    */}
-    {serverMode && (
-      <datalist id="board-suggest">
-        {SEARCH_SUGGESTIONS.map((s) => (
-          <option value={s.t} label={s.k === 'f' ? `field · ${s.n.toLocaleString()}` : `${s.n.toLocaleString()}`} />
-        ))}
-      </datalist>
-    )}
+    {
+      serverMode ? (
+        <SearchBox
+          q={query}
+          chips={chips}
+          chipRemoveHrefs={chipRemoveHrefs}
+          suggestPath={suggestPath}
+          sweepV={sweepV}
+          baseParams={baseParams}
+        />
+      ) : (
+        <label class="filter filter-search">
+          <span class="search-glyph mono" aria-hidden="true">&#9906;</span>
+          <span class="visually-hidden">Search</span>
+          <input
+            type="search"
+            class="search-input mono"
+            data-job-search
+            placeholder="Title, company or field"
+            autocomplete="off"
+            spellcheck="false"
+            enterkeyhint="search"
+          />
+        </label>
+      )
+    }
     {/*
       THE TITLE MENU (owner decision, 2026-09-19). The board is never
       pre-filtered; instead a member who named titles on The Desk gets a
@@ -301,6 +309,8 @@ const widest = (group: FilterGroup): string =>
 </div>
 
 <script>
+  import { claimMenu, onMenuClaimed } from '../lib/menu-claim';
+
   /**
    * Three things, one script: the existing filter-change announcer, and
    * MASTER-SPEC F10's two bullets layered onto the same event contract
@@ -421,6 +431,9 @@ const widest = (group: FilterGroup): string =>
       menu.hidden = !open;
       cell.toggleAttribute('data-open', open);
       trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+      // One menu open at a time: the search box's suggestions close when a strip
+      // menu opens (src/lib/menu-claim.ts).
+      if (open) claimMenu('strip');
       if (open) menu.querySelector<HTMLElement>('[aria-selected="true"]')?.focus({ preventScroll: true });
     });
 
@@ -445,6 +458,16 @@ const widest = (group: FilterGroup): string =>
   }
 
   const titleMenu = document.querySelector<HTMLDetailsElement>('[data-title-menu]');
+  // The search box's suggestions opened, or its field took focus: every menu in
+  // the strip closes, the Desk titles list included. And the other way round,
+  // the titles list opening closes the suggestions.
+  onMenuClaimed('strip', () => {
+    closeMenus();
+    if (titleMenu) titleMenu.open = false;
+  });
+  titleMenu?.addEventListener('toggle', () => {
+    if (titleMenu.open) claimMenu('strip');
+  });
   document.addEventListener('click', (event) => {
     const target = event.target;
     // The title list closes on any click outside it, like the facet menus.
@@ -1082,7 +1105,12 @@ const widest = (group: FilterGroup): string =>
 
   /* The list: label on the left, the count on the right, the chosen row and
      the hovered row on the hover surface, a dead option in the muted voice. */
-  .filters > :global(.menu) {
+  /* THE SEARCH BOX'S SUGGESTION PANEL IS THIS SAME SURFACE (SearchBox.astro).
+     It hangs from the search cell rather than from .filters, so it is listed here
+     beside .menu instead of being given a copy of the four declarations, and its
+     rows below are the strip's own .menu-option rows. */
+  .filters > :global(.menu),
+  .filters :global(.menu-suggest) {
     position: absolute;
     z-index: 2;
     display: flex;
@@ -1091,7 +1119,8 @@ const widest = (group: FilterGroup): string =>
     border: var(--border-hairline) solid var(--color-line-strong);
   }
 
-  .filters > :global(.menu[hidden]) {
+  .filters > :global(.menu[hidden]),
+  .filters :global(.menu-suggest[hidden]) {
     display: none;
   }
 
@@ -1123,7 +1152,10 @@ const widest = (group: FilterGroup): string =>
     outline: none;
   }
 
-  .filters :global(.menu-option:disabled) {
+  /* A suggestion that would return nothing is a div, not a button, so it is dead
+     by aria-disabled; it is drawn and never selectable. */
+  .filters :global(.menu-option:disabled),
+  .filters :global(.menu-option[aria-disabled='true']) {
     color: var(--color-muted);
     cursor: default;
     background: transparent;

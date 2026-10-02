@@ -1,0 +1,12 @@
+{
+  "v": "2026-10-02T04:00:00Z",
+  "q": "zzzz",
+  "parsed": { "words": ["zzzz"], "chips": [], "offers": [] },
+  "total": 0,
+  "groups": [
+    { "type": "titles", "label": "Titles", "items": [] },
+    { "type": "places", "label": "Places", "items": [] },
+    { "type": "companies", "label": "Companies", "items": [] },
+    { "type": "facts", "label": "Facts", "items": [] }
+  ]
+}

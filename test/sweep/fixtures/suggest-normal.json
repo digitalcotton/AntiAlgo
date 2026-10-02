@@ -1,0 +1,43 @@
+{
+  "v": "2026-10-02T04:00:00Z",
+  "q": "lon",
+  "parsed": { "words": ["lon"], "chips": [], "offers": [] },
+  "total": 61,
+  "groups": [
+    {
+      "type": "titles",
+      "label": "Titles",
+      "items": [
+        { "id": "title:product designer", "label": "Product Designer", "count": 120, "disabled": false, "apply": { "words": "Product Designer" }, "href": "/board?q=Product+Designer" },
+        { "id": "title:product design manager", "label": "Product Design Manager", "count": 38, "disabled": false, "apply": { "words": "Product Design Manager" }, "href": "/board?q=Product+Design+Manager" },
+        { "id": "title:product design lead", "label": "Product Design Lead", "count": 22, "disabled": false, "apply": { "words": "Product Design Lead" }, "href": "/board?q=Product+Design+Lead" },
+        { "id": "title:product design director", "label": "Product Design Director", "count": 9, "disabled": false, "apply": { "words": "Product Design Director" }, "href": "/board?q=Product+Design+Director" },
+        { "id": "title:principal product designer, platform and growth experience", "label": "Principal Product Designer, Platform and Growth Experience", "count": 4, "disabled": false, "apply": { "words": "Principal Product Designer, Platform and Growth Experience" }, "href": "/board?q=Principal+Product+Designer" }
+      ]
+    },
+    {
+      "type": "places",
+      "label": "Places",
+      "items": [
+        { "id": "place:GB/London", "label": "London, United Kingdom", "count": 406, "disabled": false, "apply": { "chip": { "kind": "place", "key": "GB/London", "label": "London, United Kingdom" } }, "href": "/board?place=GB%2FLondon" },
+        { "id": "place:US-KY/London", "label": "London, KY", "count": 0, "disabled": true, "apply": { "chip": { "kind": "place", "key": "US-KY/London", "label": "London, KY" } }, "href": "/board?place=US-KY%2FLondon" },
+        { "id": "place:CA-ON/London", "label": "London, Ontario, Canada", "count": 12, "disabled": false, "apply": { "chip": { "kind": "place", "key": "CA-ON/London", "label": "London, Ontario, Canada" } }, "href": "/board?place=CA-ON%2FLondon" }
+      ]
+    },
+    {
+      "type": "companies",
+      "label": "Companies",
+      "items": [
+        { "id": "company:Londonderry Mills", "label": "Londonderry Mills", "count": 2, "disabled": false, "apply": { "chip": { "kind": "company", "name": "Londonderry Mills" } }, "href": "/board?company=Londonderry+Mills" }
+      ]
+    },
+    {
+      "type": "facts",
+      "label": "Facts",
+      "items": [
+        { "id": "fact:remote", "label": "Remote", "count": 4169, "disabled": false, "apply": { "chip": { "kind": "remote", "value": "remote" } }, "href": "/board?remote=remote" },
+        { "id": "fact:pay_min:150", "label": "$150k+", "count": 1483, "disabled": false, "apply": { "chip": { "kind": "pay", "minK": 150 } }, "href": "/board?pay_min=150" }
+      ]
+    }
+  ]
+}
