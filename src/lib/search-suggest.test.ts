@@ -589,18 +589,34 @@ dbDescribe('the suggestions, against the local board', () => {
         { ...BASE, q: 'designer', remote: ['remote'] },
         { ...BASE, q: 'desginer' }
       ];
-      const pool = db() as unknown as { query: (sql: string, params?: unknown[]) => Promise<unknown> };
+      // A statement that carries words runs on its own connection, in its own transaction (job-store.ts
+      // runStatement), so it is seen through connect() and not through the pool's query().
+      // (pg's own pool.query calls this.connect(callback), so only the promise form is wrapped.)
+      type Client = { query: (sql: string, params?: unknown[]) => Promise<unknown>; release: () => void };
+      const pool = db() as unknown as { query: (sql: string, params?: unknown[]) => Promise<unknown>; connect: (...args: unknown[]) => Promise<Client> };
       const original = pool.query.bind(pool);
+      const originalConnect = pool.connect.bind(pool);
       const sent: string[] = [];
       pool.query = (sql: string, params?: unknown[]) => {
         sent.push(sql);
         return original(sql, params);
       };
+      pool.connect = (...args: unknown[]) =>
+        args.length > 0
+          ? originalConnect(...args)
+          : originalConnect().then((client) => ({
+              query: (sql: string, params?: unknown[]) => {
+                sent.push(sql);
+                return client.query(sql, params);
+              },
+              release: () => client.release()
+            }));
       let totals: number[];
       try {
         totals = await countBoardTotals(filters);
       } finally {
         pool.query = original;
+        pool.connect = originalConnect;
       }
       for (const [at, f] of filters.entries()) {
         expect(totals[at], JSON.stringify([f.q, f.place, f.company, f.remote])).toBe((await listBoardFiltered(f)).total);

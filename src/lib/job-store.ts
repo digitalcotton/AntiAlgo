@@ -328,21 +328,28 @@ function companyMatchSql(name: string): string {
  *   The range is not a facet: it has no options to count, so it joins every
  *   keep clause and never has a column of its own.
  *
- * THE SEARCH TEXT, TWO WAYS (the `mode` argument). In EXACT mode $3 is the
+ * THE SEARCH TEXT, THREE WAYS (the `mode` argument). In EXACT mode $3 is the
  *   tsquery buildSearchQuery() wrote ('' matches nothing, NULL is no text
- *   filter) and a row matches when `search @@ to_tsquery('simple', $3)`. In
- *   FUZZY mode (the typo path) $3 is the folded words, used only to score, $20
- *   is a tsquery for the words too short to misspell (or NULL) and $21 onward
- *   are the words long enough to, each of which must be trigram word-similar to
- *   the title. Both modes are written ONCE, here, and every statement that
- *   filters by the words (the counts, the rows, the places, the age strip)
- *   builds on this CTE, so the four cannot disagree about which rows matched.
+ *   filter), kept for the ranking and for those two states, and the match is
+ *   the word-by-word predicate SearchQuery.match describes, written by
+ *   compileMatch over the tsqueries bound from $20 on: each word is
+ *   `search_tc @@ prefix OR search @@ whole word`, ANDed across words (see "TWO
+ *   INDEXES, ONE PREDICATE" below for why it is not one tsquery any more). In TITLE mode (the title
+ *   completions) $3 is the title-only tsquery and a row matches when
+ *   `search_tc @@ to_tsquery('simple', $3)`. In FUZZY mode (the typo path) $3
+ *   is the folded words, used only to score, $20 is a tsquery for the words too
+ *   short to misspell (or NULL) and $21 onward are the words long enough to,
+ *   each of which must be trigram word-similar to the title. Every mode is
+ *   written ONCE, here, and every statement that filters by the words (the
+ *   counts, the rows, the places, the age strip) builds on this CTE, so the
+ *   four cannot disagree about which rows matched.
  *
  * match_q IS THE AUTHORITY AND THE WHERE IS ITS SHADOW. The same predicate is
- *   also written into base's WHERE, which is what lets Postgres use jobs_search_idx
- *   (a GIN index) or jobs_title_trgm_idx instead of reading all 37,000 rows'
- *   search vectors out of TOAST. That is safe to do because the search words are
- *   never left out of a count: every option's count is taken inside the words
+ *   also written into base's WHERE, which is what lets Postgres use
+ *   jobs_search_idx and jobs_search_tc_idx (GIN indexes, joined by a BitmapOr
+ *   per word and a BitmapAnd across words) or jobs_title_trgm_idx instead of
+ *   reading all 37,000 rows' search vectors out of TOAST. That is safe to do
+ *   because the search words are never left out of a count: every option's count is taken inside the words
  *   (see keepSql). If the WHERE were deleted every number would stay the same
  *   and only the latency would change, which is why the unit tests check for
  *   both. The `status <> 'killed'` beside it is the literal the partial index
@@ -379,7 +386,7 @@ WITH base AS (
          j.posting_id, j.department, j.comp_posted, j.comp_range, j.days_up, j.first_seen, j.last_seen,
          j.detail_total, j.detail_components, j.source, NULL::text AS description, j.status, j.kill_id,
          j.derived_fam, j.derived_fam_source,
-         j.search, j.place_country, j.place_admin1, j.place_city,
+         j.search, j.search_tc, j.place_country, j.place_admin1, j.place_city,
          CASE WHEN jsonb_typeof(j.comp_range->'min') = 'number' THEN (j.comp_range->>'min')::numeric END AS comp_min,
          ${KILL_COLUMNS},
          -- WHERE THE WORK HAPPENS. This read the location TEXT only, and the
@@ -429,12 +436,12 @@ WITH base AS (
          j.pipeline
     FROM jobs j LEFT JOIN board_kills k ON k.id = j.kill_id
    WHERE (NOT $10::boolean OR j.status <> 'killed')
-     AND ${textMatchSql(mode, 'j.search', 'j.title')}
+     AND ${textMatchSql(mode, { search: 'j.search', tc: 'j.search_tc', title: 'j.title' })}
 ),
 scored AS (
   SELECT b.*,
          CASE WHEN age_days IS NULL THEN 'unknown' WHEN age_days <= $2 THEN 'fresh' ELSE 'older' END AS facet_freshness,
-         ${textMatchSql(mode, 'b.search', 'b.title')} AS match_q,
+         ${textMatchSql(mode, { search: 'b.search', tc: 'b.search_tc', title: 'b.title' })} AS match_q,
          ${mode.kind === 'fuzzy' ? FUZZY_SCORE_SQL : 'NULL::float8'} AS text_sim
     FROM base b
 ),
@@ -777,12 +784,122 @@ function compoundAtom(whole: string, parts: readonly string[], weights: Weights)
   return `(${alternatives.join(' | ')})`;
 }
 
+/* ---- the match as a tree: TWO INDEXES, ONE PREDICATE (db/221) ---------------- *
+ *
+ * `all` above is one tsquery, `('w' | 'w':*AB) & ...`, and it is still what ranks
+ * a row (ts_rank_cd reads it against the whole vector) and what names a set of
+ * words. It is no longer what FINDS the rows, because of the weights. A GIN
+ * index stores a lexeme and the rows that carry it, not the weight each carries
+ * it at, so `des:*AB` made the index name every row with ANY word starting "des"
+ * (17,775 of 37,286 live rows, almost all through "description" or "designed" in
+ * a posting) and Postgres then read each row's multi-kilobyte vector to keep the
+ * 773 whose match was in the title or company. That read, not the index, was the
+ * cost.
+ *
+ * db/221 adds jobs.search_tc, the title and company alone, which are the only
+ * weights a prefix may match. A prefix in it needs no weight to say so, so the
+ * index on it is exact and its vectors are a few words each. The match is then
+ * the same set of rows written as a boolean over the two vectors:
+ *
+ *     ('w' | 'w':*AB) on search   =   search @@ 'w'  OR  search_tc @@ 'w':*
+ *
+ * and it is exact, not approximate: `search_tc` is the A and B part of `search`
+ * with the same positions (the same function builds both, so no phrase can span
+ * a gap that is not also in the other), so each alternative of the old query
+ * finds the same rows through the new vector. OR and AND carry across `@@` when
+ * the query has no NOT, and this one never does. The test file proves it row for
+ * row over the board for the words it uses, against `all`.
+ *
+ * WHY A TREE AND NOT TWO TSQUERIES. One tsquery is one index: `(a | b) & (c | d)`
+ * over two columns cannot be split into one query per column, because the OR sits
+ * inside the AND. As SQL the planner sees the same shape it knows how to
+ * cost, a BitmapOr of the two indexes for each word and a BitmapAnd across
+ * words, and each word's two probes are the cheap ones (the prefix in a small
+ * index, the whole word in the big one).
+ *
+ * THE PARAMETERS. Every distinct tsquery in the tree is bound as its own
+ * parameter, from $20 on (compileMatch), so the planner sees a constant for each
+ * and estimates from it, as it did for the one tsquery before. The tests pin the
+ * text of the statement and the values together.
+ */
+
+/** One test a word is made of: a tsquery, run against one of the two vectors. */
+interface MatchLeaf {
+  /** `search`: the whole vector, for a whole word anywhere. `tc`: jobs.search_tc,
+      title and company only, for a prefix. */
+  vector: 'search' | 'tc';
+  query: string;
+}
+/** The words as the boolean they are: tests joined by AND and OR and nothing else. */
+export type MatchNode = MatchLeaf | { op: 'and' | 'or'; of: MatchNode[] };
+
+const exactLeaf = (word: string): MatchLeaf => ({ vector: 'search', query: lexeme(word) });
+const prefixLeaf = (word: string): MatchLeaf => ({ vector: 'tc', query: `${lexeme(word)}:*` });
+
+/** One word as wordAtom('all') writes it: a whole word anywhere, or (three letters
+    and over) a prefix in the title or company. The prefix is written first because
+    it is the cheap one to read: a few words, where the other detoasts a posting. */
+function wordNode(word: string): MatchNode {
+  return [...word].length >= SEARCH_PREFIX_MIN ? { op: 'or', of: [prefixLeaf(word), exactLeaf(word)] } : exactLeaf(word);
+}
+
+/** A chunk with punctuation inside, as compoundAtom('all') writes it: the whole as
+    one lexeme, or as a prefix, or all of its parts. */
+function compoundNode(whole: string, parts: readonly string[]): MatchNode {
+  const of: MatchNode[] = [prefixLeaf(whole), exactLeaf(whole)];
+  const kept = parts.filter((part) => [...part].length >= SEARCH_MIN_WORD);
+  if (kept.length > 0) of.push({ op: 'and', of: kept.map(wordNode) });
+  return { op: 'or', of };
+}
+
+/** The names a statement gives the two vectors in the scope the match is written into. */
+export interface VectorRefs {
+  search: string;
+  tc: string;
+}
+
+/** A match ready to write into a statement: the tsqueries it binds, in order, and
+    its text for the vectors the statement calls by whatever names. */
+export interface CompiledMatch {
+  /** One per DISTINCT tsquery, bound from the number the match was compiled at. */
+  params: string[];
+  sql: (refs: VectorRefs) => string;
+}
+
+/** Numbers the tree's tsqueries from `first` and returns the SQL that reads them.
+    Numbered in one walk, so the text and the parameters cannot disagree.
+    Exported for the test that holds it to `all` over every row of the board. */
+export function compileMatch(node: MatchNode, first: number): CompiledMatch {
+  const params: string[] = [];
+  const numbered = new Map<MatchLeaf, number>();
+  const walk = (n: MatchNode): void => {
+    if ('op' in n) {
+      n.of.forEach(walk);
+      return;
+    }
+    const held = params.indexOf(n.query);
+    numbered.set(n, first + (held >= 0 ? held : params.push(n.query) - 1));
+  };
+  walk(node);
+  const write = (n: MatchNode, refs: VectorRefs): string =>
+    'op' in n
+      ? n.of.length === 1
+        ? write(n.of[0] as MatchNode, refs)
+        : `(${n.of.map((x) => write(x, refs)).join(n.op === 'and' ? '\n       AND ' : ' OR ')})`
+      : `${refs[n.vector]} @@ to_tsquery('simple', $${numbered.get(n)}::text)`;
+  return { params, sql: (refs) => write(node, refs) };
+}
+
 export interface SearchQuery {
   /** The folded text, in words: the parts of every chunk, in order, one space
       between. What a title is compared to for the "title is the words" tier. */
   phrase: string;
-  /** The match: every word, anywhere or as a title/company prefix. Bound as $3. */
+  /** The words as one tsquery: every word, anywhere or as a title/company
+      prefix. Bound as $3. It ranks a row and names a set of words; the rows are
+      FOUND by `match`, which is this same predicate written for the two vectors. */
   all: string;
+  /** `all` as a boolean over the two vectors (see "TWO INDEXES, ONE PREDICATE"). */
+  match: MatchNode;
   /** The same words restricted to the title, to the title and company, and to
       title, company and department: the three rungs of the tier ladder. */
   a: string;
@@ -833,6 +950,7 @@ export function buildSearchQuery(text: string): SearchQuery | null {
   return {
     phrase: words.join(' '),
     all: atoms('all'),
+    match: { op: 'and', of: kept.map((c) => (c.compound ? compoundNode(c.core, c.parts) : wordNode(c.core))) },
     a: atoms('A'),
     ab: atoms('AB'),
     abc: atoms('ABC'),
@@ -844,23 +962,36 @@ export function buildSearchQuery(text: string): SearchQuery | null {
 }
 
 /**
- * The text predicate's two forms (see boardFacetCte). `searchRef` and `titleRef`
- * are the column references in the statement's scope, because the same predicate
- * is written once for base's WHERE and once for match_q.
+ * The text predicate's three forms (see boardFacetCte). `refs` names the columns
+ * in the statement's scope, because the same predicate is written once for
+ * base's WHERE and once for match_q.
  */
-type TextMode = { kind: 'exact' } | { kind: 'fuzzy'; tokens: number };
+type TextMode =
+  | { kind: 'exact'; match: CompiledMatch | null }
+  | { kind: 'title' }
+  | { kind: 'fuzzy'; tokens: number };
+
+/** Exact mode with no words in the shared part: $3 is NULL, nothing is matched. */
+const NO_WORDS: TextMode = { kind: 'exact', match: null };
 
 /** The typo path's first per-word parameter; $20 is its short-word tsquery. */
 const FUZZY_PARAM_SHORT = 20;
 const FUZZY_PARAM_FIRST = 21;
 
-function textMatchSql(mode: TextMode, searchRef: string, titleRef: string): string {
+function textMatchSql(mode: TextMode, refs: VectorRefs & { title: string }): string {
   if (mode.kind === 'exact') {
-    return `($3::text IS NULL OR ($3::text <> '' AND ${searchRef} @@ to_tsquery('simple', $3::text)))`;
+    // $3 is always named, so Postgres can type it, and it is NULL (no words) or ''
+    // (words that are only punctuation, which match nothing) when there is no tree.
+    return mode.match === null
+      ? `($3::text IS NULL)`
+      : `($3::text IS NULL OR ($3::text <> '' AND ${mode.match.sql(refs)}))`;
   }
-  const words = Array.from({ length: mode.tokens }, (_, i) => `$${FUZZY_PARAM_FIRST + i}::text <% ${titleRef}`);
+  if (mode.kind === 'title') {
+    return `($3::text IS NULL OR ($3::text <> '' AND ${refs.tc} @@ to_tsquery('simple', $3::text)))`;
+  }
+  const words = Array.from({ length: mode.tokens }, (_, i) => `$${FUZZY_PARAM_FIRST + i}::text <% ${refs.title}`);
   return `(${words.join(' AND ')}
-     AND ($${FUZZY_PARAM_SHORT}::text IS NULL OR ${searchRef} @@ to_tsquery('simple', $${FUZZY_PARAM_SHORT}::text)))`;
+     AND ($${FUZZY_PARAM_SHORT}::text IS NULL OR ${refs.search} @@ to_tsquery('simple', $${FUZZY_PARAM_SHORT}::text)))`;
 }
 
 /**
@@ -1060,8 +1191,11 @@ function needsFlags(f: SharedInput, hasText: boolean, age: { min: number | null;
 function setupExact(f: SharedInput, titles: string[] | undefined, plan: TextPlan, age: { min: number | null; max: number | null }): Setup {
   const text = plan.kind === 'words' ? plan.sq.all : plan.kind === 'nomatch' ? '' : null;
   const shared = sharedParams(f, text, age);
+  // The words' tsqueries follow the nineteen shared parameters, each its own.
+  const match = plan.kind === 'words' ? compileMatch(plan.sq.match, shared.length + 1) : null;
+  if (match) shared.push(...match.params);
   const { clause, params } = titleKeepClause(titles, shared.length + 1);
-  return { mode: { kind: 'exact' }, materialize: needsFlags(f, plan.kind !== 'none', age), shared, titleClause: clause, titleParams: params };
+  return { mode: { kind: 'exact', match }, materialize: needsFlags(f, plan.kind !== 'none', age), shared, titleClause: clause, titleParams: params };
 }
 
 function setupFuzzy(f: SharedInput, titles: string[] | undefined, sq: SearchQuery & { fuzzy: NonNullable<SearchQuery['fuzzy']> }, age: { min: number | null; max: number | null }): Setup {
@@ -1095,9 +1229,73 @@ async function withTrigramThreshold<T>(work: (conn: Queryable) => Promise<T>): P
   }
 }
 
+/**
+ * random_page_cost FOR A STATEMENT THAT CARRIES WORDS, AND WHY (db/221).
+ *
+ * The planner chooses between the two GIN indexes and a scan of the table by
+ * cost, and it prices `search @@ 'w'` as one cheap operator. It is not: the
+ * vector is a 4.5 KB value kept out of line, and a scan that evaluates it reads
+ * and decompresses one per row it did not already reject, which is what made
+ * every seq-scan plan of these statements slow (measured on 2026-10-02, 37,765
+ * rows: 100 to 250 ms for a count that took 12 to 17 ms through the indexes).
+ * The choice is a near tie at a word that a sixth of the board carries
+ * ("engineer": a bitmap plan costed 11,786 and the seq scan 11,730), so the
+ * planner flipped between the two from one statistics refresh to the next, and
+ * the OR of two predicates overstates the rows (10,252 estimated, 6,218 real:
+ * the estimate multiplies two probabilities that are nearly one event).
+ * (db/221's own header has the same facts for whoever reads the migration.)
+ *
+ * The default random_page_cost of 4 prices a fetch of 3,000 scattered heap
+ * pages four times a sequential read of the same table, which is a rotating
+ * disk's arithmetic. With 1.1 (what a table that is mostly in memory, or on SSD,
+ * is usually given) the indexes win through about half the board, and the seq
+ * scan still wins for a word nearly every row carries, where it should. It is
+ * set with set_config(..., true) inside BEGIN and COMMIT, as withTrigramThreshold
+ * does, so it ends with the statement, and only the statements that carry words
+ * pay the three round trips: a board with no words, the typo path and every
+ * other reader of this table plan as they always did.
+ *
+ * What it bought, local and warm, alternating old and new in one process on
+ * 2026-10-02 (p50, ms): the board for "engineer" 190 to 58, "des" 142 to 33,
+ * "product des" 125 to 18; the suggestion panel's cold "des" 268 to 37 and
+ * "engineer" 270 to 91; the existence probe of the typo path ("desginer") 118 to
+ * 1.8, which the same plan choice had made a scan of every vector. Whether
+ * Neon's planner makes the same near-tie choice, or its storage prices a random
+ * page as the default says, was not measured: these are local numbers.
+ */
+const WORDS_RANDOM_PAGE_COST = '1.1';
+
+/** Does this mode's statement carry words that a GIN index can answer? */
+function plansForWords(mode: TextMode): boolean {
+  return mode.kind === 'title' || (mode.kind === 'exact' && mode.match !== null);
+}
+
+/** Run a statement, under WORDS_RANDOM_PAGE_COST when `forWords`. `conn` is the
+    pool for such a statement (the typo path's connection is already in its own
+    transaction and carries no GIN words). */
+async function runStatement(conn: Queryable, forWords: boolean, sql: string, params: unknown[]): Promise<{ rows: any[] }> {
+  const pool = conn as Queryable & { connect?: () => Promise<Queryable & { release: () => void }> };
+  if (!forWords || typeof pool.connect !== 'function') return conn.query(sql, params);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`SELECT set_config('random_page_cost', $1, true)`, [WORDS_RANDOM_PAGE_COST]);
+    const out = await client.query(sql, params);
+    await client.query('COMMIT');
+    return out;
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 /** The rows the words matched on this board, ignoring every control. */
 async function readTextTotal(conn: Queryable, setup: Setup): Promise<number> {
-  const { rows } = await conn.query(
+  const { rows } = await runStatement(
+    conn,
+    plansForWords(setup.mode),
     `${boardFacetCte(setup.mode)}\nSELECT count(*) FILTER (WHERE ${textTotalFilter(setup.titleClause)})::int AS text_total FROM matched`,
     [...setup.shared, ...setup.titleParams]
   );
@@ -1109,7 +1307,9 @@ async function readTextTotal(conn: Queryable, setup: Setup): Promise<number> {
     first row: a prefix that thousands of rows share is otherwise read out of every
     one of their vectors to learn that it is not zero. */
 async function readTextMatches(conn: Queryable, setup: Setup): Promise<boolean> {
-  const { rows } = await conn.query(
+  const { rows } = await runStatement(
+    conn,
+    plansForWords(setup.mode),
     `${boardFacetCte(setup.mode)}\nSELECT EXISTS (SELECT 1 FROM matched WHERE ${textTotalFilter(setup.titleClause)}) AS found`,
     [...setup.shared, ...setup.titleParams]
   );
@@ -1117,7 +1317,7 @@ async function readTextMatches(conn: Queryable, setup: Setup): Promise<boolean> 
 }
 
 async function readCounts(conn: Queryable, setup: Setup): Promise<{ counts: FacetCounts; textTotal: number }> {
-  const { rows } = await conn.query(facetCountSql(setup.mode, setup.titleClause, setup.materialize), [...setup.shared, ...setup.titleParams]);
+  const { rows } = await runStatement(conn, plansForWords(setup.mode), facetCountSql(setup.mode, setup.titleClause, setup.materialize), [...setup.shared, ...setup.titleParams]);
   const c: Record<string, number> = rows[0] ?? {};
   // The places arrive as one JSON object (see facetCountSql); '' is "no country".
   const countries: Record<string, number> = {};
@@ -1294,7 +1494,9 @@ async function readPage(
     tiers = { a: at + 1, ab: at + 2, abc: at + 3, phrase: at + 4 };
   }
   params.push(perPage, (page - 1) * perPage);
-  const { rows } = await conn.query(
+  const { rows } = await runStatement(
+    conn,
+    plansForWords(setup.mode),
     pageSql({ mode: setup.mode, text, sort: opts.sort, titleClause: setup.titleClause, tiers, limit: params.length - 1, offset: params.length }),
     params
   );
@@ -1390,8 +1592,10 @@ export async function listBoardTitleCandidates(opts: BoardFilter, limit: number)
   const shared = sharedParams(opts, plan.sq.a, age);
   const { clause, params: titleParams } = titleKeepClause(opts.titles, shared.length + 1);
   const params: unknown[] = [...shared, ...titleParams, Math.max(1, Math.min(50, Math.floor(limit) || 1))];
-  const { rows } = await db().query(
-    `${boardFacetCte({ kind: 'exact' })}
+  const { rows } = await runStatement(
+    db(),
+    true,
+    `${boardFacetCte({ kind: 'title' })}
 SELECT mode() WITHIN GROUP (ORDER BY title) AS title, count(*)::int AS rows
   FROM matched
  WHERE ${keepSql(clause)}
@@ -1426,14 +1630,15 @@ function totalsSignature(f: BoardFilter): string {
  * bound parameter of the CTE (totalsSignature). Within a group:
  *
  *   - Each DISTINCT WORDS is its own statement, run side by side on the pool. The
- *     words are the expensive part of any count: a prefix such as `des:*` is
- *     read out of the vector of every row the index names, thousands of them, to
- *     check the weights. Counting eight titles in one scan looked cheaper and was
- *     not: one statement evaluates every tsquery against every row it reads
- *     (measured on 2026-10-02, 210 ms for eight common title phrases in one scan,
- *     against 5 to 30 ms for each alone through its own index scan), so the work is
- *     split by words, each statement is narrowed by the index on its own words, and
- *     a group takes about as long as its slowest.
+ *     words are the expensive part of any count: before db/221 a prefix such as
+ *     `des:*` was read out of the vector of every row the index named, thousands
+ *     of them, to check the weights (it is a probe of the small vector now, and a
+ *     broad word is still the largest count). Counting eight titles in one scan
+ *     looked cheaper and was not: one statement evaluates every tsquery against
+ *     every row it reads (measured on 2026-10-02, 210 ms for eight common title
+ *     phrases in one scan, against 5 to 30 ms for each alone through its own index
+ *     scan), so the work is split by words, each statement is narrowed by the
+ *     index on its own words, and a group takes about as long as its slowest.
  *   - Filters that share their words (the places and companies of one fragment)
  *     share the statement, and differ only in two cheap predicates, one FILTER each,
  *     spelled by placeMatchSql and companyMatchSql, the same two the CTE's flags
@@ -1480,8 +1685,9 @@ async function countGroup(group: readonly BoardFilter[]): Promise<number[]> {
   const out = group.map(() => 0);
 
   // One statement per DISTINCT WORDS. The words are the expensive part of every
-  // count (a prefix such as `des:*` is read out of the vector of every row the
-  // index names, which is thousands), so each distinct words is its own statement,
+  // count (before db/221 a prefix such as `des:*` was read out of the vector of
+  // every row the index named, which is thousands, and a broad word is still the
+  // largest count), so each distinct words is its own statement,
   // narrowed by the index on its own words, and the statements run side by side
   // on the pool. Filters that share their words (the places and companies of one
   // fragment) share the statement and differ only in two cheap predicates. Filters
@@ -1498,17 +1704,22 @@ async function countGroup(group: readonly BoardFilter[]): Promise<number[]> {
   });
 
   await Promise.all(
-    [...byWords].map(async ([tsquery, members]) => {
+    [...byWords].map(async ([key, members]) => {
       // $3 is left NULL: no words in the shared part. match_place and match_company
       // are bound to nothing as well, so they are true for every row and the keep
       // clause below is every OTHER flag, applied exactly as the table applies it.
       const shared = sharedParams({ ...head, place: null, company: null }, null, age);
       const { clause, params: titleParams } = titleKeepClause(head.titles, shared.length + 1);
       const params: unknown[] = [...shared, ...titleParams];
+      // The words, written the way the board writes them (compileMatch), over the
+      // two vectors by their own column names: this statement reads them off
+      // `matched`, not off the table.
       let words = '';
-      if (tsquery !== '') {
-        params.push(tsquery);
-        words = `search @@ to_tsquery('simple', $${params.length}::text)`;
+      const plan = plans[members[0] as number] as TextPlan;
+      if (key !== '' && plan.kind === 'words') {
+        const match = compileMatch(plan.sq.match, params.length + 1);
+        params.push(...match.params);
+        words = match.sql({ search: 'search', tc: 'search_tc' });
       }
       const filters: string[] = [];
       const arms: string[] = [];
@@ -1540,8 +1751,10 @@ async function countGroup(group: readonly BoardFilter[]): Promise<number[]> {
       // what the places and companies can match is, unless one filter names neither
       // (the board with no place and no company), which has to read every row.
       const where = [keepSql(clause), words, words === '' && narrowable ? `(${arms.join(' OR ')})` : ''].filter(Boolean).join('\n   AND ');
-      const { rows } = await db().query(
-        `${boardFacetCte({ kind: 'exact' })}
+      const { rows } = await runStatement(
+        db(),
+        words !== '',
+        `${boardFacetCte(NO_WORDS)}
 SELECT ${filters.map((f, k) => `count(*) FILTER (WHERE ${f})::int AS t${k}`).join(',\n       ')}
   FROM matched
  WHERE ${where}`,
@@ -1735,7 +1948,9 @@ export async function listBoardAgeHistogram(opts: AgeHistogramFilter): Promise<A
   const age = { min: null, max: null };
   const plan = planText(opts.q);
   const readHistogram = async (conn: Queryable, setup: Setup): Promise<AgeRow[]> => {
-    const { rows } = await conn.query(
+    const { rows } = await runStatement(
+      conn,
+      plansForWords(setup.mode),
       `${ageHistogramSql(setup.mode, setup.titleClause)}
      SELECT days,
             count(*)::int AS rows,

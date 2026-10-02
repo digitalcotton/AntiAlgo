@@ -28,7 +28,8 @@
  *
  * THE FOUR GROUPS.
  *   titles     Whole-query completions. The titles of the rows whose TITLE matches
- *              every word typed (buildSearchQuery's weight-A form), under the
+ *              every word typed (buildSearchQuery's weight-A form, read from the
+ *              small title-and-company vector, jobs.search_tc), under the
  *              filters, most rows first. Choosing one REPLACES the words with the
  *              title; the typed chips stay. Its count is the board's total for
  *              that title as the words, which is a search and so far larger than
@@ -521,8 +522,10 @@ export function suggestCacheControl(requestV: string, currentV: string, dependsO
  * where a different text reaches the same title or the same place. Typing
  * `des` and `desig` ask for different answers and for many of the same counts
  * (the board's own popular titles recur in every prefix that leads to them), and
- * a prefix like `des` is the expensive kind of count, because the index names
- * 17,000 rows and a vector is read out of every one to check the weights.
+ * a prefix like `des` was the expensive kind of count, because the index named
+ * 17,000 rows and a vector was read out of every one to check the weights. A
+ * prefix is matched in the small vector now (db/221), so a miss costs a few
+ * milliseconds, and the memo is what makes the keystroke after it free.
  *
  * KEYED BY EVERYTHING THAT CHANGES A COUNT: `v`, and the whole filter except the
  * page, the page size and the sort (which no total depends on). A change of `v`

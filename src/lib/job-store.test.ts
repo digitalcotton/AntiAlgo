@@ -21,9 +21,12 @@ import {
   SEARCH_MAX_WORDS,
   boardRowsLoadedAt,
   buildSearchQuery,
+  compileMatch,
+  countBoardTotals,
   foldForSearch,
   listBoardAgeHistogram,
-  listBoardFiltered
+  listBoardFiltered,
+  listBoardTitleCandidates
 } from './job-store';
 
 /** A count row as the database returns it: totals, the text total, and the places JSON. */
@@ -40,6 +43,12 @@ const FILTER = { q: 'design', location: 'remote', comp: 'all', freshness: 'all',
 /** The statements that are SQL about jobs, not the transaction's own: BEGIN, COMMIT, set_config. */
 const statements = () =>
   query.mock.calls.filter(([sql]) => !/^(BEGIN|COMMIT|ROLLBACK)$/.test(String(sql)) && !String(sql).includes('set_config'));
+/** Two kinds of transaction wrap a statement: the typo path's (the trigram threshold, one connection for
+    every statement it runs) and a words statement's own (random_page_cost, one connection each, see
+    runStatement). Each BEGINs once and gives its connection back once. */
+const transactionsWith = (setting: string) => query.mock.calls.filter(([sql]) => String(sql).includes(`set_config('${setting}'`)).length;
+const typoTransactions = () => transactionsWith('pg_trgm.word_similarity_threshold');
+const begun = () => query.mock.calls.filter(([sql]) => String(sql) === 'BEGIN').length;
 
 describe('listBoardFiltered', () => {
   it('asks twice over one CTE, binding every value, and pages with LIMIT and OFFSET', async () => {
@@ -53,14 +62,17 @@ describe('listBoardFiltered', () => {
     // filters: the arrangement list ($14), the pay floor ($15), the place's
     // country, region and city ($16 to $18) and the company ($19). liveOnly
     // defaults to TRUE (2026-09-20): a browsed list never carries a killed row.
-    // No watched titles, so nothing binds past them.
+    // No watched titles, so nothing binds past them. The words' own tsqueries
+    // follow the nineteen (db/221): one per word and vector, here the prefix
+    // (title and company) and the whole word (anywhere), as $20 and $21.
     const tsquery = "('design' | 'design':*AB)";
-    const shared = ['2026-09-11', 4, tsquery, 'remote', 'all', 'all', null, null, null, true, false, null, 'all', null, null, null, null, null, null];
+    const nineteen = ['2026-09-11', 4, tsquery, 'remote', 'all', 'all', null, null, null, true, false, null, 'all', null, null, null, null, null, null];
+    const shared = [...nineteen, "'design':*", "'design'"];
     expect(countParams).toEqual(shared);
     // The page also binds the tier queries and the folded words, for the ladder, then LIMIT and OFFSET.
     expect(pageParams).toEqual([...shared, "'design':*A", "'design':*AB", "'design':*ABC", 'design', 50, 50]);
     expect(countSql).toContain('FILTER (WHERE keep_base AND');
-    expect(pageSql).toContain('LIMIT $24 OFFSET $25');
+    expect(pageSql).toContain('LIMIT $26 OFFSET $27');
     expect(pageSql).toContain('ORDER BY detail_total DESC, company ASC, title ASC, id ASC');
     expect(result.total).toBe(3);
     expect(result.fuzzy).toBe(false);
@@ -71,25 +83,27 @@ describe('listBoardFiltered', () => {
     const [countSql, countParams] = statements()[0];
     const [pageSql, pageParams] = statements()[1];
     // The title normalises to ONE phrase param, bound after the nineteen shared
-    // params ($20; it was $14 until the stated-facts filters were appended).
+    // params and the two tsqueries the word "design" binds ($22; it was $20
+    // before db/221, and $14 until the stated-facts filters were appended).
     expect(countParams.slice(0, 19)).toHaveLength(19);
-    expect(countParams[19]).toBe('product designer');
-    expect(countParams).toHaveLength(20);
-    // The page binds the four tier values after it ($21 to $24), then LIMIT and OFFSET.
+    expect(countParams.slice(19, 21)).toEqual(["'design':*", "'design'"]);
+    expect(countParams[21]).toBe('product designer');
+    expect(countParams).toHaveLength(22);
+    // The page binds the four tier values after it ($23 to $26), then LIMIT and OFFSET.
     expect(pageParams.slice(-2)).toEqual([50, 50]);
-    expect(pageParams).toHaveLength(26);
-    expect(pageSql).toContain('LIMIT $25 OFFSET $26');
+    expect(pageParams).toHaveLength(28);
+    expect(pageSql).toContain('LIMIT $27 OFFSET $28');
     // A normalised, padded whole-phrase LIKE (mirroring ledger-titles.matchesTitle),
     // applied to the facet counts too, so the counts describe the narrowed board.
     expect(pageSql).toContain(String.raw`regexp_replace(lower(title), '[^a-z0-9]+', ' ', 'g')`);
-    expect(pageSql).toContain(`LIKE ('% ' || $20 || ' %')`);
-    expect(countSql).toContain(`LIKE ('% ' || $20 || ' %')`);
+    expect(pageSql).toContain(`LIKE ('% ' || $22 || ' %')`);
+    expect(countSql).toContain(`LIKE ('% ' || $22 || ' %')`);
   });
   it('leaves the board unnarrowed when no titles are watched', async () => {
     await listBoardFiltered({ ...FILTER, titles: [] });
     const [, countParams] = statements()[0];
-    expect(countParams).toHaveLength(19);
-    expect(statements()[1][0]).toContain('LIMIT $24 OFFSET $25');
+    expect(countParams).toHaveLength(21);
+    expect(statements()[1][0]).toContain('LIMIT $26 OFFSET $27');
     // With no words there are no tier queries to bind: two fewer, then four fewer.
     query.mockClear();
     await listBoardFiltered({ ...FILTER, q: '' });
@@ -101,7 +115,7 @@ describe('listBoardFiltered', () => {
     // The families bind as ONE array param at $12, so the shape does not change
     // with how many are picked and nothing shifts behind them.
     expect(countParams[11]).toEqual(['design', 'unplaced']);
-    expect(countParams).toHaveLength(19);
+    expect(countParams).toHaveLength(21); // the nineteen, and the word's two tsqueries
     // 'unplaced' is not a family id: it is matched against a NULL derived_fam,
     // never looked up, so picking it alongside Design returns both.
     expect(countSql).toContain("derived_fam = ANY($12::text[])");
@@ -151,9 +165,11 @@ describe('listBoardFiltered', () => {
     expect(sql).toContain('j.first_seen < $1::date');
     expect(sql).toContain("age_days <= $2 THEN 'fresh'");
     // The search words are a tsquery over the weighted vector now. `title ILIKE`
-    // is gone from the board: it read every row and could not rank.
+    // is gone from the board: it read every row and could not rank. A word is a
+    // prefix of the title or company (search_tc, $20) or a whole word anywhere
+    // (search, $21): see "TWO INDEXES, ONE PREDICATE".
     expect(sql).not.toContain('ILIKE');
-    expect(sql).toContain("search @@ to_tsquery('simple', $3::text)");
+    expect(sql).toContain("search_tc @@ to_tsquery('simple', $20::text) OR j.search @@ to_tsquery('simple', $21::text)");
     expect(sql).toContain('NULL::text AS description');
     expect(sql).not.toMatch(/\bj\.description\b/);
     expect(sql).toContain('regexp_matches');
@@ -197,8 +213,10 @@ describe('what the page does with the words', () => {
     // is the same predicate as a column, so deleting the WHERE would change no
     // count, only the time it takes.
     const where = sql.slice(sql.indexOf('WHERE (NOT $10::boolean OR j.status <> \'killed\')'));
-    expect(where).toContain("j.search @@ to_tsquery('simple', $3::text)");
-    expect(sql).toMatch(/b\.search @@ to_tsquery\('simple', \$3::text\)\)\) AS match_q/);
+    expect(where).toContain("(j.search_tc @@ to_tsquery('simple', $20::text) OR j.search @@ to_tsquery('simple', $21::text))");
+    expect(sql).toMatch(/\(b\.search_tc @@ to_tsquery\('simple', \$20::text\) OR b\.search @@ to_tsquery\('simple', \$21::text\)\)\)\) AS match_q/);
+    // The small vector is asked first in both, so the row whose title has the word never reads its posting.
+    expect(sql.indexOf("j.search_tc @@ to_tsquery('simple', $20::text) OR")).toBeGreaterThan(-1);
   });
   it('materialises the narrow count flags when there are words or a control is set, and not on the bare board', async () => {
     await listBoardFiltered(FILTER);
@@ -215,7 +233,7 @@ describe('what the page does with the words', () => {
     // Narrow either way: the count flags carry no row, no description and no search vector.
     const flags = String(statements()[0][0]);
     const select = flags.slice(flags.indexOf('flags AS NOT MATERIALIZED ('), flags.indexOf('FROM matched'));
-    expect(select).not.toMatch(/\bsearch\b/);
+    expect(select).not.toMatch(/\bsearch(_tc)?\b/);
     expect(select).not.toContain('description');
     expect(select).toContain('AS miss');
   });
@@ -223,7 +241,10 @@ describe('what the page does with the words', () => {
     await listBoardFiltered({ ...FILTER, q: '!!!' });
     // '' is the bound value, and the predicate is false for it.
     expect(statements()[0][1][2]).toBe('');
-    expect(statements()[0][0]).toContain("$3::text <> ''");
+    // No words, so no tsquery is bound or run: only $3 is named, and it is not NULL.
+    expect(statements()[0][1]).toHaveLength(19);
+    expect(statements()[0][0]).toContain('($3::text IS NULL)');
+    expect(statements()[0][0]).not.toContain('to_tsquery');
     // ... and it is not a typo: no second pass is tried.
     expect(release).not.toHaveBeenCalled();
   });
@@ -236,7 +257,7 @@ describe('what the page does with the words', () => {
     expect(best).toContain('ORDER BY tier_n ASC, rank_n DESC, detail_total DESC, age_days ASC NULLS LAST, id ASC');
     // The tsqueries are parsed once, in a one-row CTE, not once per row.
     expect(best).toContain('tq AS MATERIALIZED (');
-    expect(best).toContain("to_tsquery('simple', $20::text) AS q_a");
+    expect(best).toContain("to_tsquery('simple', $22::text) AS q_a");
     query.mockClear();
     // Any other order cuts the page first and asks only its rows which rung they are on.
     await listBoardFiltered({ ...FILTER, sort: 'age' });
@@ -255,7 +276,7 @@ describe('what the page does with the words', () => {
   it('states the tier ladder in SQL: the title is the words, then every word by weight', async () => {
     await listBoardFiltered({ ...FILTER, sort: 'best' });
     const sql = statements()[1][0] as string;
-    expect(sql).toContain("btrim(regexp_replace(lower(f_unaccent(page.title)), '[^[:alnum:]]+', ' ', 'g')) = $23::text THEN 0");
+    expect(sql).toContain("btrim(regexp_replace(lower(f_unaccent(page.title)), '[^[:alnum:]]+', ' ', 'g')) = $25::text THEN 0");
     expect(sql).toContain('page.search @@ tq.q_a THEN 1');
     expect(sql).toContain('page.search @@ tq.q_ab THEN 2');
     expect(sql).toContain('ELSE 3 END AS match_tier');
@@ -420,11 +441,13 @@ describe('the typo path', () => {
     const sent = query.mock.calls.map(([sql]) => String(sql));
     // BEGIN, the threshold as a TRANSACTION-LOCAL setting (bound, not interpolated), the statements, COMMIT.
     expect(sent.indexOf('BEGIN')).toBeGreaterThan(-1);
-    const config = query.mock.calls.find(([sql]) => String(sql).includes('set_config'))!;
+    const config = query.mock.calls.find(([sql]) => String(sql).includes("set_config('pg_trgm.word_similarity_threshold'"))!;
     expect(String(config[0])).toContain("set_config('pg_trgm.word_similarity_threshold', $1, true)");
     expect(config[1]).toEqual([THRESHOLD]);
     expect(sent.at(-1)).toBe('COMMIT');
-    expect(release).toHaveBeenCalledTimes(1);
+    expect(typoTransactions()).toBe(1);
+    // Every transaction opened was closed and its connection given back: the typo path's and the exact attempts'.
+    expect(release).toHaveBeenCalledTimes(begun());
     // Every long word must be similar to the title on its own; the phrase is only the score.
     const fuzzyCount = query.mock.calls.find(([sql]) => String(sql).includes('<% j.title'))!;
     expect(String(fuzzyCount[0])).toContain('$21::text <% j.title AND $22::text <% j.title');
@@ -445,7 +468,7 @@ describe('the typo path', () => {
   });
   it('is not tried when the words matched something exactly', async () => {
     await listBoardFiltered({ ...FILTER, q: 'prodct desiner' });
-    expect(release).not.toHaveBeenCalled();
+    expect(typoTransactions()).toBe(0);
     expect(query.mock.calls.some(([sql]) => String(sql).includes('<% j.title'))).toBe(false);
   });
   it('is not tried for words with nothing long enough to misspell, nor for no words', async () => {
@@ -453,7 +476,7 @@ describe('the typo path', () => {
     for (const q of ['c++ r', 'sr dev', '', '!!!']) {
       await listBoardFiltered({ ...FILTER, q });
     }
-    expect(release).not.toHaveBeenCalled();
+    expect(typoTransactions()).toBe(0);
     expect(FUZZY_MIN_WORD).toBe(5);
   });
   it('gives the empty exact answer back, unflagged, when the typo path finds nothing either', async () => {
@@ -464,7 +487,8 @@ describe('the typo path', () => {
     expect(result.total).toBe(0);
     // Its transaction still ended cleanly and gave its connection back.
     expect(query.mock.calls.map(([sql]) => String(sql))).toContain('COMMIT');
-    expect(release).toHaveBeenCalledTimes(1);
+    expect(typoTransactions()).toBe(1);
+    expect(release).toHaveBeenCalledTimes(begun());
   });
   it('rolls back and releases the connection when a statement fails, and the error is the caller\'s', async () => {
     query.mockImplementation(async (sql: string) => {
@@ -475,7 +499,7 @@ describe('the typo path', () => {
     });
     await expect(listBoardFiltered({ ...FILTER, q: 'prodct desiner' })).rejects.toThrow('boom');
     expect(query.mock.calls.map(([sql]) => String(sql))).toContain('ROLLBACK');
-    expect(release).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(begun());
   });
   it('decides the age strip the same way, and draws it over the population the table shows', async () => {
     // The strip asks "did the words find anything" with the table's own test (text_total).
@@ -495,7 +519,7 @@ describe('the typo path', () => {
     release.mockClear();
     query.mockImplementation(async (sql: string) => (String(sql).includes('AS text_total') ? { rows: [{ text_total: 9 }] } : { rows: [] }));
     await listBoardAgeHistogram({ sweepDate: '2026-09-18', q: 'designer' });
-    expect(release).not.toHaveBeenCalled();
+    expect(typoTransactions()).toBe(0);
     expect(query.mock.calls.some(([sql]) => String(sql).includes('<% j.title'))).toBe(false);
   });
 });
@@ -629,7 +653,7 @@ describe('the pipeline filter (db/218)', () => {
     query.mockReset();
     query.mockResolvedValue({ rows: [{ total: 0, text_total: 1, location_all: 0, location_remote: 0, location_onsite: 0 }] });
     await listBoardFiltered({ ...FILTER, ...(pipeline ? { pipeline } : {}) });
-    return { sql: String(query.mock.calls[0][0]), params: query.mock.calls[0][1] as unknown[] };
+    return { sql: String(statements()[0][0]), params: statements()[0][1] as unknown[] };
   };
 
   it('binds all as the default, so a caller that says nothing changes nothing', async () => {
@@ -801,5 +825,117 @@ describe('buildSearchQuery: the words, as a tsquery nobody can inject into', () 
     expect(buildSearchQuery('full-stak dev')!.fuzzy).toBeNull();
     // The typo path reads words, not chunks: a hyphenated word is its parts.
     expect(buildSearchQuery('full-stack')!.fuzzy).toEqual({ tokens: ['stack'], short: "'full':*A" });
+  });
+});
+
+describe('the match: a tree of tsqueries over two vectors, so two indexes can answer it (db/221)', () => {
+  const VECTORS = { search: 'search', tc: 'search_tc' };
+  const compiled = (text: string, first = 20) => {
+    const match = compileMatch(buildSearchQuery(text)!.match, first);
+    return { params: match.params, sql: match.sql(VECTORS).replace(/\n\s*/g, ' ') };
+  };
+  const atom = (vector: string, n: number) => `${vector} @@ to_tsquery('simple', $${n}::text)`;
+
+  it('writes a long word as its prefix in the small vector OR itself in the whole one, the cheap probe first', () => {
+    const { params, sql } = compiled('designer');
+    expect(params).toEqual(["'designer':*", "'designer'"]);
+    expect(sql).toBe(`(${atom('search_tc', 20)} OR ${atom('search', 21)})`);
+  });
+  it('ANDs the words, each its own pair, numbered from where the caller says', () => {
+    const { params, sql } = compiled('product des', 22);
+    expect(params).toEqual(["'product':*", "'product'", "'des':*", "'des'"]);
+    expect(sql).toBe(`((${atom('search_tc', 22)} OR ${atom('search', 23)}) AND (${atom('search_tc', 24)} OR ${atom('search', 25)}))`);
+  });
+  it('searches a word of two letters, or the one letter of "c", as a whole word only: a prefix of that length is almost any word', () => {
+    expect(compiled('ab')).toEqual({ params: ["'ab'"], sql: `(${atom('search', 20)})`.slice(1, -1) });
+    expect(compiled('c').params).toEqual(["'c'"]);
+    expect(compiled('a designer').params).toEqual(["'designer':*", "'designer'"]);
+  });
+  it('offers a chunk with punctuation as its whole lexeme, that as a prefix, or all of its parts', () => {
+    const { params, sql } = compiled('ai/ml');
+    expect(params).toEqual(["'ai/ml':*", "'ai/ml'", "'ai'", "'ml'"]);
+    expect(sql).toBe(`(${atom('search_tc', 20)} OR ${atom('search', 21)} OR (${atom('search', 22)} AND ${atom('search', 23)}))`);
+  });
+  it('binds a tsquery once however many places name it', () => {
+    const { params } = compiled('node.js node');
+    expect(params).toEqual(["'node.js':*", "'node.js'", "'node':*", "'node'", "'js'"]);
+    expect(new Set(params).size).toBe(params.length);
+  });
+  it('is the same words as `all`: every lexeme `all` names is a lexeme the tree names, and the other way round', () => {
+    for (const text of ['senior product designer', 'ai/ml', 'node.js node', 'full-stack', "d'angelo a\\b", 'r&d u.s. v2.0', '50%_x', 'c', 'ab cd']) {
+      const sq = buildSearchQuery(text)!;
+      const named = (q: string) => new Set([...q.matchAll(/'((?:[^']|'')*)'/g)].map((m) => m[1]));
+      const inAll = named(sq.all);
+      const inTree = named(compileMatch(sq.match, 1).params.join(' '));
+      expect([...inTree].sort(), text).toEqual([...inAll].sort());
+    }
+  });
+});
+
+describe('the planner is told the heap is cheap for a statement that carries words, and for no other', () => {
+  const settingCalls = () => query.mock.calls.filter(([sql]) => String(sql).includes("set_config('random_page_cost'"));
+
+  it('brackets the count and the page, each on its own connection, in BEGIN, a bound transaction-local setting, and COMMIT', async () => {
+    await listBoardFiltered(FILTER);
+    expect(settingCalls()).toHaveLength(2);
+    for (const [sql, params] of settingCalls()) {
+      expect(String(sql)).toBe("SELECT set_config('random_page_cost', $1, true)");
+      expect(params).toEqual(['1.1']);
+    }
+    const sent = query.mock.calls.map(([sql]) => String(sql));
+    // Each statement is preceded by its BEGIN and setting and followed by its COMMIT; the two overlap, so only the counts are fixed.
+    expect(sent.filter((x) => x === 'BEGIN')).toHaveLength(2);
+    expect(sent.filter((x) => x === 'COMMIT')).toHaveLength(2);
+    expect(release).toHaveBeenCalledTimes(2);
+    const firstSetting = sent.findIndex((x) => x.includes("set_config('random_page_cost'"));
+    expect(sent.indexOf('BEGIN')).toBeLessThan(firstSetting);
+    expect(sent.findIndex((x) => x.includes('flags AS'))).toBeGreaterThan(firstSetting);
+    expect(sent.lastIndexOf('COMMIT')).toBe(sent.length - 1);
+  });
+  it('leaves a board with no words, and the words that are only punctuation, to plan as they always did', async () => {
+    for (const q of ['', '!!!']) {
+      query.mockClear();
+      release.mockClear();
+      await listBoardFiltered({ ...FILTER, q });
+      expect(query.mock.calls.map(([sql]) => String(sql)).filter((x) => x === 'BEGIN' || x.includes('set_config')), JSON.stringify(q)).toEqual([]);
+      expect(release).not.toHaveBeenCalled();
+    }
+  });
+  it('sets it for the age strip, the title completions and the suggestion counts, which carry the same words', async () => {
+    await listBoardAgeHistogram({ sweepDate: '2026-09-18', q: 'designer' });
+    expect(settingCalls().length).toBeGreaterThanOrEqual(1);
+    query.mockClear();
+    await listBoardTitleCandidates({ ...FILTER, q: 'des' }, 8);
+    expect(settingCalls()).toHaveLength(1);
+    query.mockClear();
+    query.mockResolvedValue({ rows: [{ t0: 3 }] });
+    await countBoardTotals([{ ...FILTER, q: 'designer' }]);
+    expect(settingCalls()).toHaveLength(1);
+    // Filters with no words at all share a statement that has none of this.
+    query.mockClear();
+    await countBoardTotals([{ ...FILTER, q: '', place: 'GB' }]);
+    expect(settingCalls()).toHaveLength(0);
+  });
+  it('does not set it for the typo path, whose predicate is a trigram one on its own connection', async () => {
+    query.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (text === 'BEGIN' || text === 'COMMIT' || text.includes('set_config')) return { rows: [] };
+      return { rows: [{ ...COUNT_ROW, text_total: text.includes('<% j.title') ? 5 : 0 }] };
+    });
+    await listBoardFiltered({ ...FILTER, q: 'prodct desiner' });
+    const fuzzyStarts = query.mock.calls.map(([sql], at) => [String(sql), at] as const).filter(([sql]) => sql.includes('pg_trgm'));
+    expect(fuzzyStarts).toHaveLength(1);
+    // After the typo path's own setting, no planner setting is sent on that connection.
+    const after = query.mock.calls.slice(fuzzyStarts[0][1] + 1).map(([sql]) => String(sql));
+    expect(after.some((x) => x.includes('random_page_cost'))).toBe(false);
+  });
+  it('rolls back and gives the connection back when the statement fails, and the error is the caller\'s', async () => {
+    query.mockImplementation(async (sql: string) => {
+      if (String(sql).includes('flags AS')) throw new Error('boom');
+      return { rows: [] };
+    });
+    await expect(listBoardFiltered(FILTER)).rejects.toThrow('boom');
+    expect(query.mock.calls.map(([sql]) => String(sql))).toContain('ROLLBACK');
+    expect(release).toHaveBeenCalledTimes(begun());
   });
 });

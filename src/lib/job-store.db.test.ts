@@ -9,7 +9,7 @@
  * hardest requirement, that EVERY COUNT EQUALS THE ROWS THE OPTION RETURNS.
  *
  * It needs the board in a local database with db/219 (jobs.search and the trigram
- * indexes) and db/220 (jobs.place_*) applied. Without a connection string it
+ * indexes), db/220 (jobs.place_*) and db/221 (jobs.search_tc) applied. Without a connection string it
  * skips rather than passing, so a green run on a machine with no database cannot
  * be mistaken for a proof (same rule as jobs-data-agg.test.ts and
  * comp-top-sql.test.ts). It reads and never writes a row of any real table.
@@ -46,7 +46,7 @@ vi.mock('./db', () => {
   return { db: () => ({ query: run, connect: async () => ({ query: run, release: () => undefined }) }), isConfigured: () => true };
 });
 
-import { FUZZY_WORD_THRESHOLD, PAY_FLOORS_K, buildSearchQuery, foldForSearch, listBoardAgeHistogram, listBoardFiltered, type BoardFilter } from './job-store';
+import { FUZZY_WORD_THRESHOLD, PAY_FLOORS_K, buildSearchQuery, compileMatch, countBoardTotals, foldForSearch, listBoardAgeHistogram, listBoardFiltered, listBoardTitleCandidates, type BoardFilter } from './job-store';
 import { REMOTE_KINDS } from './board-query';
 import { COMP_BANDS } from './data';
 import { FAMILY_IDS } from './job-family.mjs';
@@ -60,9 +60,9 @@ async function haveSchema(): Promise<boolean> {
     const { rows } = await probe.query(
       `SELECT count(*)::int AS n FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'jobs'
-          AND column_name IN ('search', 'place_country', 'place_admin1', 'place_city', 'place_label')`
+          AND column_name IN ('search', 'search_tc', 'place_country', 'place_admin1', 'place_city', 'place_label')`
     );
-    return rows[0].n === 5;
+    return rows[0].n === 6;
   } catch {
     return false;
   } finally {
@@ -71,7 +71,7 @@ async function haveSchema(): Promise<boolean> {
 }
 const READY = await haveSchema();
 const d = READY ? describe : describe.skip;
-if (!READY) console.warn('job-store.db.test.ts: skipped. It needs DATABASE_URL and a jobs table with search and place_* (db/219, db/220).');
+if (!READY) console.warn('job-store.db.test.ts: skipped. It needs DATABASE_URL and a jobs table with search, search_tc and place_* (db/219, db/220, db/221).');
 
 let conn: pg.Client;
 const SWEEP = new Date().toISOString().slice(0, 10);
@@ -264,12 +264,123 @@ d('the words: ranking, the tier ladder, and the facts each row carries', () => {
     expect(tested, 'no candidate word was description-only on this board').toBe(true);
   });
 
-  it('uses the weighted vector index for words, not a scan of every description', async () => {
-    shared.sent.length = 0;
-    await list({ q: 'designer', sort: 'best' });
-    const count = shared.sent.find((s) => s.sql.includes('AS text_total'))!;
-    const plan = (await sql(`EXPLAIN (COSTS OFF) ${count.sql}`, count.params)).map((r) => r['QUERY PLAN']).join('\n');
-    expect(plan).toContain('jobs_search_idx');
+  it('uses both GIN indexes for words, a BitmapOr per word, not a scan of every description', async () => {
+    // Each of these was a read of every row the index named: "engineer" and
+    // "des" most of all, because a prefix over every weight names thousands of
+    // postings that carry the word only in their description. The plan is asked
+    // for as the store asked for it: in the transaction, with the planner
+    // setting, it sent the statement with (a words statement is planned under
+    // random_page_cost, see runStatement), replayed from what it sent.
+    for (const q of ['designer', 'engineer', 'des', 'product des', 'senior product designer', 'software engineer']) {
+      shared.sent.length = 0;
+      await list({ q, sort: 'best' });
+      const count = shared.sent.find((s) => s.sql.includes('AS text_total'))!;
+      const setting = shared.sent.find((s) => s.sql.includes("set_config('random_page_cost'"))!;
+      expect(setting, `${q}: the statement was sent under the planner setting`).toBeTruthy();
+      await conn.query('BEGIN');
+      let plan: string;
+      try {
+        await conn.query(setting.sql, setting.params);
+        plan = (await conn.query(`EXPLAIN (COSTS OFF) ${count.sql}`, count.params)).rows.map((r) => r['QUERY PLAN']).join('\n');
+      } finally {
+        await conn.query('ROLLBACK');
+      }
+      expect(plan, q).toContain('jobs_search_idx');
+      expect(plan, q).toContain('jobs_search_tc_idx');
+      expect(plan, q).toContain('BitmapOr');
+      expect(plan, q).not.toContain('Seq Scan on jobs');
+    }
+  });
+});
+
+/* ===================================================================== */
+d('the two vectors (db/221): the same rows, found through the small one', () => {
+  it('search_tc is the title and company of search, positions and all, on every row', async () => {
+    expect(await one(`SELECT count(*)::int FROM jobs WHERE search_tc IS NULL`)).toBe(0);
+    // The A and B part of search, by weight, and the function the trigger calls.
+    expect(await one(`SELECT count(*)::int FROM jobs WHERE search_tc IS DISTINCT FROM ts_filter(search, '{a,b}')`)).toBe(0);
+    expect(await one(`SELECT count(*)::int FROM jobs WHERE search_tc IS DISTINCT FROM jobs_search_tc_vector(title, company)`)).toBe(0);
+  });
+
+  // The proof that a rewrite of the predicate changed no result: for each text, the rows the
+  // word-by-word match finds, over EVERY row of the table (killed ones too, so no partial index or
+  // status test can hide a difference), are the rows the one tsquery `all` finds, and the title
+  // completions' form (`a`) finds the same rows in search_tc as it does in search.
+  const idsOf = async (where: string, params: unknown[]): Promise<string[]> => (await sql(`SELECT id FROM jobs WHERE ${where} ORDER BY id`, params)).map((r) => String(r.id));
+
+  async function holds(text: string): Promise<number> {
+    const sq = buildSearchQuery(text);
+    if (!sq) return 0;
+    const match = compileMatch(sq.match, 1);
+    const fast = await idsOf(match.sql({ search: 'search', tc: 'search_tc' }), match.params);
+    const old = await idsOf(`search @@ to_tsquery('simple', $1::text)`, [sq.all]);
+    expect(fast, `match for ${JSON.stringify(text)}`).toEqual(old);
+    const titleOnly = await idsOf(`search_tc @@ to_tsquery('simple', $1::text)`, [sq.a]);
+    expect(titleOnly, `title form for ${JSON.stringify(text)}`).toEqual(await idsOf(`search @@ to_tsquery('simple', $1::text)`, [sq.a]));
+    return old.length;
+  }
+
+  it('finds exactly the rows `all` finds, for words, prefixes, compounds, short words and the odd', { timeout: 300_000 }, async () => {
+    const texts = [
+      'designer', 'des', 'desi', 'product des', 'engineer', 'eng', 'senior product designer', 'software engineer remote', 'nurse mar', 'engineer ber',
+      'ai/ml', 'node.js', 'node js', 'full-stack', 'c', 'r', 'c++', 'ab', 'a designer', 'u.s.', "d'angelo", 'v2.0', '24/7', 'e-mail', 'ebitda',
+      'kubernetes', 'zurich', 'zürich', 'amazon', 'ama', 'remote nu', 'sr. software engineer', 'ml/ai ops', '150k', '50%_x', 'foo:*bar & (baz | !qux)',
+      'Ærø', '工程师', 'Инженер', 'xqzvw rkt', 'the', 'and', 'lead lea',
+      // A long chunk with punctuation in it, so a long run of tests goes into one statement.
+      'ab-cd-ef-gh-ij-kl-mn-op-qr-st-uv-wx-yz-ab-cd-ef-gh-ij-kl-mn-op-qr-st-uv-wx-yz-ab-cd-ef-gh-ij-kl-mn-op'
+    ];
+    let nonEmpty = 0;
+    for (const text of texts) if ((await holds(text)) > 0) nonEmpty += 1;
+    expect(nonEmpty, 'most of the texts must find something, or this proves little').toBeGreaterThan(30);
+  });
+
+  it('finds exactly the rows `all` finds, for 120 phrases cut from real titles mid-word', { timeout: 600_000 }, async () => {
+    const titles = (await sql(`SELECT title FROM jobs ORDER BY md5(id || 'two-vectors') LIMIT 120`)).map((r) => String(r.title));
+    const rnd = seeded(221);
+    let found = 0;
+    for (const title of titles) {
+      const words = title.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+      const take = words.slice(0, 1 + rnd.int(3));
+      const last = take.length - 1;
+      const cut = take[last]!.slice(0, 2 + rnd.int(4));
+      found += (await holds([...take.slice(0, last), cut].join(' '))) > 0 ? 1 : 0;
+    }
+    expect(found).toBeGreaterThan(100);
+  });
+
+  it('asks "do these words match anything" of the indexes, so a misspelling costs a probe and not a read of every vector', { timeout: 120_000 }, async () => {
+    // The typo path begins with this question (readTextMatches, an EXISTS that ends at the first row).
+    // Asked of the old single tsquery it was a sequential scan that read and decompressed all 37,765
+    // vectors to learn that "desginer" is not there (126 to 253 ms); through the two indexes it is empty
+    // before a heap page is read. Replayed as the store sent it, under the setting it sent it with.
+    for (const q of ['desginer', 'marketng man', 'xqzvw rkt']) {
+      shared.sent.length = 0;
+      await countBoardTotals([{ ...BASE, q }]);
+      const probe = shared.sent.find((x) => /SELECT EXISTS \(SELECT 1 FROM matched/.test(x.sql));
+      expect(probe, `${q}: the question was asked`).toBeTruthy();
+      const setting = shared.sent.find((x) => x.sql.includes("set_config('random_page_cost'"))!;
+      await conn.query('BEGIN');
+      let plan: string;
+      try {
+        await conn.query(setting.sql, setting.params);
+        plan = (await conn.query(`EXPLAIN (COSTS OFF) ${probe!.sql}`, probe!.params)).rows.map((r) => r['QUERY PLAN']).join('\n');
+      } finally {
+        await conn.query('ROLLBACK');
+      }
+      expect(plan, q).toContain('jobs_search_tc_idx');
+      expect(plan, q).not.toContain('Seq Scan on jobs');
+    }
+  });
+
+  it('the board and its title completions read the same rows through the new predicate as through the old', async () => {
+    for (const q of ['designer', 'des', 'product des', 'senior eng', 'ai/ml', 'node.js']) {
+      const sq = buildSearchQuery(q)!;
+      const expected = Number(await one(`SELECT count(*)::int FROM jobs WHERE status <> 'killed' AND search @@ to_tsquery('simple', $1::text)`, [sq.all]));
+      expect((await list({ q })).total, q).toBe(expected);
+      const completions = await listBoardTitleCandidates({ ...BASE, q }, 50);
+      const inTitles = Number(await one(`SELECT count(*)::int FROM jobs WHERE status <> 'killed' AND search @@ to_tsquery('simple', $1::text)`, [sq.a]));
+      expect(completions.reduce((n, c) => n + c.rows, 0), `${q}: completions`).toBeLessThanOrEqual(inTitles);
+    }
   });
 });
 
@@ -327,7 +438,7 @@ d('the typo path', () => {
   it('reads the title trigram index, and the threshold is set for the transaction that reads it', async () => {
     shared.sent.length = 0;
     await list({ q: 'prodct desiner', sort: 'best' });
-    const config = shared.sent.find((s) => s.sql.includes('set_config'))!;
+    const config = shared.sent.find((s) => s.sql.includes("set_config('pg_trgm.word_similarity_threshold'"))!;
     expect(config.params).toEqual([String(FUZZY_WORD_THRESHOLD)]);
     const count = shared.sent.find((s) => s.sql.includes('AS text_total') && s.sql.includes('<% j.title'))!;
     await conn.query('BEGIN');
