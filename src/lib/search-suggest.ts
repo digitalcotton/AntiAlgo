@@ -117,6 +117,18 @@ export interface SuggestBody {
 export const SUGGEST_GROUP_MAX = 8;
 /** Candidate titles read, before the ones that fold to the same words are merged. */
 const TITLE_CANDIDATES_READ = 12;
+/**
+ * Candidate places read, before the ones the reader's other filters leave empty
+ * are dropped. A typed place with nothing behind it is not a choice worth a row
+ * (owner, 2026-10-02: "product designer lon" listed seven dead places under London,
+ * Long Prairie and Londonderry among them), so the group keeps the first eight that
+ * count something, and reads three groups' worth to have eight to keep. The places
+ * of one fragment share one counting statement (countBoardTotals groups them), so
+ * the extra candidates are rows of a statement already made, not statements.
+ * The strip's own Location list keeps its zeros: there the list is the whole
+ * vocabulary, and a muted zero says the filters leave that country nothing.
+ */
+const PLACE_CANDIDATES_READ = 24;
 /** Trailing tokens tried as a place or company name: the last one, two and three. */
 export const FRAGMENT_MAX_TOKENS = 3;
 
@@ -665,10 +677,10 @@ export async function suggest(input: SuggestInput): Promise<SuggestBody> {
   let places = 0;
   for (const f of fragments) {
     const rest = parseSearch(f.rest, lex);
-    for (const hit of lex.placesByPrefix(f.fragment, SUGGEST_GROUP_MAX)) {
+    for (const hit of lex.placesByPrefix(f.fragment, PLACE_CANDIDATES_READ)) {
       // A key the board would not read, as one it would, is not offered: its href
       // would show the board with no place, under a label that says London.
-      if (places >= SUGGEST_GROUP_MAX || seen.has(`place:${hit.key}`) || parsePlaceKey(hit.key) === null) continue;
+      if (places >= PLACE_CANDIDATES_READ || seen.has(`place:${hit.key}`) || parsePlaceKey(hit.key) === null) continue;
       seen.add(`place:${hit.key}`);
       places += 1;
       const chip: Chip = { kind: 'place', key: hit.key, label: hit.label };
@@ -750,7 +762,9 @@ export async function suggest(input: SuggestInput): Promise<SuggestBody> {
             ...planned.filter((p) => p.group === 'facts').map((p) => item(p, countOf(p)))
           ]
         : planned.filter((p) => p.group === group).map((p) => item(p, countOf(p)));
-    // Rows that count something first, the order within each kept.
+    // A place that counts nothing is not listed (PLACE_CANDIDATES_READ says why).
+    if (group === 'places') return rows.filter((r) => !r.disabled).slice(0, SUGGEST_GROUP_MAX);
+    // Elsewhere rows that count something first, the order within each kept.
     return [...rows.filter((r) => !r.disabled), ...rows.filter((r) => r.disabled)].slice(0, SUGGEST_GROUP_MAX);
   };
 

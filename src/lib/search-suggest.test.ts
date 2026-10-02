@@ -518,17 +518,21 @@ dbDescribe('the suggestions, against the local board', () => {
       expect(none.total).toBe(0);
     });
 
-    it('returns a place that counts zero, disabled and after the ones that count, never dropped', async () => {
-      const body = await ask('nurse mar');
-      const places = body.groups[1]?.items ?? [];
-      expect(places.length).toBeGreaterThan(1);
-      expect(places.some((p) => p.count > 0)).toBe(true);
-      const zeros = places.filter((p) => p.disabled);
-      expect(zeros.length).toBeGreaterThan(0);
-      expect(zeros.every((p) => p.count === 0)).toBe(true);
-      // The enabled rows come first.
-      const firstZero = places.findIndex((p) => p.disabled);
-      expect(places.slice(firstZero).every((p) => p.disabled)).toBe(true);
+    it('lists only the places that count something, and reads past the dead ones to fill the group', async () => {
+      // Owner, 2026-10-02: "product designer lon" listed seven places that counted
+      // nothing under London (Long Prairie, Londonderry). A place that counts zero
+      // was drawn muted at the bottom; it is not listed now.
+      for (const text of ['nurse mar', 'product designer lon']) {
+        const places = (await ask(text)).groups[1]?.items ?? [];
+        expect(places.length, text).toBeGreaterThan(0);
+        expect(places.every((p) => p.count > 0 && !p.disabled), text).toBe(true);
+      }
+      const london = (await ask('product designer lon')).groups[1]?.items ?? [];
+      expect(london.map((p) => p.label)).toContain('London, United Kingdom');
+      // Dropping the empty ones must not empty the group: it reads three groups'
+      // worth of candidates (PLACE_CANDIDATES_READ) to have rows left to show.
+      const nurse = (await ask('nurse mar')).groups[1]?.items ?? [];
+      expect(nurse.length).toBeGreaterThan(1);
     });
 
     it('counts a title as the board counts it when it becomes the words, which is a search and not the rows that carry it', async () => {
