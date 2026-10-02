@@ -25,6 +25,7 @@ import { COMP_BANDS, SORT_KEYS, type SortKey } from './data';
 // The pay bounds the search box clamps to, imported so the box and the address
 // can never disagree about what a legal floor is.
 import { PAY_MAX_K, PAY_MIN_K } from './search-parse';
+import { parsePlaceKey } from './place-key';
 
 /** 5 on arrival (the owner's call, 2026-09-11): a first page a person reads
     whole, then steps up to a hundred for scanning. */
@@ -98,11 +99,12 @@ export interface BoardQuery {
    */
   location: LocationFacet;
   /**
-   * The pay band as the current Comp select reads it, kept for the same reason
-   * and with the same limit. `comp=<band>` and `comp=not-listed` are read into
-   * it; `pay_min` is not (a floor is not a band). While this is anything but
-   * `all` the store applies the band exactly, so the select's per-band counts
-   * keep telling the truth until the strip moves to floors.
+   * `not-listed` when the reader asked for postings that state no pay, else
+   * `all`. It used to carry a pay BAND (`150-200`) and the store applied the
+   * band exactly; the strip speaks floors now (a `pay_min`, or `not-listed`), so
+   * a legacy `comp=<band>` is read as its lower bound in `payMin` and this
+   * stays `all`. The field is kept, and typed as a string, because the Pre-List
+   * (prospect-board.ts) and the old callers still compare it with a facet.
    */
   comp: CompFacet;
   freshness: FreshnessFacet;
@@ -257,49 +259,9 @@ export function parseRemote(values: readonly string[]): RemoteKind[] {
   return REMOTE_KINDS.filter((kind) => seen.has(kind));
 }
 
-/** A place key taken apart. `admin1` and `city` are null where the key stops short of them. */
-export interface PlaceKey {
-  country: string;
-  admin1: string | null;
-  city: string | null;
-}
-
-/**
- * A place key read strictly, or null.
- *
- *   GB                 a country (ISO 3166-1 alpha-2, upper case)
- *   US-MD              a country and one of its regions (1 to 3 upper case
- *                      letters or digits: MD, ON, NSW)
- *   GB/London          either of those, a slash, and a city
- *   US-MD/Baltimore    exactly as the board spells it in place_city
- *
- * The part left of the FIRST slash is the country or country and region; what
- * is right of it is the city, taken whole and case-sensitively, because it is
- * compared with place_city for equality and a "repaired" spelling would match
- * nothing. A city may itself contain a slash or a dot ("St. John's",
- * "Rio/Janeiro" would both survive); what it may not do is carry a control
- * character, run longer than 80 characters, or start or end with a space.
- *
- * Strict means a lower-case `gb`, a region with no country (`-MD`), `US-`, a
- * trailing slash and a four-letter region are all null. The caller drops a null
- * and the board runs unnarrowed: a stale bookmark is the board without that
- * narrowing, never an error and never a guess at what was meant.
- */
-export function parsePlaceKey(key: string | null | undefined): PlaceKey | null {
-  if (typeof key !== 'string') return null;
-  const match = /^([A-Z]{2})(?:-([A-Z0-9]{1,3}))?(?:\/([^\p{C}]{1,80}))?$/u.exec(key);
-  if (!match) return null;
-  const city = match[3] ?? null;
-  // A city is a name: it starts and ends on a non-space and holds at least one
-  // letter or digit ("GB//" is not a city called slash).
-  if (city !== null && (city !== city.trim() || !/[\p{L}\p{N}]/u.test(city))) return null;
-  return { country: match[1], admin1: match[2] ?? null, city };
-}
-
-/** A place key written back out: the inverse of parsePlaceKey. */
-export function formatPlaceKey(place: PlaceKey): string {
-  return `${place.country}${place.admin1 ? `-${place.admin1}` : ''}${place.city ? `/${place.city}` : ''}`;
-}
+// The place key's grammar moved to place-key.ts (data.ts needs it too, and cannot
+// import this file); re-exported so every caller of it from here keeps working.
+export { formatPlaceKey, parsePlaceKey, placeKeyLabel, type PlaceKey } from './place-key';
 
 /** A pay floor from the address: a whole number of thousands in the box's own bounds, or null. */
 export function parsePayMin(value: string | null): number | null {
@@ -328,10 +290,18 @@ export function payFloorOfBand(comp: string): number | null {
   return thousands >= PAY_MIN_K ? thousands : null;
 }
 
-/** The pay fields a legacy `comp` value means, the one place that translation is written. */
+/**
+ * The pay fields a legacy `comp` value means, the one place that translation is
+ * written. A band is not kept as a band: it is its lower bound, a floor, so the
+ * strip, the address and the store all speak one pay filter (decision 3 in
+ * docs/search-engine-plan.md). `comp=150-200` therefore reads as `pay_min=150`
+ * and keeps the postings at $200k and over as well, which is wider than the band
+ * it names and is said on the strip, whose options are floors. `comp=under-150`
+ * is a ceiling, which a floor cannot say, and reads as no pay filter.
+ */
 function payFromComp(comp: CompFacet): Pick<BoardQuery, 'comp' | 'payMin' | 'compNotListed'> {
   if (comp === 'not-listed') return { comp, payMin: null, compNotListed: true };
-  return { comp, payMin: comp === 'all' ? null : payFloorOfBand(comp), compNotListed: false };
+  return { comp: 'all', payMin: comp === 'all' ? null : payFloorOfBand(comp), compNotListed: false };
 }
 
 /** The arrangements an old single `location` value means. */
@@ -358,7 +328,17 @@ function locationOf(remote: readonly RemoteKind[]): LocationFacet {
  *   pay      `comp=not-listed` wins over everything: no stated pay and a pay
  *            floor cannot both be true, so the floor is dropped. Otherwise an
  *            explicit `pay_min=` wins over a legacy band. Otherwise a band
- *            reads as its lower bound.
+ *            reads as its lower bound (payFromComp): a band is never applied as
+ *            a band any more.
+ *
+ * ONE VALUE THE STRIP'S FORM SENDS THAT THE ADDRESS WRITER NEVER DOES:
+ * `pay_min=not-listed`. The Comp control is one select, a select submits one
+ * name, and its seven answers are six floors and "state no pay". Without script
+ * the select is what is submitted, so the one name it has (`pay_min`) has to be
+ * able to say all seven; `not-listed` there reads as `comp=not-listed` (and the
+ * address that results is written back as `comp=not-listed`). `pay_min=all` is
+ * the "Any" answer and, like every value that is not a floor in range, is no
+ * choice.
  *
  * Only the value that decides the pay filter is kept: an explicit floor clears
  * `comp`, so the two never disagree about what is applied.
@@ -380,7 +360,19 @@ export function parseBoardQuery(params: URLSearchParams): BoardQuery {
   // applies to the same names, so the box and the table cannot read one address
   // two ways.
   let payMin: number | null = null;
-  for (const value of params.getAll('pay_min')) payMin = parsePayMin(value) ?? payMin;
+  let payNotListed = false;
+  for (const value of params.getAll('pay_min')) {
+    if (value.trim() === 'not-listed') {
+      payNotListed = true;
+      payMin = null;
+    } else {
+      const floor = parsePayMin(value);
+      if (floor !== null) {
+        payMin = floor;
+        payNotListed = false;
+      }
+    }
+  }
   let company: string | null = null;
   for (const value of params.getAll('company')) company = parseCompany(value) ?? company;
   let place: string | null = null;
@@ -392,7 +384,7 @@ export function parseBoardQuery(params: URLSearchParams): BoardQuery {
 
   const legacyComp = oneOf(params.get('comp'), COMP_FACETS, 'all');
   const pay =
-    legacyComp === 'not-listed'
+    legacyComp === 'not-listed' || payNotListed
       ? payFromComp('not-listed')
       : payMin !== null
         ? { comp: 'all', payMin, compNotListed: false }
@@ -418,6 +410,21 @@ export function parseBoardQuery(params: URLSearchParams): BoardQuery {
   };
 }
 
+/**
+ * What the strip's two single-valued controls read as for a query: the value the
+ * option that is chosen carries, which is also what the form submits for it.
+ * `all` is the answer of "no place" and of "any pay"; a place is its key; a pay is
+ * the floor in thousands, or `not-listed`. Written here, beside the parameters,
+ * because it is the inverse of the one translation parseBoardQuery makes.
+ */
+export function stripValues(query: Pick<BoardQuery, 'place' | 'payMin' | 'comp' | 'compNotListed'>): { place: string; pay_min: string } {
+  const floor = query.payMin ?? (query.comp && query.comp !== 'all' ? payFloorOfBand(query.comp) : null);
+  return {
+    place: query.place ?? 'all',
+    pay_min: query.compNotListed || query.comp === 'not-listed' ? 'not-listed' : floor !== null ? String(floor) : 'all'
+  };
+}
+
 /** True when the reader stated anything at all in the address. */
 export function isExplicit(params: URLSearchParams): boolean {
   return params.toString() !== '';
@@ -436,19 +443,19 @@ const FILTER_KEYS: readonly (keyof BoardQuery)[] = [
  *
  * ONLY WHAT DIFFERS FROM THE DEFAULT is written, so the bare board stays bare.
  *
- * The owners matter to hiddenFields. A form that owns the Location select owns
- * `remote` too: this list writes the arrangement as `remote=`, the select
- * submits `location=`, and a form that carried the first while submitting the
- * second would be silently overruled by its own hidden field (`remote=` wins in
- * parseBoardQuery), so a change in the select would never take. The same goes
- * for the Comp select and the pay fields.
+ * The owners matter to hiddenFields. A form that owns an arrangement control
+ * owns `remote` and `location` both: this list writes the arrangement as
+ * `remote=`, an older select submits `location=`, and a form that carried the
+ * first while submitting the second would be silently overruled by its own
+ * hidden field (`remote=` wins in parseBoardQuery), so a change in the control
+ * would never take. The same goes for the Comp control and the three pay fields.
  *
  * `location` is never written (the old name for a one-item `remote`). The pay
- * filter is written by whichever generation of control set it: a band or
- * not-listed as `comp=` (the Comp select is still a band picker, and writing a
- * band as its floor would widen "$200K to $250K" into "$200K and up" on the
- * very next page), a floor as `pay_min=`. Once the strip offers floors nothing
- * sets a band and `comp=` is written only for not-listed.
+ * filter is written as ONE thing, a floor (`pay_min=150`) or `comp=not-listed`,
+ * and never as a band: the strip, the address and the store all speak floors. A
+ * query that still carries a band (an older caller, a test fixture) is written
+ * as the floor that band's lower bound is, the translation parseBoardQuery
+ * applies to an address.
  */
 function writtenParams(next: BoardQuery): [string, string, readonly (keyof BoardQuery)[]][] {
   const out: [string, string, readonly (keyof BoardQuery)[]][] = [];
@@ -461,9 +468,12 @@ function writtenParams(next: BoardQuery): [string, string, readonly (keyof Board
   // `remote`) is written as the one-item list it means.
   const remote = (next.remote ?? []).length > 0 ? next.remote : remoteFromLocation(next.location ?? 'all');
   if (remote.length > 0) out.push(['remote', remote.join(','), ['remote', 'location']]);
-  if (next.compNotListed || next.comp === 'not-listed') out.push(['comp', 'not-listed', ['comp', 'payMin', 'compNotListed']]);
-  else if (next.comp !== 'all') out.push(['comp', next.comp, ['comp', 'payMin', 'compNotListed']]);
-  else if (next.payMin != null) out.push(['pay_min', String(next.payMin), ['comp', 'payMin', 'compNotListed']]);
+  const payOwners = ['comp', 'payMin', 'compNotListed'] as const;
+  if (next.compNotListed || next.comp === 'not-listed') out.push(['comp', 'not-listed', payOwners]);
+  else {
+    const floor = next.payMin ?? (next.comp && next.comp !== 'all' ? payFloorOfBand(next.comp) : null);
+    if (floor != null) out.push(['pay_min', String(floor), payOwners]);
+  }
   if (next.freshness !== 'all') out.push(['freshness', next.freshness, ['freshness']]);
   // `!= null` on purpose: a query built without the range (an older caller, a
   // test fixture) reads as open at both ends, never as the string "undefined".

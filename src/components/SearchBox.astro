@@ -25,6 +25,14 @@ import { chipsToParams, type Chip } from '../lib/search-parse';
  * written as a hidden input beside the box, and Filters.astro drops any hidden
  * field of the same name it was handed, so a name is never submitted twice.
  *
+ * EXCEPT THE NAMES A STRIP CONTROL OWNS (`ownedFields`). Location, Remote and
+ * Comp are keyed by place, remote and pay_min, so their own select and checkboxes
+ * submit those and the chip's hidden copy is dropped: left in, it would be a
+ * second answer to the same question, and unticking Remote in the strip while a
+ * Remote chip stood would re-send `remote=remote` and the change would never take.
+ * The chip is still drawn, with its remove link, from the same address; the two
+ * handles are one state because only one of them is a field.
+ *
  * ONE MENU AT A TIME, ACROSS THE BOX AND THE STRIP. The panel and the strip's
  * dropdowns never import each other; they speak through src/lib/menu-claim.ts.
  * Opening the panel, or focusing the field, claims the slot and every strip menu
@@ -66,6 +74,9 @@ interface Props {
   suggestPath?: string;
   sweepV?: string;
   baseParams?: Record<string, string>;
+  /** Address parameters a strip control submits itself, so the box carries no
+      hidden field for a chip that writes one of them. */
+  ownedFields?: readonly string[];
   /** The input's id; the panel and its options derive theirs from it. */
   id?: string;
 }
@@ -77,6 +88,7 @@ const {
   suggestPath = '/board/suggest',
   sweepV = '',
   baseParams = {},
+  ownedFields = [],
   id = 'board-search'
 } = Astro.props;
 
@@ -101,7 +113,8 @@ function chipLabel(chip: Chip): string {
   }
 }
 
-const chipFields = Object.entries(chipsToParams(chips));
+const owned = new Set(ownedFields);
+const chipFields = Object.entries(chipsToParams(chips)).filter(([name]) => !owned.has(name));
 const panelId = `${id}-listbox`;
 const placeholder = chips.length === 0 ? 'Try "senior designer london remote 150k"' : '';
 ---

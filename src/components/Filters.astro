@@ -1,6 +1,6 @@
 ---
 import SearchBox from './SearchBox.astro';
-import type { FilterGroup } from '../lib/data';
+import type { FilterGroup, FilterOption } from '../lib/data';
 import { chipsToParams, type Chip } from '../lib/search-parse';
 import { withBase } from '../../site.config.mjs';
 
@@ -20,8 +20,20 @@ import { withBase } from '../../site.config.mjs';
  * shows as "Not placed", never as an invented bucket.
  *
  * Freshness went the other way and no longer ships (2026-09-28): the board
- * already said a posting's age three other ways. So the strip is Field,
+ * already said a posting's age three other ways. So the strip was Field,
  * Location and Comp. See DECISIONS.md.
+ *
+ * THE STRIP IS LOCATION, REMOTE AND COMP NOW (2026-10-02,
+ * docs/search-engine-design.md §2). Field left it: 44% of rows are ambiguous
+ * between two families, so it was the only control filtering on an inference,
+ * and it returns as navigation under the results (Board.astro). The control
+ * that was called Location filtered how the work is done, so it is Remote, and
+ * Location is geography for the first time: a single choice among the countries
+ * the board holds, whose value is the same `place=` key the search box's chip
+ * writes, so the dropdown and the chip are one state. Remote is a checkbox list
+ * (several arrangements at once). Comp is a floor ($150k+), not a band. Which
+ * groups there are, and every count on them, come from facetGroupsFromCounts
+ * (src/lib/data.ts); this component draws whatever groups it is handed.
  *
  * WHY NATIVE SELECTS RATHER THAN THE CANVAS'S DROPDOWN BUTTONS. A custom
  * dropdown is a listbox, a focus trap, a set of arrow key handlers and a
@@ -76,6 +88,9 @@ interface Props {
   action?: string;
   /** Server mode: the other settings the form carries so it keeps them. */
   hidden?: readonly [string, string][];
+  /** Server mode: the values each checkbox group has ticked, by group key. A
+      group without an entry has none ticked, which reads "All". */
+  checked?: Record<string, readonly string[]>;
   /** Server mode: the search box's current text. */
   query?: string;
   /** Server mode, signed in: the member's Desk titles by shelf. When either
@@ -103,6 +118,7 @@ const {
   mode = 'client',
   action = '',
   hidden = [],
+  checked = {},
   query = '',
   titleChoices,
   selectedTitles = [],
@@ -135,6 +151,28 @@ const Row = serverMode ? 'form' : 'div';
 const chipNames = new Set(Object.keys(chipsToParams(chips)));
 const carried = hidden.filter(([name]) => !chipNames.has(name));
 
+// THE CELLS THE STRIP DRAWS. A group placed under the results (the Field) rides
+// in the same list because that list is what a page hands the board, and is
+// Board.astro's to draw, not this row's.
+const stripGroups = groups.filter((group) => group.placement !== 'results');
+// A strip control OWNS the parameter its group is keyed by (`place`, `remote`,
+// `pay_min`): its own fields submit it. A search-box chip that writes the same
+// parameter into a hidden field would be a second, stale answer to one question
+// (unticking Remote in the strip while a Remote chip's hidden field re-sent it),
+// so the box is told which names are not its to carry.
+const ownedNames = stripGroups.map((group) => group.key);
+
+// THE PLACE THE ADDRESS CHOSE, BY THE CHIP'S OWN NAME. facetGroupsFromCounts holds
+// a city or region the address names as an option and labels it from its key
+// (place-key.ts); the chip beside it carries the lexicon's label, and the two
+// must read alike. A bare country keeps the country list's own name.
+const placeChip = chips.find((chip): chip is Extract<Chip, { kind: 'place' }> => chip.kind === 'place');
+const cells: FilterGroup[] = stripGroups.map((group) =>
+  group.key === 'place' && placeChip !== undefined && placeChip.key.length > 2
+    ? { ...group, options: group.options.map((option) => (option.value === placeChip.key ? { ...option, label: placeChip.label } : option)) }
+    : group
+);
+
 /**
  * What one option reads as: its label alone (2026-09-11). The count used to
  * ride in the text ("Remote (412)"), which made the closed control read
@@ -144,15 +182,35 @@ const carried = hidden.filter(([name]) => !chipNames.has(name));
  * it out in the open list and refuses the choice.
  */
 const optionText = (label: string): string => label;
-const dead = (option: { value: string; count: number }, current: string | undefined): boolean =>
-  option.count === 0 && option.value !== 'all' && option.value !== current;
+/** A zero is dead unless the address already names it (the select must be able to
+    say what it holds); an option flagged `disabled` is dead whatever it holds. */
+const dead = (option: FilterOption, current: string | undefined): boolean =>
+  option.disabled === true || (option.count === 0 && option.value !== 'all' && option.value !== current);
+/** The same rule for a checkbox: a zero that is ticked stays live, so it can be unticked. */
+const deadBox = (option: FilterOption, on: boolean): boolean => option.disabled === true || (option.count === 0 && !on);
+/** A count the way the menu prints it, fixed to one locale so the server's markup
+    and the script's rows never differ by where the server runs. */
+const countText = (n: number): string => n.toLocaleString('en-US');
 
-/** The widest option text in a group, which is what sizes the control. */
-const widest = (group: FilterGroup): string =>
-  group.options.reduce((longest, option) => {
+/** The widest option text in a group, which is what sizes the control. A checkbox
+    group's value can also read as two names ("Remote + Hybrid"), so its widest
+    is at least that. */
+const widest = (group: FilterGroup): string => {
+  const longest = group.options.reduce((found, option) => {
     const text = optionText(option.label);
-    return text.length > longest.length ? text : longest;
+    return text.length > found.length ? text : found;
   }, '');
+  if (!group.multi) return longest;
+  const pair = group.options
+    .filter((option) => option.value !== 'all')
+    .slice(0, 2)
+    .map((option) => option.label)
+    .join(' + ');
+  return pair.length > longest.length ? pair : longest;
+};
+// The two controls whose values are names a reader needs whole (a country, two
+// arrangements) get a wider ceiling than the 14ch the rest cap at.
+const wide = (group: FilterGroup): boolean => group.key === 'place' || group.multi === true;
 ---
 
 <div
@@ -195,6 +253,7 @@ const widest = (group: FilterGroup): string =>
           q={query}
           chips={chips}
           chipRemoveHrefs={chipRemoveHrefs}
+          ownedFields={ownedNames}
           suggestPath={suggestPath}
           sweepV={sweepV}
           baseParams={baseParams}
@@ -247,36 +306,77 @@ const widest = (group: FilterGroup): string =>
       </details>
     )}
     {
-      groups.map((group) => (
-        <label class="filter">
-          <span class="filter-label mono-label">{group.label}</span>
-          <span class="filter-field">
-            {/*
-              The sizer is the widest option, laid out and invisible. It gives the
-              control a width that does not depend on which option is chosen,
-              which is the whole no-layout-shift guarantee in one element.
-            */}
-            <span class="filter-sizer mono" aria-hidden="true">{widest(group)}</span>
-            <select
-              class="filter-select mono"
-              data-filter-group={group.key}
-              name={serverMode ? group.key : undefined}
-              data-autosubmit={serverMode ? '' : undefined}
-            >
-              {group.options.map((option) => (
-                <option
-                  value={option.value}
-                  selected={selected[group.key] === option.value}
-                  disabled={dead(option, selected[group.key])}
-                  data-count={option.count}
-                >
-                  {optionText(option.label)}
-                </option>
-              ))}
-            </select>
-          </span>
-        </label>
-      ))
+      cells.map((group) => {
+        const ticked = new Set(checked[group.key] ?? []);
+        const everything = group.options.find((option) => option.value === 'all');
+        return group.multi && serverMode ? (
+          <div class="filter filter-multi" role="group" aria-label={group.label} data-filter-multi={group.key} data-all-label={everything?.label} data-all-count={everything?.count}>
+            <span class="filter-label mono-label">{group.label}</span>
+            <span class="filter-field filter-field-wide">
+              {/* The sizer is what the script's trigger will say at its widest, laid
+                  out and invisible, as it is for a select. */}
+              <span class="filter-sizer mono" aria-hidden="true">{widest(group)}</span>
+              {/* REAL CHECKBOXES, NAMED FOR THE PARAMETER. Each ticked box submits one
+                  `remote=<kind>` field, which parseBoardQuery reads the same as the
+                  comma list a link writes. Without script they are the control and the
+                  Apply button submits them; with script they stand aside (they stay
+                  in the form and still hear the change) and the trigger and menu the
+                  script builds take their cell. None ticked is "All". */}
+              <span class="multi-options">
+                {group.options
+                  .filter((option) => option.value !== 'all')
+                  .map((option) => (
+                    <label class="multi-option mono">
+                      <input
+                        type="checkbox"
+                        class="multi-box"
+                        name={group.key}
+                        value={option.value}
+                        autocomplete="off"
+                        checked={ticked.has(option.value)}
+                        disabled={deadBox(option, ticked.has(option.value))}
+                        data-multi-option
+                        data-count={option.count}
+                      />
+                      <span class="multi-name">{optionText(option.label)}</span>
+                      <span class="multi-count">{countText(option.count)}</span>
+                    </label>
+                  ))}
+              </span>
+            </span>
+          </div>
+        ) : (
+          <label class="filter">
+            <span class="filter-label mono-label">{group.label}</span>
+            <span class:list={['filter-field', { 'filter-field-wide': wide(group) }]}>
+              {/*
+                The sizer is the widest option, laid out and invisible. It gives the
+                control a width that does not depend on which option is chosen,
+                which is the whole no-layout-shift guarantee in one element.
+              */}
+              <span class="filter-sizer mono" aria-hidden="true">{widest(group)}</span>
+              <select
+                class="filter-select mono"
+                data-filter-group={group.key}
+                autocomplete="off"
+                name={serverMode ? group.key : undefined}
+                data-autosubmit={serverMode ? '' : undefined}
+              >
+                {group.options.map((option) => (
+                  <option
+                    value={option.value}
+                    selected={selected[group.key] === option.value}
+                    disabled={dead(option, selected[group.key])}
+                    data-count={option.count}
+                  >
+                    {optionText(option.label)}
+                  </option>
+                ))}
+              </select>
+            </span>
+          </label>
+        );
+      })
     }
 
     {serverMode && (
@@ -342,8 +442,18 @@ const widest = (group: FilterGroup): string =>
      choosing a row sets its value and fires its change event, so server mode
      submits and client mode announces exactly as a native choice would.
      Without script there is no menu and the select is what you see.
+
+     A CHECKBOX GROUP (Remote) IS BUILT THE SAME WAY over its real checkboxes:
+     a row toggles its box and fires the box's change, the "All" row unticks
+     them, and without script the boxes are drawn in the cell as they are.
      ------------------------------------------------------------------------- */
-  const menus: { cell: HTMLElement; menu: HTMLElement; trigger: HTMLButtonElement; select: HTMLSelectElement }[] = [];
+  const menus: { cell: HTMLElement; menu: HTMLElement; trigger: HTMLButtonElement }[] = [];
+  /** A strip control with several answers at once: its cell, the checkboxes in
+      the form that hold the answer, and the group's name. */
+  const multis = Array.from(document.querySelectorAll<HTMLElement>('[data-filter-multi]'));
+  /** Every control's repaint of its own trigger, so a page restored from memory
+      can put them all back (see the pageshow listener below). */
+  const repaints: (() => void)[] = [];
 
   function closeMenus(except?: HTMLElement): void {
     for (const entry of menus) {
@@ -354,22 +464,26 @@ const widest = (group: FilterGroup): string =>
     }
   }
 
-  for (const select of selects) {
-    const cell = select.closest<HTMLElement>('.filter');
-    const field = select.closest<HTMLElement>('.filter-field');
-    if (!cell || !field) continue;
-    const group = select.getAttribute('data-filter-group') || 'filter';
-
+  /**
+   * The trigger and the listbox every strip control shares, whatever it picks:
+   * the button in the cell, the list hung off .filters, opening, closing, the
+   * one-menu claim and the arrow keys. What a ROW is and what choosing it does is
+   * the caller's, since a select's rows set one value and a checkbox group's
+   * toggle one box each.
+   */
+  function mountMenu(cell: HTMLElement, field: HTMLElement, name: string, multiselectable: boolean) {
     const trigger = document.createElement('button');
     trigger.type = 'button';
     trigger.className = 'filter-value mono';
     trigger.setAttribute('aria-haspopup', 'listbox');
     trigger.setAttribute('aria-expanded', 'false');
-    trigger.setAttribute('aria-label', `${group}: choose`);
+    trigger.setAttribute('aria-label', `${name}: choose`);
 
     const menu = document.createElement('div');
     menu.className = 'menu';
     menu.setAttribute('role', 'listbox');
+    if (multiselectable) menu.setAttribute('aria-multiselectable', 'true');
+    menu.setAttribute('aria-label', name);
     menu.hidden = true;
 
     // The label goes in its own span so it can be truncated. As a bare text
@@ -380,48 +494,13 @@ const widest = (group: FilterGroup): string =>
     triggerText.className = 'filter-value-text';
     trigger.append(triggerText);
 
-    const paintValue = () => {
-      triggerText.textContent = select.options[select.selectedIndex]?.text ?? '';
-      for (const row of Array.from(menu.querySelectorAll<HTMLElement>('[role="option"]'))) {
-        row.setAttribute('aria-selected', row.dataset.value === select.value ? 'true' : 'false');
-      }
-    };
-
-    for (const option of Array.from(select.options)) {
-      const row = document.createElement('button');
-      row.type = 'button';
-      row.className = 'menu-option';
-      row.setAttribute('role', 'option');
-      row.dataset.value = option.value;
-      if (option.disabled) row.disabled = true;
-      const label = document.createElement('span');
-      label.className = 'menu-label';
-      label.textContent = option.text;
-      const count = document.createElement('span');
-      count.className = 'menu-count mono';
-      const n = Number(option.dataset.count);
-      count.textContent = Number.isFinite(n) ? n.toLocaleString() : '';
-      row.append(label, count);
-      row.addEventListener('click', () => {
-        if (select.value !== option.value) {
-          select.value = option.value;
-          select.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        closeMenus();
-        paintValue();
-        trigger.focus();
-      });
-      menu.append(row);
-    }
-
     trigger.addEventListener('click', () => {
       const open = menu.hidden;
       closeMenus(cell);
       if (open && root) {
-        // The row scrolls sideways at desk width, and a menu inside a scroll
-        // container is clipped to its height. So the menu hangs off .filters
-        // (the column wrapper, position: relative) and is placed under its
-        // cell each time it opens, in the wrapper's own coordinates.
+        // The menu hangs off .filters (the column wrapper, position: relative)
+        // and is placed under its cell each time it opens, in the wrapper's own
+        // coordinates: a menu inside the row would be clipped by it.
         const rootBox = root.getBoundingClientRect();
         const cellBox = cell.getBoundingClientRect();
         menu.style.left = `${Math.max(0, cellBox.left - rootBox.left)}px`;
@@ -434,7 +513,13 @@ const widest = (group: FilterGroup): string =>
       // One menu open at a time: the search box's suggestions close when a strip
       // menu opens (src/lib/menu-claim.ts).
       if (open) claimMenu('strip');
-      if (open) menu.querySelector<HTMLElement>('[aria-selected="true"]')?.focus({ preventScroll: true });
+      if (open) {
+        const chosen = menu.querySelector<HTMLElement>('[aria-selected="true"]:not(:disabled)') ?? menu.querySelector<HTMLElement>('[role="option"]:not(:disabled)');
+        chosen?.focus({ preventScroll: true });
+        // A list longer than its panel scrolls, and focus alone would leave the
+        // chosen row below the fold.
+        chosen?.scrollIntoView({ block: 'nearest' });
+      }
     });
 
     menu.addEventListener('keydown', (event) => {
@@ -444,6 +529,7 @@ const widest = (group: FilterGroup): string =>
         event.preventDefault();
         const next = event.key === 'ArrowDown' ? Math.min(rows.length - 1, at + 1) : Math.max(0, at - 1);
         rows[next]?.focus({ preventScroll: true });
+        rows[next]?.scrollIntoView({ block: 'nearest' });
       } else if (event.key === 'Escape') {
         closeMenus();
         trigger.focus();
@@ -452,9 +538,151 @@ const widest = (group: FilterGroup): string =>
 
     field.append(trigger);
     (root ?? cell).append(menu);
-    paintValue();
+    menus.push({ cell, menu, trigger });
+    return { trigger, menu, triggerText };
+  }
+
+  /** A menu row. A press on it must not move focus (.claude/rules/dropdown-focus.md):
+      the click that follows is what chooses, and a press that blurred first would
+      lose it in Safari and Firefox on macOS. */
+  function menuRow(label: string, count: number, disabled: boolean): HTMLButtonElement {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'menu-option';
+    row.setAttribute('role', 'option');
+    if (disabled) {
+      row.disabled = true;
+      row.setAttribute('aria-disabled', 'true');
+    }
+    const name = document.createElement('span');
+    name.className = 'menu-label';
+    name.textContent = label;
+    const tally = document.createElement('span');
+    tally.className = 'menu-count mono';
+    tally.textContent = Number.isFinite(count) ? count.toLocaleString() : '';
+    row.append(name, tally);
+    row.addEventListener('mousedown', (event) => event.preventDefault());
+    return row;
+  }
+
+  for (const select of selects) {
+    const cell = select.closest<HTMLElement>('.filter');
+    const field = select.closest<HTMLElement>('.filter-field');
+    if (!cell || !field) continue;
+    const group = select.getAttribute('data-filter-group') || 'filter';
+    // Named for what the reader reads (Location, Comp), not for the parameter.
+    const name = cell.querySelector('.filter-label')?.textContent?.trim() || group;
+    const { trigger, menu, triggerText } = mountMenu(cell, field, name, false);
+
+    const paintValue = () => {
+      triggerText.textContent = select.options[select.selectedIndex]?.text ?? '';
+      for (const row of Array.from(menu.querySelectorAll<HTMLElement>('[role="option"]'))) {
+        row.setAttribute('aria-selected', row.dataset.value === select.value ? 'true' : 'false');
+      }
+    };
+
+    for (const option of Array.from(select.options)) {
+      const row = menuRow(option.text, Number(option.dataset.count), option.disabled);
+      row.dataset.value = option.value;
+      row.addEventListener('click', () => {
+        // A refused row is a disabled button and gets no click from the browser;
+        // this is for the click something else dispatched at it.
+        if (option.disabled) return;
+        if (select.value !== option.value) {
+          select.value = option.value;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        closeMenus();
+        paintValue();
+        trigger.focus();
+      });
+      menu.append(row);
+    }
+
     select.addEventListener('change', paintValue);
-    menus.push({ cell, menu, trigger, select });
+    repaints.push(paintValue);
+    paintValue();
+  }
+
+  /** The words a checkbox group's cell reads, from the boxes ticked: "All", the
+      one name, or the names joined ("Remote + Hybrid"). Past two it says how
+      many, so the cell stays one short line; CSS truncates anything still long. */
+  function multiValue(names: readonly string[], all: string): string {
+    if (names.length === 0) return all;
+    if (names.length <= 2) return names.join(' + ');
+    return `${names.slice(0, 2).join(' + ')} + ${names.length - 2}`;
+  }
+
+  for (const cell of multis) {
+    const field = cell.querySelector<HTMLElement>('.filter-field');
+    const boxes = Array.from(cell.querySelectorAll<HTMLInputElement>('input[data-multi-option]'));
+    if (!field || boxes.length === 0) continue;
+    const group = cell.getAttribute('data-filter-multi') || 'filter';
+    const name = cell.querySelector('.filter-label')?.textContent?.trim() || group;
+    const allLabel = cell.getAttribute('data-all-label') || 'All';
+    const { trigger, menu, triggerText } = mountMenu(cell, field, name, true);
+    const nameOf = (box: HTMLInputElement) => box.closest('label')?.querySelector('.multi-name')?.textContent ?? box.value;
+
+    // A row's mark: a hollow square, filled while its box is ticked.
+    const markRow = (row: HTMLButtonElement) => {
+      row.classList.add('menu-option-multi');
+      const mark = document.createElement('span');
+      mark.className = 'menu-mark';
+      mark.setAttribute('aria-hidden', 'true');
+      row.prepend(mark);
+    };
+    // The "All" row clears: it is the answer when nothing is ticked, so its mark
+    // is filled then, and the names under it line up with it.
+    const clearRow = menuRow(allLabel, Number(cell.getAttribute('data-all-count')), false);
+    clearRow.dataset.value = 'all';
+    markRow(clearRow);
+    menu.append(clearRow);
+    const rows = new Map<HTMLInputElement, HTMLButtonElement>();
+    for (const box of boxes) {
+      const row = menuRow(nameOf(box), Number(box.dataset.count), box.disabled);
+      row.dataset.value = box.value;
+      markRow(row);
+      rows.set(box, row);
+      menu.append(row);
+    }
+
+    const paintValue = () => {
+      const on = boxes.filter((box) => box.checked);
+      const text = multiValue(on.map(nameOf), allLabel);
+      triggerText.textContent = text;
+      trigger.title = on.length > 2 ? on.map(nameOf).join(' + ') : '';
+      clearRow.setAttribute('aria-selected', on.length === 0 ? 'true' : 'false');
+      for (const [box, row] of rows) row.setAttribute('aria-selected', box.checked ? 'true' : 'false');
+    };
+
+    for (const [box, row] of rows) {
+      // A press toggles the real checkbox and says so the way a click on it
+      // would, so the form submits (or, signed in, the choice is saved) through
+      // the one path a native tick takes. The menu stays open until the page
+      // answers, with the box ticked, rather than flashing shut over a request.
+      row.addEventListener('click', () => {
+        if (box.disabled) return;
+        box.checked = !box.checked;
+        box.dispatchEvent(new Event('change', { bubbles: true }));
+        paintValue();
+      });
+    }
+    clearRow.addEventListener('click', () => {
+      const ticked = boxes.filter((box) => box.checked);
+      for (const box of ticked) box.checked = false;
+      paintValue();
+      if (ticked.length === 0) {
+        closeMenus();
+        trigger.focus();
+        return;
+      }
+      // One submit for the whole clear, not one per box that was ticked.
+      if (serverMode) boxes[0].form?.requestSubmit();
+      else boxes[0].dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    for (const box of boxes) box.addEventListener('change', paintValue);
+    repaints.push(paintValue);
+    paintValue();
   }
 
   const titleMenu = document.querySelector<HTMLDetailsElement>('[data-title-menu]');
@@ -480,12 +708,28 @@ const widest = (group: FilterGroup): string =>
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeMenus();
   });
+  // BACK, OR FORWARD, CAN BRING THIS PAGE BACK FROM MEMORY EXACTLY AS IT WAS
+  // LEFT: a menu open, and whatever was ticked or chosen at the moment the form
+  // went. The address is the state, and it is the earlier one, so a strip that
+  // still showed the choice that took the reader away would claim a filter the
+  // rows under it do not have. Every control goes back to what the server drew.
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted) return;
+    closeMenus();
+    for (const select of selects) {
+      const drawn = Array.from(select.options).find((option) => option.defaultSelected);
+      if (drawn) select.value = drawn.value;
+    }
+    for (const box of document.querySelectorAll<HTMLInputElement>('input[data-multi-option]')) box.checked = box.defaultChecked;
+    for (const repaint of repaints) repaint();
+  });
   if (serverMode) {
     for (const select of document.querySelectorAll<HTMLSelectElement>('[data-filters] select[data-autosubmit]')) {
       select.addEventListener('change', () => select.form?.requestSubmit());
     }
-    // A ticked title submits the same way a chosen facet does.
-    for (const box of document.querySelectorAll<HTMLInputElement>('[data-filters] input[data-title-option]')) {
+    // A ticked title submits the same way a chosen facet does, and so does a
+    // ticked arrangement.
+    for (const box of document.querySelectorAll<HTMLInputElement>('[data-filters] input[data-title-option], [data-filters] input[data-multi-option]')) {
       box.addEventListener('change', () => box.form?.requestSubmit());
     }
   }
@@ -554,13 +798,43 @@ const widest = (group: FilterGroup): string =>
      MASTER-SPEC F10, second bullet: deterministic, stateful filters.
      ------------------------------------------------------------------------- */
 
+  /** The kinds a checkbox group has ticked, as the comma list the address reads. */
+  function tickedOf(cell: HTMLElement): string[] {
+    return Array.from(cell.querySelectorAll<HTMLInputElement>('input[data-multi-option]:checked')).map((box) => box.value);
+  }
+
   function currentSelection(): Record<string, string> {
     const selection: Record<string, string> = {};
     for (const select of selects) {
       const group = select.getAttribute('data-filter-group');
       if (group) selection[group] = select.value;
     }
+    for (const cell of multis) {
+      const group = cell.getAttribute('data-filter-multi');
+      if (group) selection[group] = tickedOf(cell).join(',') || 'all';
+    }
     return selection;
+  }
+
+  /**
+   * THE READER EMPTIED THE BOARD, AND IS NOT ARRIVING AT IT. The "x" on the last
+   * chip and "Clear the filters" both lead to the board's bare address, and a bare
+   * address restores the saved selection, which is the very thing the reader just
+   * took off: the last filter could never be removed. They are told apart by where
+   * the reader came from. The board's own address as the referrer means they were
+   * looking at it a moment ago; anything else (the home page, the nav, a bookmark,
+   * a typed address, which sends none) is an arrival, and arrivals restore.
+   */
+  function clearedOnTheBoard(): boolean {
+    if (!serverMode || !boardPath || window.location.search !== '') return false;
+    const boardHere = boardPath.replace(/\/$/, '');
+    if (window.location.pathname.replace(/\/$/, '') !== boardHere) return false;
+    try {
+      const from = new URL(document.referrer);
+      return from.origin === window.location.origin && from.pathname.replace(/\/$/, '') === boardHere;
+    } catch {
+      return false;
+    }
   }
 
   /** Sets every select to a stored value and announces each change through
@@ -598,6 +872,18 @@ const widest = (group: FilterGroup): string =>
         if (typeof value !== 'string' || value === 'all') continue;
         if (!Array.from(select.options).some((option) => option.value === value)) continue;
         params.set(group as string, value);
+        any = true;
+      }
+      // A checkbox group was saved as the comma list the address reads; only
+      // the kinds this page still offers are kept.
+      for (const cell of multis) {
+        const group = cell.getAttribute('data-filter-multi');
+        const value = group ? source[group] : undefined;
+        if (!group || typeof value !== 'string' || value === 'all') continue;
+        const offered = new Set(Array.from(cell.querySelectorAll<HTMLInputElement>('input[data-multi-option]')).map((box) => box.value));
+        const kept = value.split(',').filter((part) => offered.has(part));
+        if (kept.length === 0) continue;
+        params.set(group, kept.join(','));
         any = true;
       }
       if (any) window.location.replace(`${boardPath}?${params.toString()}`);
@@ -639,6 +925,9 @@ const widest = (group: FilterGroup): string =>
 
   for (const select of selects) {
     select.addEventListener('change', persistSelection);
+  }
+  for (const box of document.querySelectorAll<HTMLInputElement>('input[data-multi-option]')) {
+    box.addEventListener('change', persistSelection);
   }
 
   /* -------------------------------------------------------------------------
@@ -765,10 +1054,13 @@ const widest = (group: FilterGroup): string =>
      ------------------------------------------------------------------------- */
 
   (async () => {
+    // A board the reader just emptied states its selection (none) as surely as an
+    // address with parameters does, and that empty selection is the one to keep.
+    const cleared = clearedOnTheBoard();
     // Signed-out baseline first, unconditionally, so a slow or failed
     // network never leaves the page showing the un-restored default select
     // state for longer than a local read requires.
-    if (serverMode && window.location.search !== '') {
+    if (serverMode && (window.location.search !== '' || cleared)) {
       // The address states the selection; that is now the saved one.
       writeJSON(window.localStorage, FILTERS_KEY, currentSelection());
     } else {
@@ -793,7 +1085,7 @@ const widest = (group: FilterGroup): string =>
       // reader who has used this account on another device. A person with
       // no saved selection yet (`selection: null`) keeps whatever the
       // localStorage pass above already applied.
-      if (serverMode && window.location.search !== '') persistSelection();
+      if (serverMode && (window.location.search !== '' || cleared)) persistSelection();
       else if (body && body.selection) applySelection(body.selection);
 
       // The seen set moves from sessionStorage to localStorage the instant
@@ -874,6 +1166,16 @@ const widest = (group: FilterGroup): string =>
     flex: 1 1 auto;
     min-width: var(--space-900);
     cursor: text;
+  }
+
+  /* WITH CHIPS, THE BOX TAKES ITS OWN LINE. Location, Remote and Comp are as wide
+     as the words they hold ("London, United Kingdom", "Remote + On-site"), which
+     left the box a column about 250px wide, and three chips in a column that
+     narrow stack one to a line and make the strip four lines tall. Given the
+     whole width the chips sit in a row and the controls wrap below them, the
+     way the row wraps at every other width. Without a chip nothing changes. */
+  .filters-row > :global(.search-box:has(.sb-chip)) {
+    flex: 1 0 100%;
   }
 
   .search-glyph {
@@ -996,6 +1298,15 @@ const widest = (group: FilterGroup): string =>
     max-width: 14ch;
   }
 
+  /* Two controls hold names a reader needs whole: a place ("London, United
+     Kingdom" is twenty-two characters and the chevron needs two more) and two
+     arrangements ("Remote + Hybrid", fifteen). This is a ceiling and not a width:
+     with script the cell is as wide as the value it holds. Everything longer still
+     truncates. */
+  .filter-field-wide {
+    max-width: 24ch;
+  }
+
   .filter-sizer {
     visibility: hidden;
     display: block;
@@ -1036,6 +1347,67 @@ const widest = (group: FilterGroup): string =>
   }
 
   [data-filters][data-js] .filter-select {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* THE CHECKBOX GROUP (Remote). Without script the real checkboxes ARE the
+     control, drawn in the cell, each with its count, and wrap if the cell is
+     narrow; the cell then takes whatever width they need. With script they stand
+     aside, like a select does, and the trigger and menu the script builds take
+     the cell, at the same capped width as the other controls. */
+  .filter-multi .filter-field {
+    max-width: none;
+  }
+
+  .filter-multi .filter-sizer {
+    display: none;
+  }
+
+  .multi-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-200) var(--space-400);
+  }
+
+  .multi-option {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-200);
+    font-size: var(--size-100);
+    color: var(--color-foreground);
+    cursor: pointer;
+  }
+
+  .multi-option:has(.multi-box:disabled) {
+    color: var(--color-muted);
+    cursor: default;
+  }
+
+  .multi-box {
+    margin: 0;
+  }
+
+  .multi-count {
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--feature-tabular);
+  }
+
+  [data-filters][data-js] .filter-multi .filter-field {
+    max-width: 24ch;
+  }
+
+  /* Wrapped over several lines, the label belongs to the first one. */
+  [data-filters]:not([data-js]) .filter-multi {
+    align-items: baseline;
+  }
+
+  [data-filters][data-js] .multi-options {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -1124,6 +1496,13 @@ const widest = (group: FilterGroup): string =>
     display: none;
   }
 
+  /* A long list (every country the board holds) scrolls inside its panel instead
+     of running off the screen; the suggestion panel does the same (SearchBox.astro). */
+  .filters > :global(.menu) {
+    max-height: min(26rem, 70vh);
+    overflow-y: auto;
+  }
+
   .filters :global(.menu-option) {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -1143,6 +1522,28 @@ const widest = (group: FilterGroup): string =>
 
   .filters :global(.menu-option:first-child) {
     border-top: none;
+  }
+
+  /* A row of the checkbox group: a mark, then the name, then the count. The mark
+     is a hollow hairline square, filled while the row is ticked. */
+  .filters :global(.menu-option-multi) {
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+  }
+
+  .filters :global(.menu-mark) {
+    width: var(--space-300);
+    height: var(--space-300);
+    border: var(--border-hairline) solid var(--color-line-strong);
+  }
+
+  .filters :global(.menu-option-multi[aria-selected='true'] .menu-mark) {
+    background: var(--color-foreground);
+    border-color: var(--color-foreground);
+  }
+
+  .filters :global(.menu-option-multi:disabled .menu-mark) {
+    border-color: var(--color-line);
   }
 
   .filters :global(.menu-option:hover),
@@ -1317,6 +1718,17 @@ const widest = (group: FilterGroup): string =>
 
     .filter-toggle {
       margin-left: 0;
+    }
+
+    /* The strip is a column here, where a full-width basis would be a height. */
+    .filters-row > :global(.search-box:has(.sb-chip)) {
+      flex: 0 0 auto;
+    }
+
+    /* Without script the arrangements are drawn in the cell as checkboxes, and
+       each is a target a thumb has to hit (44pt). */
+    .multi-option {
+      min-height: 2.75rem;
     }
   }
 </style>

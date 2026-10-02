@@ -312,24 +312,169 @@ describe('facetsOf location for a company that has not posted', () => {
   });
 });
 
-describe('facetGroupsFromCounts', () => {
-  it('sorts Not placed by its count, like every other field', async () => {
-    // It used to be pinned last under every family however small, so a list
-    // sorted by count ran 40, 30, 3, 2 and then jumped to 25 at the bottom.
+describe('facetGroupsFromCounts: the board (stated-fact counts)', () => {
+  // The strip is three controls and the Field leaves it. Every count is the
+  // store's leave-one-out count over one population, and nothing is dropped.
+  const ALL = { location: 'all', comp: 'all', freshness: 'all' } as const;
+  const counts = {
+    total: 100,
+    location: {}, comp: {}, freshness: {},
+    remote: { all: 100, remote: 40, hybrid: 10, onsite: 45, unstated: 5 },
+    pay: { any: 100, notListed: 60, floors: { '100': 30, '150': 20, '200': 8, '250': 0, '300': 0 } },
+    place: { countries: { US: 60, GB: 12, CA: 12, IN: 4 }, notStated: 12 },
+    family: { all: 100, software: 40, design: 30, unplaced: 25, legal: 3, sales: 2 }
+  };
+
+  it('is Location, Remote, Comp, in that order, and the Field after them as navigation, not a strip control', async () => {
     const { facetGroupsFromCounts } = await import('./data');
-    const groups = facetGroupsFromCounts(
-      {
-        location: { all: 100 },
-        comp: { all: 100 },
-        freshness: { all: 100 },
-        family: { all: 100, software: 40, design: 30, unplaced: 25, legal: 3, sales: 2 }
-      },
-      { location: 'all', comp: 'all', freshness: 'all', fam: 'all' }
-    );
-    const fam = groups.find((g) => g.key === 'fam');
-    expect(fam?.options.map((o) => o.value)).toEqual(['all', 'software', 'design', 'unplaced', 'legal', 'sales']);
+    const groups = facetGroupsFromCounts(counts, ALL);
+    expect(groups.map((g) => g.key)).toEqual(['place', 'remote', 'pay_min', 'fam']);
+    expect(groups.map((g) => g.label)).toEqual(['Location', 'Remote', 'Comp', 'Field']);
+    expect(groups.map((g) => g.placement ?? 'strip')).toEqual(['strip', 'strip', 'strip', 'results']);
+    expect(groups.map((g) => g.multi === true)).toEqual([false, true, false, false]);
   });
 
+  it('Location: Worldwide first (everything), countries by count with English names, Not stated last and disabled', async () => {
+    const { facetGroupsFromCounts } = await import('./data');
+    const place = facetGroupsFromCounts(counts, ALL).find((g) => g.key === 'place')!;
+    expect(place.options.map((o) => [o.value, o.label, o.count])).toEqual([
+      ['all', 'Worldwide', 100],
+      ['US', 'United States', 60],
+      // A tie (12 and 12) is broken by name, so the order is the same every night.
+      ['CA', 'Canada', 12],
+      ['GB', 'United Kingdom', 12],
+      ['IN', 'India', 4],
+      ['unstated', 'Not stated', 12]
+    ]);
+    // Worldwide is the sum of the places, which is what the store's leave-one-out takes.
+    expect(place.options[0].count).toBe(60 + 12 + 12 + 4 + 12);
+    expect(place.options.map((o) => o.disabled === true)).toEqual([false, false, false, false, false, true]);
+    // The absence is drawn with its count, not hidden.
+    expect(place.options.at(-1)).toMatchObject({ value: 'unstated', label: 'Not stated', count: 12 });
+  });
+
+  it('Location: a chosen city or region is its own option under Worldwide, read as its own name, and the list still offers countries', async () => {
+    const { facetGroupsFromCounts } = await import('./data');
+    const city = facetGroupsFromCounts(counts, { ...ALL, place: 'GB/London' }).find((g) => g.key === 'place')!;
+    expect(city.options.slice(0, 3).map((o) => [o.value, o.label, o.count])).toEqual([
+      ['all', 'Worldwide', 100],
+      ['GB/London', 'London, United Kingdom', 100],
+      ['US', 'United States', 60]
+    ]);
+    expect(city.options.some((o) => o.value === 'GB')).toBe(true);
+    const region = facetGroupsFromCounts(counts, { ...ALL, place: 'US-MD' }).find((g) => g.key === 'place')!;
+    expect(region.options[1]).toMatchObject({ value: 'US-MD', label: 'Maryland' });
+    // A country that IS in the list is not listed twice.
+    const country = facetGroupsFromCounts(counts, { ...ALL, place: 'GB' }).find((g) => g.key === 'place')!;
+    expect(country.options.filter((o) => o.value === 'GB')).toHaveLength(1);
+    expect(country.options).toHaveLength(6);
+  });
+
+  it('Location: a chosen country the counts do not list (no rows under the other filters) is shown at zero, not lost', async () => {
+    const { facetGroupsFromCounts } = await import('./data');
+    const place = facetGroupsFromCounts(counts, { ...ALL, place: 'FR' }).find((g) => g.key === 'place')!;
+    expect(place.options[1]).toMatchObject({ value: 'FR', label: 'France', count: 0 });
+  });
+
+  it('Location: a country the counts hand over at zero is kept, after the ones with rows, and Worldwide still sums the places', async () => {
+    // The store lists only countries that have rows under the other filters, so a
+    // country that empties drops off the list unless the counts carry it at zero
+    // (see the report: that is the one place "never hidden" needs the store). This
+    // is the strip's half: given a zero, it draws a zero, last among the countries
+    // (France before Germany: ties go by name, not by code).
+    const { facetGroupsFromCounts } = await import('./data');
+    const place = facetGroupsFromCounts(
+      { ...counts, place: { countries: { US: 60, FR: 0, GB: 12, DE: 0 }, notStated: 0 } },
+      ALL
+    ).find((g) => g.key === 'place')!;
+    expect(place.options.map((o) => [o.value, o.count])).toEqual([
+      ['all', 72], ['US', 60], ['GB', 12], ['FR', 0], ['DE', 0], ['unstated', 0]
+    ]);
+  });
+
+  it('Remote: a multi group of the four arrangements, each with its own count, All first', async () => {
+    const { facetGroupsFromCounts } = await import('./data');
+    const remote = facetGroupsFromCounts(counts, ALL).find((g) => g.key === 'remote')!;
+    expect(remote.multi).toBe(true);
+    expect(remote.options.map((o) => [o.value, o.label, o.count])).toEqual([
+      ['all', 'All', 100],
+      ['remote', 'Remote', 40],
+      ['hybrid', 'Hybrid', 10],
+      ['onsite', 'On-site', 45],
+      ['unstated', 'Not stated', 5]
+    ]);
+    // The old name of the same counts is read when the new one is absent.
+    const old = facetGroupsFromCounts({ ...counts, remote: undefined, location: counts.remote }, ALL).find((g) => g.key === 'remote')!;
+    expect(old.options.map((o) => o.count)).toEqual([100, 40, 10, 45, 5]);
+  });
+
+  it('Comp: Any, the floors the store counted, Not listed; the value is the floor in thousands', async () => {
+    const { facetGroupsFromCounts } = await import('./data');
+    const pay = facetGroupsFromCounts(counts, ALL).find((g) => g.key === 'pay_min')!;
+    expect(pay.options.map((o) => [o.value, o.label, o.count])).toEqual([
+      ['all', 'Any', 100],
+      ['100', '$100k+', 30],
+      ['150', '$150k+', 20],
+      ['200', '$200k+', 8],
+      ['250', '$250k+', 0],
+      ['300', '$300k+', 0],
+      ['not-listed', 'Not listed', 60]
+    ]);
+    expect(pay.options.every((o) => o.disabled !== true)).toBe(true);
+  });
+
+  it('Comp: a floor the search box set that is not one of the six is held as its own option, in order', async () => {
+    const { facetGroupsFromCounts } = await import('./data');
+    const pay = facetGroupsFromCounts(counts, { ...ALL, payMin: 175 }).find((g) => g.key === 'pay_min')!;
+    expect(pay.options.map((o) => o.value)).toEqual(['all', '100', '150', '175', '200', '250', '300', 'not-listed']);
+    expect(pay.options.find((o) => o.value === '175')).toMatchObject({ label: '$175k+', count: 100 });
+    // A chosen Not listed adds nothing.
+    const none = facetGroupsFromCounts(counts, { ...ALL, payMin: 175, compNotListed: true }).find((g) => g.key === 'pay_min')!;
+    expect(none.options.map((o) => o.value)).toEqual(['all', '100', '150', '200', '250', '300', 'not-listed']);
+  });
+
+  it('never drops a group or an option: over an empty set every control is still there, every option at zero', async () => {
+    const { facetGroupsFromCounts } = await import('./data');
+    const empty = {
+      total: 0, location: {}, comp: {}, freshness: {},
+      remote: { all: 0, remote: 0, hybrid: 0, onsite: 0, unstated: 0 },
+      pay: { any: 0, notListed: 0, floors: { '100': 0, '150': 0, '200': 0, '250': 0, '300': 0 } },
+      place: { countries: {}, notStated: 0 },
+      family: { all: 0 }
+    };
+    const groups = facetGroupsFromCounts(empty, ALL);
+    expect(groups.map((g) => g.key)).toEqual(['place', 'remote', 'pay_min', 'fam']);
+    // Remote and Comp keep every option; Location is Worldwide and Not stated.
+    expect(groups[0].options.map((o) => o.value)).toEqual(['all', 'unstated']);
+    expect(groups[1].options.map((o) => o.value)).toEqual(['all', 'remote', 'hybrid', 'onsite', 'unstated']);
+    expect(groups[2].options.map((o) => o.value)).toEqual(['all', '100', '150', '200', '250', '300', 'not-listed']);
+    for (const group of groups.slice(0, 3)) expect(group.options.every((o) => o.count === 0)).toBe(true);
+  });
+
+  it('every option in a group that is "all in one option" is still returned: a control with one real answer says the number', async () => {
+    const { facetGroupsFromCounts } = await import('./data');
+    const oneAnswer = { ...counts, remote: { all: 100, remote: 0, hybrid: 0, onsite: 100, unstated: 0 }, place: { countries: { US: 100 }, notStated: 0 } };
+    const groups = facetGroupsFromCounts(oneAnswer, ALL);
+    expect(groups.map((g) => g.key)).toEqual(['place', 'remote', 'pay_min', 'fam']);
+    expect(groups[1].options).toHaveLength(5);
+  });
+
+  it('the Field: every family with its count, by count, Not placed sorted among them, as results navigation', async () => {
+    const { facetGroupsFromCounts } = await import('./data');
+    const fam = facetGroupsFromCounts(counts, ALL).find((g) => g.key === 'fam')!;
+    expect(fam.placement).toBe('results');
+    // Not placed sorts by its count, like every other field: it used to be
+    // pinned last under every family however small.
+    expect(fam.options.slice(0, 6).map((o) => o.value)).toEqual(['all', 'software', 'design', 'unplaced', 'legal', 'sales']);
+    // The counts that are zero are returned too; the page decides what to draw.
+    expect(fam.options.length).toBeGreaterThan(6);
+    // No family counts, no Field group.
+    const { family: _drop, ...without } = counts;
+    expect(facetGroupsFromCounts(without, ALL).map((g) => g.key)).toEqual(['place', 'remote', 'pay_min']);
+  });
+});
+
+describe('facetGroupsFromCounts: the Pre-List (old three counts, no stated facts)', () => {
   it('builds the offered groups from counts, drops empty bands, keeps the selected option', async () => {
     const { facetGroupsFromCounts } = await import('./data');
     const groups = facetGroupsFromCounts(
@@ -352,24 +497,29 @@ describe('facetGroupsFromCounts', () => {
 
   it('keeps a group on its OWN selection, not the one beside it', async () => {
     // The keep rule read a parallel array by index, which was right only while
-    // location/comp/freshness were the whole list in that order. Field was added
-    // ahead of them and every index shifted, so a group survived or vanished on
-    // the strength of a different group's value. Reading group.key cannot drift.
+    // the groups were the whole list in one order; a group was then added ahead
+    // of them and every index shifted, so a group survived or vanished on the
+    // strength of a different group's value. Reading group.key cannot drift.
     const { facetGroupsFromCounts } = await import('./data');
     const counts = {
       location: { all: 0, remote: 0, onsite: 0 },
       comp: { all: 0, 'not-listed': 0 },
-      freshness: { all: 0, older: 0 },
-      family: { all: 0, design: 0, unplaced: 0 }
+      freshness: { all: 0, older: 0 }
     };
-    // Only the family is chosen, so only the family survives an empty board.
-    expect(
-      facetGroupsFromCounts(counts, { location: 'all', comp: 'all', freshness: 'all', fam: 'design' }).map((g) => g.key)
-    ).toEqual(['fam']);
-    // And a chosen location survives while the family beside it does not.
-    expect(
-      facetGroupsFromCounts(counts, { location: 'remote', comp: 'all', freshness: 'all', fam: 'all' }).map((g) => g.key)
-    ).toEqual(['location']);
+    // Only the pay band is chosen, so only it survives an empty set.
+    expect(facetGroupsFromCounts(counts, { location: 'all', comp: '150-200', freshness: 'all' }).map((g) => g.key)).toEqual(['comp']);
+    // And a chosen arrangement survives while the pay beside it does not.
+    expect(facetGroupsFromCounts(counts, { location: 'remote', comp: 'all', freshness: 'all' }).map((g) => g.key)).toEqual(['location']);
+  });
+  it('names the arrangement control Remote, never Location', async () => {
+    // "Location" is the geography control's name (owner, 2026-10-02).
+    const { facetGroupsFromCounts, filterGroups } = await import('./data');
+    const counts = { location: { all: 10, remote: 4, onsite: 6 }, comp: { all: 10, 'not-listed': 10 }, freshness: { all: 10 } };
+    expect(facetGroupsFromCounts(counts, { location: 'all', comp: 'all', freshness: 'all' })[0]).toMatchObject({ key: 'location', label: 'Remote' });
+    // The static path (the design fixture, client mode) says the same.
+    const statics = filterGroups([job({ location: 'Remote', remote: true }), job({ id: 'b', slug: 'b', location: 'Austin, TX', remote: false })]);
+    expect(statics.find((g) => g.key === 'location')?.label).toBe('Remote');
+    expect(statics.some((g) => g.label === 'Location')).toBe(false);
   });
   it('drops every group over an empty set, unless the address names a value in it', async () => {
     const { facetGroupsFromCounts } = await import('./data');

@@ -77,3 +77,222 @@ describe('Board.astro in client mode (the Pre-List)', () => {
     expect(html).not.toContain('Rows 1-');
   });
 });
+
+// ---------------------------------------------------------------------------
+// The strip of the stated facts, the Field as links under the results, the
+// close-spelling notice, Best, and the ranking sentence on a row (2026-10-02).
+// ---------------------------------------------------------------------------
+
+import { facetGroupsFromCounts } from '../lib/data';
+import { boardRowToJob, type BoardMatchColumns, type BoardRow } from '../lib/board-jobs';
+
+const COUNTS = {
+  total: 120,
+  location: {}, comp: {}, freshness: {},
+  remote: { all: 120, remote: 40, hybrid: 10, onsite: 65, unstated: 5 },
+  pay: { any: 120, notListed: 60, floors: { '100': 30, '150': 20, '200': 8, '250': 0, '300': 0 } },
+  place: { countries: { US: 70, GB: 30, CA: 20 }, notStated: 0 },
+  // Seven families with rows, a family with none, and Not placed: the links are the
+  // top five, never Not placed, never a zero.
+  family: { all: 120, software: 50, design: 30, sales: 12, legal: 9, finance: 7, health: 6, marketing: 3, unplaced: 25, support: 0 }
+};
+const SERVED = { page: { total: 120, page: 1, pages: 24, per: 5 }, boardPath: '/board' };
+
+function servedGroups(selection: Record<string, unknown> = {}) {
+  return facetGroupsFromCounts(COUNTS, { location: 'all', comp: 'all', freshness: 'all', ...selection });
+}
+
+describe('Board.astro: the strip is Location, Remote and Comp, and carries the Field it no longer draws', () => {
+  it('draws the three cells from the groups, and keeps the Field a reader chose as a hidden fam field', async () => {
+    const html = await render({
+      jobs: JOBS, mode: 'server', ...SERVED,
+      groups: servedGroups(),
+      query: { ...DEFAULT_QUERY, families: ['design'] }
+    });
+    expect(html).toContain('data-filter-group="place"');
+    expect(html).toContain('data-filter-multi="remote"');
+    expect(html).toContain('data-filter-group="pay_min"');
+    expect(html).not.toContain('data-filter-group="fam"');
+    const form = html.match(/<form class="filters-row"[^>]*>([\s\S]*?)<\/form>/)?.[1] ?? '';
+    // Field left the strip, so nothing in the form submits fam: it is carried, or
+    // choosing a Remote option would drop the field the reader picked.
+    expect(form).toMatch(/<input type="hidden" name="fam" value="design"/);
+  });
+
+  it('hands the strip the address\'s own place, floor and arrangements as what is chosen', async () => {
+    const html = await render({
+      jobs: JOBS, mode: 'server', ...SERVED,
+      groups: servedGroups({ place: 'GB', payMin: 150, remote: ['remote', 'hybrid'] }),
+      query: { ...DEFAULT_QUERY, place: 'GB', payMin: 150, remote: ['remote', 'hybrid'], location: 'all' }
+    });
+    expect(html).toMatch(/<option value="GB"[^>]*selected/);
+    expect(html).toMatch(/<option value="150"[^>]*selected/);
+    const boxes = [...html.matchAll(/<input type="checkbox"[^>]*name="remote"[^>]*>/g)].map((m) => m[0]);
+    expect(boxes.filter((b) => /\schecked/.test(b)).map((b) => b.match(/value="([^"]+)"/)![1])).toEqual(['remote', 'hybrid']);
+    // No hidden twin of what the strip submits.
+    const form = html.match(/<form class="filters-row"[^>]*>([\s\S]*?)<\/form>/)?.[1] ?? '';
+    for (const name of ['place', 'remote', 'pay_min', 'comp', 'location']) {
+      expect(form).not.toMatch(new RegExp(`<input type="hidden" name="${name}"`));
+    }
+  });
+});
+
+describe('Board.astro: "Fields these roles are filed under" under the results', () => {
+  const links = (html: string) => [...html.matchAll(/<a class="same-field-link"[^>]*href="([^"]*)"[^>]*data-field="([^"]*)"[^>]*>\s*<span[^>]*>([^<]*)<\/span>\s*<span[^>]*>([^<]*)<\/span>/g)].map((m) => ({
+    href: m[1].replace(/&#38;|&amp;/g, '&'), id: m[2], label: m[3], count: m[4]
+  }));
+
+  it('is the five biggest families by count, as links to fam=<id>, with no Not placed and no zero', async () => {
+    const html = await render({
+      jobs: JOBS, mode: 'server', ...SERVED, groups: servedGroups(), query: { ...DEFAULT_QUERY, remote: ['remote'], location: 'remote' }
+    });
+    expect(html).toContain('data-same-field');
+    expect(html).toContain('aria-label="Fields these roles are filed under"');
+    expect(html).toContain('Fields these roles are filed under');
+    const found = links(html);
+    expect(found.map((l) => [l.id, l.count])).toEqual([['software', '50'], ['design', '30'], ['sales', '12'], ['legal', '9'], ['finance', '7']]);
+    // Each link keeps the reader's other filters and moves the field, from page one.
+    expect(found[0].href).toBe('/board?remote=remote&fam=software');
+    expect(found.some((l) => l.id === 'unplaced' || l.id === 'support')).toBe(false);
+    // And it says what the list is: a classification, not a stated fact.
+    expect(html).toContain('A classification of the title, not something the employer stated.');
+    // They are navigation, not strip controls: nothing in the form submits them.
+    const form = html.match(/<form class="filters-row"[^>]*>([\s\S]*?)<\/form>/)?.[1] ?? '';
+    expect(form).not.toContain('same-field');
+  });
+
+  it('shows the chosen field, even outside the top five, and a way back to every field', async () => {
+    const html = await render({
+      jobs: JOBS, mode: 'server', ...SERVED, groups: servedGroups(), query: { ...DEFAULT_QUERY, families: ['marketing'] }
+    });
+    const found = links(html);
+    expect(found.map((l) => l.id)).toEqual(['software', 'design', 'sales', 'legal', 'finance', 'marketing']);
+    const current = html.match(/<a class="same-field-link"[^>]*aria-current="true"[^>]*data-field="([^"]*)"/)?.[1];
+    expect(current).toBe('marketing');
+    // The "All fields" link is the address without fam, with the count of every field.
+    expect(html).toMatch(/<a class="same-field-link" href="\/board"[^>]*>\s*<span[^>]*>All fields<\/span>\s*<span[^>]*>120<\/span>/);
+  });
+
+  it('is not drawn on the home teaser, without a Field group, or in client mode', async () => {
+    const teaser = await render({ jobs: JOBS, mode: 'server', ...SERVED, groups: servedGroups(), query: DEFAULT_QUERY, teaser: true });
+    expect(teaser).not.toContain('data-same-field');
+    const noFamily = await render({
+      jobs: JOBS, mode: 'server', ...SERVED,
+      groups: facetGroupsFromCounts({ ...COUNTS, family: undefined }, { location: 'all', comp: 'all', freshness: 'all' }),
+      query: DEFAULT_QUERY
+    });
+    expect(noFamily).not.toContain('data-same-field');
+    expect(await render({ jobs: JOBS })).not.toContain('data-same-field');
+  });
+
+  it('"Clear the filters" clears the field too: it is not on the strip, so it cannot be the reason a page stays empty', async () => {
+    const html = await render({
+      jobs: [], mode: 'server', boardPath: '/board', page: { total: 0, page: 1, pages: 1, per: 5 }, groups: servedGroups(),
+      query: { ...DEFAULT_QUERY, families: ['design'], remote: ['remote'], location: 'remote', q: 'zzz' }
+    });
+    expect(html).toMatch(/<a class="clear-filters"[^>]*href="\/board"/);
+  });
+});
+
+describe('Board.astro: close spellings are said before the first row', () => {
+  it('prints the notice, with the words typed, only when the result is fuzzy', async () => {
+    const base = { jobs: JOBS, mode: 'server', ...SERVED, groups: servedGroups(), query: { ...DEFAULT_QUERY, q: 'prodct desiner', sort: 'best' } };
+    const fuzzy = await render({ ...base, fuzzy: true });
+    expect(fuzzy).toMatch(/<p class="fuzzy-notice"[^>]*role="status"[^>]*>\s*No exact matches for "prodct desiner"\. Showing close spellings\.\s*<\/p>/);
+    expect(fuzzy.indexOf('fuzzy-notice')).toBeLessThan(fuzzy.indexOf('data-job-row'));
+    expect(await render({ ...base, fuzzy: false })).not.toContain('fuzzy-notice');
+    expect(await render(base)).not.toContain('fuzzy-notice');
+    // Nothing to show, nothing to be above: the empty state speaks instead.
+    expect(await render({ ...base, fuzzy: true, jobs: [], page: { total: 0, page: 1, pages: 1, per: 5 } })).not.toContain('fuzzy-notice');
+    // No words, no notice, whatever the flag says.
+    expect(await render({ ...base, fuzzy: true, query: DEFAULT_QUERY })).not.toContain('fuzzy-notice');
+    // The notice quotes the words as the reader typed them, escaped like any text.
+    const hostile = await render({ ...base, fuzzy: true, query: { ...base.query, q: '<b>x</b>' } });
+    const notice = hostile.match(/<p class="fuzzy-notice"[\s\S]*?<\/p>/)?.[0] ?? '';
+    expect(notice).not.toContain('<b>');
+    expect(notice).toContain('No exact matches for "&lt;b&gt;x&lt;/b&gt;"');
+  });
+});
+
+describe('Board.astro: Best is the pressed sort while words are typed', () => {
+  const segments = (html: string) => [...html.matchAll(/<a class="segment"[^>]*>/g)].map((m) => ({
+    key: m[0].match(/data-sort-key="([^"]+)"/)![1], pressed: m[0].includes('aria-current="true"'), href: m[0].match(/href="([^"]*)"/)![1].replace(/&#38;|&amp;/g, '&')
+  }));
+
+  it('offers Best first with words, pressed when sort=best, and Deets, Comp and Age after it', async () => {
+    const html = await render({ jobs: JOBS, mode: 'server', ...SERVED, groups: servedGroups(), query: { ...DEFAULT_QUERY, q: 'designer', sort: 'best' } });
+    const found = segments(html);
+    expect(found.map((s) => s.key)).toEqual(['best', 'fit', 'comp', 'age']);
+    expect(found.filter((s) => s.pressed).map((s) => s.key)).toEqual(['best']);
+    // Best is the default for words, so its link is the bare address with the words.
+    expect(found[0].href).toBe('/board?q=designer');
+    expect(found[2].href).toBe('/board?q=designer&sort=comp');
+    expect(html).toMatch(/>\s*Best\s*</);
+  });
+
+  it('presses the sort the reader chose over Best, and has no Best without words', async () => {
+    const chose = segments(await render({ jobs: JOBS, mode: 'server', ...SERVED, groups: servedGroups(), query: { ...DEFAULT_QUERY, q: 'designer', sort: 'comp' } }));
+    expect(chose.filter((s) => s.pressed).map((s) => s.key)).toEqual(['comp']);
+    const bare = segments(await render({ jobs: JOBS, mode: 'server', ...SERVED, groups: servedGroups(), query: DEFAULT_QUERY }));
+    expect(bare.map((s) => s.key)).toEqual(['fit', 'comp', 'age']);
+    expect(bare.filter((s) => s.pressed).map((s) => s.key)).toEqual(['fit']);
+  });
+
+  it('leaves Best out for a reader who cannot see Deets, and still presses it', async () => {
+    const html = await render({ jobs: JOBS, mode: 'server', ...SERVED, groups: servedGroups(), fit: false, query: { ...DEFAULT_QUERY, q: 'designer', sort: 'best' } });
+    const found = segments(html);
+    expect(found.map((s) => s.key)).toEqual(['best', 'comp', 'age']);
+    expect(found.filter((s) => s.pressed).map((s) => s.key)).toEqual(['best']);
+  });
+});
+
+/** A row as the store returns it, so the adapter stamps the match facts the
+    ranking sentence reads (a hand-built Job carries none, and draws no line). */
+function storedRow(id: string, over: Partial<BoardRow> & BoardMatchColumns = {}): BoardRow & BoardMatchColumns {
+  return {
+    id: `greenhouse|${id}`, slug: `acme-designer-${id}`, company: 'Acme', title: 'Product Designer',
+    url: 'https://boards.greenhouse.io/acme/jobs/1', location: 'Remote', country: 'US', remote: true,
+    published: '2026-08-20T09:00:00.000Z', ats: 'greenhouse', posting_id: id, department: 'Design',
+    comp_posted: null, comp_range: null, days_up: 5, first_seen: '2026-08-30', last_seen: '2026-09-08',
+    detail_total: 80, detail_components: { title_scope: 30, remote_geo: 25, comp: 0, freshness: 15, apply_friction: 10 },
+    source: 'tracked', description: null, status: 'live', kill_id: null, kill_rule: null, kill_reason: null,
+    killed_on: null, kill_first_published: null, kill_pipeline: null,
+    match_tier: null, match_field: null, fuzzy_score: null,
+    ...over
+  };
+}
+
+describe('Board.astro: each row says why it sits where it sits', () => {
+  it('opens a row\'s why panel on a "Ranked ..." line, numbered from the page\'s offset', async () => {
+    const html = await render({
+      jobs: [boardRowToJob(storedRow('1')), boardRowToJob(storedRow('2', { company: 'Bolt' }))],
+      mode: 'server', boardPath: '/board', groups: servedGroups(),
+      page: { total: 120, page: 3, pages: 24, per: 5 },
+      query: { ...DEFAULT_QUERY, page: 3 }
+    });
+    const lines = [...html.matchAll(/<p class="rank-reason"[^>]*data-rank-reason[^>]*>([^<]*)<\/p>/g)].map((m) => m[1]);
+    // Page 3 at five a page starts at the eleventh row.
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatch(/^Ranked 11th by Deets: /);
+    expect(lines[1]).toMatch(/^Ranked 12th by Deets: /);
+  });
+
+  it('names the words\' own order when words are typed, and never claims one the rows are not in', async () => {
+    const html = await render({
+      jobs: [boardRowToJob(storedRow('1', { match_tier: 1, match_field: 'title' }))],
+      mode: 'server', boardPath: '/board', groups: servedGroups(),
+      page: { total: 1, page: 1, pages: 1, per: 5 },
+      query: { ...DEFAULT_QUERY, q: 'product designer', sort: 'best' }
+    });
+    const lines = [...html.matchAll(/<p class="rank-reason"[^>]*data-rank-reason[^>]*>([^<]*)<\/p>/g)].map((m) => m[1]);
+    expect(lines).toEqual(['Ranked 1st: every word you typed is in the title, then the closer text match, then Deets 80, then newer first.']);
+  });
+
+  it('writes no ranking sentence for a reader who cannot see Deets', async () => {
+    const html = await render({
+      jobs: [boardRowToJob(storedRow('1'))], mode: 'server', boardPath: '/board', groups: servedGroups(), fit: false,
+      page: { total: 2, page: 1, pages: 1, per: 5 }, query: DEFAULT_QUERY
+    });
+    expect(html).not.toContain('data-rank-reason');
+  });
+});

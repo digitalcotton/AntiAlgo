@@ -138,18 +138,17 @@ test.describe('a saved board filter (commit 54435b9)', () => {
    * the board would pass on a regression of exactly that line.
    */
   test('restores on /board and does not restore on /', async ({ page }) => {
-    // location=onsite, not =remote: the seeded test-db fixture
-    // (scripts/test-db.mjs) has zero remote jobs, and src/lib/data.ts's group
-    // builder drops a zero-count option from the list entirely once it is not
-    // the current selection (the "stale save, retired band" case
-    // Filters.astro's applySelection() comment names) — so a saved
-    // location=remote would never be found among the bare board's own
-    // <option> values and this spec would fail for a reason that has nothing
-    // to do with the restore logic it exists to guard. onsite covers all six
-    // fixture jobs and is never absent from the list.
-    const setResponse = await page.goto('/board?location=onsite', { waitUntil: 'domcontentloaded' });
-    expect(setResponse?.status(), '/board?location=onsite').toBeLessThan(400);
-    await expect(page.locator('[data-filter-group="location"]')).toHaveValue('onsite');
+    // remote=onsite and place=US: the seeded test-db fixture (scripts/test-db.mjs)
+    // has one remote job, no hybrid and five on-site, and three of its six are in
+    // the United States. The strip draws every option now, zero ones muted, so
+    // nothing here depends on an option surviving; these two are simply the ones
+    // with rows, so the saved selection is a real narrowing of the board. The two
+    // controls are different mechanisms (a checkbox group and a select), so both
+    // have to come back.
+    const setResponse = await page.goto('/board?remote=onsite&place=US', { waitUntil: 'domcontentloaded' });
+    expect(setResponse?.status(), '/board?remote=onsite&place=US').toBeLessThan(400);
+    await expect(page.locator('[data-filter-multi="remote"] input[value="onsite"]')).toBeChecked();
+    await expect(page.locator('[data-filter-group="place"]')).toHaveValue('US');
 
     // 2. Reload the board's bare address. The saved selection must restore:
     //    this is the spec confirming a real saved-filter feature exists at
@@ -175,14 +174,15 @@ test.describe('a saved board filter (commit 54435b9)', () => {
         timeout: 5_000,
         message: 'the board never redirected to its own saved selection after a bare reload'
       })
-      .toMatch(/\/board\?.*location=onsite/);
-    await expect(page.locator('[data-filter-group="location"]')).toHaveValue('onsite');
+      .toMatch(/\/board\?(?=.*remote=onsite)(?=.*place=US)/);
+    await expect(page.locator('[data-filter-multi="remote"] input[value="onsite"]')).toBeChecked();
+    await expect(page.locator('[data-filter-group="place"]')).toHaveValue('US');
 
     // 3. The regression itself: the SAME saved selection must NOT restore on
     //    the home page, which embeds the identical Board/Filters component in
     //    server mode with the same boardPath. Bare navigation, no query — if
     //    54435b9's guard (`here !== boardPath`) is ever lost, this is a
-    //    window.location.replace to /board?location=onsite and the assertion
+    //    window.location.replace to /board?remote=onsite&place=US and the assertion
     //    below is what catches it.
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     // Give the restore script a beat to run and (wrongly) navigate if the

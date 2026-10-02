@@ -220,3 +220,222 @@ describe('Filters.astro: the title menu (server mode, a member with Desk titles)
     expect(form.indexOf('>Core<')).toBeLessThan(form.indexOf('>Stretch<'));
   });
 });
+
+// ---------------------------------------------------------------------------
+// The strip of the stated facts (2026-10-02): Location, Remote, Comp. Rendered
+// from the groups facetGroupsFromCounts builds, so the markup under test is the
+// markup the board gets, zero options and all.
+// ---------------------------------------------------------------------------
+
+const COUNTS = {
+  total: 6,
+  location: {}, comp: {}, freshness: {},
+  remote: { all: 6, remote: 1, hybrid: 0, onsite: 5, unstated: 0 },
+  pay: { any: 6, notListed: 3, floors: { '100': 3, '150': 1, '200': 0, '250': 0, '300': 0 } },
+  place: { countries: { US: 3, CA: 1, IN: 1, GB: 1 }, notStated: 0 },
+  family: { all: 6, design: 4, software: 2, unplaced: 0 }
+};
+const NONE = { location: 'all', comp: 'all', freshness: 'all' };
+
+async function renderStripGroups(
+  selection: Record<string, unknown> = {},
+  props: Record<string, unknown> = {}
+): Promise<string> {
+  const { facetGroupsFromCounts } = await import('../lib/data');
+  const container = await AstroContainer.create();
+  return container.renderToString(Filters, {
+    props: {
+      groups: facetGroupsFromCounts(COUNTS, { ...NONE, ...selection }),
+      mode: 'server',
+      action: '/board',
+      selected: { place: (selection.place as string) ?? 'all', pay_min: 'all' },
+      ...props
+    }
+  });
+}
+
+/** One cell of the strip, by what it is called, as the markup between its opening tag and the next cell's. */
+function cellOf(html: string, label: string): string {
+  const start = html.search(new RegExp(`<(label|div) class="filter(?: filter-multi)?"[^>]*>\\s*<span class="filter-label mono-label[^"]*"[^>]*>${label}<`));
+  expect(start, `no cell labelled ${label}`).toBeGreaterThan(-1);
+  const next = html.slice(start + 10).search(/<(label|div) class="filter[ "]/);
+  return html.slice(start, next === -1 ? undefined : start + 10 + next);
+}
+
+describe('Filters.astro: the strip is Location, Remote and Comp, and the Field is not on it', () => {
+  it('draws three cells in that order and no Field cell, though the Field group rides in the same list', async () => {
+    const html = await renderStripGroups();
+    const labels = [...html.matchAll(/<span class="filter-label mono-label[^"]*"[^>]*>([^<]*)</g)].map((m) => m[1]);
+    // Titles is the member's menu; Dim seen is the dimmer. Neither is a group.
+    expect(labels.filter((label) => !['Dim seen', 'Titles'].includes(label))).toEqual(['Location', 'Remote', 'Comp']);
+    expect(html).not.toContain('data-filter-group="fam"');
+    expect(html).not.toContain('name="fam"');
+    expect(html).not.toContain('All fields');
+    expect(html).not.toContain('>Field<');
+  });
+
+  it('writes no em dash, en dash or curly quote anywhere in the strip', async () => {
+    const html = await renderStripGroups({ place: 'GB/London', payMin: 175 }, { checked: { remote: ['remote'] } });
+    for (const codePoint of [0x2014, 0x2013, 0x2018, 0x2019, 0x201c, 0x201d]) {
+      expect(html.includes(String.fromCodePoint(codePoint))).toBe(false);
+    }
+  });
+});
+
+describe('Filters.astro: Location is geography, one select named for the place parameter', () => {
+  it('is a real select named place, Worldwide first, the countries by count, Not stated last and disabled', async () => {
+    const cell = cellOf(await renderStripGroups(), 'Location');
+    expect(cell).toMatch(/<select[^>]*data-filter-group="place"[^>]*name="place"[^>]*data-autosubmit/);
+    const options = [...cell.matchAll(/<option value="([^"]*)"([^>]*)>\s*([^<]*?)\s*<\/option>/g)].map((m) => ({ value: m[1], attrs: m[2], label: m[3] }));
+    expect(options.map((o) => [o.value, o.label])).toEqual([
+      ['all', 'Worldwide'],
+      ['US', 'United States'],
+      // Three countries with one row each: ties are broken by name.
+      ['CA', 'Canada'],
+      ['IN', 'India'],
+      ['GB', 'United Kingdom'],
+      ['unstated', 'Not stated']
+    ]);
+    expect(options[0].attrs).toMatch(/\sselected/);
+    // The counts ride as data for the script's rows.
+    expect(options.map((o) => o.attrs.match(/data-count="(\d+)"/)?.[1])).toEqual(['6', '3', '1', '1', '1', '0']);
+    // Not stated is drawn and refused, with or without a count.
+    expect(options.at(-1)!.attrs).toMatch(/\sdisabled/);
+    expect(options.slice(0, -1).every((o) => !/\sdisabled/.test(o.attrs))).toBe(true);
+  });
+
+  it('holds a city the address chose as its own selected option, labelled like the chip beside it', async () => {
+    const html = await renderStripGroups(
+      { place: 'GB/London' },
+      { chips: [{ kind: 'place', key: 'GB/London', label: 'London, UK' }], chipRemoveHrefs: ['/board'] }
+    );
+    const cell = cellOf(html, 'Location');
+    expect(cell).toMatch(/<option value="GB\/London"[^>]*selected[^>]*>\s*London, UK\s*<\/option>/);
+    // The list still offers the countries, and Worldwide is no longer the chosen one.
+    expect(cell).toMatch(/<option value="GB"/);
+    expect(cell).toMatch(/<option value="all"(?![^>]*selected)/);
+    // With no chip to name it, the key's own reading is used.
+    const bare = cellOf(await renderStripGroups({ place: 'US-MD' }), 'Location');
+    expect(bare).toMatch(/<option value="US-MD"[^>]*selected[^>]*>\s*Maryland\s*<\/option>/);
+  });
+
+  it('is one state with the chip: the strip submits place, so the box carries no hidden copy of it', async () => {
+    const html = await renderStripGroups(
+      { place: 'GB/London', remote: ['remote'], payMin: 150 },
+      {
+        chips: [
+          { kind: 'place', key: 'GB/London', label: 'London, UK' },
+          { kind: 'remote', value: 'remote' },
+          { kind: 'pay', minK: 150 },
+          { kind: 'company', name: 'Acme' },
+          { kind: 'age', maxDays: 7 }
+        ],
+        chipRemoveHrefs: ['/a', '/b', '/c', '/d', '/e'],
+        selected: { place: 'GB/London', pay_min: '150' }
+      }
+    );
+    const hidden = [...html.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)"/g)].map((m) => m[0].match(/name="([^"]+)"/)![1]);
+    // The strip's own fields submit place, remote and pay_min; a hidden twin of any of them is
+    // the stale second answer that makes an unticked box tick itself again.
+    expect(hidden).not.toContain('place');
+    expect(hidden).not.toContain('remote');
+    expect(hidden).not.toContain('pay_min');
+    // What the strip does not own, the box still carries.
+    expect(hidden).toContain('company');
+    expect(hidden).toContain('age_max');
+    // And the chips are still drawn, with their remove links.
+    expect(html).toContain('London, UK');
+    expect(html).toContain('href="/b"');
+  });
+});
+
+describe('Filters.astro: Remote is real checkboxes that work without script', () => {
+  it('draws one checkbox per arrangement, each named remote, with its own count, and no All box', async () => {
+    const cell = cellOf(await renderStripGroups(), 'Remote');
+    expect(cell).toContain('data-filter-multi="remote"');
+    const boxes = [...cell.matchAll(/<input type="checkbox"[^>]*>/g)].map((m) => m[0]);
+    expect(boxes).toHaveLength(4);
+    expect(boxes.map((b) => b.match(/value="([^"]+)"/)![1])).toEqual(['remote', 'hybrid', 'onsite', 'unstated']);
+    for (const box of boxes) expect(box).toContain('name="remote"');
+    expect(boxes.map((b) => b.match(/data-count="(\d+)"/)![1])).toEqual(['1', '0', '5', '0']);
+    // The printed counts are the same numbers, thousands-separated, beside the names.
+    const printed = [...cell.matchAll(/class="multi-name"[^>]*>([^<]*)<\/span>\s*<span class="multi-count"[^>]*>([^<]*)</g)].map((m) => [m[1], m[2]]);
+    expect(printed).toEqual([['Remote', '1'], ['Hybrid', '0'], ['On-site', '5'], ['Not stated', '0']]);
+    // It is not a select, and it submits no `location=`.
+    expect(cell).not.toContain('<select');
+    expect(cell).not.toContain('name="location"');
+  });
+
+  it('ticks what the address chose; a zero is disabled unless it is ticked, and then it can be unticked', async () => {
+    const html = await renderStripGroups({ remote: ['remote', 'hybrid'] }, { checked: { remote: ['remote', 'hybrid'] } });
+    const boxes = [...cellOf(html, 'Remote').matchAll(/<input type="checkbox"[^>]*>/g)].map((m) => m[0]);
+    const by = (kind: string) => boxes.find((b) => b.includes(`value="${kind}"`))!;
+    expect(by('remote')).toMatch(/\schecked/);
+    expect(by('hybrid')).toMatch(/\schecked/);
+    expect(by('onsite')).not.toMatch(/\schecked/);
+    // Hybrid is zero AND ticked: still live, so the reader can take it off.
+    expect(by('hybrid')).not.toMatch(/\sdisabled/);
+    // Not stated is zero and unticked: drawn, counted, refused.
+    expect(by('unstated')).toMatch(/\sdisabled/);
+    expect(by('remote')).not.toMatch(/\sdisabled/);
+  });
+
+  it('carries the All answer and its count for the script\'s clear row', async () => {
+    const cell = cellOf(await renderStripGroups(), 'Remote');
+    expect(cell).toContain('data-all-label="All"');
+    expect(cell).toContain('data-all-count="6"');
+  });
+
+  it('is submitted by the form, whose Apply button is the way through without script', async () => {
+    const html = await renderStripGroups();
+    const form = html.match(/<form class="filters-row"[^>]*>([\s\S]*?)<\/form>/)?.[1] ?? '';
+    expect(form).toContain('data-filter-multi="remote"');
+    expect(form).toMatch(/<button class="filter-apply mono-label"[^>]*type="submit"[^>]*>Apply<\/button>/);
+  });
+});
+
+describe('Filters.astro: Comp is floors in one select named for the pay parameter', () => {
+  it('offers Any, the floors with their counts, and Not listed last, a zero floor drawn and disabled', async () => {
+    const cell = cellOf(await renderStripGroups(), 'Comp');
+    expect(cell).toMatch(/<select[^>]*data-filter-group="pay_min"[^>]*name="pay_min"[^>]*data-autosubmit/);
+    const options = [...cell.matchAll(/<option value="([^"]*)"([^>]*)>\s*([^<]*?)\s*<\/option>/g)].map((m) => ({ value: m[1], attrs: m[2], label: m[3] }));
+    expect(options.map((o) => [o.value, o.label])).toEqual([
+      ['all', 'Any'],
+      ['100', '$100k+'],
+      ['150', '$150k+'],
+      ['200', '$200k+'],
+      ['250', '$250k+'],
+      ['300', '$300k+'],
+      ['not-listed', 'Not listed']
+    ]);
+    expect(options.map((o) => o.attrs.match(/data-count="(\d+)"/)?.[1])).toEqual(['6', '3', '1', '0', '0', '0', '3']);
+    // The zero floors are present and refused; nothing else is.
+    expect(options.filter((o) => /\sdisabled/.test(o.attrs)).map((o) => o.value)).toEqual(['200', '250', '300']);
+  });
+
+  it('selects the floor the address chose, and Not listed when that is what it chose', async () => {
+    const html = await renderStripGroups({ payMin: 150 }, { selected: { place: 'all', pay_min: '150' } });
+    expect(cellOf(html, 'Comp')).toMatch(/<option value="150"[^>]*selected/);
+    const none = await renderStripGroups({ compNotListed: true }, { selected: { place: 'all', pay_min: 'not-listed' } });
+    expect(cellOf(none, 'Comp')).toMatch(/<option value="not-listed"[^>]*selected/);
+  });
+});
+
+describe('Filters.astro: the strip\'s menus follow the repo\'s dropdown rules', () => {
+  it('refuses the default of mousedown on every row it builds, one place for the select rows and the checkbox rows', () => {
+    // One builder makes every row (menuRow), and it carries the guard, so a new
+    // kind of row cannot be added without it.
+    expect(SOURCE).toMatch(/function menuRow[\s\S]*?addEventListener\('mousedown', \(event\) => event\.preventDefault\(\)\)/);
+    expect(SOURCE.match(/document\.createElement\('button'\)/g) ?? []).toHaveLength(2); // the trigger, and menuRow
+    expect(SOURCE).not.toMatch(/addEventListener\('focusout'/);
+    expect(SOURCE).not.toMatch(/addEventListener\('blur'/);
+  });
+
+  it('opens every menu through the one claim, so opening any closes the search panel and every other menu', () => {
+    // The select menus and the checkbox menu are mounted by the same function,
+    // which is the only place a strip menu is opened.
+    expect(SOURCE.match(/mountMenu\(/g)).toHaveLength(3); // the definition and its two callers
+    expect(SOURCE.match(/claimMenu\('strip'\)/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(SOURCE).toContain('closeMenus(cell)');
+  });
+});

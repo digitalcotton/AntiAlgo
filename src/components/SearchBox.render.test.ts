@@ -143,6 +143,16 @@ describe('SearchBox.astro: applied chips are server-rendered links that carry no
     ]);
   });
 
+  it('carries no hidden field for a name the strip owns, and still draws the chip and its remove link', async () => {
+    // Location, Remote and Comp submit place, remote and pay_min themselves; a
+    // chip's hidden twin of one would re-send what the reader just changed.
+    const html = await render({ q: '', chips: CHIPS, chipRemoveHrefs: REMOVE, ownedFields: ['place', 'remote', 'pay_min'] });
+    const fields = [...html.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)"/g)].map((m) => [m[1], m[2]]);
+    expect(fields).toEqual([['company', 'Acme'], ['age_max', '7']]);
+    expect(html.match(/<li class="sb-chip"/g)).toHaveLength(5);
+    expect(html).toContain(`href="${REMOVE[0]}"`);
+  });
+
   it('draws a chip with no remove address as a label with no link', async () => {
     const html = await render({ q: '', chips: [{ kind: 'remote', value: 'remote' }], chipRemoveHrefs: [] });
     expect(html).toContain('sb-chip-label');

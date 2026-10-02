@@ -1,8 +1,12 @@
 ---
-import { SORT_KEYS, type SortKey } from '../lib/data';
+import { SORT_KEYS } from '../lib/data';
+import type { BoardSort } from '../lib/board-query';
 
 /**
- * The sort control: a segmented group of three, exactly as the canvas draws it.
+ * The sort control: a segmented group of three, exactly as the canvas draws it,
+ * and a fourth, Best, at its head while words are typed (the order the words
+ * earn is the default then, and a control that named three orders none of which
+ * the rows were in would be claiming nothing about the one they are in).
  *
  * NO LAYOUT SHIFT ON CHANGE, and the way that is achieved is worth stating
  * because it is easy to break. The pressed segment differs from the others by
@@ -24,23 +28,27 @@ import { SORT_KEYS, type SortKey } from '../lib/data';
 
 interface Props {
   /** Which sort is in effect. Must match the order the caller rendered rows in.
-      `best` (the order typed words earn) is none of the segments, so with it
-      nothing is pressed: the control does not claim an order the rows are not in. */
-  current?: SortKey | 'best';
+      `best` is the order typed words earn: it is pressed only when the caller
+      offers it in `keys`, so the control never claims an order it has no segment
+      for, and never leaves the reader's actual order unmarked. */
+  current?: BoardSort;
   /** Where a link-based sort should point. Omit for the island behaviour. */
-  hrefFor?: (key: SortKey) => string;
+  hrefFor?: (key: BoardSort) => string;
   /**
-   * Which keys to offer, in SORT_KEYS order. The board drops `fit` for a
+   * Which keys to offer, in the order drawn. The board drops `fit` for a
    * reader who does not see the fit score (flags.config.mjs fit_public), so
-   * the control never names a sort whose column is not on the page.
+   * the control never names a sort whose column is not on the page, and offers
+   * `best` first while words are typed (it ranks text, so it means nothing
+   * without any).
    */
-  keys?: readonly SortKey[];
+  keys?: readonly BoardSort[];
   class?: string;
 }
 
 const { current = 'fit', hrefFor, keys = SORT_KEYS, class: className } = Astro.props;
 
-const LABELS: Record<SortKey, string> = {
+const LABELS: Record<BoardSort, string> = {
+  best: 'Best',
   fit: 'Deets',
   comp: 'Comp',
   age: 'Age'

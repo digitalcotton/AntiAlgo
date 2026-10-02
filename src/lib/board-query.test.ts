@@ -16,6 +16,8 @@ import {
   parsePlaceKey,
   parseRemote,
   payFloorOfBand,
+  placeKeyLabel,
+  stripValues,
   type BoardQuery
 } from './board-query';
 import { chipsToParams, type Chip } from './search-parse';
@@ -30,8 +32,9 @@ describe('parseBoardQuery', () => {
   });
   it('accepts only allowlisted values and falls back per field', () => {
     const parsed = parseBoardQuery(params('page=3&per=100&q=%20designer%20&location=remote&comp=200-250&freshness=fresh&sort=age'));
-    // A legacy `location` and `comp` are read into the new fields as well as
-    // kept: see the legacy describes below.
+    // A legacy `location` and `comp` are read into the new fields: see the
+    // legacy describes below. The band is NOT kept as a band: `comp` stays `all`
+    // and the band's lower bound is the floor.
     expect(parsed).toEqual({
       ...DEFAULT_QUERY,
       page: 3,
@@ -39,7 +42,7 @@ describe('parseBoardQuery', () => {
       q: 'designer',
       location: 'remote',
       remote: ['remote'],
-      comp: '200-250',
+      comp: 'all',
       payMin: 200,
       freshness: 'fresh',
       sort: 'age'
@@ -113,13 +116,15 @@ describe('pay: a floor in thousands, and the legacy bands', () => {
     // The last valid value of a repeated parameter wins; a bad one after it does not undo it.
     expect(parseBoardQuery(params('pay_min=100&pay_min=250&pay_min=0')).payMin).toBe(250);
   });
-  it('LEGACY: reads comp=<band> as that band\'s lower bound, and keeps the band for the strip that still shows bands', () => {
-    expect(parseBoardQuery(params('comp=150-200'))).toMatchObject({ comp: '150-200', payMin: 150, compNotListed: false });
-    expect(parseBoardQuery(params('comp=200-250'))).toMatchObject({ comp: '200-250', payMin: 200 });
-    expect(parseBoardQuery(params('comp=250-300'))).toMatchObject({ payMin: 250 });
-    expect(parseBoardQuery(params('comp=300-plus'))).toMatchObject({ payMin: 300 });
-    // "Under $150K" is a ceiling and a floor cannot say it.
-    expect(parseBoardQuery(params('comp=under-150'))).toMatchObject({ comp: 'under-150', payMin: null });
+  it('LEGACY: reads comp=<band> as that band\'s lower bound and nothing else: a band is never applied as a band', () => {
+    // `comp` stays `all`, so the store (which applies a band exactly while
+    // `comp` names one) is handed a floor and only a floor.
+    expect(parseBoardQuery(params('comp=150-200'))).toMatchObject({ comp: 'all', payMin: 150, compNotListed: false });
+    expect(parseBoardQuery(params('comp=200-250'))).toMatchObject({ comp: 'all', payMin: 200 });
+    expect(parseBoardQuery(params('comp=250-300'))).toMatchObject({ comp: 'all', payMin: 250 });
+    expect(parseBoardQuery(params('comp=300-plus'))).toMatchObject({ comp: 'all', payMin: 300 });
+    // "Under $150K" is a ceiling and a floor cannot say it: no pay filter.
+    expect(parseBoardQuery(params('comp=under-150'))).toMatchObject({ comp: 'all', payMin: null, compNotListed: false });
     expect(payFloorOfBand('under-150')).toBeNull();
     expect(payFloorOfBand('150-200')).toBe(150);
     expect(payFloorOfBand('nope')).toBeNull();
@@ -130,10 +135,31 @@ describe('pay: a floor in thousands, and the legacy bands', () => {
     expect(parseBoardQuery(params('comp=not-listed&pay_min=150'))).toMatchObject({ compNotListed: true, payMin: null });
     expect(parseBoardQuery(params('pay_min=150&comp=not-listed'))).toMatchObject({ compNotListed: true, payMin: null });
   });
-  it('lets an explicit pay_min win over a legacy band, and clears the band so the two never disagree', () => {
+  it('lets an explicit pay_min win over a legacy band, and an invalid one fall back to the band\'s floor', () => {
     expect(parseBoardQuery(params('comp=200-250&pay_min=100'))).toMatchObject({ payMin: 100, comp: 'all' });
-    // But an invalid pay_min falls back to the band rather than to nothing.
-    expect(parseBoardQuery(params('comp=200-250&pay_min=0'))).toMatchObject({ payMin: 200, comp: '200-250' });
+    expect(parseBoardQuery(params('comp=200-250&pay_min=0'))).toMatchObject({ payMin: 200, comp: 'all' });
+  });
+  it('reads the one value the strip\'s Comp select sends for "state no pay": pay_min=not-listed', () => {
+    // The select is one field with one name, so `pay_min` has to be able to say
+    // all seven of its answers without script. `comp=not-listed` is what is
+    // written back out.
+    expect(parseBoardQuery(params('pay_min=not-listed'))).toMatchObject({ comp: 'not-listed', compNotListed: true, payMin: null });
+    expect(parseBoardQuery(params('pay_min=%20not-listed%20')).compNotListed).toBe(true);
+    expect(boardHref('/board', parseBoardQuery(params('pay_min=not-listed')))).toBe('/board?comp=not-listed');
+    // The last valid value of a repeated parameter still wins, in either order.
+    expect(parseBoardQuery(params('pay_min=not-listed&pay_min=150'))).toMatchObject({ compNotListed: false, payMin: 150 });
+    expect(parseBoardQuery(params('pay_min=150&pay_min=not-listed'))).toMatchObject({ compNotListed: true, payMin: null });
+    // `all` is the "Any" answer, like anything else that is not a floor in range: no choice.
+    expect(parseBoardQuery(params('pay_min=all'))).toMatchObject({ comp: 'all', payMin: null, compNotListed: false });
+    expect(parseBoardQuery(params('pay_min=all&pay_min=200')).payMin).toBe(200);
+  });
+  it('stripValues is the inverse: the value the Location and Comp options carry for a query', () => {
+    expect(stripValues(DEFAULT_QUERY)).toEqual({ place: 'all', pay_min: 'all' });
+    expect(stripValues(parseBoardQuery(params('place=GB&pay_min=150')))).toEqual({ place: 'GB', pay_min: '150' });
+    expect(stripValues(parseBoardQuery(params('place=GB%2FLondon&comp=not-listed')))).toEqual({ place: 'GB/London', pay_min: 'not-listed' });
+    expect(stripValues(parseBoardQuery(params('comp=250-300')))).toEqual({ place: 'all', pay_min: '250' });
+    // A query built by hand with only a band still reads as the floor it means.
+    expect(stripValues({ place: null, payMin: null, comp: '200-250', compNotListed: false })).toEqual({ place: 'all', pay_min: '200' });
   });
 });
 
@@ -239,7 +265,7 @@ describe('boardHref', () => {
   });
   it('drops the page whenever the set changes, and keeps it for a page step', () => {
     const base = q({ page: 9, location: 'remote', remote: ['remote'] });
-    expect(boardHref('/jobs/board', base, { comp: '150-200' })).toBe('/jobs/board?remote=remote&comp=150-200');
+    expect(boardHref('/jobs/board', base, { comp: '150-200' })).toBe('/jobs/board?remote=remote&pay_min=150');
     expect(boardHref('/jobs/board', base, { sort: 'comp' })).toBe('/jobs/board?remote=remote&sort=comp');
     expect(boardHref('/jobs/board', base, { page: 10 })).toBe('/jobs/board?remote=remote&page=10');
     expect(boardHref('/jobs/board', base, { location: 'all' })).toBe('/jobs/board');
@@ -257,13 +283,20 @@ describe('boardHref', () => {
     // A query built with only the old field (a fixture, an older caller) is written as the list it means.
     expect(boardHref('/board', q({ location: 'hybrid' }))).toBe('/board?remote=hybrid');
   });
-  it('writes not-listed as comp=not-listed, a band as the band the strip still offers, and a floor as pay_min', () => {
+  it('writes not-listed as comp=not-listed and every other pay filter as a floor, never as a band', () => {
     expect(boardHref('/board', q({ compNotListed: true }))).toBe('/board?comp=not-listed');
     expect(boardHref('/board', q({ comp: 'not-listed', compNotListed: true }))).toBe('/board?comp=not-listed');
-    // A band is written as itself, NOT as its floor: "$200K to $250K" turned
-    // into "$200K and up" on the next page would change the rows under a reader.
-    expect(boardHref('/board', parseBoardQuery(params('comp=200-250')))).toBe('/board?comp=200-250');
     expect(boardHref('/board', q({ payMin: 150 }))).toBe('/board?pay_min=150');
+    // A legacy band is a floor from the moment it is read, so an old bookmark's
+    // next link carries the floor, not the band.
+    expect(boardHref('/board', parseBoardQuery(params('comp=200-250')))).toBe('/board?pay_min=200');
+    expect(boardHref('/board', parseBoardQuery(params('comp=under-150')))).toBe('/board');
+    // A query built by hand that still carries a band is written as that band's
+    // floor; no path writes `comp=<band>`.
+    expect(boardHref('/board', q({ comp: '250-300' }))).toBe('/board?pay_min=250');
+    for (const band of ['under-150', '150-200', '200-250', '250-300', '300-plus']) {
+      expect(boardHref('/board', q({ comp: band }))).not.toMatch(/comp=(?!not-listed)/);
+    }
   });
   it('translates an override of the old names the way the address would be read', () => {
     const on = q({ remote: ['remote'], location: 'remote', payMin: 150, company: 'Figma' });
@@ -271,7 +304,7 @@ describe('boardHref', () => {
     expect(boardHref('/b', on, { location: 'hybrid' })).toBe('/b?company=Figma&remote=hybrid&pay_min=150');
     expect(boardHref('/b', on, { comp: 'all' })).toBe('/b?company=Figma&remote=remote');
     expect(boardHref('/b', on, { comp: 'not-listed' })).toBe('/b?company=Figma&remote=remote&comp=not-listed');
-    expect(boardHref('/b', on, { comp: '300-plus' })).toBe('/b?company=Figma&remote=remote&comp=300-plus');
+    expect(boardHref('/b', on, { comp: '300-plus' })).toBe('/b?company=Figma&remote=remote&pay_min=300');
     // Board.astro's clear link: every filter it knows resets, the sort and size stay.
     expect(
       boardHref('/b', q({ q: 'x', remote: ['remote'], payMin: 100, place: 'GB', company: 'Figma', sort: 'age' }), {
@@ -289,7 +322,7 @@ describe('boardHref', () => {
       q({ remote: ['remote', 'hybrid'], payMin: 150 }),
       q({ remote: ['hybrid', 'onsite', 'unstated'], company: 'A & B, Inc.' }),
       q({ compNotListed: true, comp: 'not-listed' }),
-      q({ comp: '150-200', payMin: 150 }),
+      q({ payMin: 150 }),
       q({ q: 'x', place: 'DE/Frankfurt am Main', payMin: 2000, ageMin: 1, ageMax: 30, freshness: 'older', per: 100, page: 3, titles: ['Product Designer'], families: ['design'] })
     ];
     for (const query of queries) {
@@ -379,6 +412,45 @@ describe('titles: the Desk-title picks in the address', () => {
     expect(boardHref('/jobs/board', { ...withTitles, page: 3 }, { page: 4 })).toBe('/jobs/board?title=Product+Designer&title=Design+Lead&page=4');
     expect(hiddenFields(withTitles, [])).toEqual([['title', 'Product Designer'], ['title', 'Design Lead']]);
     expect(hiddenFields(withTitles, ['titles'])).toEqual([]);
+  });
+});
+
+describe('the strip\'s own form: what a submit of its controls reads as', () => {
+  it('reads repeated remote= fields, which is what the Remote checkboxes send without script', () => {
+    // Each ticked box is one `remote=<kind>` field; none ticked sends none.
+    expect(parseBoardQuery(params('q=&place=all&remote=remote&remote=hybrid&pay_min=all'))).toMatchObject({
+      remote: ['remote', 'hybrid'], location: 'all', place: null, payMin: null, compNotListed: false
+    });
+    expect(parseBoardQuery(params('remote=onsite&remote=unstated&remote=remote')).remote).toEqual(['remote', 'onsite', 'unstated']);
+    expect(parseBoardQuery(params('q=&place=all&pay_min=all')).remote).toEqual([]);
+    // The comma list a link writes and the repeated fields a form writes are one answer.
+    expect(parseBoardQuery(params('remote=remote,hybrid')).remote).toEqual(parseBoardQuery(params('remote=remote&remote=hybrid')).remote);
+  });
+  it('a form that owns Location, Remote and Comp carries what is left: company, the field, the sort', () => {
+    const full = q({ q: 'x', sort: 'age', place: 'GB/London', company: 'Figma', remote: ['remote'], payMin: 150, families: ['design'] });
+    // This is the skip list Board.astro hands the strip. `families` is NOT on it:
+    // Field left the strip, so the form is no longer what submits `fam=`.
+    expect(hiddenFields(full, ['location', 'remote', 'place', 'comp', 'freshness', 'q', 'titles'])).toEqual([
+      ['company', 'Figma'], ['sort', 'age'], ['fam', 'design']
+    ]);
+  });
+});
+
+describe('placeKeyLabel: the name the Location control shows for the place the address chose', () => {
+  it('prints the four shapes the way the lexicon and place_label do', () => {
+    expect(placeKeyLabel('GB')).toBe('United Kingdom');
+    expect(placeKeyLabel('US-MD')).toBe('Maryland');
+    expect(placeKeyLabel('GB/London')).toBe('London, United Kingdom');
+    expect(placeKeyLabel('US-MD/Baltimore')).toBe('Baltimore, MD');
+    expect(placeKeyLabel('CA-ON/Toronto')).toBe('Toronto, ON');
+    expect(placeKeyLabel('IN/Bengaluru')).toBe('Bengaluru, India');
+  });
+  it('never goes blank: a key it cannot read is returned as it came', () => {
+    expect(placeKeyLabel('nonsense')).toBe('nonsense');
+    expect(placeKeyLabel(null)).toBe('');
+    expect(placeKeyLabel(undefined)).toBe('');
+    // A region it has no name for falls back to the code.
+    expect(placeKeyLabel('FR-75')).toBe('75');
   });
 });
 
