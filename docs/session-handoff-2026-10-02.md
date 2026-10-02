@@ -2,11 +2,13 @@
 
 ## Where things stand
 
-- **Branch `search-engine`**, 21 commits on top of `main`, **not pushed**. Deep
-  gate GREEN 7/7 on the final code. Everything is in `docs/search-engine-report.md`.
-- **A dev server is running on :4321** (the browser pane, for the owner to try the
-  search). Stop it before any `npm run conform -- --deep`: a running dev server
-  on :4321 is reused by the sweep and breaks it.
+- **Branch `search-engine`**, on top of `main`, **not pushed**. Deep gate GREEN
+  7/7 on the final code (`2c9e8b5`). Everything is in `docs/search-engine-report.md`.
+- **Decision 8 is built (option B)**: a posting counts under every place it lists
+  (`docs/every-place-plan.md`, migrations 222 and 223).
+- **A dev server on :4321** is for the owner to try the search. Stop it before
+  any `npm run conform -- --deep`: a running dev server on :4321 is reused by the
+  sweep and breaks it.
 - **Already on `main` and in production** from earlier today: Your key flagged off,
   header collapses to the burger by measuring itself (no stacking), 20px nav gap,
   Desk lanes rank by the 14-day window instead of hiding, head-start bar with an

@@ -1,13 +1,13 @@
 # Search engine: what was built, how well it works, how to ship it
 
-Branch `search-engine`, 21 commits on top of `main` (61d2487). **Not pushed** — a
-push to `main` runs three migrations against production on build; see the
+Branch `search-engine`, on top of `main` (61d2487). **Not pushed** — a push to
+`main` runs five migrations (219–223) against production on build; see the
 runbook below. Built 2026-10-02 to `search-engine-plan.md`, Opus orchestrating,
 Sonnet developing, every commit gated.
 
-Every number here is from `npm run eval:search` on the finished tree (`968864f`,
-no engine file modified) against the local copy of the nightly board, 37,286
-live rows. Full output: `search-engine-metrics.md` / `.json`.
+Every number here is from `npm run eval:search` on the finished tree (`c7beeaf`)
+against the local copy of the nightly board, 37,286 live rows. Full output:
+`search-engine-metrics.md` / `.json`. Fingerprint `de36a421…`.
 
 ---
 
@@ -27,6 +27,10 @@ live rows. Full output: `search-engine-metrics.md` / `.json`.
   work arrangement). REMOTE is several-at-once. COMP is a pay floor, defined
   exactly as the Desk already defines it. Field left the strip and returns as
   links under the results, labelled as a classification.
+- **A job is found under every place it lists.** "London / Germany" is in
+  London, UK and in Germany; "Chicago, IL, Evanston, IL" is in both cities. Each
+  place's number is exactly the jobs you get when you choose it, so the Location
+  numbers add up to more than the total when a job lists two countries.
 - **Every order is explained.** Signed-in: each row's `why ▾` opens with "Ranked
   3rd: every word you typed is in the title, then …". Signed-out: one line above
   the list says how it is ordered, and the order uses nothing they cannot see.
@@ -50,7 +54,7 @@ The old engine only worked when you typed an exact substring of the title.
 
 | typed | result |
 |---|---|
-| "Senior Product Desi" — earlier words + 4 letters | right title in top 8: **97.0%** (first: 86.2%) |
+| "Senior Product Desi" — earlier words + 4 letters | right title in top 8: **96.8%** (first: 86.0%) |
 | first 3–5 letters of a city | right place offered: **90.5%** |
 | first 4 letters of a company | right company offered: **99.5%** |
 
@@ -58,24 +62,29 @@ The old engine only worked when you typed an exact substring of the title.
 
 | check | result |
 |---|---|
-| every suggestion's count vs the rows its link returns | **3,677 of 3,677 exact**, 500 random cases, 0 mismatches |
-| strip groups sum to their totals | **1,500 checks, 0 violations** |
+| every suggestion's count vs the rows its link returns | **3,787 of 3,787 exact**, 500 random cases, 0 mismatches |
+| strip invariants: Remote and Comp sum to their totals; every Location count equals the rows its own filter returns | **2,500 checks, 0 violations** |
 | memoised answers vs cold answers | 500 of 500 identical |
 
 ### Speed (local Postgres, warm, p95)
 
 | | before this work | now |
 |---|---|---|
-| one word ("designer") | 288 ms | **6.1 ms** |
-| three words | 345 ms | **6.0 ms** |
-| a typo ("prodct desiner") | 306 ms, **0 rows** | **24.8 ms, 251 rows** |
-| words + place + remote + pay | 301 ms | **5.3 ms** |
-| a broad word ("engineer", 6,218 matches) | ~190 ms | **57.9 ms** |
-| typeahead, cold | — | **50.1 ms** (100% of requests under 100 ms) |
-| typeahead, warm | — | **3.4 ms** |
+| no words (the whole board, every count) | — | **112.3 ms** |
+| one word ("designer") | 288 ms | **7.7 ms** |
+| three words | 345 ms | **7.9 ms** |
+| a typo ("prodct desiner") | 306 ms, **0 rows** | **29.9 ms, 251 rows** |
+| words + place + remote + pay | 301 ms | **8.2 ms** |
+| a broad word ("engineer", 6,218 matches) | ~190 ms | **58.5 ms** |
+| typeahead, cold | — | **53.1 ms** (100% of requests under 100 ms) |
+| typeahead, warm | — | **3.6 ms** |
 
 Local numbers are not Neon numbers. Neon adds network round trips; the
-relative gains hold.
+relative gains hold. Counting a job under every place it lists cost 1–5 ms per
+search (from 108.8 / 6.1 / 24.8 ms): most of it is the list of every country on
+the board, one index probe per country (~5 ms, where the old one-place column
+took 0.6). It is the same for every request until the next nightly load, so a
+cache keyed on the load instant would take it back; not done.
 
 ### Where jobs are
 
@@ -83,7 +92,11 @@ relative gains hold.
 |---|---|---|
 | live rows with a resolved country | 40.3% | **82.0%** |
 | Canada filed in a US region | 979 rows | **0** |
-| region "Unknown" | 21,061 | **6,608** |
+| region "Unknown" | 21,061 | **6,607** |
+| rows with no place at all ("Not stated") | 22,263 | **6,602** |
+| countries on the board | — | **109** |
+| jobs under London, UK | — | **903** (676 before lists counted every place) |
+| postings that list several places, each found under all of them | — | **2,201** (477 across countries) |
 | place accuracy on held-out rows | — | **97.85%** (99.97% excluding rows whose upstream code contradicts the text) |
 
 ### Targets
@@ -156,8 +169,12 @@ relative gains hold.
    on the Mac mini, both of which need your approval.
 7. A pre-existing accepted gate finding (`gate-invariants` check 3) passed its
    "review by" date on 2026-10-01.
-8. **A posting that lists several places is given one city, often the wrong
-   one.** Found after this report, checking "London, Canada" in the typeahead.
+8. **DECIDED 2026-10-02: option B, built** (`docs/every-place-plan.md`). Every
+   live row's stored places were checked against the reference run, 37,286 of
+   37,286; the wrong places below are gone, and so are cities called "Europe",
+   "APAC", "All France" and "Anywhere in the U.S.". Not done: filing the three real
+   "London, Canada" rows under London, ON. The finding as first reported: **a
+   posting that lists several places is given one city, often the wrong one.** Found after this report, checking "London, Canada" in the typeahead.
    99 live postings list places separated by " / "; each was given a single
    city, and 24 of those are wrong: a city from the list paired with a different
    country from the list or from the upstream code.
@@ -216,7 +233,9 @@ production** — the Location list would be bare. Close it either way:
   ```
   (~30 s locally; it rewrites derived columns only. It writes the two arrays as
   well as the place columns; its receipt ends with how many rows list a place
-  and how many list several.)
+  and how many list several.) Then run `VACUUM (ANALYZE) jobs` once: a bulk
+  rewrite leaves the planner's statistics stale, and a plan test failed on
+  exactly that locally until it ran.
 
 **Then check:**
 ```bash
@@ -235,12 +254,18 @@ nightly load would queue behind each other.
 
 ## How it was verified
 
-- `npm run conform -- --deep`: **GREEN, 7 of 7** on the final code — types, 2,934
+- `npm run conform -- --deep`: **GREEN, 7 of 7** on the final code (`2c9e8b5`,
+  274 s, main tree, no dev server running, test database at 223) — types, the
   unit tests (including the database-backed search and suggest invariants),
   invariants, DOM contracts, tokens, route census, and the browser tier: every
   route as five audiences, interaction specs in WebKit and Firefox, the galleries
   in both themes.
-- Every commit was gated on its own in a clean checkout of `HEAD`.
+- Every commit was gated on its own: the first 21 in a clean checkout of `HEAD`,
+  the every-place commits with `npm run conform` in the main tree as each landed.
+- Every live row's stored places (`place_keys`) equal an independent reference
+  run of the rule, 37,286 of 37,286, checked from the database twice (once by the
+  developer, once by the orchestrator); `place_countries` agrees with
+  `place_keys` on every row; region changes are exactly the 28 measured.
 - Every engine change that should only change speed was required to leave the
   evaluation fingerprint identical; it did, through three such changes
   (`1d43c69b…`).
@@ -248,6 +273,15 @@ nightly load would queue behind each other.
 ## The commits
 
 ```
+2c9e8b5 The harness's numbers after "Anywhere in the U.S." and the country string: fingerprint de36a421c612
+c7beeaf The Location counts group by a short country string, and the board is back near its old speed
+592f8af "Anywhere in the U.S." is the country, not a city of that name
+d0f5393 The harness's numbers after a posting counts under every place it lists: fingerprint 7bfe30cb79c1
+c789102 The board finds a posting under every place it lists, and each place's count is exactly the rows its own filter returns
+1b35164 Every place a posting lists is stored: place_keys and place_leaves, written by the ingest and the backfill
+d445282 A list of places is read place by place: "London / Germany" is London, UK and Germany
+e972474 Plan: a posting counts under every place it lists
+49c479d Report: multi-place postings are given one city, often the wrong one
 968864f Comments and lists that described the old mechanisms, corrected
 ff902d7 The list tells the truth: no hidden zeros, Not stated choosable, no unseen order
 c5b5f8a Prefix matching through a small title-and-company index
