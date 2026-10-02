@@ -80,10 +80,13 @@
 -- trigger and every index: 21.4 s, against 1.4 s before this file. The
 -- generated column took 20.3 s the same way, so moving to a trigger changes
 -- where the work happens and not how much: about 15 s is to_tsvector over about
--- 129 million characters of description once the markup is gone. A follow-up
--- ticket changes the replace from TRUNCATE to DELETE so readers keep reading
--- while the load runs. Until it ships, the board is held shut for the load, and
--- about 20 s of that is this column.
+-- 129 million characters of description once the markup is gone.
+--
+-- Fixed in the same branch, in scripts/ingest-jobs.mjs: the load now takes
+-- SHARE ROW EXCLUSIVE (blocks writers, not readers) and DELETEs instead of
+-- TRUNCATE, so every reader keeps last night's rows under MVCC until the new
+-- load commits. Measured with a reader probing every 100 ms through a full
+-- 37,765-row load: worst wait 33.7 s before, 18.5 ms after.
 --
 -- THE TWO EXTENSIONS. pg_trgm and unaccent both ship with Postgres and are
 -- marked trusted (since 13), so installing them does not need superuser. They
