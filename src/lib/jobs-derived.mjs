@@ -457,6 +457,34 @@ for (const [country, table, codesToo] of [
 ADMIN_BY_NAME.set('d c', { country: 'US', code: 'DC' });
 ADMIN_BY_NAME.set('washington dc', { country: 'US', code: 'DC' });
 
+/**
+ * The admin tables and the country aliases above this line, which a reader of
+ * the board needs from OUTSIDE this file, exported read-only
+ * (src/lib/search-lexicon.ts). placeOf() stores an
+ * admin area as its CODE ("MD", "ON", "NSW") in jobs.place_admin1, and the
+ * search box has to turn that back into the name a person types ("maryland"),
+ * for exactly the three countries this file reads admin areas for. The country
+ * aliases are the other half: "UK", "Deutschland" and "Holland" are what a
+ * reader types for GB, DE and NL, and they are listed once, here, because this
+ * is where free text is already read as a country.
+ *
+ * FROZEN COPIES, not the tables themselves, so a caller cannot edit the
+ * vocabulary placeOf() reads. No behaviour here: nothing in this file reads
+ * these two exports.
+ *
+ * @type {Readonly<Record<string, Readonly<Record<string, string>>>>}
+ */
+export const ADMIN_NAMES = Object.freeze({
+  US: Object.freeze({ ...US_STATES }),
+  CA: Object.freeze({ ...CA_PROVINCES }),
+  AU: Object.freeze({ ...AU_STATES })
+});
+/** The aliases half of the pair above: ISO code to the names it is printed under.
+ *  @type {Readonly<Record<string, readonly string[]>>} */
+export const COUNTRY_ALIAS_NAMES = Object.freeze(
+  Object.fromEntries(Object.entries(COUNTRY_ALIASES).map(([code, names]) => [code, Object.freeze([...names])]))
+);
+
 // Countries that print their state or province as a code in the label.
 const ADMIN_IN_LABEL = new Set(['US', 'CA', 'AU']);
 
@@ -496,6 +524,11 @@ const CITY_ALIASES = {
   sf: 'san francisco', nyc: 'new york', 'new york city': 'new york', munchen: 'munich', koln: 'cologne',
   wien: 'vienna', goteborg: 'gothenburg', bangalore: 'bengaluru'
 };
+/** The same table, read-only, for src/lib/search-lexicon.ts: what a reader types
+ *  ("nyc", "munchen") against the folded city name placeOf stores it under. A
+ *  frozen copy, so the search box cannot edit what the ingest reads.
+ *  @type {Readonly<Record<string, string>>} */
+export const CITY_ALIAS_NAMES = Object.freeze({ ...CITY_ALIASES });
 
 /**
  * One learned city: its display name, the country (and state, where the parser
