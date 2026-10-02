@@ -299,6 +299,23 @@ const BOARD_ORDER: Record<Exclude<BoardFilter['sort'], 'best'>, string> = {
 };
 
 /**
+ * THE PLACE AND COMPANY PREDICATES, written once. boardFacetCte() spells its
+ * match_place and match_company flags with these, and countBoardTotals() spells
+ * the per-suggestion version of the same two questions with them, so "what is a
+ * posting in this place" has one definition and a suggestion's count cannot
+ * drift from the table's. The arguments are the PARAMETER NAMES to read (`$16`),
+ * never values.
+ */
+function placeMatchSql(country: string, admin1: string, city: string): string {
+  return `COALESCE((${country}::text IS NULL OR place_country = ${country}::text)
+                  AND (${admin1}::text IS NULL OR place_admin1 = ${admin1}::text)
+                  AND (${city}::text IS NULL OR place_city = ${city}::text), false)`;
+}
+function companyMatchSql(name: string): string {
+  return `(${name}::text IS NULL OR company = ${name}::text)`;
+}
+
+/**
  * The facets, computed in SQL exactly as data.ts computes them in TypeScript
  * (facetsOf, workplaceOf, compBandOf, ageOf, compTop), so a count printed on an
  * option is the count of rows the option leaves. Parameters, in order:
@@ -441,10 +458,8 @@ matched AS (
          -- THE PLACE. Country, then region, then city, each applied only when
          -- the key names it. A posting with no resolved place has no country to
          -- be inside, so it fails any place that is set (NULL, coalesced).
-         COALESCE(($16::text IS NULL OR place_country = $16::text)
-                  AND ($17::text IS NULL OR place_admin1 = $17::text)
-                  AND ($18::text IS NULL OR place_city = $18::text), false) AS match_place,
-         ($19::text IS NULL OR company = $19::text) AS match_company,
+         ${placeMatchSql('$16', '$17', '$18')} AS match_place,
+         ${companyMatchSql('$19')} AS match_company,
          ($6::text = 'all' OR facet_freshness = $6::text) AS match_freshness,
          (($7::int IS NULL AND $8::int IS NULL)
            OR (age_days IS NOT NULL
@@ -1089,6 +1104,18 @@ async function readTextTotal(conn: Queryable, setup: Setup): Promise<number> {
   return Number(rows[0]?.text_total ?? 0);
 }
 
+/** Do the words match ANY row on this board, ignoring every control? The same
+    question readTextTotal answers with a count, asked as EXISTS so it ends at the
+    first row: a prefix that thousands of rows share is otherwise read out of every
+    one of their vectors to learn that it is not zero. */
+async function readTextMatches(conn: Queryable, setup: Setup): Promise<boolean> {
+  const { rows } = await conn.query(
+    `${boardFacetCte(setup.mode)}\nSELECT EXISTS (SELECT 1 FROM matched WHERE ${textTotalFilter(setup.titleClause)}) AS found`,
+    [...setup.shared, ...setup.titleParams]
+  );
+  return rows[0]?.found === true;
+}
+
 async function readCounts(conn: Queryable, setup: Setup): Promise<{ counts: FacetCounts; textTotal: number }> {
   const { rows } = await conn.query(facetCountSql(setup.mode, setup.titleClause, setup.materialize), [...setup.shared, ...setup.titleParams]);
   const c: Record<string, number> = rows[0] ?? {};
@@ -1315,6 +1342,259 @@ export async function listBoardFiltered(opts: BoardFilter): Promise<BoardFiltere
   }
 
   return { rows: exactRows, total: first.counts.total, counts: first.counts, fuzzy: false };
+}
+
+/* ---- the suggestion panel's counts (2026-10-02) ---------------------------- *
+ *
+ * A row of the search box's panel promises a number: "London, United Kingdom 406"
+ * is a claim that /board at that row's address shows 406. Two reads make the
+ * claim true by construction, and both are built on THE BOARD'S OWN CTE, so no
+ * rule of the board (live only, the age range, the watched titles, the arrangement
+ * list, the pay floor, a family, the typo fallback) is restated for the panel.
+ *
+ *   countBoardTotals          the `total` listBoardFiltered would return, for many
+ *                             filters at once, sharing statements where they can.
+ *   listBoardTitleCandidates  the titles worth offering as completions.
+ */
+
+/** The titles that complete what is being typed, with the rows that carry each. */
+export interface TitleCandidate {
+  /** The most common spelling among the rows that fold to the same title. */
+  title: string;
+  /** Rows under the filters whose TITLE matches the words, folded together. */
+  rows: number;
+}
+
+/**
+ * TITLES THE WORDS COMPLETE TO. The rows whose TITLE (weight A, not the company
+ * or the description) matches every word, each word whole or as a prefix, under
+ * every other filter the reader has set, grouped on the title folded the way the
+ * tier ladder folds it (lower case, accents out, punctuation a single space) so
+ * "Software Engineer" and "Software engineer " are one title, and shown under
+ * the spelling most rows use. Most rows first, then the title, so a tie is the
+ * same every time.
+ *
+ * `opts.q` is the text being typed. No words, or text with no searchable word,
+ * completes to nothing: the typo path is not tried, because a completion is a
+ * title the words ALREADY match.
+ *
+ * The count here is a ranking, and it is not the number the panel prints: "Software
+ * Engineer" is 12 rows by this title and over a thousand as a search, because the
+ * board searches words and not titles. countBoardTotals counts what the board
+ * shows when the title becomes the words.
+ */
+export async function listBoardTitleCandidates(opts: BoardFilter, limit: number): Promise<TitleCandidate[]> {
+  const plan = planText(opts.q);
+  if (plan.kind !== 'words') return [];
+  const age = { min: opts.ageMin ?? null, max: opts.ageMax ?? null };
+  const shared = sharedParams(opts, plan.sq.a, age);
+  const { clause, params: titleParams } = titleKeepClause(opts.titles, shared.length + 1);
+  const params: unknown[] = [...shared, ...titleParams, Math.max(1, Math.min(50, Math.floor(limit) || 1))];
+  const { rows } = await db().query(
+    `${boardFacetCte({ kind: 'exact' })}
+SELECT mode() WITHIN GROUP (ORDER BY title) AS title, count(*)::int AS rows
+  FROM matched
+ WHERE ${keepSql(clause)}
+ GROUP BY btrim(regexp_replace(lower(f_unaccent(title)), '[^[:alnum:]]+', ' ', 'g'))
+ ORDER BY rows DESC, 1 ASC
+ LIMIT $${params.length}`,
+    params
+  );
+  return rows.map((r) => ({ title: String(r.title), rows: Number(r.rows) }));
+}
+
+/** Two filters share a group when every parameter except the three the panel
+    varies (the words, the place, the company) binds to the same value, which is
+    read off the parameters themselves so the key cannot miss one. */
+function totalsSignature(f: BoardFilter): string {
+  const age = { min: f.ageMin ?? null, max: f.ageMax ?? null };
+  const shared = sharedParams({ ...f, place: null, company: null }, null, age);
+  return JSON.stringify([shared, titleKeepClause(f.titles, 1).params]);
+}
+
+/**
+ * `listBoardFiltered(f).total` for each filter, with no rows, no facet matrix and
+ * no ordering, and as few statements as the filters allow. This is what makes a
+ * suggestion's number the board's number: the statement is the board's own CTE
+ * (boardFacetCte) read through the board's own keep clause (keepSql), so every
+ * rule of the table (live only, the age range, the watched titles, the
+ * arrangement list, the pay floor, a family, a freshness) is applied by the code
+ * that applies it to the table, and none is written again for the panel.
+ *
+ * WHAT VARIES, AND WHAT IS SHARED. Filters that differ only in their words, place
+ * and company (the three things a suggestion changes) are one GROUP and share every
+ * bound parameter of the CTE (totalsSignature). Within a group:
+ *
+ *   - Each DISTINCT WORDS is its own statement, run side by side on the pool. The
+ *     words are the expensive part of any count: a prefix such as `des:*` is
+ *     read out of the vector of every row the index names, thousands of them, to
+ *     check the weights. Counting eight titles in one scan looked cheaper and was
+ *     not: one statement evaluates every tsquery against every row it reads
+ *     (measured on 2026-10-02, 210 ms for eight common title phrases in one scan,
+ *     against 5 to 30 ms for each alone through its own index scan), so the work is
+ *     split by words, each statement is narrowed by the index on its own words, and
+ *     a group takes about as long as its slowest.
+ *   - Filters that share their words (the places and companies of one fragment)
+ *     share the statement, and differ only in two cheap predicates, one FILTER each,
+ *     spelled by placeMatchSql and companyMatchSql, the same two the CTE's flags
+ *     are written from.
+ *   - Filters with no words share one more, which reads only the rows their places
+ *     and companies can match (their sargable forms, so the indexes on
+ *     place_country and company are used), or every row when one of them names
+ *     neither (the board with no place and no company).
+ *   - Text with no word in it matches nothing: zero, with no statement.
+ *
+ * THE TYPO FALLBACK IS KEPT, because the table has it: words that match nothing
+ * on the whole board are answered on the close-spelling path, and a count of the
+ * exact words would be a different population from the rows the address shows. It
+ * is tried only for a filter that counted zero, has a word long enough to
+ * misspell, and whose words no filter in the group counted anywhere; those are
+ * asked, with EXISTS so the question ends at the first row (readTextMatches),
+ * whether the words match anything, and only if not is the close-spelling count
+ * taken, one statement each.
+ */
+export async function countBoardTotals(filters: readonly BoardFilter[]): Promise<number[]> {
+  const totals = filters.map(() => 0);
+  const groups = new Map<string, number[]>();
+  filters.forEach((f, i) => {
+    const key = totalsSignature(f);
+    const held = groups.get(key);
+    if (held === undefined) groups.set(key, [i]);
+    else held.push(i);
+  });
+  await Promise.all(
+    [...groups.values()].map(async (indexes) => {
+      const counted = await countGroup(indexes.map((i) => filters[i] as BoardFilter));
+      indexes.forEach((at, n) => {
+        totals[at] = counted[n] ?? 0;
+      });
+    })
+  );
+  return totals;
+}
+
+async function countGroup(group: readonly BoardFilter[]): Promise<number[]> {
+  const head = group[0] as BoardFilter;
+  const age = { min: head.ageMin ?? null, max: head.ageMax ?? null };
+  const plans = group.map((f) => planText(f.q));
+  const out = group.map(() => 0);
+
+  // One statement per DISTINCT WORDS. The words are the expensive part of every
+  // count (a prefix such as `des:*` is read out of the vector of every row the
+  // index names, which is thousands), so each distinct words is its own statement,
+  // narrowed by the index on its own words, and the statements run side by side
+  // on the pool. Filters that share their words (the places and companies of one
+  // fragment) share the statement and differ only in two cheap predicates. Filters
+  // with no words at all share one more, which reads only the rows their places
+  // and companies can match. Text with no word in it matches nothing: zero.
+  const byWords = new Map<string, number[]>();
+  group.forEach((_, at) => {
+    const plan = plans[at] as TextPlan;
+    if (plan.kind === 'nomatch') return;
+    const key = plan.kind === 'words' ? plan.sq.all : '';
+    const held = byWords.get(key);
+    if (held === undefined) byWords.set(key, [at]);
+    else held.push(at);
+  });
+
+  await Promise.all(
+    [...byWords].map(async ([tsquery, members]) => {
+      // $3 is left NULL: no words in the shared part. match_place and match_company
+      // are bound to nothing as well, so they are true for every row and the keep
+      // clause below is every OTHER flag, applied exactly as the table applies it.
+      const shared = sharedParams({ ...head, place: null, company: null }, null, age);
+      const { clause, params: titleParams } = titleKeepClause(head.titles, shared.length + 1);
+      const params: unknown[] = [...shared, ...titleParams];
+      let words = '';
+      if (tsquery !== '') {
+        params.push(tsquery);
+        words = `search @@ to_tsquery('simple', $${params.length}::text)`;
+      }
+      const filters: string[] = [];
+      const arms: string[] = [];
+      let narrowable = true;
+      for (const at of members) {
+        const f = group[at] as BoardFilter;
+        const own: string[] = [];
+        const sargable: string[] = [];
+        const place = parsePlaceKey(f.place ?? null);
+        if (place) {
+          params.push(place.country, place.admin1, place.city);
+          const [c, a, y] = [params.length - 2, params.length - 1, params.length].map((n) => `$${n}`) as [string, string, string];
+          own.push(placeMatchSql(c, a, y));
+          sargable.push(`place_country = ${c}::text`);
+          if (place.admin1 !== null) sargable.push(`place_admin1 = ${a}::text`);
+          if (place.city !== null) sargable.push(`place_city = ${y}::text`);
+        }
+        const company = f.company?.trim();
+        if (company) {
+          params.push(company);
+          own.push(companyMatchSql(`$${params.length}`));
+          sargable.push(`company = $${params.length}::text`);
+        }
+        filters.push(own.length > 0 ? own.join(' AND ') : 'TRUE');
+        if (sargable.length === 0) narrowable = false;
+        else arms.push(`(${sargable.join(' AND ')})`);
+      }
+      // With words, the index on the words is the narrowing. Without, the union of
+      // what the places and companies can match is, unless one filter names neither
+      // (the board with no place and no company), which has to read every row.
+      const where = [keepSql(clause), words, words === '' && narrowable ? `(${arms.join(' OR ')})` : ''].filter(Boolean).join('\n   AND ');
+      const { rows } = await db().query(
+        `${boardFacetCte({ kind: 'exact' })}
+SELECT ${filters.map((f, k) => `count(*) FILTER (WHERE ${f})::int AS t${k}`).join(',\n       ')}
+  FROM matched
+ WHERE ${where}`,
+        params
+      );
+      members.forEach((at, k) => {
+        out[at] = Number(rows[0]?.[`t${k}`] ?? 0);
+      });
+    })
+  );
+
+  // The typo path, for the filters that need it (see the header). Words that
+  // counted anything in ANY filter of this group match something on the board, so
+  // they are exact and nothing more is asked; only words that counted nothing
+  // anywhere are asked whether they match a single row (readTextMatches).
+  const counted = new Set<string>();
+  group.forEach((_, at) => {
+    const plan = plans[at] as TextPlan;
+    if (plan.kind === 'words' && (out[at] ?? 0) > 0) counted.add(plan.sq.all);
+  });
+  const wordsMatchNothing = new Map<string, Promise<boolean>>();
+  await Promise.all(
+    group.map(async (f, at) => {
+      const plan = plans[at] as TextPlan;
+      if (out[at] !== 0 || plan.kind !== 'words' || !plan.sq.fuzzy) return;
+      // Keyed by the tsquery, which is what the question is asked of: two spellings
+      // can share their words (`node.js`, `node js`) and not their query.
+      const key = plan.sq.all;
+      let nothing = wordsMatchNothing.get(key);
+      if (nothing === undefined) {
+        nothing = counted.has(key)
+          ? Promise.resolve(false)
+          : readTextMatches(db(), setupExact(f, f.titles, plan, age)).then((found) => !found);
+        wordsMatchNothing.set(key, nothing);
+      }
+      if (!(await nothing)) return;
+      const fuzzySq = plan.sq as SearchQuery & { fuzzy: NonNullable<SearchQuery['fuzzy']> };
+      out[at] = await withTrigramThreshold(async (conn) => {
+        const setup = setupFuzzy(f, f.titles, fuzzySq, age);
+        const { rows } = await conn.query(
+          `${boardFacetCte(setup.mode)}
+SELECT count(*) FILTER (WHERE ${keepSql(setup.titleClause)})::int AS total,
+       count(*) FILTER (WHERE ${textTotalFilter(setup.titleClause)})::int AS text_total
+  FROM matched`,
+          [...setup.shared, ...setup.titleParams]
+        );
+        // The same decision listBoardFiltered makes: close spellings that match
+        // nothing leave the (empty) exact answer standing.
+        return Number(rows[0]?.text_total ?? 0) === 0 ? 0 : Number(rows[0]?.total ?? 0);
+      });
+    })
+  );
+  return out;
 }
 
 /** The BoardRow columns read back out of the CTE (the same names, unprefixed). */

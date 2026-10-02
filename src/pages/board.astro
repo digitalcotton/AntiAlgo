@@ -6,11 +6,12 @@ import { EMPTY_AGE_HISTOGRAM, facetGroupsFromCounts, loadStats, prospectRows, sw
 import { sweptStamp as stampOf } from '../lib/stats';
 import { isConfigured } from '../lib/db';
 import { boardRowsLoadedAt, getBoardStats, listBoardAgeHistogram, listBoardFiltered, type BoardFilteredResult, type FacetCounts } from '../lib/job-store';
+import { getLexicon, type BoardLexicon } from '../lib/search-lexicon';
+import { NO_LEXICON, boardFilterFromQuery, canonicalSearchTarget, chipRemoveHrefs, chipsForQuery, suggestBaseParams } from '../lib/search-suggest';
 import { boardRowToJob } from '../lib/board-jobs';
 import { listWatches } from '../lib/ledger-watch-store';
 import { isPaidViewer } from '../lib/ledger-access';
 import { boardHref, clampPage, parseBoardQuery } from '../lib/board-query';
-import { familyFromSearch } from '../lib/job-family.mjs';
 import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
 import { isOn } from '../lib/flags';
 import { routeFor } from '../data/nav';
@@ -59,24 +60,47 @@ const parsed = parseBoardQuery(Astro.url.searchParams);
 // /board is public, so the middleware writes no verdict here; it resolves a
 // viewer only when the request carries a session cookie (src/middleware.ts,
 // SESSION_IF_COOKIE), which is the one fact this page needs.
-// A SEARCH THAT IS THE NAME OF A FIELD CHOOSES THAT FIELD. The search box is
-// a substring match over title and company, so typing the name of a field got
-// a reader almost none of it — "Healthcare & Medicine" returns 0 rows as a
-// search term while the field holds 4,430. It is the most natural thing to type
-// into a box sitting beside a control called Field, and it was the worst thing
-// to type. The board answers by setting the control instead, so the reader can
-// see what happened and undo it.
+// A FIELD NAME TYPED INTO THE BOX IS JUST WORDS (2026-10-02). This page used to
+// answer a search that was exactly the label of a field ("Healthcare & Medicine")
+// with a silent 302 to the Field filter, which the reader could not tell had
+// happened. The search is words now, matched against titles, companies and
+// departments (job-store.ts buildSearchQuery), so a field name finds the postings
+// that say it, and the Field control is the strip's own.
 //
-// EXACT LABEL ONLY, never a substring: "design" must stay a search for the word
-// design (676 rows, across software, marketing and design) rather than being
-// quietly turned into the Design field (313). Nobody types a whole label such
-// as "Customer Support & Success" by accident.
-const namedFamily = familyFromSearch(parsed.q);
-if (namedFamily && parsed.families.length === 0) {
-  return Astro.redirect(
-    boardHref(boardPath, { ...parsed, q: '', families: [namedFamily] }, { page: 1 }),
-    302
-  );
+// THE ONE REDIRECT THIS PAGE MAKES FOR A SEARCH IS THE VISIBLE PARSE. Text that
+// states facts ("designer london remote 150k") is not shown at that address:
+// the reader is sent to the address that holds the facts as parameters, where the
+// box draws them as chips, with the words that are left in `q` and none of them
+// dropped (search-suggest.ts canonicalSearchTarget). It is what pressing Enter
+// does without script, and what the typeahead's own rows already point at. It
+// cannot loop: the address it sends to parses to no chips. A place or company
+// that is also a title word ("phoenix", "oracle") is never converted; it is
+// searched as the word it is, and offered as a chip by the box.
+//
+// THE TEXT IS PARSED UNCAPPED, the parser's own 200 characters, and NOT the 120
+// the board keeps of `q` (parsed.q): a pay or a place at character 150 is a fact
+// the reader typed. The vocabulary is the live board's (search-lexicon.ts, built
+// once per crawl); when it cannot be read the parse still turns `150k`, `remote`
+// and `this week` into chips, which need no vocabulary, and nothing else.
+const rawQ = (Astro.url.searchParams.get('q') ?? '').trim();
+// The stats row is read here, and not alongside the rows below, only when this
+// request needs the vocabulary: the lexicon is keyed by the crawl instant that row
+// holds, and a place chip needs it to be named. A bare board asks for neither.
+let boardStats: Awaited<ReturnType<typeof getBoardStats>> = null;
+let statsRead = false;
+let lexicon: BoardLexicon | null = null;
+if (isConfigured() && (rawQ !== '' || parsed.place !== null)) {
+  try {
+    boardStats = await getBoardStats();
+    statsRead = true;
+    lexicon = await getLexicon(boardRowsLoadedAt(boardStats));
+  } catch (error) {
+    console.error('board: the search vocabulary could not be read; parsing without it.', error);
+  }
+}
+if (rawQ !== '') {
+  const parsedTarget = canonicalSearchTarget(rawQ, parsed, lexicon ?? NO_LEXICON, boardPath);
+  if (parsedTarget !== null) return Astro.redirect(parsedTarget, 302);
 }
 
 const viewer = Astro.locals.viewer;
@@ -163,35 +187,22 @@ const ageHistogramP: Promise<AgeHistogram> = isConfigured()
 // render, and the table says nothing matched. The rows and the board's own
 // stats row are independent reads, so they run concurrently.
 let served = EMPTY_PAGE;
-let boardStats: Awaited<ReturnType<typeof getBoardStats>> = null;
 if (isConfigured()) {
   [served, boardStats] = await Promise.all([
-    listBoardFiltered({
-      q: query.q,
-      location: query.location,
-      comp: query.comp,
-      freshness: query.freshness,
-      remote: query.remote,
-      payMin: query.payMin,
-      compNotListed: query.compNotListed,
-      place: query.place,
-      company: query.company,
-      ageMin: query.ageMin,
-      ageMax: query.ageMax,
-      sort: servedSort,
-      page: query.page,
-      perPage: query.per,
-      sweepDate: sweepDate(),
-      titles: pickedTitles.length > 0 ? pickedTitles : undefined,
-      families: query.families.length > 0 ? [...query.families] : undefined
-    }).catch((error) => {
+    // The store's filter is built by the one function the typeahead's counts
+    // also use (search-suggest.ts), so a count printed in the box and the total
+    // under it cannot come from two readings of the same address.
+    listBoardFiltered(boardFilterFromQuery(query, { sweepDate: sweepDate(), sort: servedSort, titles: pickedTitles })).catch((error) => {
       console.error('board: the job store did not answer; rendering an empty board.', error);
       return EMPTY_PAGE;
     }),
-    getBoardStats().catch((error) => {
-      console.error('board: the stats row could not be read.', error);
-      return null;
-    })
+    // Already read, above, when the search needed the vocabulary.
+    statsRead
+      ? Promise.resolve(boardStats)
+      : getBoardStats().catch((error) => {
+          console.error('board: the stats row could not be read.', error);
+          return null;
+        })
   ]);
 }
 
@@ -227,6 +238,22 @@ const verifiedCount = boardStats?.verified_live ?? served.total;
 // staleness warning, which is worse than a degraded one that is visibly there.
 const boardRowsAt = boardRowsLoadedAt(boardStats) ?? sweptAt();
 const prospectCount = prospectRows().length;
+
+// WHAT THE SEARCH BOX IS HANDED (Board.astro hands it to Filters.astro, which
+// hands it to SearchBox.astro). The chips are the facts the address holds, named
+// with the vocabulary's labels ("London, United Kingdom"), each with the address
+// that removes that one chip; `suggestPath` is the registry's path to the
+// typeahead; `sweepV` is the same crawl instant the endpoint reads for itself, so
+// a new crawl is a new cache key; `baseParams` is the address's other settings,
+// one value a name, which is how the box sends them and how the endpoint reads
+// them back (suggestBaseParams). Only the titles the member holds are sent: a
+// title in an address that is not theirs narrows nothing on this page and must
+// not narrow a count.
+const searchChips = chipsForQuery(query, lexicon);
+const searchChipRemoveHrefs = chipRemoveHrefs(query, searchChips, boardPath);
+const suggestPath = routeFor('board-suggest');
+const sweepV = boardRowsLoadedAt(boardStats) ?? '';
+const baseParams = suggestBaseParams({ ...query, titles: pickedTitles });
 ---
 
 <BaseLayout title="The Index" active="index" fonts={['n27-regular', 'n27-medium', 'n27-bold', 'mono-regular', 'mono-medium']}>
@@ -259,6 +286,12 @@ const prospectCount = prospectRows().length;
       fit={showFit}
       tabs={paidViewer || isOn('prelist_tab_public')}
       ariaLabel="This sweep"
+      chips={searchChips}
+      chipRemoveHrefs={searchChipRemoveHrefs}
+      suggestPath={suggestPath}
+      sweepV={sweepV}
+      baseParams={baseParams}
+      fuzzy={served.fuzzy}
     >
       {/* The sweep stamp sits right of the board tabs (Board.astro's stamp
           slot). It is still the reader-facing half of the staleness pair:
