@@ -15,7 +15,8 @@
  *
  *   - scripts/ingest-jobs.mjs calls it on every row it writes (nightly);
  *   - scripts/backfill-derived.mjs calls it to fill rows written before
- *     db/207 added the columns (and db/220, which added the place_* columns);
+ *     db/207 added the columns (and db/220 and db/222, which added the
+ *     place_* columns and the place_keys and place_leaves arrays);
  *   - src/lib/jobs-data-agg.ts NEVER re-derives; it reads the columns.
  *
  * So there is no second copy to drift. A rule change here is a code change
@@ -262,9 +263,10 @@ for (const [region, codes] of [
  * Locations', a bare city nobody has said the country of) falls back to
  * regionOf() over the text, as the page always did.
  *
- * `place` is placeOf()'s answer for the same row; derivedFor passes the one it
- * already computed so the text is parsed once. `country` is the crawl's column,
- * which only matters because placeOf reads it.
+ * `place` is the one place the row reduces to (summaryOf, which for a one-place
+ * row is placeOf()'s answer); derivedFor passes the one it already computed so
+ * the text is parsed once. `country` is the crawl's column, which only matters
+ * because placeOf reads it.
  */
 export function regionFor(country, location, place) {
   const p = place || placeOf(location, country);
@@ -386,7 +388,10 @@ export function countryName(code) {
 // exonyms. Matching is on the folded form, so accents and case cost nothing.
 const COUNTRY_BY_NAME = new Map();
 for (const code of ISO_SET) COUNTRY_BY_NAME.set(fold(countryName(code)), code);
+// BA is "Bosnia & Herzegovina" to the runtime and "Bosnia" to the five live
+// postings that name it (2026-10-02): the short form is the one printed.
 const COUNTRY_ALIASES = {
+  BA: ['Bosnia'],
   GB: ['UK', 'U.K.', 'United Kingdom', 'Great Britain', 'Britain', 'England', 'Scotland', 'Wales',
        'Northern Ireland', 'Royaume-Uni'],
   US: ['US', 'U.S.', 'USA', 'U.S.A.', 'United States of America', 'United States', 'Etats-Unis'],
@@ -498,11 +503,23 @@ const ARRANGEMENT_ONLY =
 
 /** Tokens that carry no place at all. "Worldwide" and its kin are here on
  *  purpose: they are a fact about the job, not a country, and the row that
- *  prints only them has no place to resolve. */
+ *  prints only them has no place to resolve.
+ *
+ *  THE SECOND HALF IS THE REGION WORDS (2026-10-02), and they are here because a
+ *  list made them places. "Europe" is not a city and not a country, but read as a
+ *  token of "United States / Canada / London / Europe" it was the one unknown word
+ *  in the string, and the old reader took the first such word for the city: the
+ *  board carried cities called Europe, Apac and All France. A region is a fact
+ *  about the job, like "Worldwide", so it is noise. The entries are the FOLDED
+ *  spellings, because fold() turns a hyphen into a space: "Asia-Pacific" arrives
+ *  here as 'asia pacific' and "Ile-de-France" as 'ile de france'. */
 const NOISE = new Set([
   'unavailable', 'various', 'multiple', 'multiple locations', 'location negotiable after selection',
   'tbd', 'tba', 'na', 'n a', 'anywhere', 'worldwide', 'global', 'international', 'nationwide', 'job', 'jobs',
-  'location', 'locations', 'within', 'based', 'area', 'metro', 'and', 'or', 'the', 'freelance'
+  'location', 'locations', 'within', 'based', 'area', 'metro', 'and', 'or', 'the', 'freelance',
+  'europe', 'eu', 'european union', 'emea', 'apac', 'asia pacific', 'latam', 'latin america', 'americas',
+  'north america', 'south america', 'asia', 'nordics', 'dach', 'benelux', 'middle east', 'mena', 'africa',
+  'ile de france', 'deutschlandweit'
 ]);
 
 /** The key a city is stored under in src/data/place-cities.json, so the builder
@@ -545,6 +562,9 @@ const CITIES = PLACE_CITIES.cities;
 function cityLike(raw) {
   if (Object.hasOwn(CITY_ALIASES, fold(raw))) return true;
   if (/\d/.test(raw) || raw.length < 2 || raw.length > 40) return false;
+  // A sentence fragment, not a name: "BC & ON only", "EST Timezone Only",
+  // "Remote-UK&I", "Germany & Netherlands". Each was a city of its own.
+  if (/[!?&@#]|\bonly\b|\btime ?zone\b/i.test(raw)) return false;
   if (raw.split(/\s+/).length > 5) return false;
   if (/^[A-Z]{2,3}$/.test(raw)) return false;
   return /[A-Za-z\u00c0-\u024f]/.test(raw);
@@ -574,6 +594,17 @@ function classify(piece) {
     return { kind: 'admin', raw, ...ADMIN_BY_CODE.get(raw), alsoCountry: ISO_SET.has(raw) ? raw : null };
   }
   if (!f || NOISE.has(f) || /^\d+ locations?$/.test(f)) return { kind: 'noise' };
+  // "EMEA Region", "Company Wide": a scope, whatever word comes before it.
+  if (/ (?:region|wide)$/.test(f)) return { kind: 'noise' };
+  // "Anywhere in France", "All France", "Across Spain", "Throughout Belgium": the
+  // words in front only widen the scope, so what follows is read on its own, and
+  // only when it is a country or a state ("All Hands" is not one). 82 live rows
+  // print one of these (2026-10-02), and "All France" was a city on the board.
+  const widened = /^(?:anywhere in|all|across|throughout)\s+(.+)$/i.exec(raw);
+  if (widened) {
+    const inner = classify(widened[1]);
+    if (inner && (inner.kind === 'country' || inner.kind === 'admin')) return inner;
+  }
   if (/^[A-Z]{3}$/.test(raw)) {
     if (ADMIN_BY_CODE.has(raw)) return { kind: 'admin', raw, ...ADMIN_BY_CODE.get(raw) };
     if (ALPHA3[raw]) return { kind: 'country', raw, code: ALPHA3[raw] };
@@ -602,6 +633,11 @@ function cleanText(location) {
     // hyphen, which reads as one unrecognisable token unless it is turned round.
     .replace(/\b([A-Z]{2})-([A-Z][A-Za-z .'-]+)/g, (m, st, city) => (ADMIN_BY_CODE.has(st) ? `${city}, ${st}` : m))
     .replace(/\bwashington,?\s+d\.?\s?c\b\.?/gi, 'Washington, DC')
+    // "Capelle a/d IJssel" (17 rows) is a Dutch name with a slash inside it, and
+    // "Frankfurt / Main" is the one German city that is written with a spaced
+    // slash; both would otherwise be split into two places by PART_SPLIT below.
+    .replace(/\ba\/d\b/g, 'aan den')
+    .replace(/\bFrankfurt\s*\/\s*Main\b/gi, 'Frankfurt am Main')
     .replace(/\(([^)]*)\)/g, (_, inner) => (ARRANGEMENT_ONLY.test(inner.trim()) ? ' ' : ', ' + inner + ', '));
 }
 
@@ -610,6 +646,20 @@ function cleanText(location) {
 // spaced hyphen.
 const PART_SPLIT = /\s*[\u2022|;/]\s*|\s+or\s+/i;
 const TOKEN_SPLIT = /\s*,\s*|\s+-\s+/;
+
+/**
+ * "Hamburg-Germany", "Barcelona- Spain": a city and its country joined by a
+ * hyphen, which TOKEN_SPLIT only splits when the hyphen has a space on BOTH
+ * sides. Turned into "Hamburg, Germany" when what follows the last hyphen is a
+ * country, and only when the hyphen has a space on one side or the head is a
+ * city the table knows: "Ile-de-France" must stay one name, and "Timor-Leste"
+ * and "Winston-Salem" are not a city and a country. Applied to each piece after
+ * PART_SPLIT, so a slash list is split first.
+ */
+function splitCountryTail(piece, cities) {
+  return piece.replace(/^(.*\p{L}\.?)(\s*)-(\s*)(\p{L}[\p{L} ]*)$/u, (m, head, before, after, tail) =>
+    classify(tail)?.kind === 'country' && (before || after || cityOf(cities, head.trim())) ? `${head}, ${tail}` : m);
+}
 
 /**
  * Read ONE place out of a string that names one: its country, state, city, and
@@ -804,7 +854,7 @@ function readPart(part, upstream, cities) {
  */
 export function readPlace(/** @type {unknown} */ location, /** @type {unknown} */ upstream, /** @type {CityTable} */ cities = CITIES) {
   const up = isoCountry(upstream);
-  const pieces = cleanText(location).split(PART_SPLIT);
+  const pieces = cleanText(location).split(PART_SPLIT).map((p) => splitCountryTail(p, cities));
   const read = (country) => pieces.map((p) => readPart(p, country, cities)).filter(Boolean);
   let parts = read(up);
   let overrode = false;
@@ -878,6 +928,11 @@ export function readPlace(/** @type {unknown} */ location, /** @type {unknown} *
  * several countries: those are a gap in what the employer printed, and the
  * page shows a gap.
  *
+ * THIS IS THE ONE-PLACE READING. A string that lists several places is read by
+ * placesOf() below, which finds every one of them; the place_* columns are
+ * summaryOf() of that, and are this function's answer exactly for a string
+ * with one place.
+ *
  * City and state are returned only alongside a country. A city with no country
  * is a guess about a word, and a facet built on it would count "Bashor Campus".
  *
@@ -902,6 +957,270 @@ function placeLabel(country, admin1, city) {
   if (!city) return name;
   if (admin1 && ADMIN_IN_LABEL.has(country)) return `${city}, ${admin1}`;
   return `${city}, ${name}`;
+}
+
+// ---------------------------------------------------------------------------
+// Every place a posting lists.
+// ---------------------------------------------------------------------------
+//
+// WHY THIS EXISTS (2026-10-02, owner decision, report decision 8, option B). A
+// posting that lists several places is found under EACH of them, and each
+// place's count includes it. placeOf() above answers a different question, "the
+// ONE place this row reduces to", and for a list it had to pick: it took the
+// upstream country, which is the crawl's choice of one place from the list, and
+// the one city the list names. On the local board (37,286 live rows) that was
+// wrong for 24 of the 99 " / " lists that were given a city ("London, Canada"
+// for London, UK; "New York, Canada"; a city called "Europe"), and a job
+// listing London and Berlin was found under neither city.
+//
+// THE TWO ANSWERS ARE ONE DEFINITION. placesOf() reads the list; summaryOf()
+// reduces it to the single place the place_country, place_admin1, place_city and
+// place_label columns hold, and derived_region is read off that. So the columns
+// a reader of one place sees and the keys a reader of every place filters on come
+// out of one call and cannot disagree. A string with one place never takes the
+// list path: it is placeOf()'s answer, unchanged by construction, except where
+// the token rules above change what a token is (177 rows, every one a junk city
+// removed or a city found).
+
+/**
+ * The keys one place answers to, most general first: the country, the country
+ * and state, the country and city (the state left open: "Baltimore, any state"),
+ * and the country, state and city. These are exactly the `place=` values the
+ * board accepts (GB, US-MD, GB/London, US-MD/Baltimore; src/lib/place-key.ts owns
+ * that grammar, and is TypeScript that imports this file, so the shape is
+ * written here again and a test holds the two to each other).
+ *
+ * Every level is a key so that a filter at any level is one array-contains probe,
+ * and `US/Baltimore` is there so that a bookmarked address that means "Baltimore,
+ * any state" keeps meaning it.
+ *
+ * @param {{ country: string, admin1: string|null, city: string|null }} place
+ * @returns {string[]}
+ */
+export function placeKeysOf(place) {
+  const keys = [place.country];
+  if (place.admin1) keys.push(`${place.country}-${place.admin1}`);
+  if (place.city) {
+    keys.push(`${place.country}/${place.city}`);
+    if (place.admin1) keys.push(`${place.country}-${place.admin1}/${place.city}`);
+  }
+  return keys;
+}
+
+/** A place found in a list: always has a country, unlike Place, whose country is
+ *  null for a posting that names none.
+ *  @typedef {{ country: string, admin1: string|null, city: string|null, label: string }} ListedPlace */
+
+/** The most specific key of a place: what a place is counted under when each
+ *  place is counted once (`US-MD/Baltimore`, `GB/London`, `GB`).
+ *  @param {{ country: string, admin1: string|null, city: string|null }} place
+ *  @returns {string} */
+export function placeLeafOf(place) {
+  return /** @type {string} */ (placeKeysOf(place).at(-1));
+}
+
+/** A word that is a state or a country by name and a place a person means by
+ *  another reading: a lone "Georgia" in a list is as likely the country as the
+ *  state, and a lone "Victoria" the London station as the Australian state. */
+const LONE_AMBIGUOUS = new Set(['georgia', 'victoria']);
+
+/** The tokens of one comma list, classified, with the noise gone. */
+function listTokens(piece) {
+  return piece.split(TOKEN_SPLIT).map((raw) => ({ raw, t: classify(raw) })).filter((x) => x.t && x.t.kind !== 'noise');
+}
+
+/**
+ * The places ONE comma list names, once readPart has called it a list
+ * ("Chicago, IL, Evanston, IL"; "Argentina, Brazil, Chile"; "Barcelona, Berlin").
+ * Empty when it names none this can place, and the caller then falls back to
+ * the country readPart found.
+ *
+ * Four rules, in this order, because the first two decide what a two letter code
+ * IS and the rest read the list that results:
+ *
+ *   1. A code followed by a country it does not belong to is that country's
+ *      subdivision code and is dropped ("La Ceiba, AT, HN": AT is a Honduran
+ *      department, not Austria). A code followed by its own country is a state
+ *      ("GA, US"). In a list that names other countries, a code that is also a
+ *      country and is not followed by its own is the country ("Trelew, U, AR"
+ *      in a list of Latin American countries).
+ *   2. Two or more state codes: each takes the token just before it as its city,
+ *      when that token is city-like ("Chicago, IL, Evanston, IL" is Chicago and
+ *      Evanston, both Illinois). Countries named in the list count as well.
+ *   3. Otherwise two or more countries: each country.
+ *   4. Otherwise two or more cities the table knows: each city, in the country
+ *      and state the table gives it.
+ */
+function listPlaces(piece, cities) {
+  let toks = listTokens(piece);
+  const isCountryTok = (x) => x && x.t.kind === 'country';
+  toks = toks.filter((x, i) => !(/^[A-Z]{2}$/.test(x.raw.trim()) && isCountryTok(toks[i + 1]) &&
+    toks[i + 1].t.code !== (x.t.kind === 'admin' ? x.t.country : x.t.code)));
+  const named = new Set(toks.filter(isCountryTok).map((x) => x.t.code));
+  toks = toks.map((x, i) => {
+    if (x.t.kind !== 'admin' || !x.t.alsoCountry) return x;
+    const own = toks[i + 1] && isCountryTok(toks[i + 1]) && toks[i + 1].t.code === x.t.country;
+    const others = [...named].some((c) => c !== x.t.country);
+    return !own && others ? { raw: x.raw, t: { kind: 'country', raw: x.t.raw, code: x.t.alsoCountry } } : x;
+  });
+  const out = [];
+  const codes = toks.filter((x) => x.t.kind === 'admin' && x.t.raw.length === 2);
+  if (codes.length >= 2) {
+    toks.forEach((x, i) => {
+      if (!(x.t.kind === 'admin' && x.t.raw.length === 2)) return;
+      const prev = toks[i - 1];
+      const city = prev && prev.t.kind === 'other' && cityLike(prev.raw.trim())
+        ? (cityOf(cities, prev.raw)?.city ?? prev.raw.trim()) : null;
+      out.push({ country: x.t.country, admin1: x.t.code, city });
+    });
+    toks.filter(isCountryTok).forEach((x) => out.push({ country: x.t.code, admin1: null, city: null }));
+    return out;
+  }
+  const countries = toks.filter(isCountryTok);
+  if (countries.length >= 2) return countries.map((x) => ({ country: x.t.code, admin1: null, city: null }));
+  const known = toks.filter((x) => x.t.kind === 'other' && cityOf(cities, x.raw));
+  if (known.length >= 2) {
+    return known.map((x) => {
+      const e = cityOf(cities, x.raw);
+      return { country: e.country, admin1: e.admin1 || null, city: e.city };
+    });
+  }
+  return out;
+}
+
+/**
+ * Every place a posting lists, each with the label a reader sees. An empty list
+ * means the posting names no place ("Not stated").
+ *
+ *   placesOf('London / Germany', null)             -> London, UK and Germany
+ *   placesOf('Chicago, IL, Evanston, IL', null)    -> Chicago, IL and Evanston, IL
+ *   placesOf('Haarlem; Lugano; Singapore', 'SG')   -> Singapore
+ *   placesOf('Austin, TX', null)                   -> Austin, TX, as placeOf says
+ *
+ * ONE PLACE. A string with at most one piece, and that piece not a list, is
+ * placeOf()'s answer (or none, when it has no country), identical to what the
+ * board has always said.
+ *
+ * A LIST. Every piece is read on its own, WITHOUT the upstream country
+ * (readPart(piece, null)): its own text, then the city table. The upstream code
+ * is the crawl's pick of ONE place from the list, so it is not lent to the
+ * others: "London / Germany" under an upstream DE is London, UK and Germany, not
+ * London, Germany. Then:
+ *
+ *   - A piece that is itself a comma list is read by listPlaces above.
+ *   - A lone "Georgia" or "Victoria" counts only when another piece of the list
+ *     is in the same country (a London list ends in "Victoria").
+ *   - "Germany & Netherlands": two country names joined by & or "and" are both.
+ *   - A piece with no country of its own (a city the table does not know) takes
+ *     the upstream code ONLY when no piece of the list names a country in its
+ *     text and every place found is in the upstream country. Otherwise it is
+ *     dropped, because the upstream code would be a guess about it: "Haarlem;
+ *     Lugano; Singapore" under SG is Singapore, not Haarlem, Singapore.
+ *   - A list that resolves to nothing, under a valid upstream code, is that
+ *     country.
+ *   - One entry per leaf key, so a place listed twice is one place.
+ *
+ * Measured over the 37,286 live rows (2026-10-02): 2,201 read as a list, 477 of
+ * them across several countries; 14 more countries appear (95 to 109); London,
+ * UK goes from 676 to 903; 7 rows lose the country they had, all of them wrong
+ * (one Latin America posting and one European one filed under the US, and
+ * "Vancouver, Washington" filed under Canada).
+ *
+ * @param {string|null|undefined} location
+ * @param {string|null|undefined} upstream the crawl's country column
+ * @param {CityTable} [cities]
+ * @returns {ListedPlace[]}
+ */
+export function placesOf(location, upstream, cities = CITIES) {
+  const up = isoCountry(upstream);
+  const pieces = cleanText(location).split(PART_SPLIT).map((p) => splitCountryTail(p, cities));
+  const readAll = pieces.map((p) => readPart(p, up, cities)).filter(Boolean);
+  if (readAll.length <= 1 && !readAll.some((p) => p.listed)) {
+    const one = placeOf(location, upstream, cities);
+    return one.country ? [/** @type {ListedPlace} */ (one)] : [];
+  }
+
+  const found = [];
+  const deferred = [];
+  const loneAmbiguous = [];
+  /** Every country the TEXT of the list states, by any piece. */
+  const stated = new Set();
+  for (const piece of pieces) {
+    const own = readPart(piece, null, cities);
+    if (!own) continue;
+    if (own.textCountry) stated.add(own.textCountry);
+    if (own.listed) {
+      const inList = listPlaces(piece, cities);
+      for (const p of inList) stated.add(p.country);
+      if (inList.length > 0) found.push(...inList);
+      else if (own.country) found.push({ country: own.country, admin1: null, city: null });
+      continue;
+    }
+    const toks = listTokens(piece);
+    if (toks.length === 1 && toks[0].t.kind === 'admin' && LONE_AMBIGUOUS.has(toks[0].raw.trim().toLowerCase())) {
+      loneAmbiguous.push({ country: own.country, admin1: own.admin1, city: null });
+      continue;
+    }
+    if (own.country) {
+      found.push({ country: own.country, admin1: own.admin1, city: own.city });
+      continue;
+    }
+    const joined = piece.split(/\s+(?:&|and)\s+/i).map((s) => classify(s.trim()));
+    if (joined.length >= 2 && joined.every((t) => t && t.kind === 'country')) {
+      for (const t of joined) {
+        found.push({ country: t.code, admin1: null, city: null });
+        stated.add(t.code);
+      }
+      continue;
+    }
+    deferred.push(piece);
+  }
+  // The upstream code is lent to a piece that names no country only when nothing
+  // in the list contradicts it: no country stated in any piece's text, and every
+  // place already found in the upstream country.
+  const lend = up && stated.size === 0 && found.every((p) => p.country === up) ? up : null;
+  if (lend) {
+    for (const piece of deferred) {
+      const read = readPart(piece, lend, cities);
+      if (read && read.country) found.push({ country: lend, admin1: read.admin1, city: read.city });
+    }
+  }
+  for (const p of loneAmbiguous) if (found.some((q) => q.country === p.country)) found.push(p);
+  if (found.length === 0 && up) found.push({ country: up, admin1: null, city: null });
+
+  const byLeaf = new Map();
+  for (const p of found) if (p.country) byLeaf.set(placeLeafOf(p), p);
+  return [...byLeaf.values()].map((p) => ({ ...p, label: placeLabel(p.country, p.admin1, p.city) }));
+}
+
+/**
+ * The ONE place a row reduces to, for the place_* columns and derived_region.
+ *
+ * One country: that country, with its state if every place agrees on one and its
+ * city if every place agrees on one. Several countries: the upstream code if it
+ * is one of them, otherwise none, and then no state and no city, because a state
+ * or a city of one of several countries is a claim about the others. No places:
+ * none. (A single place reduces to itself, so a one-place row's columns are
+ * placeOf()'s answer exactly.)
+ *
+ * @param {ListedPlace[]} places placesOf()'s answer
+ * @param {string|null|undefined} upstream the crawl's country column
+ * @returns {Place}
+ */
+export function summaryOf(places, upstream) {
+  const up = isoCountry(upstream);
+  if (places.length === 0) return { country: null, admin1: null, city: null, label: null };
+  const countries = [...new Set(places.map((p) => p.country))];
+  if (countries.length > 1) {
+    const country = up && countries.includes(up) ? up : null;
+    return { country, admin1: null, city: null, label: country ? placeLabel(country, null, null) : null };
+  }
+  const admins = [...new Set(places.map((p) => p.admin1 || ''))];
+  const cityNames = [...new Set(places.map((p) => p.city || ''))];
+  const country = /** @type {string} */ (countries[0]);
+  const admin1 = admins.length === 1 && admins[0] ? admins[0] : null;
+  const city = cityNames.length === 1 && cityNames[0] ? cityNames[0] : null;
+  return { country, admin1, city, label: placeLabel(country, admin1, city) };
 }
 
 // ---------------------------------------------------------------------------
@@ -1031,7 +1350,7 @@ export function payOf(compRange) {
 // ---------------------------------------------------------------------------
 
 /**
- * Every derived field for one crawl row, as the columns db/207 and db/220 added.
+ * Every derived field for one crawl row, as the columns db/207, db/220 and db/222 added.
  * The ingest spreads this onto the row it writes; the backfill writes exactly
  * these columns and nothing else.
  *
@@ -1041,13 +1360,22 @@ export function payOf(compRange) {
  * NOT hand the code to the word list, which is what it did until 2026-10-02 and
  * is why every Canadian posting read 'US West'.
  *
- * The place_* columns are placeOf()'s answer for the same two fields, computed
- * once here and shared with regionFor so the text is parsed once per row.
+ * The place_* columns are the one place the row reduces to (summaryOf over
+ * placesOf), and place_keys and place_leaves (db/222) are every place it lists.
+ * All of them come out of the one placesOf() call here, shared with regionFor so
+ * the text is parsed once per row, and so the single place and the list can never
+ * be two readings of the string.
+ *
+ * place_keys is every key of every place, distinct and sorted; empty means "Not
+ * stated". place_leaves is the most specific key of each place, distinct and
+ * sorted, one per place. Both are written sorted so that a re-run over an
+ * unchanged row compares equal, which is what lets the backfill skip it.
  */
 export function derivedFor(row) {
   const pay = payOf(row.comp_range);
   const fam = familyWithSource(row.department, row.title);
-  const place = placeOf(row.location, row.country);
+  const places = placesOf(row.location, row.country);
+  const place = summaryOf(places, row.country);
   return {
     derived_tier: tierFromTitle(row.title),
     derived_fam: fam.fam,
@@ -1061,6 +1389,8 @@ export function derivedFor(row) {
     place_country: place.country,
     place_admin1: place.admin1,
     place_city: place.city,
-    place_label: place.label
+    place_label: place.label,
+    place_keys: [...new Set(places.flatMap(placeKeysOf))].sort(),
+    place_leaves: [...new Set(places.map(placeLeafOf))].sort()
   };
 }

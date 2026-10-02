@@ -15,12 +15,20 @@
  * Cases that depend on what the city table knows pass a small table of their
  * own, so a rebuild of src/data/place-cities.json cannot turn them red. The few
  * that read the committed table say so.
+ *
+ * placesOf() is the second half of this file (2026-10-02, report decision 8): a
+ * posting that lists several places is found under every one of them. Its cases
+ * are the strings the board really carries, kept as printed, and the examples
+ * the owner decision named: "London / Germany" is London, UK and Germany, never
+ * London, Germany; there is no city called Europe, Apac or All France; and the
+ * one-place strings above read exactly as they always did.
  */
 import { describe, it, expect } from 'vitest';
 import {
   REGIONS, regionOf, regionFor, placeOf, readPlace, isoCountry, countryName, ISO_COUNTRIES,
-  cityKey, derivedFor
+  cityKey, derivedFor, placesOf, summaryOf, placeKeysOf, placeLeafOf
 } from './jobs-derived.mjs';
+import { formatPlaceKey, parsePlaceKey, placeKeyLabel } from './place-key';
 
 import {
   learnCities, splitRows, splitByString, seeded, MIN_ROWS
@@ -53,6 +61,132 @@ const place = (loc: string | null | undefined, country?: string | null, table: R
   tuple(placeOf(loc, country ?? null, table));
 
 const NONE: Tuple = [null, null, null, null];
+
+type Case = readonly [string, string | null | undefined, Tuple];
+
+/** The one-place table placeOf is held to, kept at module level because the list
+ *  reader (placesOf) is held to the same strings: it must give the same answer for every
+ *  one of them but the three that really name several places. */
+const PLACE_CASES: ReadonlyArray<Case> = [
+  // Free text, no upstream country.
+  ['Austin, TX', null, ['US', 'TX', 'Austin', 'Austin, TX']],
+  ['San Francisco, CA', null, ['US', 'CA', 'San Francisco', 'San Francisco, CA']],
+  ['Seattle, Washington, USA', null, ['US', 'WA', 'Seattle', 'Seattle, WA']],
+  ['Andrews AFB, Maryland', null, ['US', 'MD', 'Andrews AFB', 'Andrews AFB, MD']],
+  ['Kansas City, Missouri', null, ['US', 'MO', 'Kansas City', 'Kansas City, MO']],
+  ['Washington, District of Columbia', null, ['US', 'DC', 'Washington', 'Washington, DC']],
+  ['Washington, DC', null, ['US', 'DC', 'Washington', 'Washington, DC']],
+  ['New York, New York', null, ['US', 'NY', 'New York', 'New York, NY']],
+  ['Atlanta, Georgia', null, ['US', 'GA', 'Atlanta', 'Atlanta, GA']],
+  ['San Juan, PR', null, ['US', 'PR', 'San Juan', 'San Juan, PR']],
+  ['Naval Medical Center, Portsmouth, Virginia', null, ['US', 'VA', 'Portsmouth', 'Portsmouth, VA']],
+  ['Lebanon, New Hampshire', null, ['US', 'NH', 'Lebanon', 'Lebanon, NH']], // Lebanon is a city here
+  ['Jordan, Minnesota', null, ['US', 'MN', 'Jordan', 'Jordan, MN']],
+  ['Indiana, Pennsylvania', null, ['US', 'PA', 'Indiana', 'Indiana, PA']],
+  ['AZ-Phoenix, UNAVAILABLE, USA', null, ['US', 'AZ', 'Phoenix', 'Phoenix, AZ']],
+  ['Bend, OR', null, ['US', 'OR', 'Bend', 'Bend, OR']], // OR is Oregon, not a conjunction
+  ['Toronto, Ontario, Canada', null, ['CA', 'ON', 'Toronto', 'Toronto, ON']],
+  ['Calgary, AB, CA', null, ['CA', 'AB', 'Calgary', 'Calgary, AB']], // a province code, then Canada
+  ['Markham, ON, CA', null, ['CA', 'ON', 'Markham', 'Markham, ON']],
+  ['Vancouver, British Columbia, CAN', null, ['CA', 'BC', 'Vancouver', 'Vancouver, BC']],
+  ['Melbourne, Victoria, AUS', null, ['AU', 'VIC', 'Melbourne', 'Melbourne, VIC']],
+  ['Sydney, NSW, Australia', null, ['AU', 'NSW', 'Sydney', 'Sydney, NSW']],
+  ['Bangalore, India', null, ['IN', null, 'Bangalore', 'Bangalore, India']],
+  ['München, Deutschland', null, ['DE', null, 'München', 'München, Germany']],
+  ['Amsterdam, Noord-Holland, Nederland', null, ['NL', null, 'Amsterdam', 'Amsterdam, Netherlands']],
+  ['Bengaluru, Karnataka, IND', null, ['IN', null, 'Bengaluru', 'Bengaluru, India']],
+  ['London, England, GBR', null, ['GB', null, 'London', 'London, United Kingdom']],
+  ['London, U.K.', null, ['GB', null, 'London', 'London, United Kingdom']],
+  ['Zurich, Schweiz', null, ['CH', null, 'Zurich', 'Zurich, Switzerland']],
+  ['Wien, Österreich', null, ['AT', null, 'Wien', 'Wien, Austria']],
+  ['Stockholm, Sverige', null, ['SE', null, 'Stockholm', 'Stockholm, Sweden']],
+  ['Dublin, Éire', null, ['IE', null, 'Dublin', 'Dublin, Ireland']],
+  ['São Paulo, Brasil', null, ['BR', null, 'São Paulo', 'São Paulo, Brazil']],
+  ['Warszawa, Polska', null, ['PL', null, 'Warszawa', 'Warszawa, Poland']],
+  ['Brussels, Brussels Hoofdstedelijk Gewest, België', null, ['BE', null, 'Brussels', 'Brussels, Belgium']],
+  ['Paris, Île-de-France, France', null, ['FR', null, 'Paris', 'Paris, France']],
+  ['Korea, Republic of - Seoul', null, ['KR', null, 'Seoul', 'Seoul, South Korea']],
+  // Country first.
+  ['Ireland - Dublin', null, ['IE', null, 'Dublin', 'Dublin, Ireland']],
+  ['Japan - Tokyo', null, ['JP', null, 'Tokyo', 'Tokyo, Japan']],
+  ['India, Bengaluru', null, ['IN', null, 'Bengaluru', 'Bengaluru, India']],
+  ['US, CA, Santa Clara', null, ['US', 'CA', 'Santa Clara', 'Santa Clara, CA']],
+  ['California - San Francisco', null, ['US', 'CA', 'San Francisco', 'San Francisco, CA']],
+  // Only a country, only a state: the country alone is the label.
+  ['United States', null, ['US', null, null, 'United States']],
+  ['Singapore', 'SG', ['SG', null, null, 'Singapore']],
+  ['Queensland', null, ['AU', 'QLD', null, 'Australia']],
+  ['Hong Kong', null, ['HK', null, null, 'Hong Kong']],
+  // Remote and arrangement words.
+  ['Remote', null, NONE],
+  ['Anywhere', null, NONE],
+  ['Worldwide', null, NONE],
+  ['Global', null, NONE],
+  ['Remote - US', null, ['US', null, null, 'United States']],
+  ['Remote (United States)', null, ['US', null, null, 'United States']],
+  ['US Remote', null, ['US', null, null, 'United States']],
+  ['Remote-Malaysia', null, ['MY', null, null, 'Malaysia']],
+  ['Remote, Germany', null, ['DE', null, null, 'Germany']],
+  ['Austin, TX (Hybrid)', null, ['US', 'TX', 'Austin', 'Austin, TX']],
+  ['London, UK (On-site)', null, ['GB', null, 'London', 'London, United Kingdom']],
+  ['Hybrid - Austin, TX', null, ['US', 'TX', 'Austin', 'Austin, TX']],
+  ['Remote job', 'remote_unresolved', NONE],
+  ['Remote - US', 'remote_unresolved', ['US', null, null, 'United States']],
+  // Nothing to resolve.
+  ['Multiple Locations', null, NONE],
+  ['3 Locations', null, NONE],
+  ['Location Negotiable After Selection', null, NONE],
+  ['UNAVAILABLE, UNAVAILABLE, UNAVAILABLE', null, NONE],
+  ['Homeoffice', null, NONE],
+  ['Europe', null, NONE],
+  ['', null, NONE],
+  ['Frankfurt', null, NONE], // a bare city nobody has said the country of
+  ['UNAVAILABLE, UNAVAILABLE, US', null, ['US', null, null, 'United States']],
+  // Two letters in free text: a US state when it is one, and never a country.
+  ['Berlin, DE', null, ['US', 'DE', 'Berlin', 'Berlin, DE']], // Delaware, while no table knows Berlin
+  ['Springfield, IN', null, ['US', 'IN', 'Springfield', 'Springfield, IN']], // Indiana, not India
+  ['Cape Town, ZA', null, ['ZA', null, 'Cape Town', 'Cape Town, South Africa']], // ZA is no state: it is the country
+  ['Kings Langley, GB', null, ['GB', null, 'Kings Langley', 'Kings Langley, United Kingdom']],
+  ['Islamabad, PK', null, ['PK', null, 'Islamabad', 'Islamabad, Pakistan']],
+  ['Baghdad, IQ', null, ['IQ', null, 'Baghdad', 'Baghdad, Iraq']],
+  ['UNAVAILABLE, UNAVAILABLE, KR', null, ['KR', null, null, 'South Korea']],
+  ['Baghdad/Erbil, IQ', null, ['IQ', null, null, 'Iraq']], // two cities named: neither is lent to the string
+  ['Dover, DE', null, ['US', 'DE', 'Dover', 'Dover, DE']], // a state AND a country code: the state, until a city says otherwise
+  ['Saskatoon, SK', null, ['CA', 'SK', 'Saskatoon', 'Saskatoon, SK']], // SK is Slovakia and Saskatchewan
+  // Upstream country: trusted, and the only place a code is a country.
+  ['London', 'GB', ['GB', null, 'London', 'London, United Kingdom']],
+  ['Vancouver, BC', 'CA', ['CA', 'BC', 'Vancouver', 'Vancouver, BC']],
+  ['Toronto, ON', 'CA', ['CA', 'ON', 'Toronto', 'Toronto, ON']],
+  ['Paris', 'FR', ['FR', null, 'Paris', 'Paris, France']],
+  ['Frankfurt', 'DE', ['DE', null, 'Frankfurt', 'Frankfurt, Germany']],
+  ['Remote', 'US', ['US', null, null, 'United States']],
+  ['UNAVAILABLE, BC, CA', 'CA', ['CA', 'BC', null, 'Canada']], // the CA is a US state code and is dropped
+  ['Bangalore, IN', 'IN', ['IN', null, 'Bangalore', 'Bangalore, India']], // a weak IN never overrides
+  ['Berlin, DE', 'DE', ['DE', null, 'Berlin', 'Berlin, Germany']],
+  ['Seattle, Washington, USA', 'US', ['US', 'WA', 'Seattle', 'Seattle, WA']],
+  // Upstream country that the string itself contradicts, in full words.
+  ['Albuquerque, New Mexico', 'MX', ['US', 'NM', 'Albuquerque', 'Albuquerque, NM']],
+  ['Sydney, New South Wales, AUS', 'GB', ['AU', 'NSW', 'Sydney', 'Sydney, NSW']],
+  ['Melbourne, Victoria, AUS', 'CA', ['AU', 'VIC', 'Melbourne', 'Melbourne, VIC']],
+  ['Lausanne, Switzerland', 'US', ['CH', null, 'Lausanne', 'Lausanne, Switzerland']],
+  ['Ontario, CA, US', 'CA', ['US', 'CA', 'Ontario', 'Ontario, CA']], // Ontario, California
+  // Several places.
+  ['San Francisco, CA / Remote, USA', 'US', ['US', 'CA', 'San Francisco', 'San Francisco, CA']],
+  ['San Francisco, CA • New York, NY • United States', 'US', ['US', null, null, 'United States']],
+  ['Dallas, TX, Chicago, IL, Columbus, OH', 'US', ['US', null, null, 'United States']],
+  ['Toronto / Vancouver / Kitchener-Waterloo / Edmonton', 'CA', ['CA', null, null, 'Canada']],
+  ['Kitchener-Waterloo, ON; Toronto, ON', 'CA', ['CA', 'ON', null, 'Canada']],
+  ['Argentina, Brazil, Chile, Colombia', 'MX', ['MX', null, null, 'Mexico']],
+  ['United States / Canada', 'CA', ['CA', null, null, 'Canada']], // names two countries, proves neither
+  ['Buffalo, NY, Cincinnati, OH, Petrolia, Canada', null, NONE], // US codes and Canada: no one country
+  ['San Francisco, CA, New York, NY, Portland, OR, or Remote within Canada or United States', null, NONE],
+  ['San Francisco, CA, New York, NY, Portland, OR, or Remote within Canada or United States', 'CA',
+    ['CA', null, null, 'Canada']],
+  ['Sydney; Perth, Australia; Melbourne, Australia', 'GB', ['AU', null, null, 'Australia']],
+  // Hostile input.
+  ['constructor', null, NONE],
+  ['__proto__ / toString', null, NONE]
+];
 
 describe('regionFor: the ISO code is read as a code', () => {
   const byCode: ReadonlyArray<readonly [string, string | null, string]> = [
@@ -213,127 +347,7 @@ describe('regionFor: the ISO code is read as a code', () => {
 });
 
 describe('placeOf: the table', () => {
-  type Case = readonly [string, string | null | undefined, Tuple];
-  const cases: ReadonlyArray<Case> = [
-    // Free text, no upstream country.
-    ['Austin, TX', null, ['US', 'TX', 'Austin', 'Austin, TX']],
-    ['San Francisco, CA', null, ['US', 'CA', 'San Francisco', 'San Francisco, CA']],
-    ['Seattle, Washington, USA', null, ['US', 'WA', 'Seattle', 'Seattle, WA']],
-    ['Andrews AFB, Maryland', null, ['US', 'MD', 'Andrews AFB', 'Andrews AFB, MD']],
-    ['Kansas City, Missouri', null, ['US', 'MO', 'Kansas City', 'Kansas City, MO']],
-    ['Washington, District of Columbia', null, ['US', 'DC', 'Washington', 'Washington, DC']],
-    ['Washington, DC', null, ['US', 'DC', 'Washington', 'Washington, DC']],
-    ['New York, New York', null, ['US', 'NY', 'New York', 'New York, NY']],
-    ['Atlanta, Georgia', null, ['US', 'GA', 'Atlanta', 'Atlanta, GA']],
-    ['San Juan, PR', null, ['US', 'PR', 'San Juan', 'San Juan, PR']],
-    ['Naval Medical Center, Portsmouth, Virginia', null, ['US', 'VA', 'Portsmouth', 'Portsmouth, VA']],
-    ['Lebanon, New Hampshire', null, ['US', 'NH', 'Lebanon', 'Lebanon, NH']], // Lebanon is a city here
-    ['Jordan, Minnesota', null, ['US', 'MN', 'Jordan', 'Jordan, MN']],
-    ['Indiana, Pennsylvania', null, ['US', 'PA', 'Indiana', 'Indiana, PA']],
-    ['AZ-Phoenix, UNAVAILABLE, USA', null, ['US', 'AZ', 'Phoenix', 'Phoenix, AZ']],
-    ['Bend, OR', null, ['US', 'OR', 'Bend', 'Bend, OR']], // OR is Oregon, not a conjunction
-    ['Toronto, Ontario, Canada', null, ['CA', 'ON', 'Toronto', 'Toronto, ON']],
-    ['Calgary, AB, CA', null, ['CA', 'AB', 'Calgary', 'Calgary, AB']], // a province code, then Canada
-    ['Markham, ON, CA', null, ['CA', 'ON', 'Markham', 'Markham, ON']],
-    ['Vancouver, British Columbia, CAN', null, ['CA', 'BC', 'Vancouver', 'Vancouver, BC']],
-    ['Melbourne, Victoria, AUS', null, ['AU', 'VIC', 'Melbourne', 'Melbourne, VIC']],
-    ['Sydney, NSW, Australia', null, ['AU', 'NSW', 'Sydney', 'Sydney, NSW']],
-    ['Bangalore, India', null, ['IN', null, 'Bangalore', 'Bangalore, India']],
-    ['München, Deutschland', null, ['DE', null, 'München', 'München, Germany']],
-    ['Amsterdam, Noord-Holland, Nederland', null, ['NL', null, 'Amsterdam', 'Amsterdam, Netherlands']],
-    ['Bengaluru, Karnataka, IND', null, ['IN', null, 'Bengaluru', 'Bengaluru, India']],
-    ['London, England, GBR', null, ['GB', null, 'London', 'London, United Kingdom']],
-    ['London, U.K.', null, ['GB', null, 'London', 'London, United Kingdom']],
-    ['Zurich, Schweiz', null, ['CH', null, 'Zurich', 'Zurich, Switzerland']],
-    ['Wien, Österreich', null, ['AT', null, 'Wien', 'Wien, Austria']],
-    ['Stockholm, Sverige', null, ['SE', null, 'Stockholm', 'Stockholm, Sweden']],
-    ['Dublin, Éire', null, ['IE', null, 'Dublin', 'Dublin, Ireland']],
-    ['São Paulo, Brasil', null, ['BR', null, 'São Paulo', 'São Paulo, Brazil']],
-    ['Warszawa, Polska', null, ['PL', null, 'Warszawa', 'Warszawa, Poland']],
-    ['Brussels, Brussels Hoofdstedelijk Gewest, België', null, ['BE', null, 'Brussels', 'Brussels, Belgium']],
-    ['Paris, Île-de-France, France', null, ['FR', null, 'Paris', 'Paris, France']],
-    ['Korea, Republic of - Seoul', null, ['KR', null, 'Seoul', 'Seoul, South Korea']],
-    // Country first.
-    ['Ireland - Dublin', null, ['IE', null, 'Dublin', 'Dublin, Ireland']],
-    ['Japan - Tokyo', null, ['JP', null, 'Tokyo', 'Tokyo, Japan']],
-    ['India, Bengaluru', null, ['IN', null, 'Bengaluru', 'Bengaluru, India']],
-    ['US, CA, Santa Clara', null, ['US', 'CA', 'Santa Clara', 'Santa Clara, CA']],
-    ['California - San Francisco', null, ['US', 'CA', 'San Francisco', 'San Francisco, CA']],
-    // Only a country, only a state: the country alone is the label.
-    ['United States', null, ['US', null, null, 'United States']],
-    ['Singapore', 'SG', ['SG', null, null, 'Singapore']],
-    ['Queensland', null, ['AU', 'QLD', null, 'Australia']],
-    ['Hong Kong', null, ['HK', null, null, 'Hong Kong']],
-    // Remote and arrangement words.
-    ['Remote', null, NONE],
-    ['Anywhere', null, NONE],
-    ['Worldwide', null, NONE],
-    ['Global', null, NONE],
-    ['Remote - US', null, ['US', null, null, 'United States']],
-    ['Remote (United States)', null, ['US', null, null, 'United States']],
-    ['US Remote', null, ['US', null, null, 'United States']],
-    ['Remote-Malaysia', null, ['MY', null, null, 'Malaysia']],
-    ['Remote, Germany', null, ['DE', null, null, 'Germany']],
-    ['Austin, TX (Hybrid)', null, ['US', 'TX', 'Austin', 'Austin, TX']],
-    ['London, UK (On-site)', null, ['GB', null, 'London', 'London, United Kingdom']],
-    ['Hybrid - Austin, TX', null, ['US', 'TX', 'Austin', 'Austin, TX']],
-    ['Remote job', 'remote_unresolved', NONE],
-    ['Remote - US', 'remote_unresolved', ['US', null, null, 'United States']],
-    // Nothing to resolve.
-    ['Multiple Locations', null, NONE],
-    ['3 Locations', null, NONE],
-    ['Location Negotiable After Selection', null, NONE],
-    ['UNAVAILABLE, UNAVAILABLE, UNAVAILABLE', null, NONE],
-    ['Homeoffice', null, NONE],
-    ['Europe', null, NONE],
-    ['', null, NONE],
-    ['Frankfurt', null, NONE], // a bare city nobody has said the country of
-    ['UNAVAILABLE, UNAVAILABLE, US', null, ['US', null, null, 'United States']],
-    // Two letters in free text: a US state when it is one, and never a country.
-    ['Berlin, DE', null, ['US', 'DE', 'Berlin', 'Berlin, DE']], // Delaware, while no table knows Berlin
-    ['Springfield, IN', null, ['US', 'IN', 'Springfield', 'Springfield, IN']], // Indiana, not India
-    ['Cape Town, ZA', null, ['ZA', null, 'Cape Town', 'Cape Town, South Africa']], // ZA is no state: it is the country
-    ['Kings Langley, GB', null, ['GB', null, 'Kings Langley', 'Kings Langley, United Kingdom']],
-    ['Islamabad, PK', null, ['PK', null, 'Islamabad', 'Islamabad, Pakistan']],
-    ['Baghdad, IQ', null, ['IQ', null, 'Baghdad', 'Baghdad, Iraq']],
-    ['UNAVAILABLE, UNAVAILABLE, KR', null, ['KR', null, null, 'South Korea']],
-    ['Baghdad/Erbil, IQ', null, ['IQ', null, null, 'Iraq']], // two cities named: neither is lent to the string
-    ['Dover, DE', null, ['US', 'DE', 'Dover', 'Dover, DE']], // a state AND a country code: the state, until a city says otherwise
-    ['Saskatoon, SK', null, ['CA', 'SK', 'Saskatoon', 'Saskatoon, SK']], // SK is Slovakia and Saskatchewan
-    // Upstream country: trusted, and the only place a code is a country.
-    ['London', 'GB', ['GB', null, 'London', 'London, United Kingdom']],
-    ['Vancouver, BC', 'CA', ['CA', 'BC', 'Vancouver', 'Vancouver, BC']],
-    ['Toronto, ON', 'CA', ['CA', 'ON', 'Toronto', 'Toronto, ON']],
-    ['Paris', 'FR', ['FR', null, 'Paris', 'Paris, France']],
-    ['Frankfurt', 'DE', ['DE', null, 'Frankfurt', 'Frankfurt, Germany']],
-    ['Remote', 'US', ['US', null, null, 'United States']],
-    ['UNAVAILABLE, BC, CA', 'CA', ['CA', 'BC', null, 'Canada']], // the CA is a US state code and is dropped
-    ['Bangalore, IN', 'IN', ['IN', null, 'Bangalore', 'Bangalore, India']], // a weak IN never overrides
-    ['Berlin, DE', 'DE', ['DE', null, 'Berlin', 'Berlin, Germany']],
-    ['Seattle, Washington, USA', 'US', ['US', 'WA', 'Seattle', 'Seattle, WA']],
-    // Upstream country that the string itself contradicts, in full words.
-    ['Albuquerque, New Mexico', 'MX', ['US', 'NM', 'Albuquerque', 'Albuquerque, NM']],
-    ['Sydney, New South Wales, AUS', 'GB', ['AU', 'NSW', 'Sydney', 'Sydney, NSW']],
-    ['Melbourne, Victoria, AUS', 'CA', ['AU', 'VIC', 'Melbourne', 'Melbourne, VIC']],
-    ['Lausanne, Switzerland', 'US', ['CH', null, 'Lausanne', 'Lausanne, Switzerland']],
-    ['Ontario, CA, US', 'CA', ['US', 'CA', 'Ontario', 'Ontario, CA']], // Ontario, California
-    // Several places.
-    ['San Francisco, CA / Remote, USA', 'US', ['US', 'CA', 'San Francisco', 'San Francisco, CA']],
-    ['San Francisco, CA • New York, NY • United States', 'US', ['US', null, null, 'United States']],
-    ['Dallas, TX, Chicago, IL, Columbus, OH', 'US', ['US', null, null, 'United States']],
-    ['Toronto / Vancouver / Kitchener-Waterloo / Edmonton', 'CA', ['CA', null, null, 'Canada']],
-    ['Kitchener-Waterloo, ON; Toronto, ON', 'CA', ['CA', 'ON', null, 'Canada']],
-    ['Argentina, Brazil, Chile, Colombia', 'MX', ['MX', null, null, 'Mexico']],
-    ['United States / Canada', 'CA', ['CA', null, null, 'Canada']], // names two countries, proves neither
-    ['Buffalo, NY, Cincinnati, OH, Petrolia, Canada', null, NONE], // US codes and Canada: no one country
-    ['San Francisco, CA, New York, NY, Portland, OR, or Remote within Canada or United States', null, NONE],
-    ['San Francisco, CA, New York, NY, Portland, OR, or Remote within Canada or United States', 'CA',
-      ['CA', null, null, 'Canada']],
-    ['Sydney; Perth, Australia; Melbourne, Australia', 'GB', ['AU', null, null, 'Australia']],
-    // Hostile input.
-    ['constructor', null, NONE],
-    ['__proto__ / toString', null, NONE]
-  ];
+  const cases = PLACE_CASES;
   expect(cases.length).toBeGreaterThanOrEqual(40);
   for (const [loc, country, want] of cases) {
     it(`${JSON.stringify(loc)} [${country ?? ''}] -> ${want.join(' / ')}`, () => {
@@ -590,8 +604,405 @@ describe('derivedFor: the place columns and the repaired region', () => {
   it('keeps every field the ingest and the backfill bind', () => {
     expect(Object.keys(derivedFor({ ...base, country: null, location: 'Austin, TX' })).sort()).toEqual([
       'comp_max_k', 'comp_mid_k', 'comp_min_k', 'derived_fam', 'derived_fam_source', 'derived_friction',
-      'derived_region', 'derived_tier', 'place_admin1', 'place_city', 'place_country', 'place_label', 'priced'
+      'derived_region', 'derived_tier', 'place_admin1', 'place_city', 'place_country', 'place_keys',
+      'place_label', 'place_leaves', 'priced'
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Every place a posting lists (2026-10-02, report decision 8, option B).
+// ---------------------------------------------------------------------------
+
+/** TABLE plus the cities the list cases below name. A table of their own, so a
+ *  rebuild of src/data/place-cities.json cannot turn a list case red. */
+const LIST_TABLE: Record<string, Entry> = {
+  ...TABLE,
+  vancouver: { city: 'Vancouver', country: 'CA', admin1: 'BC', n: 9 },
+  hamburg: { city: 'Hamburg', country: 'DE', admin1: null, n: 9 },
+  barcelona: { city: 'Barcelona', country: 'ES', admin1: null, n: 9 },
+  melbourne: { city: 'Melbourne', country: 'AU', admin1: 'VIC', n: 9 }
+};
+
+/** Every key of every place placesOf finds, distinct and sorted: what place_keys holds. */
+const keysFor = (loc: string | null, upstream: string | null = null, table: Record<string, Entry> = LIST_TABLE): string[] =>
+  [...new Set(placesOf(loc, upstream, table).flatMap(placeKeysOf))].sort();
+const leavesFor = (loc: string | null, upstream: string | null = null, table: Record<string, Entry> = LIST_TABLE): string[] =>
+  [...new Set(placesOf(loc, upstream, table).map(placeLeafOf))].sort();
+
+describe('the token rules: what a token is, in one place or in a list', () => {
+  it('a region word is not a place', () => {
+    const regions = ['Europe', 'EU', 'European Union', 'EMEA', 'APAC', 'Asia-Pacific', 'Asia Pacific', 'LATAM', 'Latin America',
+      'Americas', 'North America', 'South America', 'Asia', 'Nordics', 'DACH', 'Benelux', 'Middle East', 'MENA', 'Africa',
+      'Ile-de-France', 'Deutschlandweit'];
+    for (const word of regions) {
+      expect(place(word, null), word).toEqual(NONE);
+      // Under an upstream country it is still no city: the country alone is the answer.
+      expect(place(word, 'CA'), word).toEqual(['CA', null, null, 'Canada']);
+    }
+  });
+
+  it('a region word inside a list is not a city either: there is no city called Europe', () => {
+    expect(place('Europe / London', null, LIST_TABLE)).toEqual(['GB', null, 'London', 'London, United Kingdom']);
+    expect(keysFor('Europe / London')).toEqual(['GB', 'GB/London']);
+    expect(keysFor('Ireland / Spain / Europe / Poland', 'GB')).toEqual(['ES', 'IE', 'PL']);
+  });
+
+  it('a scope word on the end ("Region", "Wide") names no place', () => {
+    expect(place('EMEA Region', null)).toEqual(NONE);
+    expect(place('Company Wide', null)).toEqual(NONE);
+    expect(place('Company Wide', 'US')).toEqual(['US', null, null, 'United States']);
+  });
+
+  it('"Anywhere in France", "All France", "Across Spain", "Throughout Belgium" are the country', () => {
+    expect(place('Anywhere in France', null)).toEqual(['FR', null, null, 'France']);
+    expect(place('All France', null)).toEqual(['FR', null, null, 'France']);
+    expect(place('All France (remote)', null)).toEqual(['FR', null, null, 'France']);
+    expect(place('Across Spain', null)).toEqual(['ES', null, null, 'Spain']);
+    expect(place('Throughout Belgium', null)).toEqual(['BE', null, null, 'Belgium']);
+    expect(place('Anywhere in Quebec', null)).toEqual(['CA', 'QC', null, 'Canada']); // a state counts too
+    // Only a country or a state widens: "All Hands" is not a place, so no country settles it.
+    expect(place('All Hands', null)).toEqual(NONE);
+    // And in a list the words in front do not make a city called "All France".
+    expect(keysFor('All France (remote) / Portugal / Italy')).toEqual(['FR', 'IT', 'PT']);
+    expect(keysFor('Anywhere in France, Belgium, Spain')).toEqual(['BE', 'ES', 'FR']);
+  });
+
+  it('a sentence fragment is not a city', () => {
+    for (const fragment of ['BC & ON only', 'EST Timezone Only', 'Remote only', 'Remote-UK&I', 'Germany & Netherlands']) {
+      expect(place(fragment, null), fragment).toEqual(NONE);
+      expect(place(fragment, 'CA')[2], fragment).toBeNull(); // the country, and no city of that name
+    }
+    // The real row: "BC & ON only" used to be filed as a city of that name.
+    expect(place('CA Remote (BC & ON only); U.S. Remote', 'US')[2]).toBeNull();
+  });
+
+  it('a city and its country joined by a hyphen are two things', () => {
+    // A space on one side is enough ...
+    expect(place('Barcelona- Spain', null)).toEqual(['ES', null, 'Barcelona', 'Barcelona, Spain']);
+    // ... with none on either side the head must be a city the table knows.
+    expect(place('Hamburg-Germany', null)).toEqual(NONE);
+    expect(place('Zzville-Germany', null, LIST_TABLE)).toEqual(NONE);
+    expect(place('Hamburg-Germany', null, LIST_TABLE)).toEqual(['DE', null, 'Hamburg', 'Hamburg, Germany']);
+    // ... and a name that merely has a hyphen in it stays one name.
+    expect(place('Kitchener-Waterloo', 'CA')).toEqual(['CA', null, 'Kitchener-Waterloo', 'Kitchener-Waterloo, Canada']);
+    expect(place('Winston-Salem', 'US')).toEqual(['US', null, 'Winston-Salem', 'Winston-Salem, United States']);
+    expect(place('Ile-de-France', 'FR')).toEqual(['FR', null, null, 'France']);
+    // Each piece of a slash list is split on its own.
+    expect(keysFor('Hamburg-Germany / Barcelona- Spain')).toEqual(['DE', 'DE/Hamburg', 'ES', 'ES/Barcelona']);
+  });
+
+  it('"a/d" and "Frankfurt / Main" are one name each, not two places', () => {
+    expect(place('Capelle a/d IJssel', 'NL')).toEqual(['NL', null, 'Capelle aan den IJssel', 'Capelle aan den IJssel, Netherlands']);
+    expect(place('Frankfurt / Main', 'DE')).toEqual(['DE', null, 'Frankfurt am Main', 'Frankfurt am Main, Germany']);
+    expect(placesOf('Capelle a/d IJssel', 'NL', {})).toHaveLength(1);
+    expect(placesOf('Frankfurt / Main', 'DE', {})).toHaveLength(1);
+    // A real slash still splits: Frankfurt and Berlin are two places.
+    const withFrankfurt = { ...LIST_TABLE, frankfurt: { city: 'Frankfurt', country: 'DE', admin1: null, n: 9 } };
+    expect(leavesFor('Frankfurt / Berlin', 'DE', withFrankfurt)).toEqual(['DE/Berlin', 'DE/Frankfurt']);
+  });
+
+  it('"Bosnia" is Bosnia and Herzegovina', () => {
+    expect(place('Sarajevo, Bosnia', null)).toEqual(['BA', null, 'Sarajevo', 'Sarajevo, Bosnia & Herzegovina']);
+  });
+});
+
+describe('placesOf: a posting is found under every place it lists', () => {
+  it('"London / Germany" is London, UK and Germany, never London, Germany', () => {
+    expect(keysFor('London / Germany', 'DE')).toEqual(['DE', 'GB', 'GB/London']);
+    expect(keysFor('London / Germany', null)).toEqual(['DE', 'GB', 'GB/London']);
+    expect(placesOf('London / Germany', 'DE', LIST_TABLE).map((p) => p.label)).toEqual(['London, United Kingdom', 'Germany']);
+  });
+
+  it('the upstream country is not lent to the places a list names in words', () => {
+    // "London, Canada" and "New York, Canada" were on the board: the crawl's code is its pick of ONE place.
+    const lent = keysFor('United States / Canada / London', 'CA');
+    expect(lent).toEqual(['CA', 'GB', 'GB/London', 'US']);
+    expect(lent).not.toContain('CA/London');
+    const york = keysFor('New York / Canada', 'CA');
+    expect(york).toEqual(['CA', 'US', 'US-NY', 'US-NY/New York', 'US/New York']);
+    expect(york).not.toContain('CA/New York');
+    expect(keysFor('London / Europe / Toronto', 'CA')).toEqual(['CA', 'CA-ON', 'CA-ON/Toronto', 'CA/Toronto', 'GB', 'GB/London']);
+  });
+
+  it('two cities in two countries are both found, under their own countries', () => {
+    expect(keysFor('London / Berlin', 'GB')).toEqual(['DE', 'DE/Berlin', 'GB', 'GB/London']);
+    expect(keysFor('London, UK / Berlin, Germany', null)).toEqual(['DE', 'DE/Berlin', 'GB', 'GB/London']);
+    expect(keysFor('Stockholm / London', null)).toEqual(['GB', 'GB/London', 'SE', 'SE/Stockholm']);
+    expect(keysFor('Paris / Texas', null)).toEqual(['FR', 'FR/Paris', 'US', 'US-TX']);
+  });
+
+  it('a city that is also a state still counts under its own city', () => {
+    expect(keysFor('Toronto / Vancouver', 'CA')).toEqual(['CA', 'CA-BC', 'CA-BC/Vancouver', 'CA-ON', 'CA-ON/Toronto', 'CA/Toronto', 'CA/Vancouver']);
+    expect(keysFor('San Francisco, CA / New York, NY', null)).toEqual(
+      ['US', 'US-CA', 'US-CA/San Francisco', 'US-NY', 'US-NY/New York', 'US/New York', 'US/San Francisco']
+    );
+  });
+
+  it('the same place listed twice is one place', () => {
+    expect(placesOf('London / London', 'GB', LIST_TABLE)).toHaveLength(1);
+    expect(placesOf('London, UK / London', null, LIST_TABLE)).toHaveLength(1);
+    expect(leavesFor('London / London', 'GB')).toEqual(['GB/London']);
+  });
+
+  it('a piece that names no place is skipped, not lent a country', () => {
+    expect(keysFor('Berlin / Remote', 'DE')).toEqual(['DE', 'DE/Berlin']);
+    expect(keysFor('Remote / Germany', null)).toEqual(['DE']);
+  });
+
+  it('a piece that names no country takes the upstream one only when nothing in the list contradicts it', () => {
+    // Nothing states a country in words, and every place found is in the upstream country.
+    expect(keysFor('Haarlem; Amsterdam', 'NL')).toEqual(['NL', 'NL/Amsterdam', 'NL/Haarlem']);
+    // "Haarlem; Lugano; Singapore" is Singapore: the list states a country, so the upstream code (the
+    // crawl's one pick, SG) is not a fact about Haarlem or Lugano, and a city nobody can place is dropped.
+    expect(keysFor('Haarlem; Lugano; Singapore', 'SG')).toEqual(['SG']);
+    expect(keysFor('Haarlem; Lugano; Singapore', null)).toEqual(['SG']);
+    // And with no country anywhere there is nothing to lend.
+    expect(keysFor('Limassol; Haarlem', null)).toEqual([]);
+  });
+
+  it('a lone Georgia or Victoria counts only beside another place of its own country', () => {
+    expect(keysFor('London / Victoria', 'GB')).toEqual(['GB', 'GB/London']); // the station, not the state
+    expect(keysFor('Melbourne / Victoria', null)).toEqual(['AU', 'AU-VIC', 'AU-VIC/Melbourne', 'AU/Melbourne']);
+    expect(keysFor('Hamburg / Georgia', 'DE')).toEqual(['DE', 'DE/Hamburg']); // not the US state
+  });
+
+  it('two country names joined by "&" or "and" are both countries', () => {
+    expect(keysFor('Stockholm; Germany & Netherlands (Remote)', 'DE')).toEqual(['DE', 'NL', 'SE', 'SE/Stockholm']);
+    expect(keysFor('Germany & Netherlands / France', null)).toEqual(['DE', 'FR', 'NL']);
+    expect(keysFor('Germany and Netherlands / France', null)).toEqual(['DE', 'FR', 'NL']);
+  });
+
+  it('a state a place lists is found under its own city and under the state', () => {
+    expect(keysFor('Vancouver, Washington', 'CA')).toEqual(['US', 'US-WA', 'US-WA/Vancouver', 'US/Vancouver']);
+    // placeOf, the one-place reading, still says Canada here: the list reading is the better one and the
+    // columns come from it (summaryOf), so the row is filed under the US and not under Canada.
+    expect(place('Vancouver, Washington', 'CA', LIST_TABLE)[0]).toBe('CA');
+    expect(summaryOf(placesOf('Vancouver, Washington', 'CA', LIST_TABLE), 'CA')).toMatchObject({ country: 'US', admin1: 'WA', city: 'Vancouver' });
+  });
+});
+
+describe('placesOf: the comma-list rules', () => {
+  it('two or more state codes: each takes the token before it as its city', () => {
+    expect(keysFor('Chicago, IL, Evanston, IL', 'US')).toEqual(
+      ['US', 'US-IL', 'US-IL/Chicago', 'US-IL/Evanston', 'US/Chicago', 'US/Evanston']
+    );
+    expect(leavesFor('Chicago, IL, Evanston, IL', 'US')).toEqual(['US-IL/Chicago', 'US-IL/Evanston']);
+    expect(keysFor('Dallas, TX, Chicago, IL, Columbus, OH', 'US')).toEqual([
+      'US', 'US-IL', 'US-IL/Chicago', 'US-OH', 'US-OH/Columbus', 'US-TX', 'US-TX/Dallas', 'US/Chicago', 'US/Columbus', 'US/Dallas'
+    ]);
+    // A code with no city before it is the state alone.
+    expect(keysFor('Remote (GA, US), Remote (SC, US), Remote (AL, US)', 'US')).toEqual(['US', 'US-AL', 'US-GA', 'US-SC']);
+  });
+
+  it('a code followed by a country it does not belong to is that country\'s subdivision, and is dropped', () => {
+    // AT is a Honduran department here, not Austria; the list resolves to nothing and is the upstream country.
+    expect(keysFor('La Ceiba, AT, HN', 'HN')).toEqual(['HN']);
+    // In a list of Latin American countries the pieces are each their own country, and AT is not Austria.
+    const latin = 'Remote (La Ceiba, AT, HN), Remote (Trelew, U, AR), Remote (Manaus, AM, BR)';
+    expect(keysFor(latin, 'US')).toEqual(['AR', 'BR', 'HN']);
+  });
+
+  it('a code that is also a country is the country in a list of other countries, and a state beside its own', () => {
+    expect(keysFor('GA, US', null)).toEqual(['US', 'US-GA']); // GA followed by its own country: the state
+    expect(keysFor('Macon, GA, US', null)).toEqual(['US', 'US-GA', 'US-GA/Macon', 'US/Macon']);
+  });
+
+  it('otherwise two or more countries: each country, and not the upstream one', () => {
+    expect(keysFor('Argentina, Brazil, Chile, Colombia', 'MX')).toEqual(['AR', 'BR', 'CL', 'CO']);
+    expect(keysFor('United States / Canada', 'CA')).toEqual(['CA', 'US']);
+  });
+
+  it('otherwise two or more cities the table knows: each city, in the country the table gives it', () => {
+    expect(keysFor('Barcelona, Berlin', null)).toEqual(['DE', 'DE/Berlin', 'ES', 'ES/Barcelona']);
+    expect(keysFor('Paris, Berlin', null)).toEqual(['DE', 'DE/Berlin', 'FR', 'FR/Paris']);
+  });
+
+  it('a one-place comma string stays one place', () => {
+    expect(placesOf('Atlanta, GA, US', null, LIST_TABLE)).toHaveLength(1);
+    expect(keysFor('Atlanta, GA, US')).toEqual(['US', 'US-GA', 'US-GA/Atlanta', 'US/Atlanta']);
+  });
+});
+
+describe('placesOf: a string with one place is the answer placeOf has always given', () => {
+  it('every one-place string in the placeOf table reads the same, but the three that name several places', () => {
+    // Every case of 'placeOf: the table' above, read as a list. The three that differ really do list
+    // places. Two of the new answers are the better one; the first is a known loss, pinned so that it is
+    // seen: "Baghdad/Erbil, IQ" shares one trailing country between two cities, Baghdad names no country
+    // of its own and the list's text states one, so Baghdad is dropped and the summary city is Erbil
+    // (placeOf said Iraq). 7 live rows (2026-10-02).
+    const several: Record<string, Tuple> = {
+      'Baghdad/Erbil, IQ|': ['IQ', null, 'Erbil', 'Erbil, Iraq'],
+      'San Francisco, CA / Remote, USA|US': ['US', null, null, 'United States'],
+      'Argentina, Brazil, Chile, Colombia|MX': NONE
+    };
+    let checked = 0;
+    for (const [loc, country, want] of PLACE_CASES) {
+      const got = tuple(summaryOf(placesOf(loc, country ?? null, {}), country ?? null));
+      const expected = several[`${loc}|${country ?? ''}`] ?? want;
+      expect(got, `${JSON.stringify(loc)} [${country ?? ''}]`).toEqual(expected);
+      checked += 1;
+    }
+    expect(checked).toBe(PLACE_CASES.length);
+    expect(checked).toBeGreaterThan(100);
+  });
+
+  it('a one-place string is exactly [placeOf], or [] when it has no country', () => {
+    const one: ReadonlyArray<readonly [string, string | null]> = [
+      ['Austin, TX', null], ['Seattle, Washington, USA', 'US'], ['Toronto, Ontario, Canada', null], ['Bangalore, India', null],
+      ['Ireland - Dublin', null], ['Remote - US', null], ['Remote (United States)', null], ['Paris, Ile-de-France, France', null],
+      ['Sydney, New South Wales, AUS', 'GB'], ['Albuquerque, New Mexico', 'MX'], ['Singapore', 'SG'], ['Remote', 'US']
+    ];
+    for (const [loc, country] of one) {
+      const only = placeOf(loc, country, {});
+      expect(placesOf(loc, country, {}), `${loc} [${country}]`).toEqual([only]);
+    }
+    for (const [loc, country] of [['Remote', null], ['Multiple Locations', null], ['Europe', null], ['Frankfurt', null]] as const) {
+      expect(placesOf(loc, country, {}), loc).toEqual([]);
+    }
+    expect(placesOf('Austin, TX', null, {})).toEqual([{ country: 'US', admin1: 'TX', city: 'Austin', label: 'Austin, TX' }]);
+    expect(placesOf('Remote', null, {})).toEqual([]);
+    expect(placesOf(null, null, {})).toEqual([]);
+    expect(placesOf('', 'US', {})).toEqual([{ country: 'US', admin1: null, city: null, label: 'United States' }]);
+  });
+
+  it('the committed table reads the same: every bare city the board prints most is one place', () => {
+    for (const city of ['San Francisco', 'London', 'Berlin', 'Paris', 'Stockholm', 'Toronto']) {
+      const found = placesOf(city, null);
+      expect(found, city).toHaveLength(1);
+      expect(tuple(found[0] as never), city).toEqual(tuple(placeOf(city, null)));
+    }
+  });
+
+  it('hostile input is a gap, not an error', () => {
+    for (const hostile of ['constructor', '__proto__ / toString', 'hasOwnProperty / valueOf', '/ / /', ', , ,', ' - - - ']) {
+      expect(() => placesOf(hostile, null, {}), hostile).not.toThrow();
+      expect(placesOf(hostile, null, {}), hostile).toEqual([]);
+    }
+  });
+});
+
+describe('summaryOf: the one place a row reduces to', () => {
+  const summary = (loc: string, upstream: string | null, table: Record<string, Entry> = LIST_TABLE) =>
+    tuple(summaryOf(placesOf(loc, upstream, table), upstream));
+
+  it('nothing listed is nothing', () => {
+    expect(tuple(summaryOf([], 'US'))).toEqual(NONE);
+    expect(summary('Remote', null)).toEqual(NONE);
+  });
+
+  it('one country: that country, its state if all agree, its city if there is one', () => {
+    expect(summary('Chicago, IL, Evanston, IL', 'US')).toEqual(['US', 'IL', null, 'United States']);
+    expect(summary('Dallas, TX, Chicago, IL, Columbus, OH', 'US')).toEqual(['US', null, null, 'United States']);
+    expect(summary('Berlin / Remote', 'DE')).toEqual(['DE', null, 'Berlin', 'Berlin, Germany']);
+    expect(summary('Europe / London', null)).toEqual(['GB', null, 'London', 'London, United Kingdom']);
+    expect(summary('Toronto / Vancouver', 'CA')).toEqual(['CA', null, null, 'Canada']);
+  });
+
+  it('several countries: the upstream code if it is one of them, otherwise none, and never a state or a city', () => {
+    expect(summary('London / Germany', 'DE')).toEqual(['DE', null, null, 'Germany']);
+    expect(summary('London / Germany', 'GB')).toEqual(['GB', null, null, 'United Kingdom']);
+    expect(summary('London / Germany', 'US')).toEqual(NONE); // the crawl's pick is not in the list
+    expect(summary('London / Germany', null)).toEqual(NONE);
+    expect(summary('United States / Canada / London', 'CA')).toEqual(['CA', null, null, 'Canada']);
+    expect(summary('Stockholm; Germany & Netherlands (Remote)', 'DE')).toEqual(['DE', null, null, 'Germany']);
+  });
+
+  it('the region is read off the summary, so the two columns agree', () => {
+    for (const [loc, upstream, region] of [
+      ['London / Germany', 'DE', 'EU'],
+      ['London / Germany', null, regionOf('London / Germany')],
+      ['Chicago, IL, Evanston, IL', 'US', 'US Central']
+    ] as const) {
+      const d = derivedFor({ title: 'Designer', department: 'Design', ats: 'greenhouse', comp_range: null, location: loc, country: upstream });
+      expect(d.derived_region, `${loc} [${upstream}]`).toBe(region);
+    }
+  });
+});
+
+describe('place keys: the board\'s own grammar', () => {
+  it('a place has a key at every level, most general first, and its leaf is the last', () => {
+    expect(placeKeysOf({ country: 'GB', admin1: null, city: 'London' })).toEqual(['GB', 'GB/London']);
+    expect(placeKeysOf({ country: 'US', admin1: 'MD', city: 'Baltimore' })).toEqual(['US', 'US-MD', 'US/Baltimore', 'US-MD/Baltimore']);
+    expect(placeKeysOf({ country: 'US', admin1: 'MD', city: null })).toEqual(['US', 'US-MD']);
+    expect(placeKeysOf({ country: 'DE', admin1: null, city: null })).toEqual(['DE']);
+    expect(placeLeafOf({ country: 'US', admin1: 'MD', city: 'Baltimore' })).toBe('US-MD/Baltimore');
+    expect(placeLeafOf({ country: 'GB', admin1: null, city: 'London' })).toBe('GB/London');
+    expect(placeLeafOf({ country: 'DE', admin1: null, city: null })).toBe('DE');
+  });
+
+  it('every key parses as a place= value and writes back unchanged', () => {
+    const rows: ReadonlyArray<readonly [string, string | null]> = [
+      ['London / Germany', 'DE'], ['Chicago, IL, Evanston, IL', 'US'], ['Dallas, TX, Chicago, IL, Columbus, OH', 'US'],
+      ['Toronto / Vancouver', 'CA'], ['Melbourne / Victoria', null], ['Stockholm; Germany & Netherlands (Remote)', 'DE'],
+      ['Capelle a/d IJssel', 'NL'], ['Kitchener-Waterloo, ON; Toronto, ON', 'CA'], ['Austin, TX', null]
+    ];
+    let n = 0;
+    for (const [loc, upstream] of rows) {
+      for (const key of keysFor(loc, upstream)) {
+        const parsed = parsePlaceKey(key);
+        expect(parsed, `${key} from ${loc}`).not.toBeNull();
+        expect(formatPlaceKey(parsed as NonNullable<typeof parsed>), key).toBe(key);
+        n += 1;
+      }
+    }
+    expect(n).toBeGreaterThan(40);
+  });
+
+  it('the label of a leaf key is the label placeOf writes for the same place', () => {
+    // The lexicon builds its city groups from the leaves and labels them with placeKeyLabel; they must say what
+    // place_label says, or a suggestion would read differently from the row it counts.
+    const strings = ['Austin, TX', 'Baltimore, Maryland', 'Toronto, ON', 'Sydney, NSW, Australia', 'London', 'Paris, France',
+      'San Francisco Bay Area (Hybrid)', 'Frankfurt / Main', 'Capelle a/d IJssel', 'Bangalore, India', 'Sarajevo, Bosnia'];
+    let n = 0;
+    for (const loc of strings) {
+      for (const p of placesOf(loc, null, LIST_TABLE)) {
+        if (!p.city) continue;
+        expect(placeKeyLabel(placeLeafOf(p as never)), loc).toBe(p.label);
+        n += 1;
+      }
+    }
+    expect(n).toBeGreaterThanOrEqual(strings.length - 2);
+    // A country alone has the country's name, as place_label has it.
+    expect(placeKeyLabel('DE')).toBe(placesOf('Germany', null, {})[0]?.label);
+  });
+});
+
+describe('derivedFor: place_keys and place_leaves', () => {
+  const base = { title: 'Product Designer', department: 'Design', ats: 'greenhouse', comp_range: null };
+
+  it('carry every place the posting lists, sorted and distinct', () => {
+    const d = derivedFor({ ...base, country: 'CA', location: 'United States / Canada / London' });
+    expect(d.place_keys).toEqual(['CA', 'GB', 'GB/London', 'US']);
+    expect(d.place_leaves).toEqual(['CA', 'GB/London', 'US']);
+    expect([d.place_country, d.place_admin1, d.place_city, d.place_label]).toEqual(['CA', null, null, 'Canada']);
+  });
+
+  it('a one-place row carries the keys of that place and the one leaf', () => {
+    const d = derivedFor({ ...base, country: 'US', location: 'Austin, Texas, USA' });
+    expect(d.place_keys).toEqual(['US', 'US-TX', 'US-TX/Austin', 'US/Austin']);
+    expect(d.place_leaves).toEqual(['US-TX/Austin']);
+    expect(d.place_label).toBe('Austin, TX');
+  });
+
+  it('a posting with no place has empty arrays, which is "Not stated"', () => {
+    for (const location of ['Remote', 'Multiple Locations', 'Europe', '', null]) {
+      const d = derivedFor({ ...base, country: null, location });
+      expect(d.place_keys, String(location)).toEqual([]);
+      expect(d.place_leaves, String(location)).toEqual([]);
+      expect(d.place_country, String(location)).toBeNull();
+    }
+  });
+
+  it('a list that spans countries has no single country unless the crawl\'s is one of them', () => {
+    expect(derivedFor({ ...base, country: 'DE', location: 'London / Germany' }).place_country).toBe('DE');
+    expect(derivedFor({ ...base, country: 'US', location: 'London / Germany' }).place_country).toBeNull();
+    expect(derivedFor({ ...base, country: 'US', location: 'London / Germany' }).place_keys).toEqual(['DE', 'GB', 'GB/London']);
+  });
+
+  it('is deterministic, so an unchanged row compares equal on a re-run', () => {
+    const row = { ...base, country: 'US', location: 'Chicago, IL, Evanston, IL' };
+    expect(derivedFor(row)).toEqual(derivedFor({ ...row }));
   });
 });
 
