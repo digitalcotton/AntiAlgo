@@ -23,8 +23,10 @@ import { SORT_KEYS, type SortKey } from '../lib/data';
  */
 
 interface Props {
-  /** Which sort is in effect. Must match the order the caller rendered rows in. */
-  current?: SortKey;
+  /** Which sort is in effect. Must match the order the caller rendered rows in.
+      `best` (the order typed words earn) is none of the segments, so with it
+      nothing is pressed: the control does not claim an order the rows are not in. */
+  current?: SortKey | 'best';
   /** Where a link-based sort should point. Omit for the island behaviour. */
   hrefFor?: (key: SortKey) => string;
   /**

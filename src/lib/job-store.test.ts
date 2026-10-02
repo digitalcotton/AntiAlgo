@@ -1,67 +1,107 @@
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The SQL the paged board sends, checked with no database: the facet rules
-// are in the text, every value is bound, the heavy column stays home.
+// are in the text, every value is bound, the heavy column stays home. The
+// statements that need a real Postgres (the tsquery really parses, the counts
+// really equal the rows) are in job-store.db.test.ts.
 const query = vi.fn();
-vi.mock('./db', () => ({ db: () => ({ query }) }));
+const release = vi.fn();
+vi.mock('./db', () => ({
+  // `connect` is the typo path's one connection: it runs inside a transaction
+  // so the trigram threshold can be set for it. It shares `query` so the test
+  // sees every statement in the order it was sent.
+  db: () => ({ query, connect: async () => ({ query, release }) })
+}));
 
-import { boardRowsLoadedAt, likePattern, listBoardAgeHistogram, listBoardFiltered } from './job-store';
+import {
+  FUZZY_MIN_WORD,
+  FUZZY_WORD_THRESHOLD,
+  PAY_FLOORS_K,
+  SEARCH_MAX_WORDS,
+  boardRowsLoadedAt,
+  buildSearchQuery,
+  foldForSearch,
+  listBoardAgeHistogram,
+  listBoardFiltered
+} from './job-store';
+
+/** A count row as the database returns it: totals, the text total, and the places JSON. */
+const COUNT_ROW = { total: 3, text_total: 3, location_all: 3, location_remote: 1, location_onsite: 2, places: { US: 2, '': 1 } };
 
 beforeEach(() => {
   query.mockReset();
-  query.mockResolvedValue({ rows: [{ total: 3, location_all: 3, location_remote: 1, location_onsite: 2 }] });
+  release.mockReset();
+  query.mockResolvedValue({ rows: [COUNT_ROW] });
 });
 
 const FILTER = { q: 'design', location: 'remote', comp: 'all', freshness: 'all', sort: 'fit' as const, page: 2, perPage: 50, sweepDate: '2026-09-11', ageMin: null, ageMax: null };
 
+/** The statements that are SQL about jobs, not the transaction's own: BEGIN, COMMIT, set_config. */
+const statements = () =>
+  query.mock.calls.filter(([sql]) => !/^(BEGIN|COMMIT|ROLLBACK)$/.test(String(sql)) && !String(sql).includes('set_config'));
+
 describe('listBoardFiltered', () => {
   it('asks twice over one CTE, binding every value, and pages with LIMIT and OFFSET', async () => {
     const result = await listBoardFiltered(FILTER);
-    expect(query).toHaveBeenCalledTimes(2);
-    const [countSql, countParams] = query.mock.calls[0];
-    const [pageSql, pageParams] = query.mock.calls[1];
-    // The twelve shared params: sweep, fresh window, search, the three facets,
-    // the age range, then country/liveOnly/hasComp, then the families ($12,
-    // NULL for an unnarrowed board). liveOnly defaults to TRUE (2026-09-20): a
-    // browsed list never carries a killed row. No watched titles, so nothing
-    // binds past them.
-    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, null, 'all']);
-    expect(pageParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, null, 'all', 50, 50]);
-    expect(countSql).toContain('FILTER (WHERE match_age AND');
-    expect(pageSql).toContain('LIMIT $14 OFFSET $15');   // +1 since db/218
+    expect(statements()).toHaveLength(2);
+    const [countSql, countParams] = statements()[0];
+    const [pageSql, pageParams] = statements()[1];
+    // The nineteen shared params: sweep, fresh window, the search tsquery, the
+    // three facets, the age range, then country/liveOnly/hasComp, the families
+    // ($12, NULL for an unnarrowed board), the pipeline ($13), and the five new
+    // filters: the arrangement list ($14), the pay floor ($15), the place's
+    // country, region and city ($16 to $18) and the company ($19). liveOnly
+    // defaults to TRUE (2026-09-20): a browsed list never carries a killed row.
+    // No watched titles, so nothing binds past them.
+    const tsquery = "('design' | 'design':*AB)";
+    const shared = ['2026-09-11', 4, tsquery, 'remote', 'all', 'all', null, null, null, true, false, null, 'all', null, null, null, null, null, null];
+    expect(countParams).toEqual(shared);
+    // The page also binds the tier queries and the folded words, for the ladder, then LIMIT and OFFSET.
+    expect(pageParams).toEqual([...shared, "'design':*A", "'design':*AB", "'design':*ABC", 'design', 50, 50]);
+    expect(countSql).toContain('FILTER (WHERE keep_base AND');
+    expect(pageSql).toContain('LIMIT $24 OFFSET $25');
     expect(pageSql).toContain('ORDER BY detail_total DESC, company ASC, title ASC, id ASC');
     expect(result.total).toBe(3);
+    expect(result.fuzzy).toBe(false);
     expect(result.counts.location).toEqual({ all: 3, remote: 1, hybrid: 0, onsite: 2, unstated: 0 });
   });
   it('narrows to the watched titles by whole-phrase match, in count and page alike', async () => {
     await listBoardFiltered({ ...FILTER, titles: ['Product Designer'] });
-    const [countSql, countParams] = query.mock.calls[0];
-    const [pageSql, pageParams] = query.mock.calls[1];
-    // The title normalises to ONE phrase param, bound after the thirteen shared
-    // params ($14 since db/218 appended the pipeline filter).
-    expect(countParams).toEqual(['2026-09-11', 4, '%design%', 'remote', 'all', 'all', null, null, null, true, false, null, 'all', 'product designer']);
-    // Then limit and offset shift past the phrase.
+    const [countSql, countParams] = statements()[0];
+    const [pageSql, pageParams] = statements()[1];
+    // The title normalises to ONE phrase param, bound after the nineteen shared
+    // params ($20; it was $14 until the stated-facts filters were appended).
+    expect(countParams.slice(0, 19)).toHaveLength(19);
+    expect(countParams[19]).toBe('product designer');
+    expect(countParams).toHaveLength(20);
+    // The page binds the four tier values after it ($21 to $24), then LIMIT and OFFSET.
     expect(pageParams.slice(-2)).toEqual([50, 50]);
-    expect(pageSql).toContain('LIMIT $15 OFFSET $16');   // +1 since db/218
+    expect(pageParams).toHaveLength(26);
+    expect(pageSql).toContain('LIMIT $25 OFFSET $26');
     // A normalised, padded whole-phrase LIKE (mirroring ledger-titles.matchesTitle),
     // applied to the facet counts too, so the counts describe the narrowed board.
     expect(pageSql).toContain(String.raw`regexp_replace(lower(title), '[^a-z0-9]+', ' ', 'g')`);
-    expect(pageSql).toContain(`LIKE ('% ' || $14 || ' %')`);
-    expect(countSql).toContain(`LIKE ('% ' || $14 || ' %')`);
+    expect(pageSql).toContain(`LIKE ('% ' || $20 || ' %')`);
+    expect(countSql).toContain(`LIKE ('% ' || $20 || ' %')`);
   });
   it('leaves the board unnarrowed when no titles are watched', async () => {
     await listBoardFiltered({ ...FILTER, titles: [] });
-    const [, countParams] = query.mock.calls[0];
-    expect(countParams).toHaveLength(13);   // 13 since db/218 appended the pipeline filter
-    expect(query.mock.calls[1][0]).toContain('LIMIT $14 OFFSET $15');   // +1 since db/218
+    const [, countParams] = statements()[0];
+    expect(countParams).toHaveLength(19);
+    expect(statements()[1][0]).toContain('LIMIT $24 OFFSET $25');
+    // With no words there are no tier queries to bind: two fewer, then four fewer.
+    query.mockClear();
+    await listBoardFiltered({ ...FILTER, q: '' });
+    expect(statements()[1][0]).toContain('LIMIT $20 OFFSET $21');
   });
   it('narrows to the chosen families, and treats unplaced as the absence it is', async () => {
     await listBoardFiltered({ ...FILTER, families: ['design', 'unplaced'] });
-    const [countSql, countParams] = query.mock.calls[0];
+    const [countSql, countParams] = statements()[0];
     // The families bind as ONE array param at $12, so the shape does not change
     // with how many are picked and nothing shifts behind them.
     expect(countParams[11]).toEqual(['design', 'unplaced']);
-    expect(countParams).toHaveLength(13);   // 13 since db/218 appended the pipeline filter
+    expect(countParams).toHaveLength(19);
     // 'unplaced' is not a family id: it is matched against a NULL derived_fam,
     // never looked up, so picking it alongside Design returns both.
     expect(countSql).toContain("derived_fam = ANY($12::text[])");
@@ -70,28 +110,34 @@ describe('listBoardFiltered', () => {
 
   it('leaves the board unnarrowed when no family is chosen', async () => {
     await listBoardFiltered({ ...FILTER, families: [] });
-    const [, countParams] = query.mock.calls[0];
+    const [, countParams] = statements()[0];
     expect(countParams[11]).toBeNull();
   });
 
   it('counts each family leave-one-out, so a count is what that option would leave', async () => {
     await listBoardFiltered({ ...FILTER, families: ['design'] });
-    const [countSql] = query.mock.calls[0];
-    // Every other facet count respects match_family; the family counts do not,
-    // or picking Design would make every family count read as Design's own.
+    const [countSql] = statements()[0];
     // The identifier is quoted because a family id carries a hyphen
     // (social-care, public-safety, it-infra, data-ai).
     expect(countSql).toContain('AS "family_design"');
     expect(countSql).toContain('AS "family_social-care"');
     expect(countSql).toContain('AS family_unplaced');
     expect(countSql).toContain('AS family_all');
+    // Every other facet count respects the family filter; the family counts do
+    // not, or picking Design would make every family count read as Design's own.
+    // The controls are bits of `miss` in the order location, pay, freshness,
+    // family, place (1, 2, 4, 8, 16), so "every control but family" is the mask
+    // 23 and "every control but location" is 30.
     const famLine = String(countSql).split('\n').find((l) => l.includes('AS "family_design"')) ?? '';
-    expect(famLine).not.toContain('match_family');
+    expect(famLine).toContain('(miss & 23) = 0');
+    const locLine = String(countSql).split('\n').find((l) => l.includes('AS location_remote')) ?? '';
+    expect(locLine).toContain('(miss & 30) = 0');
+    expect(String(countSql).split('\n').find((l) => l.includes('AS total'))).toContain('(miss & 31) = 0');
   });
 
   it('mirrors the TypeScript facet rules in SQL', async () => {
     await listBoardFiltered(FILTER);
-    const sql = query.mock.calls[1][0] as string;
+    const sql = statements()[1][0] as string;
     // Four answers, and the remote flag is READ. A regression here is the
     // 2,650-row hole this fixed: the text test alone filed every posting whose
     // applicant system flagged it remote while naming a city as on-site.
@@ -104,31 +150,353 @@ describe('listBoardFiltered', () => {
     expect(sql).toContain("(j.published AT TIME ZONE 'UTC')::date");
     expect(sql).toContain('j.first_seen < $1::date');
     expect(sql).toContain("age_days <= $2 THEN 'fresh'");
-    expect(sql).toContain(String.raw`ILIKE $3 ESCAPE '\'`);
+    // The search words are a tsquery over the weighted vector now. `title ILIKE`
+    // is gone from the board: it read every row and could not rank.
+    expect(sql).not.toContain('ILIKE');
+    expect(sql).toContain("search @@ to_tsquery('simple', $3::text)");
     expect(sql).toContain('NULL::text AS description');
     expect(sql).not.toMatch(/\bj\.description\b/);
     expect(sql).toContain('regexp_matches');
   });
   it('binds the age range in days and keeps undated rows out of any range that is set', async () => {
     await listBoardFiltered({ ...FILTER, ageMin: 2, ageMax: 7 });
-    const [sql, params] = query.mock.calls[1];
+    const [sql, params] = statements()[1];
     expect(params.slice(6, 8)).toEqual([2, 7]);
     expect(sql).toContain('age_days IS NOT NULL');
     expect(sql).toContain('($7::int IS NULL OR age_days >= $7::int)');
     expect(sql).toContain('($8::int IS NULL OR age_days <= $8::int)');
-    expect(sql).toContain('WHERE match_age AND match_q');
+    expect(sql).toContain('WHERE match_q AND match_age');
   });
   it('orders by the allowlisted key for comp and age', async () => {
     await listBoardFiltered({ ...FILTER, sort: 'comp' });
-    expect(query.mock.calls[1][0]).toContain('ORDER BY comp_top DESC NULLS LAST');
+    expect(statements()[1][0]).toContain('ORDER BY comp_top DESC NULLS LAST');
     await listBoardFiltered({ ...FILTER, sort: 'age' });
-    expect(query.mock.calls[3][0]).toContain('ORDER BY age_days ASC NULLS LAST');
+    expect(statements()[3][0]).toContain('ORDER BY age_days ASC NULLS LAST');
   });
-  it('binds a wildcard the person typed as a literal', async () => {
-    expect(likePattern('50%_x')).toBe(String.raw`%50\%\_x%`);
-    expect(likePattern('   ')).toBeNull();
+  it('binds no text filter for blank words, and a wildcard a person typed never reaches SQL as a pattern', async () => {
     await listBoardFiltered({ ...FILTER, q: '' });
-    expect(query.mock.calls[0][1][2]).toBeNull();
+    expect(statements()[0][1][2]).toBeNull();
+    expect(statements()[1][1]).toHaveLength(21);
+    query.mockClear();
+    await listBoardFiltered({ ...FILTER, q: '50%_x' });
+    // `50%_x` is one chunk with punctuation inside it. It is offered as the
+    // lexeme Postgres would index it as, QUOTED (so the percent sign and the
+    // underscore are inert characters, not wildcards), or as its parts, of which
+    // only the one of two letters or more is kept.
+    expect(statements()[0][1][2]).toBe("('50%_x' | '50%_x':*AB | ('50'))");
+    expect(statements().every(([sql]) => !String(sql).includes('LIKE ($3'))).toBe(true);
+  });
+});
+
+describe('what the page does with the words', () => {
+  it('writes the text predicate twice: as the index-friendly WHERE and as the authoritative flag', async () => {
+    await listBoardFiltered(FILTER);
+    const sql = statements()[0][0] as string;
+    // Postgres can use jobs_search_idx only if the predicate is in base's WHERE
+    // next to the literal `status <> 'killed'` the partial index needs; match_q
+    // is the same predicate as a column, so deleting the WHERE would change no
+    // count, only the time it takes.
+    const where = sql.slice(sql.indexOf('WHERE (NOT $10::boolean OR j.status <> \'killed\')'));
+    expect(where).toContain("j.search @@ to_tsquery('simple', $3::text)");
+    expect(sql).toMatch(/b\.search @@ to_tsquery\('simple', \$3::text\)\)\) AS match_q/);
+  });
+  it('materialises the narrow count flags when there are words or a control is set, and not on the bare board', async () => {
+    await listBoardFiltered(FILTER);
+    expect(statements()[0][0]).toContain('flags AS MATERIALIZED (');
+    for (const over of [{ q: '', location: 'hybrid' }, { q: '', remote: ['remote'] }, { q: '', payMin: 150 }, { q: '', comp: '150-200' }, { q: '', freshness: 'fresh' }, { q: '', place: 'GB' }, { q: '', company: 'Figma' }, { q: '', families: ['design'] }, { q: '', ageMax: 7 }]) {
+      query.mockClear();
+      await listBoardFiltered({ ...FILTER, ...over });
+      expect(statements()[0][0], JSON.stringify(over)).toContain('flags AS MATERIALIZED (');
+    }
+    // The bare board: no words, nothing chosen. Every flag is a constant and the CTE is cheaper inlined.
+    query.mockClear();
+    await listBoardFiltered({ ...FILTER, q: '', location: 'all' });
+    expect(statements()[0][0]).toContain('flags AS NOT MATERIALIZED (');
+    // Narrow either way: the count flags carry no row, no description and no search vector.
+    const flags = String(statements()[0][0]);
+    const select = flags.slice(flags.indexOf('flags AS NOT MATERIALIZED ('), flags.indexOf('FROM matched'));
+    expect(select).not.toMatch(/\bsearch\b/);
+    expect(select).not.toContain('description');
+    expect(select).toContain('AS miss');
+  });
+  it('does not let a punctuation-only box show the whole board: it matches nothing', async () => {
+    await listBoardFiltered({ ...FILTER, q: '!!!' });
+    // '' is the bound value, and the predicate is false for it.
+    expect(statements()[0][1][2]).toBe('');
+    expect(statements()[0][0]).toContain("$3::text <> ''");
+    // ... and it is not a typo: no second pass is tried.
+    expect(release).not.toHaveBeenCalled();
+  });
+  it('ranks every matching row first only for the best-match order', async () => {
+    await listBoardFiltered({ ...FILTER, sort: 'best' });
+    const best = statements()[1][0] as string;
+    // tier, then ts_rank_cd, then Deets, then age, then id: the order IS the rank.
+    expect(best).toContain('ranked AS (');
+    expect(best).toContain('ts_rank_cd(m.search, tq.q_all) AS rank_n');
+    expect(best).toContain('ORDER BY tier_n ASC, rank_n DESC, detail_total DESC, age_days ASC NULLS LAST, id ASC');
+    // The tsqueries are parsed once, in a one-row CTE, not once per row.
+    expect(best).toContain('tq AS MATERIALIZED (');
+    expect(best).toContain("to_tsquery('simple', $20::text) AS q_a");
+    query.mockClear();
+    // Any other order cuts the page first and asks only its rows which rung they are on.
+    await listBoardFiltered({ ...FILTER, sort: 'age' });
+    const age = statements()[1][0] as string;
+    expect(age).not.toContain('ranked AS (');
+    expect(age).toContain('ORDER BY age_days ASC NULLS LAST, company ASC, title ASC, id ASC');
+    expect(age).toContain('AS match_tier');
+  });
+  it('reads best match with no words as the table order, and carries null facts', async () => {
+    await listBoardFiltered({ ...FILTER, q: '', sort: 'best' });
+    const sql = statements()[1][0] as string;
+    expect(sql).toContain('ORDER BY detail_total DESC, company ASC, title ASC, id ASC');
+    expect(sql).toContain('NULL::int AS match_tier, NULL::text AS match_field, NULL::float8 AS fuzzy_score');
+    expect(sql).not.toContain('tq AS');
+  });
+  it('states the tier ladder in SQL: the title is the words, then every word by weight', async () => {
+    await listBoardFiltered({ ...FILTER, sort: 'best' });
+    const sql = statements()[1][0] as string;
+    expect(sql).toContain("btrim(regexp_replace(lower(f_unaccent(page.title)), '[^[:alnum:]]+', ' ', 'g')) = $23::text THEN 0");
+    expect(sql).toContain('page.search @@ tq.q_a THEN 1');
+    expect(sql).toContain('page.search @@ tq.q_ab THEN 2');
+    expect(sql).toContain('ELSE 3 END AS match_tier');
+    // The field is the one that COMPLETES the match: department only when a weight-C check passes.
+    expect(sql).toContain("page.search @@ tq.q_abc THEN 'department'");
+    expect(sql).toContain("ELSE 'description' END AS match_field");
+  });
+  it('hands the facts a rank was decided on back on every row', async () => {
+    const rows = [
+      { id: 'a', match_tier: 0, match_field: 'title', fuzzy_score: null },
+      { id: 'b', match_tier: 3, match_field: 'description', fuzzy_score: null }
+    ];
+    query.mockImplementation(async (sql: string) => ({ rows: String(sql).includes('flags AS') ? [COUNT_ROW] : rows }));
+    const result = await listBoardFiltered({ ...FILTER, sort: 'best' });
+    expect(result.rows).toEqual(rows);
+  });
+});
+
+describe('the new filters', () => {
+  it('binds the arrangement list, and lets it win over the old single value', async () => {
+    await listBoardFiltered({ ...FILTER, location: 'hybrid', remote: ['remote', 'onsite'] });
+    let [, params] = statements()[0];
+    // The list wins and the single value is bound as `all`: never an AND of two answers.
+    expect(params[3]).toBe('all');
+    expect(params[13]).toEqual(['remote', 'onsite']);
+    expect(statements()[0][0]).toContain('($14::text[] IS NULL OR facet_location = ANY($14::text[]))');
+    query.mockClear();
+    await listBoardFiltered({ ...FILTER, location: 'hybrid', remote: [] });
+    [, params] = statements()[0];
+    expect(params[3]).toBe('hybrid');
+    expect(params[13]).toBeNull();
+    query.mockClear();
+    // An unknown kind is dropped, and if nothing is left the old value stands.
+    await listBoardFiltered({ ...FILTER, location: 'remote', remote: ['mars'] });
+    [, params] = statements()[0];
+    expect(params[3]).toBe('remote');
+    expect(params[13]).toBeNull();
+  });
+  it('reads the pay floor the way the Desk does: comp_range.min, a number, at or above it', async () => {
+    await listBoardFiltered({ ...FILTER, payMin: 150 });
+    const [sql, params] = statements()[0];
+    expect(params[14]).toBe(150);
+    // The Desk (desk-agg.ts) keeps jsonb_typeof(min) = 'number' AND min >= floor. Here the
+    // same figure is read once into comp_min, and a row with none fails any floor.
+    expect(sql).toContain("CASE WHEN jsonb_typeof(j.comp_range->'min') = 'number' THEN (j.comp_range->>'min')::numeric END AS comp_min");
+    expect(sql).toContain('COALESCE($15::numeric IS NULL OR comp_min >= $15::numeric * 1000, false) AS match_pay');
+    // And it is NOT jobs.comp_min_k, which is that figure rounded.
+    expect(sql).not.toContain('comp_min_k');
+  });
+  it('still reads the pay floor the way the Desk reads it, or this test says so', () => {
+    // Two pages, one definition: the Desk filters on comp_range.min >= floor and the board adopted
+    // that (docs/search-engine-plan.md, decision 3). If desk-agg.ts changes how it reads the floor,
+    // this fails, and the board's comp_min (job-store.ts) has to change with it or the two pages
+    // will count different things under one label.
+    const desk = readFileSync(new URL('./desk-agg.ts', import.meta.url), 'utf8');
+    expect(desk).toContain("jsonb_typeof(j.comp_range->'min') = 'number'");
+    expect(desk).toContain("(j.comp_range->>'min')::numeric >= $6::numeric");
+  });
+  it('lets a band win over a floor, and not-listed win over both, so the pay control has one answer', async () => {
+    await listBoardFiltered({ ...FILTER, comp: '200-250', payMin: 100 });
+    let [, params] = statements()[0];
+    expect(params[4]).toBe('200-250');
+    expect(params[14]).toBeNull();
+    query.mockClear();
+    await listBoardFiltered({ ...FILTER, comp: 'all', payMin: 100, compNotListed: true });
+    [, params] = statements()[0];
+    expect(params[4]).toBe('not-listed');
+    expect(params[14]).toBeNull();
+    query.mockClear();
+    await listBoardFiltered({ ...FILTER, comp: 'all', payMin: 100 });
+    [, params] = statements()[0];
+    expect(params[4]).toBe('all');
+    expect(params[14]).toBe(100);
+    query.mockClear();
+    // A floor that is not a positive number is no floor.
+    for (const bad of [0, -1, Number.NaN, null, undefined]) {
+      await listBoardFiltered({ ...FILTER, payMin: bad as number });
+      expect(statements().at(-2)![1][14]).toBeNull();
+    }
+  });
+  it('takes a place key apart into country, region and city, and drops one that is not a key', async () => {
+    await listBoardFiltered({ ...FILTER, place: 'US-MD/Baltimore' });
+    expect(statements()[0][1].slice(15, 18)).toEqual(['US', 'MD', 'Baltimore']);
+    query.mockClear();
+    await listBoardFiltered({ ...FILTER, place: 'GB' });
+    expect(statements()[0][1].slice(15, 18)).toEqual(['GB', null, null]);
+    query.mockClear();
+    await listBoardFiltered({ ...FILTER, place: "x'; DROP TABLE jobs; --" });
+    expect(statements()[0][1].slice(15, 18)).toEqual([null, null, null]);
+    const sql = statements()[0][0] as string;
+    expect(sql).toContain('($16::text IS NULL OR place_country = $16::text)');
+    expect(sql).toContain('($17::text IS NULL OR place_admin1 = $17::text)');
+    expect(sql).toContain('($18::text IS NULL OR place_city = $18::text)');
+  });
+  it('binds the company as an exact match, trimmed, and not at all when blank', async () => {
+    await listBoardFiltered({ ...FILTER, company: ' Figma ' });
+    expect(statements()[0][1][18]).toBe('Figma');
+    expect(statements()[0][0]).toContain('($19::text IS NULL OR company = $19::text) AS match_company');
+    query.mockClear();
+    await listBoardFiltered({ ...FILTER, company: '   ' });
+    expect(statements()[0][1][18]).toBeNull();
+  });
+  it('counts the new options leave-one-out over the same rows, and returns them beside the old ones', async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          ...COUNT_ROW,
+          location_hybrid: 4, location_unstated: 5,
+          comp_all: 9, 'comp_not-listed': 6, pay_100: 3, pay_150: 2, pay_200: 1, pay_250: 1, pay_300: 0,
+          places: { US: 5, GB: 3, '': 2 }
+        }
+      ]
+    });
+    const result = await listBoardFiltered(FILTER);
+    const sql = statements()[0][0] as string;
+    // The arrangement counts are the same expression under two names.
+    expect(result.counts.remote).toEqual(result.counts.location);
+    expect(result.counts.remote).toEqual({ all: 3, remote: 1, hybrid: 4, onsite: 2, unstated: 5 });
+    // The pay floors are cumulative, from comp_min, with the pay control left out (mask 29).
+    for (const k of PAY_FLOORS_K) {
+      const line = sql.split('\n').find((l) => l.includes(`AS pay_${k}`)) ?? '';
+      expect(line).toContain(`comp_min >= ${k * 1000}`);
+      expect(line).toContain('(miss & 29) = 0');
+    }
+    expect(result.counts.pay).toEqual({ any: 9, notListed: 6, floors: { '100': 3, '150': 2, '200': 1, '250': 1, '300': 0 } });
+    // The places come from the same statement as one JSON object; '' is "no country".
+    expect(result.counts.place).toEqual({ countries: { US: 5, GB: 3 }, notStated: 2 });
+    expect(sql).toContain('FROM flags WHERE keep_base AND (miss & 15) = 0 GROUP BY place_country');
+    // The age strip answers to the same words, pay, place and company: one keep clause.
+    query.mockClear();
+    query.mockResolvedValue({ rows: [] });
+    await listBoardAgeHistogram({ q: '', sweepDate: '2026-09-18', payMin: 150, place: 'GB', company: 'Figma', remote: ['remote'] });
+    const strip = statements()[0];
+    expect(String(strip[0])).toContain('match_pay');
+    expect(String(strip[0])).toContain('match_place');
+    expect(String(strip[0])).toContain('match_company');
+    expect(strip[1]).toEqual(expect.arrayContaining([150, 'GB', 'Figma', ['remote']]));
+  });
+});
+
+describe('the typo path', () => {
+  const THRESHOLD = String(FUZZY_WORD_THRESHOLD);
+
+  /** An exact miss and then whatever the typo path says. */
+  function exactMissThen(fuzzyTotal: number) {
+    query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      const text = String(sql);
+      if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK' || text.includes('set_config')) return { rows: [] };
+      const fuzzy = text.includes('<% j.title');
+      if (text.includes('flags AS')) return { rows: [{ ...COUNT_ROW, total: fuzzy ? 7 : 0, text_total: fuzzy ? fuzzyTotal : 0, places: fuzzy ? { US: 7 } : null }] };
+      return { rows: [{ id: fuzzy ? 'close' : 'none', match_tier: null, match_field: fuzzy ? 'title' : null, fuzzy_score: fuzzy ? 0.524 : null }], params };
+    });
+  }
+
+  it('runs when the words match nothing on the board, in one transaction, with the threshold set for it', async () => {
+    exactMissThen(7);
+    const result = await listBoardFiltered({ ...FILTER, q: 'prodct desiner', sort: 'best' });
+    expect(result.fuzzy).toBe(true);
+    expect(result.total).toBe(7);
+    expect(result.counts.place).toEqual({ countries: { US: 7 }, notStated: 0 });
+    expect(result.rows[0]).toMatchObject({ id: 'close', match_tier: null, match_field: 'title', fuzzy_score: 0.524 });
+    const sent = query.mock.calls.map(([sql]) => String(sql));
+    // BEGIN, the threshold as a TRANSACTION-LOCAL setting (bound, not interpolated), the statements, COMMIT.
+    expect(sent.indexOf('BEGIN')).toBeGreaterThan(-1);
+    const config = query.mock.calls.find(([sql]) => String(sql).includes('set_config'))!;
+    expect(String(config[0])).toContain("set_config('pg_trgm.word_similarity_threshold', $1, true)");
+    expect(config[1]).toEqual([THRESHOLD]);
+    expect(sent.at(-1)).toBe('COMMIT');
+    expect(release).toHaveBeenCalledTimes(1);
+    // Every long word must be similar to the title on its own; the phrase is only the score.
+    const fuzzyCount = query.mock.calls.find(([sql]) => String(sql).includes('<% j.title'))!;
+    expect(String(fuzzyCount[0])).toContain('$21::text <% j.title AND $22::text <% j.title');
+    expect(fuzzyCount[1].slice(2, 3)).toEqual(['prodct desiner']);
+    expect(fuzzyCount[1].slice(19)).toEqual([null, 'prodct', 'desiner']);
+    expect(String(fuzzyCount[0])).toContain('word_similarity($3::text, b.title) + similarity($3::text, b.title)');
+    // ... and the best-match order in this mode is the similarity.
+    const fuzzyPage = query.mock.calls.filter(([sql]) => String(sql).includes('<% j.title') && !String(sql).includes('flags AS'))[0];
+    expect(String(fuzzyPage[0])).toContain('ORDER BY text_sim DESC, detail_total DESC, age_days ASC NULLS LAST, id ASC');
+    expect(String(fuzzyPage[0])).toContain("NULL::int AS match_tier, 'title'::text AS match_field, page.text_sim AS fuzzy_score");
+  });
+  it('sends the words too short to misspell as exact title prefixes in the same statement', async () => {
+    exactMissThen(1);
+    await listBoardFiltered({ ...FILTER, q: 'sr prodct desiner' });
+    const fuzzyCount = query.mock.calls.find(([sql]) => String(sql).includes('<% j.title'))!;
+    expect(fuzzyCount[1].slice(19)).toEqual(["'sr':*A", 'prodct', 'desiner']);
+    expect(String(fuzzyCount[0])).toContain("$20::text IS NULL OR j.search @@ to_tsquery('simple', $20::text)");
+  });
+  it('is not tried when the words matched something exactly', async () => {
+    await listBoardFiltered({ ...FILTER, q: 'prodct desiner' });
+    expect(release).not.toHaveBeenCalled();
+    expect(query.mock.calls.some(([sql]) => String(sql).includes('<% j.title'))).toBe(false);
+  });
+  it('is not tried for words with nothing long enough to misspell, nor for no words', async () => {
+    query.mockResolvedValue({ rows: [{ ...COUNT_ROW, text_total: 0 }] });
+    for (const q of ['c++ r', 'sr dev', '', '!!!']) {
+      await listBoardFiltered({ ...FILTER, q });
+    }
+    expect(release).not.toHaveBeenCalled();
+    expect(FUZZY_MIN_WORD).toBe(5);
+  });
+  it('gives the empty exact answer back, unflagged, when the typo path finds nothing either', async () => {
+    exactMissThen(0);
+    const result = await listBoardFiltered({ ...FILTER, q: 'xqzvw rkt' + 'abc' });
+    expect(result.fuzzy).toBe(false);
+    expect(result.rows[0]).toMatchObject({ id: 'none' });
+    expect(result.total).toBe(0);
+    // Its transaction still ended cleanly and gave its connection back.
+    expect(query.mock.calls.map(([sql]) => String(sql))).toContain('COMMIT');
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+  it('rolls back and releases the connection when a statement fails, and the error is the caller\'s', async () => {
+    query.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (text.includes('<% j.title')) throw new Error('boom');
+      if (text.includes('flags AS')) return { rows: [{ ...COUNT_ROW, text_total: 0 }] };
+      return { rows: [] };
+    });
+    await expect(listBoardFiltered({ ...FILTER, q: 'prodct desiner' })).rejects.toThrow('boom');
+    expect(query.mock.calls.map(([sql]) => String(sql))).toContain('ROLLBACK');
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+  it('decides the age strip the same way, and draws it over the population the table shows', async () => {
+    // The strip asks "did the words find anything" with the table's own test (text_total).
+    query.mockImplementation(async (sql: string) => {
+      const text = String(sql);
+      if (text === 'BEGIN' || text === 'COMMIT' || text.includes('set_config')) return { rows: [] };
+      if (text.includes('AS text_total')) return { rows: [{ text_total: text.includes('<% j.title') ? 5 : 0 }] };
+      return { rows: [{ days: null, rows: 0, axis_max: 3 }] };
+    });
+    const hist = await listBoardAgeHistogram({ sweepDate: '2026-09-18', q: 'prodct desiner' });
+    const strip = query.mock.calls.filter(([sql]) => String(sql).includes('GROUP BY days'));
+    expect(strip).toHaveLength(1);
+    expect(String(strip[0][0])).toContain('<% j.title');
+    expect(hist.axisMax).toBe(3);
+    // With exact matches, it stays exact and never opens a transaction.
+    query.mockClear();
+    release.mockClear();
+    query.mockImplementation(async (sql: string) => (String(sql).includes('AS text_total') ? { rows: [{ text_total: 9 }] } : { rows: [] }));
+    await listBoardAgeHistogram({ sweepDate: '2026-09-18', q: 'designer' });
+    expect(release).not.toHaveBeenCalled();
+    expect(query.mock.calls.some(([sql]) => String(sql).includes('<% j.title'))).toBe(false);
   });
 });
 
@@ -141,13 +509,16 @@ describe('listBoardAgeHistogram', () => {
     sweepDate: '2026-09-18'
   };
 
+  /** The statement that draws the strip, whatever else was asked on the way to it. */
+  const strip = () => query.mock.calls.find(([sql]) => String(sql).includes('GROUP BY days'))!;
+
   it('asks the database for the distribution, not the rows', async () => {
     // The plot is a histogram; the old query read every row (13,302 / 4.8 MB)
     // to build it. This asks Postgres to GROUP BY age and never selects a row's
     // heavy columns or, indeed, the rows.
     query.mockResolvedValue({ rows: [] });
     await listBoardAgeHistogram(AGE);
-    const [sql, params] = query.mock.calls[0];
+    const [sql, params] = strip();
     expect(sql).toContain('GROUP BY days');
     expect(sql).not.toMatch(/\bj\.description\b/);
     expect(sql).not.toContain('LIMIT');
@@ -161,13 +532,14 @@ describe('listBoardAgeHistogram', () => {
     // 1,463. Every narrowing the rows get, it gets.
     query.mockResolvedValue({ rows: [] });
     await listBoardAgeHistogram({ ...AGE, location: 'remote', families: ['design'], q: 'nurse' });
-    const [sql, params] = query.mock.calls[0];
-    for (const clause of ['match_q', 'match_location', 'match_comp', 'match_freshness', 'match_family', 'match_live']) {
+    const [sql, params] = strip();
+    for (const clause of ['match_q', 'match_location', 'match_comp', 'match_freshness', 'match_family', 'match_live', 'match_pipeline']) {
       expect(sql).toContain(clause);
     }
     expect(params).toContain('remote');
     expect(params).toContainEqual(['design']);
-    expect(params).toContain('%nurse%');
+    // The words reach it as the same tsquery the table's statements bind.
+    expect(params).toContain("('nurse' | 'nurse':*AB)");
   });
 
   it('does NOT apply the age range, because the strip is what sets it', async () => {
@@ -175,7 +547,7 @@ describe('listBoardAgeHistogram', () => {
     // and leave no handle to widen it again.
     query.mockResolvedValue({ rows: [] });
     await listBoardAgeHistogram(AGE);
-    const [sql, params] = query.mock.calls[0];
+    const [sql, params] = strip();
     const measured = String(sql).slice(String(sql).indexOf(', measured AS ('));
     expect(measured).not.toContain('match_age');
     // $7 and $8 are the range, bound null.
@@ -186,7 +558,7 @@ describe('listBoardAgeHistogram', () => {
   it('mirrors ageOf: killed rows age to their kill date, and the strict first-seen guard', async () => {
     query.mockResolvedValue({ rows: [] });
     await listBoardAgeHistogram(AGE);
-    const [sql] = query.mock.calls[0];
+    const [sql] = strip();
     expect(sql).toContain("j.status = 'killed'");
     expect(sql).toContain('k.killed_on::date');
     expect(sql).toContain('k.first_published::date');
@@ -255,7 +627,7 @@ describe('the pipeline filter (db/218)', () => {
   // what make it safe to start.
   const run = async (pipeline?: 'all' | 'only' | 'exclude') => {
     query.mockReset();
-    query.mockResolvedValue({ rows: [{ total: 0, location_all: 0, location_remote: 0, location_onsite: 0 }] });
+    query.mockResolvedValue({ rows: [{ total: 0, text_total: 1, location_all: 0, location_remote: 0, location_onsite: 0 }] });
     await listBoardFiltered({ ...FILTER, ...(pipeline ? { pipeline } : {}) });
     return { sql: String(query.mock.calls[0][0]), params: query.mock.calls[0][1] as unknown[] };
   };
@@ -283,10 +655,12 @@ describe('the pipeline filter (db/218)', () => {
   it('is respected by the facet counts, not just the page', async () => {
     // A count that ignored it would offer a reader a filter combination that
     // returns nothing, which is the defect the age range was already fixed for.
+    // The counts read it through `keep_base`, which folds every flag that is not
+    // a control, match_pipeline among them.
     const { sql } = await run('only');
     expect(sql).toContain('match_pipeline');
-    const counts = sql.slice(sql.indexOf('count(*)'));
-    expect(counts).toContain('match_pipeline');
+    const keepBase = sql.match(/COALESCE\(([^]*?), false\) AS keep_base/)?.[1] ?? '';
+    expect(keepBase).toContain('match_pipeline');
   });
 
   it('binds after the shared params, so the title and LIMIT slots still line up', async () => {
@@ -295,5 +669,137 @@ describe('the pipeline filter (db/218)', () => {
     const { params } = await run('only');
     expect(params[12]).toBe('only');
     expect(params.length).toBeGreaterThanOrEqual(13);
+  });
+});
+
+describe('foldForSearch: text the way the vector holds it', () => {
+  it('lower-cases and folds accents like f_unaccent folds them, including the letters Unicode does not decompose', () => {
+    expect(foldForSearch('Zürich')).toBe('zurich');
+    expect(foldForSearch('Müller')).toBe('muller');
+    expect(foldForSearch('Straße')).toBe('strasse');
+    expect(foldForSearch('Ærø Øresund Łódź Đà Nẵng Þór')).toBe('aero oresund lodz da nang thor');
+    expect(foldForSearch('Œuvre ŉ Ŋ ĳ')).toBe("oeuvre 'n n ij");
+    expect(foldForSearch('İstanbul')).toBe('istanbul');
+    // Full-width Latin letters and digits, which unaccent.rules maps to ASCII.
+    expect(foldForSearch('ＩＴ２０２６')).toBe('it2026');
+  });
+  it('leaves alone what unaccent leaves alone: Cyrillic й, Hangul syllables, kana with a voicing mark', () => {
+    // Postgres keeps these as written. Folding them would make a query that
+    // can never match the vector it is run against (62 mismatches on the
+    // board's own characters were found before this was written this way).
+    expect(foldForSearch('Инженер й')).toBe('инженер й');
+    expect(foldForSearch('개발자 용')).toBe('개발자 용');
+    expect(foldForSearch('パート ダ')).toBe('パート ダ');
+    expect(foldForSearch('工程师')).toBe('工程师');
+    expect(foldForSearch('Ελληνικά')).toBe('ελληνικα');
+  });
+  it('turns control, format and half-broken characters into spaces and cuts at the cap', () => {
+    expect(foldForSearch('a\u0000b')).toBe('a b');
+    expect(foldForSearch('a\u200db')).toBe('a b');
+    expect(foldForSearch('a\ud800b')).toBe('a b');
+    expect(foldForSearch('x'.repeat(500))).toHaveLength(200);
+    expect(foldForSearch(undefined as unknown as string)).toBe('');
+  });
+});
+
+describe('buildSearchQuery: the words, as a tsquery nobody can inject into', () => {
+  it('writes every word as a whole word anywhere or a prefix of a title or company word, ANDed', () => {
+    const sq = buildSearchQuery('senior product designer')!;
+    expect(sq.all).toBe("('senior' | 'senior':*AB) & ('product' | 'product':*AB) & ('designer' | 'designer':*AB)");
+    // The ladder: the same words, each alternative held to a weight.
+    expect(sq.a).toBe("'senior':*A & 'product':*A & 'designer':*A");
+    expect(sq.ab).toBe("'senior':*AB & 'product':*AB & 'designer':*AB");
+    expect(sq.abc).toBe("'senior':*ABC & 'product':*ABC & 'designer':*ABC");
+    expect(sq.phrase).toBe('senior product designer');
+  });
+  it('never lets a prefix reach the description: `:*AB`, not a bare `:*`', () => {
+    // `desi:*` alone matched 12,644 live rows through "desired" in descriptions.
+    const sq = buildSearchQuery('desi')!;
+    expect(sq.all).toBe("('desi' | 'desi':*AB)");
+    for (const form of [sq.all, sq.a, sq.ab, sq.abc]) expect(form).not.toMatch(/:\*(?![ABC])/);
+  });
+  it('matches a word of two letters whole, and drops a word of one unless it is all there is', () => {
+    expect(buildSearchQuery('hr manager')!.all).toBe("'hr' & ('manager' | 'manager':*AB)");
+    expect(buildSearchQuery('hr')!.a).toBe("'hr':A");
+    // "a designer" is "designer"; "c" and "r" are languages and are searched.
+    expect(buildSearchQuery('a designer')!.all).toBe("('designer' | 'designer':*AB)");
+    expect(buildSearchQuery('c')!.all).toBe("'c'");
+    expect(buildSearchQuery('c r')!.all).toBe("'c' & 'r'");
+    expect(buildSearchQuery('c')!.fuzzy).toBeNull();
+  });
+  it('keeps what Postgres keeps whole: node.js, ai/ml, u.s, v2.0, and the hyphen as both', () => {
+    // 3,947 of 37,286 live titles have a dot or slash between letters; the vector
+    // holds `ai/ml`, so a query split on every non-letter looks for `ai` and `ml`
+    // and the title typed in full would not find itself.
+    expect(buildSearchQuery('ai/ml')!.all).toBe("('ai/ml' | 'ai/ml':*AB | ('ai' & 'ml'))");
+    expect(buildSearchQuery('node.js')!.all).toBe("('node.js' | 'node.js':*AB | (('node' | 'node':*AB) & 'js'))");
+    expect(buildSearchQuery('u.s.')!.all).toBe("('u.s' | 'u.s':*AB)");
+    expect(buildSearchQuery('R&D')!.all).toBe("('r&d' | 'r&d':*AB)");
+    expect(buildSearchQuery('full-stack')!.all).toBe("('full-stack' | 'full-stack':*AB | (('full' | 'full':*AB) & ('stack' | 'stack':*AB)))");
+    expect(buildSearchQuery('ai/ml')!.a).toBe("('ai/ml':*A | ('ai':A & 'ml':A))");
+  });
+  it('folds accents and case, and says so in the phrase the title is compared with', () => {
+    const sq = buildSearchQuery('Zürich STRAßE')!;
+    expect(sq.all).toBe("('zurich' | 'zurich':*AB) & ('strasse' | 'strasse':*AB)");
+    expect(sq.phrase).toBe('zurich strasse');
+    expect(buildSearchQuery('C++ Developer')!.phrase).toBe('c developer');
+  });
+  it('reads each word once, and at most SEARCH_MAX_WORDS of them', () => {
+    expect(buildSearchQuery('designer Designer DESIGNER')!.all).toBe("('designer' | 'designer':*AB)");
+    const many = Array.from({ length: 25 }, (_, i) => `word${String.fromCharCode(97 + i)}x`).join(' ');
+    expect((buildSearchQuery(many)!.all.match(/ & /g) ?? []).length + 1).toBe(SEARCH_MAX_WORDS);
+  });
+  it('is null when there is no word to search', () => {
+    for (const text of ['', '   ', '!!!', '- + &', '()', '***', '\u0000', '\u200d']) {
+      expect(buildSearchQuery(text), JSON.stringify(text)).toBeNull();
+    }
+  });
+  it('quotes every lexeme: a quote is doubled and a backslash is escaped', () => {
+    expect(buildSearchQuery("d'angelo")!.all).toBe("('d''angelo' | 'd''angelo':*AB | (('angelo' | 'angelo':*AB)))");
+    expect(buildSearchQuery('ab\\cd')!.all).toBe("('ab\\\\cd' | 'ab\\\\cd':*AB | ('ab' & 'cd'))");
+  });
+  it('turns the operators a person might type into words, never into tsquery syntax', () => {
+    // Take out every quoted lexeme (a quote opens one; the quote doubled and the
+    // backslash escape stay inside it) and what is left may be only the structure
+    // this file writes: brackets, & and |, the weights and the prefix star.
+    const quoted = /'(?:[^'\\]|''|\\.)*'/gu;
+    const structure = (text: string) => text.replace(quoted, 'Q');
+    const hostile = [
+      'a & b', 'a | b', '!a', '!!', '(a)', '((', '))', 'a:*', ':*', 'a:A', 'a<->b', 'a <2> b', "a'b", "'", "''", "'''", '\\', '\\\\', "\\'",
+      'foo:*bar & (baz | !qux)', "'; DROP TABLE jobs; --", '" OR 1=1', 'a\u0000b', '\ud800', '\udc00x', 'x\u202ey', '%_', '$1', '${x}', '`', '<script>',
+      'ab&cd', 'ab|cd', 'ab!cd', 'ab(cd)ef', 'ab:*cd', "ab'cd", 'ab\\cd', 'ab<->cd', 'u.s.a.', 'e-mail', 'a--b', '+++a', '1/2', '24/7', '🚀 rocket 🚀', '　全角　スペース'
+    ];
+    // Plus 400 seeded strings drawn from the characters that mean something to tsquery.
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+    const alphabet = "ab AB 12 &|!():*'\\\"<>-./_@#$%^+=[]{}~`\t\n,;?é字";
+    for (let i = 0; i < 400; i++) hostile.push(Array.from({ length: 1 + Math.floor(rnd() * 24) }, () => alphabet[Math.floor(rnd() * alphabet.length)]).join(''));
+    let built = 0;
+    for (const text of hostile) {
+      const sq = buildSearchQuery(text);
+      if (sq === null) continue;
+      built += 1;
+      for (const form of [sq.all, sq.a, sq.ab, sq.abc]) {
+        const bare = structure(form);
+        // Outside the quotes there is only structure, and the brackets balance.
+        expect(bare.replace(/[Q()&|:*ABC\s]/g, ''), `${JSON.stringify(text)} -> ${form}`).toBe('');
+        expect((bare.match(/\(/g) ?? []).length, form).toBe((bare.match(/\)/g) ?? []).length);
+        // Every quoted lexeme holds something, and nothing is left unquoted that should be: no stray quote.
+        for (const lexeme of form.matchAll(quoted)) expect(lexeme[0].length).toBeGreaterThan(2);
+        expect(bare).not.toContain("'");
+      }
+      // A NUL cannot be sent to Postgres at all.
+      expect(JSON.stringify(sq)).not.toContain('\\u0000');
+    }
+    expect(built).toBeGreaterThan(300);
+  });
+  it('hands the typo path the words long enough to misspell, and the short ones as title prefixes', () => {
+    expect(buildSearchQuery('prodct desiner')!.fuzzy).toEqual({ tokens: ['prodct', 'desiner'], short: null });
+    expect(buildSearchQuery('sr prodct')!.fuzzy).toEqual({ tokens: ['prodct'], short: "'sr':*A" });
+    // Nothing of five letters or more: nothing to correct.
+    expect(buildSearchQuery('hr it ops')!.fuzzy).toBeNull();
+    expect(buildSearchQuery('full-stak dev')!.fuzzy).toBeNull();
+    // The typo path reads words, not chunks: a hyphenated word is its parts.
+    expect(buildSearchQuery('full-stack')!.fuzzy).toEqual({ tokens: ['stack'], short: "'full':*A" });
   });
 });

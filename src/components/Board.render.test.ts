@@ -47,9 +47,11 @@ describe('Board.astro in server mode', () => {
     expect(html).not.toContain('data-page-step');
     expect(html).not.toContain('data-index-error');
     expect(html).toMatch(/<form class="filters-row"[^>]*method="get"/);
-    expect(html).toMatch(/<a class="segment"[^>]*href="\/jobs\/board\?location=remote&(amp;|#38;)?sort=comp"[^>]*data-sort-key="comp"/);
-    expect(html).toMatch(/href="\/jobs\/board\?location=remote" rel="prev"/);
-    expect(html).toMatch(/href="\/jobs\/board\?location=remote&(amp;|#38;)?page=3" rel="next"/);
+    // The arrangement is written under its canonical name (`remote=`); the
+    // query here names only the old `location`, which boardHref reads as the same thing.
+    expect(html).toMatch(/<a class="segment"[^>]*href="\/jobs\/board\?remote=remote&(amp;|#38;)?sort=comp"[^>]*data-sort-key="comp"/);
+    expect(html).toMatch(/href="\/jobs\/board\?remote=remote" rel="prev"/);
+    expect(html).toMatch(/href="\/jobs\/board\?remote=remote&(amp;|#38;)?page=3" rel="next"/);
     expect(html).toContain('Rows 51 to 100 of 120');
     expect(html).toContain('Page 2 of 3');
   });

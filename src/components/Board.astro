@@ -118,7 +118,7 @@ const {
 const sortKeys: readonly SortKey[] = fit ? SORT_KEYS : SORT_KEYS.filter((key) => key !== 'fit');
 // A reader who cannot see fit is served the age order in place of the unwritten
 // default (board.astro servedSort), so the control underlines Age for them.
-const sortCurrent = (q: BoardQuery): SortKey => (fit || q.sort !== 'fit' ? q.sort : 'age');
+const sortCurrent = (q: BoardQuery): SortKey | 'best' => (fit || q.sort !== 'fit' ? q.sort : 'age');
 
 const serverMode = mode === 'server' && served !== undefined && query !== undefined;
 const groups = serverMode ? (servedGroups ?? []) : filterGroups(jobs);
@@ -140,7 +140,19 @@ const spanText =
       : `Rows ${span.first.toLocaleString()} to ${span.last.toLocaleString()} of ${served.total.toLocaleString()}`
     : '';
 const clearHref = serverMode
-  ? boardHref(boardPath, q, { q: '', location: 'all', comp: 'all', freshness: 'all', ageMin: null, ageMax: null })
+  ? boardHref(boardPath, q, {
+      q: '',
+      location: 'all',
+      comp: 'all',
+      freshness: 'all',
+      ageMin: null,
+      ageMax: null,
+      place: null,
+      remote: [],
+      payMin: null,
+      compNotListed: false,
+      company: null
+    })
   : '';
 // The age strip's two handles write the range into the address, the same way
 // every other filter does. Only in server mode: the client board has no
@@ -159,7 +171,12 @@ const narrowedBeyondAge =
     q.comp !== 'all' ||
     q.freshness !== 'all' ||
     q.families.length > 0 ||
-    q.titles.length > 0);
+    q.titles.length > 0 ||
+    q.remote.length > 0 ||
+    q.payMin !== null ||
+    q.compNotListed ||
+    q.place !== null ||
+    q.company !== null);
 
 ---
 

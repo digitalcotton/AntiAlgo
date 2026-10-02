@@ -131,8 +131,12 @@ export function listProspectsFiltered(jobs: readonly Job[], query: BoardQuery): 
   });
 
   const offset = (query.page - 1) * query.per;
+  // `best` is the order search WORDS earn, ranked by the store against a posting's
+  // text. A pre-posting row has no title or description to rank, so the address
+  // default for typed words falls to the table's own default here.
+  const sort = query.sort === 'best' ? 'fit' : query.sort;
   return {
-    rows: sortJobs(matched, query.sort).slice(offset, offset + query.per),
+    rows: sortJobs(matched, sort).slice(offset, offset + query.per),
     total: matched.length,
     counts
   };

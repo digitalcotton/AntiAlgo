@@ -52,8 +52,11 @@ const bq = parseBoardQuery(new URLSearchParams());
 // The visitor's country, from Vercel's edge headers (absent in local dev and
 // for unknown IPs, where we default to US).
 const country = (Astro.request.headers.get('x-vercel-ip-country') || 'US').toUpperCase();
-const EMPTY_COUNTS = { total: 0, location: {}, comp: {}, freshness: {}, family: {} };
-let bServed: Awaited<ReturnType<typeof listBoardFiltered>> = { rows: [], total: 0, counts: EMPTY_COUNTS };
+const EMPTY_COUNTS = {
+  total: 0, location: {}, comp: {}, freshness: {}, family: {}, remote: {},
+  pay: { any: 0, notListed: 0, floors: {} }, place: { countries: {}, notStated: 0 }
+};
+let bServed: Awaited<ReturnType<typeof listBoardFiltered>> = { rows: [], total: 0, counts: EMPTY_COUNTS, fuzzy: false };
 let bAgeHistogram: AgeHistogram = EMPTY_AGE_HISTOGRAM;
 let bStats: Awaited<ReturnType<typeof getBoardStats>> = null;
 // The teaser shows LIVE roles from the visitor's country: a US visitor sees US

@@ -115,8 +115,17 @@ if (signedIn && isConfigured()) {
   }
 }
 
-const EMPTY_COUNTS: FacetCounts = { total: 0, location: {}, comp: {}, freshness: {}, family: {} };
-const EMPTY_PAGE: BoardFilteredResult = { rows: [], total: 0, counts: EMPTY_COUNTS };
+const EMPTY_COUNTS: FacetCounts = {
+  total: 0,
+  location: {},
+  comp: {},
+  freshness: {},
+  family: {},
+  remote: {},
+  pay: { any: 0, notListed: 0, floors: {} },
+  place: { countries: {}, notStated: 0 }
+};
+const EMPTY_PAGE: BoardFilteredResult = { rows: [], total: 0, counts: EMPTY_COUNTS, fuzzy: false };
 // The age plot is a fact about the whole set, never about one page: the store
 // returns its distribution (one row per age), not the rows themselves. Its
 // read starts here, ahead of the rows/stats read below, and its degrade is
@@ -135,6 +144,11 @@ const ageHistogramP: Promise<AgeHistogram> = isConfigured()
       location: query.location,
       comp: query.comp,
       freshness: query.freshness,
+      remote: query.remote,
+      payMin: query.payMin,
+      compNotListed: query.compNotListed,
+      place: query.place,
+      company: query.company,
       sweepDate: sweepDate(),
       titles: pickedTitles.length > 0 ? pickedTitles : undefined,
       families: query.families.length > 0 ? [...query.families] : undefined
@@ -157,6 +171,11 @@ if (isConfigured()) {
       location: query.location,
       comp: query.comp,
       freshness: query.freshness,
+      remote: query.remote,
+      payMin: query.payMin,
+      compNotListed: query.compNotListed,
+      place: query.place,
+      company: query.company,
       ageMin: query.ageMin,
       ageMax: query.ageMax,
       sort: servedSort,
