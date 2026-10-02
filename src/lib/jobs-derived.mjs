@@ -600,7 +600,9 @@ function classify(piece) {
   // words in front only widen the scope, so what follows is read on its own, and
   // only when it is a country or a state ("All Hands" is not one). 82 live rows
   // print one of these (2026-10-02), and "All France" was a city on the board.
-  const widened = /^(?:anywhere in|all|across|throughout)\s+(.+)$/i.exec(raw);
+  // An article may follow the prefix: "Anywhere in the U.S." was still a city of
+  // that name on 20 live rows until the "the" was allowed for.
+  const widened = /^(?:anywhere in|all|across|throughout)\s+(?:the\s+)?(.+)$/i.exec(raw);
   if (widened) {
     const inner = classify(widened[1]);
     if (inner && (inner.kind === 'country' || inner.kind === 'admin')) return inner;

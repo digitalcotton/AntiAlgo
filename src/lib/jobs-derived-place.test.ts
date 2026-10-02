@@ -663,6 +663,15 @@ describe('the token rules: what a token is, in one place or in a list', () => {
     expect(place('Anywhere in Quebec', null)).toEqual(['CA', 'QC', null, 'Canada']); // a state counts too
     // Only a country or a state widens: "All Hands" is not a place, so no country settles it.
     expect(place('All Hands', null)).toEqual(NONE);
+    // An article after the prefix changes nothing: "Anywhere in the U.S." is the country, not a city of
+    // that name (20 live rows said it, as "Anywhere in the U.S. (remote job)", under an upstream US).
+    expect(place('Anywhere in the U.S.', null)).toEqual(['US', null, null, 'United States']);
+    expect(place('Anywhere in the U.S. (remote job)', 'US')).toEqual(['US', null, null, 'United States']);
+    expect(place('Throughout the United Kingdom', null)).toEqual(['GB', null, null, 'United Kingdom']);
+    expect(keysFor('Anywhere in the U.S. (remote job)', 'US')).toEqual(['US']);
+    expect(derivedFor({ title: 'Designer', department: 'Design', ats: 'greenhouse', comp_range: null, country: 'US', location: 'Anywhere in the U.S. (remote job)' }).place_keys).toEqual(['US']);
+    // The article is only skipped when a country or a state follows: "All the Hands" is still nothing.
+    expect(place('All the Hands', null)).toEqual(NONE);
     // And in a list the words in front do not make a city called "All France".
     expect(keysFor('All France (remote) / Portugal / Italy')).toEqual(['FR', 'IT', 'PT']);
     expect(keysFor('Anywhere in France, Belgium, Spain')).toEqual(['BE', 'ES', 'FR']);
