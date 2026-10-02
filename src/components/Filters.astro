@@ -1138,6 +1138,92 @@ const openValues = (group: FilterGroup): boolean => group.key === 'place' || gro
       // state already applied above is the honest, complete answer.
     }
   })();
+
+  /* -------------------------------------------------------------------------
+     ONE LINE OR THE COLUMN, BY MEASURING (owner, 2026-10-02: "use ellipsis so
+     we don't have to stack"). The same method as the site header's one row or
+     the burger: no breakpoint constant, because what one line needs depends on
+     what the cells hold ("London, United Kingdom" or "Worldwide", a company chip
+     or none), and a constant is wrong for one of them.
+
+     What one line needs is every cell at its own width, except the two that give
+     way, counted at their floors: Location at its label plus the value's 7ch, and
+     the search box at its glyph, its chips and an 8ch caret. Read in one
+     synchronous frame laid out as a line (data-layout="measure"), so nothing in
+     between paints. If that fits, the line; if not, the same at compact padding;
+     the floors go on the row as custom properties so the browser never shrinks
+     either below what was counted. Otherwise the column. Nothing else moves the
+     strip into a second line.
+     ------------------------------------------------------------------------- */
+  const stripRow = root?.querySelector<HTMLElement>('.filters-row');
+
+  /** A cell's width with one of its parts at that part's own min-width. */
+  const floorOf = (cell: HTMLElement, part: HTMLElement | null): number => {
+    const width = cell.getBoundingClientRect().width;
+    if (!part) return width;
+    return width - part.getBoundingClientRect().width + (parseFloat(getComputedStyle(part).minWidth) || 0);
+  };
+
+  /** What one line needs at the density the row is in now, and the two floors. */
+  const measureLine = (row: HTMLElement): { needed: number; placeFloor: number; searchFloor: number } => {
+    let needed = 0;
+    let placeFloor = 0;
+    let searchFloor = 0;
+    for (const cell of Array.from(row.children) as HTMLElement[]) {
+      // Width, not presence: the hidden Apply button and a dev-only injected
+      // <script> are children with no box, and no part of the line.
+      if (cell.getBoundingClientRect().width === 0) continue;
+      if (cell.matches('[data-search-box]')) {
+        searchFloor = floorOf(cell, cell.querySelector<HTMLElement>('[data-search-input]'));
+        needed += searchFloor;
+      } else if (cell.querySelector('[data-filter-group="place"]')) {
+        placeFloor = floorOf(cell, cell.querySelector<HTMLElement>('.filter-field'));
+        needed += placeFloor;
+      } else {
+        needed += cell.getBoundingClientRect().width;
+      }
+    }
+    return { needed: Math.ceil(needed), placeFloor: Math.ceil(placeFloor), searchFloor: Math.ceil(searchFloor) };
+  };
+
+  const layoutStrip = (): void => {
+    if (!stripRow) return;
+    const available = stripRow.clientWidth;
+    stripRow.dataset.layout = 'measure';
+    delete stripRow.dataset.density;
+    let line = measureLine(stripRow);
+    if (line.needed > available) {
+      stripRow.dataset.density = 'compact';
+      line = measureLine(stripRow);
+    }
+    const fits = line.needed <= available;
+    if (!fits) delete stripRow.dataset.density;
+    stripRow.style.setProperty('--strip-place-floor', `${line.placeFloor}px`);
+    stripRow.style.setProperty('--strip-search-floor', `${line.searchFloor}px`);
+    stripRow.dataset.layout = fits ? 'line' : 'column';
+  };
+
+  if (stripRow) {
+    layoutStrip();
+    // A web font that lands after first paint changes every label's width.
+    document.fonts?.ready.then(layoutStrip);
+    // A choice changes a value's width; a page restored from memory repaints them.
+    root?.addEventListener('change', () => requestAnimationFrame(layoutStrip));
+    window.addEventListener('pageshow', () => requestAnimationFrame(layoutStrip));
+    // The strip's own width, not the window's: a scrollbar or a zoom moves it
+    // without a resize event. Height is ignored, so the switch between line and
+    // column (which only changes the height) never calls this back.
+    let lastWidth = stripRow.clientWidth;
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(() => {
+        if (stripRow.clientWidth === lastWidth) return;
+        lastWidth = stripRow.clientWidth;
+        layoutStrip();
+      }).observe(stripRow);
+    } else {
+      window.addEventListener('resize', layoutStrip);
+    }
+  }
 </script>
 
 <style>
@@ -1160,7 +1246,16 @@ const openValues = (group: FilterGroup): boolean => group.key === 'place' || gro
     min-width: 0;
   }
 
-  /* THE ROW WRAPS. IT DOES NOT SCROLL.
+  /* WITH SCRIPT THE STRIP IS ONE LINE OR A COLUMN, NEVER A WRAPPED ROW (owner,
+     2026-10-02: "use ellipsis so we don't have to stack"). A wrapped row hung its
+     second line of cells from nothing: Dim seen alone under the strip at 1280px,
+     Sort and Dim seen at 1024. The script below measures what one line needs at
+     its floors and sets data-layout: 'line', where the search box and Location's
+     value give way and truncate ("London, Unit…") while every other cell keeps its
+     width; or 'column', the phone layout, when even the floors do not fit. The
+     rules for both follow this block. Without script the row wraps, as it did.
+
+     THE ROW WRAPS. IT DOES NOT SCROLL. (Without script; the history, kept.)
      It used to go `flex-wrap: nowrap; overflow-x: auto` at lap width and above,
      which fit while there were six controls and started scrolling the moment
      the Field select became the seventh. A filter strip that scrolls sideways
@@ -1197,24 +1292,11 @@ const openValues = (group: FilterGroup): boolean => group.key === 'place' || gro
     cursor: text;
   }
 
-  /* WITH CHIPS, THE BOX TAKES ITS OWN LINE. Location, Remote and Comp are as wide
-     as the words they hold ("London, United Kingdom", "Remote + On-site"), which
-     left the box a column about 250px wide, and three chips in a column that
-     narrow stack one to a line and make the strip four lines tall. Given the
-     whole width the chips sit in a row and the controls wrap below them, the
-     way the row wraps at every other width. Without a chip nothing changes.
-     THE LINE UNDER IT CLOSES THE CONTROLS' ROW (owner, 2026-10-02): without it
-     the cells' hairlines hang from nothing, and the strip reads as broken. It
-     runs the full width because the box does. The first control below then
-     drops its own left hairline: the strip's border already draws that edge,
-     and the two side by side read as one heavier line. */
-  .filters-row > :global(.search-box:has(.sb-chip)) {
-    flex: 1 0 100%;
-    border-bottom: var(--border-hairline) solid var(--color-line);
-  }
-  .filters-row > :global(.search-box:has(.sb-chip)) + .filter {
-    border-left: none;
-  }
+  /* WITH CHIPS THE BOX STAYS IN THE ROW (owner, 2026-10-02). It used to take a
+     line of its own above the controls whenever it held a chip; moved there it
+     stopped reading as a search box ("I didn't even realize that was the search
+     bar"), and the row it left had room for it. It takes the slack like any
+     other time, and the row wraps only when the cells really do not fit. */
 
   .search-glyph {
     color: var(--color-muted);
@@ -1334,6 +1416,14 @@ const openValues = (group: FilterGroup): boolean => group.key === 'place' || gro
   .filter-field {
     min-width: 0;
     max-width: 14ch;
+  }
+  /* LOCATION'S FLOOR, the one value that truncates on the strip's line: "Lond…",
+     never nothing (with no floor a one-line row took it to 28px at 900px and to 0
+     at 800, 2026-10-02). On Location alone: on every cell it padded Remote's "All"
+     and Comp's "Any" out to 7ch, 32px each, and cost the line its fit at 1024px.
+     The line layout counts it. */
+  .filter:has([data-filter-group='place']) .filter-field {
+    min-width: 7ch;
   }
 
   /* Two controls hold names a reader needs whole: a place ("London, United
@@ -1643,6 +1733,49 @@ const openValues = (group: FilterGroup): boolean => group.key === 'place' || gro
     border-left: var(--border-hairline) solid var(--color-line);
   }
 
+  /* THE TWO LAYOUTS THE SCRIPT CHOOSES (see .filters-row above). 'measure' is the
+     one synchronous frame it reads widths in: every cell at its own width on one
+     line. Nothing paints while it is set. */
+  .filters-row[data-layout='measure'],
+  .filters-row[data-layout='line'] {
+    flex-wrap: nowrap;
+  }
+  .filters-row[data-layout='measure'] > :global(*) {
+    flex: none;
+  }
+  /* On the line, Location is the one strip cell that gives way, and only down to
+     its label and its value's 7ch floor, which the script measured. */
+  .filters-row[data-layout='line'] > .filter:has([data-filter-group='place']) {
+    flex: 0 1 auto;
+    min-width: var(--strip-place-floor, auto);
+  }
+  /* COMPACT: the step between the line and the column. When the line does not fit
+     at the cells' own padding, the script tries it with 16px a side instead of
+     24 (96px across the six cells, which keeps a 1024px window on one line)
+     before it gives up on the line. */
+  .filters-row[data-density='compact'] > :global(*) {
+    padding-left: var(--space-400);
+    padding-right: var(--space-400);
+  }
+  /* The column: the phone layout (below), at whatever width the line stopped
+     fitting. The search box's half is in SearchBox.astro. */
+  .filters-row[data-layout='column'] {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .filters-row[data-layout='column'] > .filter,
+  .filters-row[data-layout='column'] > .filter-apply,
+  .filters-row[data-layout='column'] > :global(.sort) {
+    border-left: none;
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  .filters-row[data-layout='column'] > .filter:first-child {
+    border-top: none;
+  }
+  .filters-row[data-layout='column'] .filter-toggle {
+    margin-left: 0;
+  }
+
   /* THE SEEN DIMMER: the inverted cell while it is on. The native checkbox
      stays in the document for the label, the default state and the keyboard,
      and is drawn out of sight; the cell's colours and the state word are the
@@ -1756,13 +1889,6 @@ const openValues = (group: FilterGroup): boolean => group.key === 'place' || gro
 
     .filter-toggle {
       margin-left: 0;
-    }
-
-    /* The strip is a column here, where a full-width basis would be a height,
-       and every cell below draws its own top hairline, so the box draws none. */
-    .filters-row > :global(.search-box:has(.sb-chip)) {
-      flex: 0 0 auto;
-      border-bottom: none;
     }
 
     /* Without script the arrangements are drawn in the cell as checkboxes, and

@@ -210,7 +210,17 @@ async function arriveAtTheBoard(page: Page): Promise<void> {
   await page.goto('/board', { waitUntil: 'domcontentloaded', referer: new URL('/', page.url()).href }).catch(() => undefined);
 }
 
-const chipLabels = (page: Page): Promise<string[]> => page.locator('.sb-chip .sb-chip-label').allTextContents();
+/** The strip's three facts the address is narrowed by, as the names that are not "all". The box draws no chip for any of
+    them (owner, 2026-10-02: Location, Remote and Comp are shown, changed and cleared only through their controls), so a
+    cleared board is read from the address and the controls, never from a chip. A form writes the default as `all` or
+    leaves the name out, and both are no narrowing. */
+const narrowing = (page: Page): string[] => {
+  const address = new URL(page.url()).searchParams;
+  return ['place', 'remote', 'pay_min'].filter((name) => address.getAll(name).some((value) => value !== 'all'));
+};
+
+/** The chips the search box draws: a company and a posted-within window only, each with its own remove link. */
+const boxChips = (page: Page): Locator => page.locator('.sb-chip');
 
 test.describe('a saved board filter (commit 54435b9)', () => {
   /**
@@ -327,6 +337,13 @@ test.describe('a saved board filter (commit 54435b9)', () => {
   });
 
   test('clearing the board from the board stays cleared, in the account as well as the browser', async ({ page }) => {
+    // REWRITTEN 2026-10-02 (owner: the search box draws no chip for a fact a strip control shows). This used to take
+    // Location, Remote and Comp off with their chips' x, the last of which landed on a bare /board. They have no chip
+    // now, so the member clears them where they are shown and changed: through their controls. What it protects is
+    // unchanged: a member who clears every filter from the board is not sent back to the selection the account held,
+    // the account is told it is empty, and a fresh arrival with no browser memory is not narrowed. The address after
+    // the last control is not bare (a form writes place=all and the like), so "cleared" is read as no narrowing,
+    // not as an empty query string.
     await withSavedSelection(page, async () => {
       expect(await saveSelection(page, { place: 'US', remote: 'onsite', pay_min: '100' })).toEqual({ place: 'US', remote: 'onsite', pay_min: '100' });
       await forgetBrowserCopy(page);
@@ -334,28 +351,24 @@ test.describe('a saved board filter (commit 54435b9)', () => {
       await expect
         .poll(() => page.url(), { timeout: 8_000, message: 'a bare arrival at the board never restored the selection the account holds' })
         .toMatch(/\/board\?(?=.*place=US)(?=.*remote=onsite)(?=.*pay_min=100)/);
+      // The three show in their controls, and the box draws no chip for any of them.
       await expect(stripValue(page, 'Location')).toHaveText('United States');
-      await expect.poll(() => chipLabels(page)).toEqual(['United States', 'On-site', '$100k+']);
+      await expect(stripValue(page, 'Remote')).toHaveText('On-site');
+      await expect(stripValue(page, 'Comp')).toHaveText('$100k+');
+      await expect(boxChips(page)).toHaveCount(0);
       await expect(page.locator('[data-filters][data-js]')).toBeAttached();
 
-      // Take every filter off with its own x. The last one lands on a bare /board reached FROM the board,
-      // which is an emptied selection and not an arrival: nothing restores, and the account is told.
-      await Promise.all([
-        page.waitForURL((url) => !url.searchParams.has('place')),
-        page.locator('.sb-chip', { hasText: 'United States' }).locator('.sb-chip-x').click()
-      ]);
-      await Promise.all([
-        page.waitForURL((url) => !url.searchParams.has('remote')),
-        page.locator('.sb-chip', { hasText: 'On-site' }).locator('.sb-chip-x').click()
-      ]);
-      await expect(page.locator('[data-filters][data-js]')).toBeAttached();
-      await Promise.all([
-        page.waitForURL((url) => url.pathname === '/board' && url.search === ''),
-        page.locator('.sb-chip', { hasText: '$100k+' }).locator('.sb-chip-x').click()
-      ]);
+      // Take every filter off through its own control. Worldwide, All and Any are always live, whatever the other
+      // filters leave. Each lands on the board reached FROM the board, which is an emptied selection and not an
+      // arrival: nothing restores, and the account is told.
+      await pick(page, 'Location', 'Worldwide', /\/board\?(?!.*place=US)/);
+      await pick(page, 'Remote', 'All', /\/board\?(?!.*remote=)/);
+      await pick(page, 'Comp', 'Any', /\/board\?(?!.*pay_min=\d)/);
       // Give a (wrong) restore its moment: it is a client navigation the script fires at once.
       await page.waitForTimeout(700);
-      expect(new URL(page.url()).search, 'the last filter was put back by the saved selection').toBe('');
+      expect(narrowing(page), 'the last filter was put back by the saved selection').toEqual([]);
+      expect(new URL(page.url()).pathname).toBe('/board');
+      await expect(boxChips(page)).toHaveCount(0);
       await expect(stripValue(page, 'Location')).toHaveText('Worldwide');
       await expect(stripValue(page, 'Remote')).toHaveText('All');
       await expect(stripValue(page, 'Comp')).toHaveText('Any');
@@ -364,11 +377,13 @@ test.describe('a saved board filter (commit 54435b9)', () => {
         .poll(() => savedSelection(page), { message: 'the account still held the selection the member had just cleared' })
         .toEqual(NOTHING_SAVED);
 
-      // And it stays cleared for a fresh arrival with no browser memory at all.
+      // And it stays cleared for a fresh arrival with no browser memory at all. This one IS a bare address: nothing
+      // was typed into it, and nothing the account holds may be added to it.
       await forgetBrowserCopy(page);
       await arriveAtTheBoard(page);
       await page.waitForTimeout(700);
       expect(new URL(page.url()).search, 'a cleared account selection came back on a fresh arrival').toBe('');
+      expect(narrowing(page)).toEqual([]);
     });
   });
 
@@ -394,8 +409,9 @@ test.describe('a saved board filter (commit 54435b9)', () => {
 
   test('a city and a floor the board does not list restore too: the address reads them, so the restore carries them', async ({ page }) => {
     await withSavedSelection(page, async () => {
-      // The bare board lists countries and the standard floors. A city (a search-box chip sets one) and a typed
-      // floor are on no such list, and a restore that asked "is it an option?" would drop them and keep the rest.
+      // The bare board lists countries and the standard floors. A city (the search box's suggestions write one) and
+      // a typed floor are on no such list, and a restore that asked "is it an option?" would drop them and keep the
+      // rest. The Location control names the city in full; the box draws no chip for it.
       expect(await saveSelection(page, { place: 'GB/London', remote: 'all', pay_min: '175' })).toEqual({ place: 'GB/London', remote: 'all', pay_min: '175' });
       await forgetBrowserCopy(page);
       await arriveAtTheBoard(page);
@@ -404,6 +420,7 @@ test.describe('a saved board filter (commit 54435b9)', () => {
         .toMatch(/\/board\?(?=.*place=GB%2FLondon)(?=.*pay_min=175)/);
       await expect(stripValue(page, 'Comp')).toHaveText('$175k+');
       await expect(stripValue(page, 'Location')).toHaveText('London, United Kingdom');
+      await expect(boxChips(page)).toHaveCount(0);
     });
   });
 
@@ -418,8 +435,10 @@ test.describe('a saved board filter (commit 54435b9)', () => {
         .poll(() => page.url(), { timeout: 8_000, message: 'a bare arrival at the board never restored a saved Not stated' })
         .toMatch(/\/board\?(?=.*place=unstated)/);
       expect([...new URL(page.url()).searchParams.keys()], 'the restore carried more than the one place').toEqual(['place']);
+      // The Location control is the only place Not stated is shown (owner, 2026-10-02): it reads "Not stated", and the
+      // box draws no "Location not stated" chip beside it, which is what it used to do.
       await expect(stripValue(page, 'Location')).toHaveText('Not stated');
-      expect(await chipLabels(page)).toEqual(['Location not stated']);
+      await expect(boxChips(page)).toHaveCount(0);
       // Choosing Worldwide takes it off the address and out of the account.
       await pick(page, 'Location', 'Worldwide', /\/board\?(?!.*place=unstated)/);
       await expect

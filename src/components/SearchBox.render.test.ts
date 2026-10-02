@@ -143,14 +143,27 @@ describe('SearchBox.astro: applied chips are server-rendered links that carry no
     ]);
   });
 
-  it('carries no hidden field for a name the strip owns, and still draws the chip and its remove link', async () => {
+  it('neither carries nor draws a fact a strip control owns, and draws the rest with their remove links', async () => {
     // Location, Remote and Comp submit place, remote and pay_min themselves; a
     // chip's hidden twin of one would re-send what the reader just changed.
     const html = await render({ q: '', chips: CHIPS, chipRemoveHrefs: REMOVE, ownedFields: ['place', 'remote', 'pay_min'] });
     const fields = [...html.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)"/g)].map((m) => [m[1], m[2]]);
     expect(fields).toEqual([['company', 'Acme'], ['age_max', '7']]);
-    expect(html.match(/<li class="sb-chip"/g)).toHaveLength(5);
-    expect(html).toContain(`href="${REMOVE[0]}"`);
+    // The control shows those three; a chip beside it said the same words twice
+    // and stacked over the field (owner, 2026-10-02). Company and age have no
+    // control, so their chips are drawn, each with its own remove link.
+    expect(html.match(/<li class="sb-chip"/g)).toHaveLength(2);
+    expect(html).not.toMatch(/data-chip-kind="(place|remote|pay)"/);
+    expect(html).toContain(`href="${REMOVE[1]}"`);
+    expect(html).toContain(`href="${REMOVE[4]}"`);
+    expect(html).not.toContain(`href="${REMOVE[0]}"`);
+    expect(html).toContain('placeholder="Add a job title, company or skill"');
+  });
+
+  it('with every chip owned by a control, the box is a plain field with its usual prompt', async () => {
+    const html = await render({ q: '', chips: [CHIPS[0]], chipRemoveHrefs: [REMOVE[0]], ownedFields: ['place', 'remote', 'pay_min'] });
+    expect(html).not.toContain('sb-chip');
+    expect(html).toContain('placeholder="Try &#34;senior designer london remote 150k&#34;"');
   });
 
   it('draws a chip with no remove address as a label with no link', async () => {

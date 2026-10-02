@@ -789,13 +789,15 @@ dbDescribe('the suggestions, against the local board', () => {
       const res = await render('place=GB%2FLondon&company=Stripe&remote=remote,hybrid&pay_min=150&age_max=7&q=designer&per=25&fam=design');
       expect(res.status).toBe(200);
       const html = res.html;
-      expect([...html.matchAll(/data-chip-kind="(\w+)"/g)].map((m) => m[1])).toEqual(['place', 'company', 'remote', 'remote', 'pay', 'age']);
+      // Place, remote and pay are shown by their own strip controls, so the box draws
+      // chips only for the two facts no control shows (owner, 2026-10-02).
+      expect([...html.matchAll(/data-chip-kind="(\w+)"/g)].map((m) => m[1])).toEqual(['company', 'age']);
       expect(html).toContain('London, United Kingdom');
       const unescape = (text: string) => text.replace(/&#38;/g, '&').replace(/&#34;/g, '"').replace(/&amp;/g, '&');
       const removes = [...html.matchAll(/class="sb-chip-x[^"]*" href="([^"]*)"/g)].map((m) => queryOf(unescape(m[1] as string)));
-      expect(removes).toHaveLength(6);
-      expect(removes[0]).toMatchObject({ place: null, company: 'Stripe', payMin: 150, q: 'designer', per: 25, families: ['design'] });
-      expect(removes[4]).toMatchObject({ place: 'GB/London', payMin: null, ageMax: 7 });
+      expect(removes).toHaveLength(2);
+      expect(removes[0]).toMatchObject({ place: 'GB/London', company: null, payMin: 150, ageMax: 7, q: 'designer', per: 25, families: ['design'] });
+      expect(removes[1]).toMatchObject({ place: 'GB/London', company: 'Stripe', payMin: 150, ageMax: null });
       expect(html).toContain(`data-suggest-path="${SUGGEST}"`);
       expect(html).toContain(`data-suggest-v="${v}"`);
       const params = JSON.parse(unescape(html.match(/data-suggest-params="([^"]*)"/)?.[1] ?? '{}')) as Record<string, string>;

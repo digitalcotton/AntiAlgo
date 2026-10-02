@@ -14,8 +14,10 @@ against the local copy of the nightly board, 37,286 live rows. Full output:
 ## What a reader gets now
 
 - **One box, typed the way you'd say it.** "senior designer london remote 150k"
-  becomes the words *senior designer* plus chips *London, United Kingdom*,
-  *Remote*, *$150k+*. Facts the employer stated become chips; nothing is guessed.
+  becomes the words *senior designer*, with Location set to *London, United
+  Kingdom*, Remote to *Remote* and Comp to *$150k+*. A fact with no control of its
+  own (a company, a posted-within window) becomes a chip in the box. Facts the
+  employer stated become filters; nothing is guessed.
   A place that is also a common title word ("Mobile, AL" vs "mobile engineer") is
   *offered*, never converted silently — the board's own counts decide which.
 - **Typeahead with exact counts.** Grouped Titles / Places / Companies / Facts,
@@ -156,8 +158,14 @@ cache keyed on the load instant would take it back; not done.
    are labelled **EU**, the only European value. 511 rows in Israel, South Africa
    and the Gulf have **no region at all**. Rename EU → Europe? Add Middle East &
    Africa?
-2. **An applied filter shows twice** — as a chip in the box and as the dropdown's
-   value. One state, two handles by design, but visibly redundant.
+2. **DECIDED 2026-10-02: shown once.** An applied filter showed twice, as a chip
+   in the box and as the dropdown's value; the chip took the row's room and
+   stacked over the field until the box stopped reading as a search box. The box
+   now draws a chip only for a fact no control shows (company, posted-within).
+   With it the strip stopped wrapping: one line where the values truncate
+   ("London, Unit…"), tighter padding when that is not enough, and the phone's
+   column only when even that does not fit, decided by measuring, as the header
+   is.
 3. **The Location list is long** (95 countries; zeros muted at the bottom). The
    design prompt asks Claude Design for a type-to-filter inside it.
 4. **Remote ticks submit one at a time** — choosing two arrangements is two page

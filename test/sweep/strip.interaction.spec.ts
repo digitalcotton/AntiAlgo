@@ -19,8 +19,8 @@ import { expect, test, type Locator, type Page } from 'playwright/test';
  * THE FIXTURE HAS NO ROW WITH NO PLACE, SO "NOT STATED" IS A ZERO HERE, AND SAYS SO.
  * The tests of Location's Not stated row prove what the fixture can: it is drawn,
  * counted and refused while it has no rows; the address can still name it
- * (`place=unstated`) and then it is the chosen, live row, its chip reads "Location
- * not stated", and Worldwide takes it off. That pressing the row returns exactly
+ * (`place=unstated`) and then it is the chosen, live row, the Location control reads
+ * "Not stated" (the box draws no chip for it), and Worldwide takes it off. That pressing the row returns exactly
  * its rows is proved where there are rows to return: job-store.db.test.ts on a
  * known spread of places, and the same menu driven by hand against the 6,712-row
  * board in antialgo_dev (see the report). Adding a seventh fixture row would move
@@ -88,7 +88,7 @@ const total = async (page: Page): Promise<number> => {
 
 const params = (page: Page): URLSearchParams => new URL(page.url()).searchParams;
 
-test.describe('Location: geography, one choice, and the same state as the chip', () => {
+test.describe('Location: geography, one choice, and the only place the fact is shown', () => {
   test('opens at country level: Worldwide first, countries by count, Not stated last, drawn and refused', async ({ page }) => {
     await openBoard(page);
     await expect(trigger(page, 'Location')).toHaveText('Worldwide');
@@ -138,8 +138,9 @@ test.describe('Location: geography, one choice, and the same state as the chip',
   });
 
   test('a city the address names reads as its own label and is one state with the dropdown', async ({ page }) => {
-    // GB/London is what a search-box chip writes. With no chip drawn (the page has
-    // not been wired to pass them), the control names the place from its key.
+    // GB/London is what a suggestion in the search box writes into the address. The
+    // box draws no chip for a place (owner, 2026-10-02): the control names it from
+    // its key, in full, and is the one handle on it.
     await openBoard(page, '?place=GB%2FLondon');
     await expect(trigger(page, 'Location')).toHaveText('London, United Kingdom');
     expect(await total(page)).toBe(1);
@@ -227,7 +228,7 @@ test.describe('Location keeps every country the board holds: a zero is drawn and
 });
 
 test.describe('Not stated is a place the address can ask for (place=unstated)', () => {
-  test('is refused while it has no rows; named by the address it is the chosen row, live, with a chip that says what it is', async ({ page }) => {
+  test('is refused while it has no rows; named by the address it is the chosen row, live, and the control is the only place that says so', async ({ page }) => {
     await openBoard(page);
     await trigger(page, 'Location').click();
     await expect(row(open(page), 'Not stated')).toBeDisabled();
@@ -236,8 +237,11 @@ test.describe('Not stated is a place the address can ask for (place=unstated)', 
     await openBoard(page, '?place=unstated');
     await expect(trigger(page, 'Location')).toHaveText('Not stated');
     expect(await total(page)).toBe(0);
-    // The box and the dropdown are one state: the chip is the same fact, worded in full because the box has no label.
-    await expect(page.locator('.sb-chip .sb-chip-label')).toHaveText(['Location not stated']);
+    // The Location control is the one place this is shown (owner, 2026-10-02). The box used to draw a "Location not
+    // stated" chip, worded in full because the box has no label, beside the control saying the same thing; it draws
+    // none now, and keeps its own placeholder.
+    await expect(page.locator('.sb-chip')).toHaveCount(0);
+    await expect(searchField(page)).toHaveAttribute('placeholder', /^Try /);
     await trigger(page, 'Location').click();
     const menu = open(page);
     expect(await readRows(menu)).toEqual([
@@ -247,7 +251,7 @@ test.describe('Not stated is a place the address can ask for (place=unstated)', 
       { label: 'Canada', count: '1', disabled: false },
       { label: 'India', count: '1', disabled: false },
       { label: 'United Kingdom', count: '1', disabled: false },
-      // Zero, and chosen: live, so it can be undone, and it keeps its own name (the chip's is longer).
+      // Zero, and chosen: live, so it can be undone, and the control keeps the row's own name.
       { label: 'Not stated', count: '0', disabled: false }
     ]);
     await expect(row(menu, 'Not stated')).toHaveAttribute('aria-selected', 'true');
@@ -255,24 +259,32 @@ test.describe('Not stated is a place the address can ask for (place=unstated)', 
     // Worldwide takes it off again.
     await choose(page, menu, 'Worldwide', /\/board\?(?!.*place=unstated)/);
     expect(await total(page)).toBe(6);
+    await expect(trigger(page, 'Location')).toHaveText('Worldwide');
     await expect(page.locator('.sb-chip')).toHaveCount(0);
   });
 
-  test('the chip removes it and only it, and a choice of another place replaces it: one place, never two', async ({ page }) => {
+  test('Worldwide removes it and only it, and a choice of another place replaces it: one place, never two', async ({ page }) => {
+    // The chip that used to remove it is gone (owner, 2026-10-02: a fact a strip control shows has no chip), so the
+    // Location control is the only handle. The guarantee it carried stays: taking the place off takes off that
+    // place and nothing else, and a new choice replaces it.
     await openBoard(page, '?q=designer&place=unstated&remote=remote');
-    const chip = page.locator('.sb-chip', { hasText: 'Location not stated' });
-    await expect(chip).toHaveCount(1);
-    await Promise.all([page.waitForURL((url) => !url.searchParams.has('place')), chip.locator('.sb-chip-x').click()]);
-    // The words and the other filter stay.
+    await expect(trigger(page, 'Location')).toHaveText('Not stated');
+    await expect(page.locator('.sb-chip')).toHaveCount(0);
+    await trigger(page, 'Location').click();
+    await choose(page, open(page), 'Worldwide', /\/board\?(?!.*place=unstated)/);
+    // The words and the other filter stay, and the place is gone.
     expect(params(page).get('q')).toBe('designer');
     expect(params(page).getAll('remote')).toEqual(['remote']);
-    await expect(page.locator('.sb-chip', { hasText: 'Location not stated' })).toHaveCount(0);
+    expect(['all', null]).toContain(params(page).get('place'));
+    await expect(trigger(page, 'Location')).toHaveText('Worldwide');
+    await expect(trigger(page, 'Remote')).toHaveText('Remote');
 
     await openBoard(page, '?place=unstated');
     await trigger(page, 'Location').click();
     await choose(page, open(page), 'United States', /[?&]place=US(?:&|$)/);
     expect(params(page).getAll('place')).toEqual(['US']);
     expect(await total(page)).toBe(3);
+    await expect(trigger(page, 'Location')).toHaveText('United States');
   });
 
   test('is read through every link on the page: the sort and the pager keep it, and the clear link takes it off', async ({ page }) => {
@@ -594,53 +606,150 @@ test.describe('one menu open at a time, across the box and every strip control',
   });
 });
 
-test.describe('the dropdowns and the box\'s chips are one state', () => {
-  const NO_CHIPS = 'The page drew no chips: board.astro has to hand Board the chips the address holds (search-suggest.ts chipsForQuery) for the box and the strip to be one state.';
+test.describe('the strip owns Location, Remote and Comp; the box draws a chip only for what no control shows', () => {
+  /**
+   * THE RULE (owner, 2026-10-02). A fact a strip control already shows (place,
+   * remote, pay_min) is shown, changed and cleared only through that control: the
+   * search box draws NO chip for it. It used to, beside the control saying the same
+   * words, and the two were pinned to be one state here. A chip is drawn only for a
+   * fact no control carries, a company and a posted-within window (age_max), and
+   * each has its own x, which is the only way to clear it.
+   *
+   * WHAT STAYS TRUE, AND IS ASSERTED. The address is the one state: changing a
+   * control changes the address and nothing else. And the form never sends a second
+   * copy of an owned field: the box carries no hidden input for place, remote or
+   * pay_min (the control's own field is the one answer), where a chip's would have
+   * made unticking Remote re-send remote=remote. The company and the window are
+   * carried by the box, so a change in a control keeps them.
+   */
   const chipLabels = (page: Page): Promise<string[]> => page.locator('.sb-chip .sb-chip-label').allTextContents();
+  const OWNED = ['place', 'remote', 'pay_min'] as const;
+  /** What the strip's form would send under a name, built the way the browser builds it for a submit. */
+  const submitted = (page: Page, name: string): Promise<string[]> =>
+    page.locator('form.filters-row').evaluate((form, field) => new FormData(form as HTMLFormElement).getAll(field).map(String), name);
+  /** No hidden input stands in for a field a control owns: a second copy of the same answer. */
+  async function expectNoSecondCopy(page: Page): Promise<void> {
+    for (const name of OWNED) {
+      await expect(page.locator(`form.filters-row input[type="hidden"][name="${name}"]`), `a hidden ${name} beside its control`).toHaveCount(0);
+    }
+    expect((await submitted(page, 'place')).length, 'the form would send place twice').toBeLessThanOrEqual(1);
+    expect((await submitted(page, 'pay_min')).length, 'the form would send pay_min twice').toBeLessThanOrEqual(1);
+  }
 
-  test('each chip has its control, each control its chip, and a change in either is a change in both', async ({ page }) => {
+  test('a fact a control owns has no chip: each is shown, changed and cleared in its control, and the form sends one copy', async ({ page }) => {
     await openBoard(page, '?place=US&remote=remote&remote=onsite&pay_min=100');
-    expect((await chipLabels(page)).length, NO_CHIPS).toBeGreaterThan(0);
-    expect(await chipLabels(page)).toEqual(['United States', 'Remote', 'On-site', '$100k+']);
     await expect(trigger(page, 'Location')).toHaveText('United States');
     await expect(trigger(page, 'Remote')).toHaveText('Remote + On-site');
     await expect(trigger(page, 'Comp')).toHaveText('$100k+');
+    // The three facts are in the address and in their controls, and the box draws nothing for any of them.
+    expect(await chipLabels(page)).toEqual([]);
+    await expect(page.locator('.sb-chips')).toHaveCount(0);
+    await expect(searchField(page)).toHaveAttribute('placeholder', /^Try /);
+    await expectNoSecondCopy(page);
+    expect((await submitted(page, 'remote')).sort()).toEqual(['onsite', 'remote']);
+    expect(await submitted(page, 'place')).toEqual(['US']);
+    expect(await submitted(page, 'pay_min')).toEqual(['100']);
 
-    // Untick Remote in the strip: its chip goes, and the other kind stays. The box
-    // carries no hidden field that re-sends what was unticked.
+    // Untick Remote in the strip: the address loses that kind and keeps the other. Nothing re-sends what was unticked.
     await trigger(page, 'Remote').click();
     await choose(page, open(page), 'Remote', /\/board\?(?!.*remote=remote)/);
     expect(params(page).getAll('remote')).toEqual(['onsite']);
-    expect(await chipLabels(page)).toEqual(['United States', 'On-site', '$100k+']);
+    await expect(trigger(page, 'Remote')).toHaveText('On-site');
+    expect(await chipLabels(page)).toEqual([]);
+    await expectNoSecondCopy(page);
+    expect(await submitted(page, 'remote')).toEqual(['onsite']);
 
-    // Choose another country: the place chip is replaced, never joined by a second.
+    // Choose another country: the address holds one place, never two, and the control reads it.
     // (United Kingdom, because it is on the list: Canada has no on-site rows at
     // $100k, so under these filters it has no rows and is not offered.)
     await trigger(page, 'Location').click();
     await choose(page, open(page), 'United Kingdom', /[?&]place=GB(?:&|$)/);
     expect(params(page).getAll('place')).toEqual(['GB']);
-    expect(await chipLabels(page)).toEqual(['United Kingdom', 'On-site', '$100k+']);
+    await expect(trigger(page, 'Location')).toHaveText('United Kingdom');
+    expect(await chipLabels(page)).toEqual([]);
+    await expectNoSecondCopy(page);
+    expect(await submitted(page, 'place')).toEqual(['GB']);
 
-    // Take the floor off in the strip: the pay chip goes with it.
+    // Take the floor off in the strip: Comp reads Any and the address carries no floor.
     await trigger(page, 'Comp').click();
     await choose(page, open(page), 'Any', /\/board\?(?!.*pay_min=\d)/);
-    expect(await chipLabels(page)).toEqual(['United Kingdom', 'On-site']);
     await expect(trigger(page, 'Comp')).toHaveText('Any');
-
-    // Remove a chip with its own x: the control it stands for goes back to its default.
-    await Promise.all([page.waitForURL((url) => !url.searchParams.has('remote')), page.locator('.sb-chip', { hasText: 'On-site' }).locator('.sb-chip-x').click()]);
-    await expect(trigger(page, 'Remote')).toHaveText('All');
-    expect(await chipLabels(page)).toEqual(['United Kingdom']);
-    await Promise.all([page.waitForURL((url) => !url.searchParams.has('place')), page.locator('.sb-chip', { hasText: 'United Kingdom' }).locator('.sb-chip-x').click()]);
-    await expect(trigger(page, 'Location')).toHaveText('Worldwide');
+    expect(params(page).getAll('pay_min').filter((v) => v !== 'all')).toEqual([]);
     expect(await chipLabels(page)).toEqual([]);
+
+    // Clear the rest where they are shown: Remote's All and Location's Worldwide. The address ends with no narrowing
+    // (a form writes place=all and leaves remote out), and the box has drawn nothing at any step.
+    await trigger(page, 'Remote').click();
+    await choose(page, open(page), 'All', /\/board\?(?!.*remote=)/);
+    await expect(trigger(page, 'Remote')).toHaveText('All');
+    await trigger(page, 'Location').click();
+    await choose(page, open(page), 'Worldwide', /\/board\?(?!.*place=GB)/);
+    await expect(trigger(page, 'Location')).toHaveText('Worldwide');
+    for (const name of OWNED) expect(params(page).getAll(name).filter((v) => v !== 'all'), name).toEqual([]);
+    expect(await chipLabels(page)).toEqual([]);
+    expect(await total(page)).toBe(6);
+  });
+
+  test('a company and a posted-within window are drawn as chips, each with an x that drops only its own parameter', async ({ page }) => {
+    // The two facts no strip control shows. age_max=90 is the widest window a chip is drawn for (search-parse.ts
+    // AGE_MAX_DAYS); the chips come in the order place, company, remote, pay, age, so company then window here, and
+    // the place in the address (United States) is in its control with no chip. The fixture's rows are months older
+    // than a 90 day window, so under it every option but the always-live ones is refused: the steps that need a
+    // live country are taken with the company alone.
+    await openBoard(page, '?company=Figma&age_max=90&place=US');
+    expect(await chipLabels(page)).toEqual(['Figma', 'Last 90 days']);
+    await expect(page.locator('.sb-chip .sb-chip-x')).toHaveCount(2);
+    await expect(page.locator('.sb-chip-x[aria-label="Remove Figma"]')).toHaveCount(1);
+    await expect(page.locator('.sb-chip-x[aria-label="Remove Last 90 days"]')).toHaveCount(1);
+    await expect(trigger(page, 'Location')).toHaveText('United States');
+    // With chips present the box keeps its placeholder: they never stack over the field, which stays a field.
+    await expect(searchField(page)).toHaveAttribute('placeholder', 'Add a job title, company or skill');
+    await expect(searchField(page)).toBeVisible();
+    // The box carries the two it draws, so a change in a control keeps them; it carries nothing for the three it does not.
+    expect(await submitted(page, 'company')).toEqual(['Figma']);
+    expect(await submitted(page, 'age_max')).toEqual(['90']);
+    await expectNoSecondCopy(page);
+
+    // A change in a control keeps both chips and changes only its own parameter. (Worldwide is live whatever the
+    // filters leave.)
+    await trigger(page, 'Location').click();
+    await choose(page, open(page), 'Worldwide', /\/board\?(?!.*place=US)/);
+    expect(params(page).get('company')).toBe('Figma');
+    expect(params(page).get('age_max')).toBe('90');
+    expect(['all', null]).toContain(params(page).get('place'));
+    expect(await chipLabels(page)).toEqual(['Figma', 'Last 90 days']);
+    await expectNoSecondCopy(page);
+
+    // The window's x drops the window and only it: the company and the rest of the address stay.
+    await Promise.all([page.waitForURL((url) => !url.searchParams.has('age_max')), page.locator('.sb-chip', { hasText: 'Last 90 days' }).locator('.sb-chip-x').click()]);
+    expect(params(page).get('company')).toBe('Figma');
+    expect(await chipLabels(page)).toEqual(['Figma']);
+
+    // Without the window Figma's row is on the board, so a country is live: choosing one writes one place, keeps the
+    // company chip, and draws no chip of its own.
+    await trigger(page, 'Location').click();
+    await choose(page, open(page), 'United States', /[?&]place=US(?:&|$)/);
+    expect(params(page).get('company')).toBe('Figma');
+    expect(params(page).getAll('place')).toEqual(['US']);
+    expect(await chipLabels(page)).toEqual(['Figma']);
+    await expectNoSecondCopy(page);
+
+    // And the company's x drops the company and only it: the place stays, in its control, with no chip.
+    await Promise.all([page.waitForURL((url) => !url.searchParams.has('company')), page.locator('.sb-chip', { hasText: 'Figma' }).locator('.sb-chip-x').click()]);
+    expect(params(page).getAll('place')).toEqual(['US']);
+    expect(await chipLabels(page)).toEqual([]);
+    await expect(page.locator('.sb-chips')).toHaveCount(0);
+    await expect(trigger(page, 'Location')).toHaveText('United States');
+    await expect(searchField(page)).toHaveAttribute('placeholder', /^Try /);
   });
 
   test('emptying the board from the board is not undone by the saved selection', async ({ page }) => {
     // The strip saves what the reader last chose, and a bare /board address restores
-    // it. The chip's x and "Clear the filters" both lead to a bare address, so
-    // without a way to tell a reader who is emptying the board from one who is
-    // arriving at it, the last filter could never be taken off.
+    // it. "Clear the filters" (and the x of the last company or window chip) leads to a
+    // bare address, so without a way to tell a reader who is emptying the board from
+    // one who is arriving at it, the last filter could never be taken off. (Location,
+    // Remote and Comp have no chip now; their controls clear them, and
+    // controls.interaction.spec.ts proves that path against the account.)
     await openBoard(page, '?place=GB&pay_min=300');
     expect(await total(page)).toBe(0);
     await Promise.all([page.waitForURL((url) => url.pathname === '/board' && url.search === ''), page.locator('a.clear-filters').click()]);
@@ -658,14 +767,18 @@ test.describe('the dropdowns and the box\'s chips are one state', () => {
     expect(new URL(page.url()).search).toBe('');
   });
 
-  test('a city chip and the Location control say the same words', async ({ page }) => {
+  test('a city the address names reads in full in the Location control, and the box draws no chip for it', async ({ page }) => {
+    // This pinned the chip and the control to the same words. The chip is gone (owner, 2026-10-02), so the words
+    // live in one place: the control reads the city in full, and the open list marks it as the chosen row.
     await openBoard(page, '?place=GB%2FLondon');
-    expect((await chipLabels(page)).length, NO_CHIPS).toBeGreaterThan(0);
-    const [chip] = await chipLabels(page);
-    await expect(trigger(page, 'Location')).toHaveText(chip);
+    await expect(trigger(page, 'Location')).toHaveText('London, United Kingdom');
+    expect(await chipLabels(page)).toEqual([]);
+    await expect(page.locator('.sb-chip')).toHaveCount(0);
+    await expectNoSecondCopy(page);
+    expect(await submitted(page, 'place')).toEqual(['GB/London']);
     await trigger(page, 'Location').click();
     // The chosen place is the selected row, whatever the list below it offers.
-    await expect(open(page).locator('[role="option"][aria-selected="true"] .menu-label')).toHaveText(chip);
+    await expect(open(page).locator('[role="option"][aria-selected="true"] .menu-label')).toHaveText('London, United Kingdom');
   });
 });
 

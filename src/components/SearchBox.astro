@@ -30,8 +30,12 @@ import { chipsToParams, type Chip } from '../lib/search-parse';
  * submit those and the chip's hidden copy is dropped: left in, it would be a
  * second answer to the same question, and unticking Remote in the strip while a
  * Remote chip stood would re-send `remote=remote` and the change would never take.
- * The chip is still drawn, with its remove link, from the same address; the two
- * handles are one state because only one of them is a field.
+ * AND THE CHIP IS NOT DRAWN EITHER (owner, 2026-10-02). It used to be, beside the
+ * control showing the same words: "London, United Kingdom" twice across one row,
+ * which took the row's room, stacked the chip over the field, and made the box
+ * stop reading as a search box at all. The control is the one place that fact is
+ * shown and changed. A chip is drawn only for a fact no control shows (a company,
+ * a posted-within window), and its remove link is the only way to clear it.
  *
  * ONE MENU AT A TIME, ACROSS THE BOX AND THE STRIP. The panel and the strip's
  * dropdowns never import each other; they speak through src/lib/menu-claim.ts.
@@ -120,7 +124,12 @@ const panelId = `${id}-listbox`;
 // It used to go blank, and a blank band beside "United States" reads as a label,
 // not a field: choosing a place looked like it had taken the search box away. The
 // words name what the field still adds, since the chip has answered "where".
-const placeholder = chips.length === 0 ? 'Try "senior designer london remote 150k"' : 'Add a job title, company or skill';
+// The chips the box draws: those whose address names no strip control (see the
+// header). Paired with their remove links before filtering, which are by index.
+const drawn = chips
+  .map((chip, index) => ({ chip, href: chipRemoveHrefs[index] }))
+  .filter(({ chip }) => !Object.keys(chipsToParams([chip])).some((name) => owned.has(name)));
+const placeholder = drawn.length === 0 ? 'Try "senior designer london remote 150k"' : 'Add a job title, company or skill';
 ---
 
 <div
@@ -139,13 +148,13 @@ const placeholder = chips.length === 0 ? 'Try "senior designer london remote 150
   <label class="search-glyph mono" for={id} aria-hidden="true">&#9906;</label>
   <div class="sb-field">
     {
-      chips.length > 0 && (
+      drawn.length > 0 && (
         <ul class="sb-chips" role="list" aria-label="Applied filters">
-          {chips.map((chip, index) => (
+          {drawn.map(({ chip, href }) => (
             <li class="sb-chip" role="listitem" data-chip-kind={chip.kind}>
               <span class="sb-chip-label mono">{chipLabel(chip)}</span>
-              {chipRemoveHrefs[index] ? (
-                <a class="sb-chip-x mono" href={chipRemoveHrefs[index]} aria-label={`Remove ${chipLabel(chip)}`}>&#10005;</a>
+              {href ? (
+                <a class="sb-chip-x mono" href={href} aria-label={`Remove ${chipLabel(chip)}`}>&#10005;</a>
               ) : null}
             </li>
           ))}
@@ -634,11 +643,13 @@ const placeholder = chips.length === 0 ? 'Try "senior designer london remote 150
     gap: var(--space-200);
     /* A fixed basis, not `auto`: with auto the cell's wanted width is its chips
        laid on one line, and three chips made the strip wrap the Dim cell onto a
-       second row. 15.7rem is what the old cell asked for (glyph, a 20-character
-       mono input, padding and gap: 250px measured), so with no chips the strip
-       wraps exactly where it did; the cell takes the slack the way the old one
-       did, and the chips wrap inside it. */
-    flex: 1 1 15.7rem;
+       second row. 13rem, down from the old cell's 15.7rem (2026-10-02): with
+       "London, United Kingdom" in Location the old basis put the row 6px over at
+       a 1280px window and Dim seen hung alone on a second line; at 13rem the
+       whole row holds there with a company chip as well (measured at 1280, 14rem
+       was the first that fit). It is only where the cell starts: it still takes
+       every pixel of slack the row has. */
+    flex: 1 1 13rem;
     min-width: var(--space-900);
     padding: var(--space-300) var(--space-500);
     border-left: var(--border-hairline) solid var(--color-line);
@@ -663,12 +674,14 @@ const placeholder = chips.length === 0 ? 'Try "senior designer london remote 150
     font-size: var(--size-100);
   }
 
-  /* The chips and the caret share a wrapping line, so a long run of chips drops
-     the field to its own row instead of squeezing it to nothing. */
+  /* The chips and the caret share ONE line (owner, 2026-10-02: a chip stacked
+     over the field "doesn't work"). A chip never shrinks, a long one is capped
+     (.sb-chip-label), and the caret keeps its 8ch, so the field is always there
+     to type in. The strip's line layout counts all three as the box's floor. */
   .sb-field {
     display: flex;
     flex: 1 1 auto;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: var(--space-200);
     min-width: 0;
@@ -689,6 +702,7 @@ const placeholder = chips.length === 0 ? 'Try "senior designer london remote 150
      The remove link is its right edge. */
   .sb-chip {
     display: inline-flex;
+    flex: none;
     align-items: stretch;
     border: var(--border-hairline) solid var(--color-line-strong);
     font-size: var(--size-100);
@@ -698,7 +712,13 @@ const placeholder = chips.length === 0 ? 'Try "senior designer london remote 150
     color: var(--color-foreground);
   }
 
+  /* Capped, not shrunk: "Advantagemedicalstaffing" would otherwise be a quarter
+     of the strip. */
   .sb-chip-label {
+    max-width: 16ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     padding: 0 var(--space-300);
     font-size: var(--size-100);
   }
@@ -808,12 +828,26 @@ const placeholder = chips.length === 0 ? 'Try "senior designer london remote 150
     white-space: nowrap;
   }
 
-  /* On a phone the strip stacks, so the cell is the strip's full width and the
-     panel with it. Its hairline moves from the left edge to the top, as every
-     strip cell's does. */
+  /* On the strip's line (Filters.astro measures it) the box gives way down to its
+     floor: the glyph, its chips and an 8ch caret. */
+  :global(.filters-row[data-layout='line']) > .search-box {
+    min-width: var(--strip-search-floor, var(--space-900));
+  }
+
+  /* In the strip's column, and on a phone without script, the cell is the strip's
+     full width and the panel with it. Its hairline moves from the left edge to the
+     top, as every strip cell's does. */
+  :global(.filters-row[data-layout='column']) > .search-box {
+    flex: 0 0 auto;
+    border-left: none;
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  :global(.filters-row[data-layout='column']) > .search-box:first-child {
+    border-top: none;
+  }
   @media (max-width: 48rem) { /* --breakpoint-phone */
     .search-box {
-      /* The strip is a column here, where the 15.7rem basis would be a HEIGHT. */
+      /* The strip is a column here, where the 13rem basis would be a HEIGHT. */
       flex: 0 0 auto;
       border-left: none;
       border-top: var(--border-hairline) solid var(--color-line);

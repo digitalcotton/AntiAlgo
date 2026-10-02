@@ -395,9 +395,12 @@ describe('Filters.astro: Location is geography, one select named for the place p
     // What the strip does not own, the box still carries.
     expect(hidden).toContain('company');
     expect(hidden).toContain('age_max');
-    // And the chips are still drawn, with their remove links.
-    expect(html).toContain('London, UK');
-    expect(html).toContain('href="/b"');
+    // The controls show place, remote and pay, so the box draws no chip for them
+    // (owner, 2026-10-02: the same words twice, stacked over the field); company
+    // and age have no control, and their chips stay, with their remove links.
+    expect(html).not.toMatch(/data-chip-kind="(place|remote|pay)"/);
+    expect(html).toContain('href="/d"');
+    expect(html).toContain('href="/e"');
   });
 });
 
