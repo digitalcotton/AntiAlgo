@@ -15,8 +15,8 @@
  *
  *   - scripts/ingest-jobs.mjs calls it on every row it writes (nightly);
  *   - scripts/backfill-derived.mjs calls it to fill rows written before
- *     db/207 added the columns (and db/220 and db/222, which added the
- *     place_* columns and the place_keys and place_leaves arrays);
+ *     db/207 added the columns (and db/220, db/222 and db/223, which added the
+ *     place_* columns, the place_keys and place_leaves arrays and place_countries);
  *   - src/lib/jobs-data-agg.ts NEVER re-derives; it reads the columns.
  *
  * So there is no second copy to drift. A rule change here is a code change
@@ -1352,7 +1352,7 @@ export function payOf(compRange) {
 // ---------------------------------------------------------------------------
 
 /**
- * Every derived field for one crawl row, as the columns db/207, db/220 and db/222 added.
+ * Every derived field for one crawl row, as the columns db/207, db/220, db/222 and db/223 added.
  * The ingest spreads this onto the row it writes; the backfill writes exactly
  * these columns and nothing else.
  *
@@ -1372,6 +1372,10 @@ export function payOf(compRange) {
  * stated". place_leaves is the most specific key of each place, distinct and
  * sorted, one per place. Both are written sorted so that a re-run over an
  * unchanged row compares equal, which is what lets the backfill skip it.
+ * place_countries (db/223) is the country keys of place_keys, sorted and joined
+ * by a space ('DE GB'; '' for none): the short value the Location facet groups by,
+ * so it does not have to read every key of every row. It is taken from the same
+ * places, so it cannot differ from place_keys.
  */
 export function derivedFor(row) {
   const pay = payOf(row.comp_range);
@@ -1393,6 +1397,7 @@ export function derivedFor(row) {
     place_city: place.city,
     place_label: place.label,
     place_keys: [...new Set(places.flatMap(placeKeysOf))].sort(),
-    place_leaves: [...new Set(places.map(placeLeafOf))].sort()
+    place_leaves: [...new Set(places.map(placeLeafOf))].sort(),
+    place_countries: [...new Set(places.map((p) => p.country))].sort().join(' ')
   };
 }

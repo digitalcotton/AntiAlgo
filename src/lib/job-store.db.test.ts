@@ -9,15 +9,15 @@
  * hardest requirement, that EVERY COUNT EQUALS THE ROWS THE OPTION RETURNS.
  *
  * It needs the board in a local database with db/219 (jobs.search and the trigram
- * indexes), db/220 (jobs.place_*), db/221 (jobs.search_tc) and db/222 (jobs.place_keys
- * and place_leaves) applied, and the backfill run. Without a connection string it
+ * indexes), db/220 (jobs.place_*), db/221 (jobs.search_tc), db/222 (jobs.place_keys
+ * and place_leaves) and db/223 (jobs.place_countries) applied, and the backfill run. Without a connection string it
  * skips rather than passing, so a green run on a machine with no database cannot
  * be mistaken for a proof (same rule as jobs-data-agg.test.ts and
  * comp-top-sql.test.ts). It reads and never writes a row of any real table.
  *
  * TWO PHASES, ONE CONNECTION. The first half runs on the real columns. The
  * second shadows `jobs` with a SESSION-LOCAL view that is the real table with
- * place_keys and place_leaves replaced by a fixed spread (a hash of the id) that
+ * place_keys, place_leaves and place_countries replaced by a fixed spread (a hash of the id) that
  * includes postings listing two places, one of them in two countries, so the place
  * predicate and the place counts are tested against known places whatever state
  * the real backfill is in, and the place invariant is checked on rows that really
@@ -72,9 +72,9 @@ async function haveSchema(): Promise<boolean> {
     const { rows } = await probe.query(
       `SELECT count(*)::int AS n FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'jobs'
-          AND column_name IN ('search', 'search_tc', 'place_country', 'place_admin1', 'place_city', 'place_label', 'place_keys', 'place_leaves')`
+          AND column_name IN ('search', 'search_tc', 'place_country', 'place_admin1', 'place_city', 'place_label', 'place_keys', 'place_leaves', 'place_countries')`
     );
-    return rows[0].n === 8;
+    return rows[0].n === 9;
   } catch {
     return false;
   } finally {
@@ -83,7 +83,7 @@ async function haveSchema(): Promise<boolean> {
 }
 const READY = await haveSchema();
 const d = READY ? describe : describe.skip;
-if (!READY) console.warn('job-store.db.test.ts: skipped. It needs DATABASE_URL and a jobs table with search, search_tc, place_* and place_keys (db/219, db/220, db/221, db/222).');
+if (!READY) console.warn('job-store.db.test.ts: skipped. It needs DATABASE_URL and a jobs table with search, search_tc, place_*, place_keys and place_countries (db/219, db/220, db/221, db/222, db/223).');
 
 let conn: pg.Client;
 const SWEEP = new Date().toISOString().slice(0, 10);
@@ -544,6 +544,27 @@ d('the predicates, on the real columns', () => {
     expect(ids.has(id as string), `${id} under ${country}`).toBe(true);
   }, 60_000);
 
+  it('stores place_countries as exactly the country keys of place_keys, sorted and joined by a space, on every live row', async () => {
+    // The Location counts group by this string and split it (db/223), so a row whose string and keys
+    // disagree would be counted under the wrong country. All of the board, not a sample, and the other
+    // way round too: no row the keys name a country for is left with an empty string.
+    const [{ wrong }] = await sql(
+      `SELECT count(*)::int AS wrong FROM jobs
+        WHERE place_countries IS DISTINCT FROM coalesce(
+          (SELECT string_agg(k, ' ' ORDER BY k COLLATE "C") FROM unnest(place_keys) AS k WHERE length(k) = 2), '')`
+    );
+    expect(wrong).toBe(0);
+    const [{ named, listed }] = await sql(
+      `SELECT count(*) FILTER (WHERE place_countries <> '')::int AS named, count(*) FILTER (WHERE cardinality(place_keys) > 0)::int AS listed
+         FROM jobs WHERE status <> 'killed'`
+    );
+    expect(named).toBeGreaterThan(1000);
+    expect(named).toBe(listed);
+    // Several countries are a space apart and there are not many distinct strings: the facet groups on them.
+    expect(await one(`SELECT count(*)::int FROM jobs WHERE place_countries ~ '^[A-Z]{2}( [A-Z]{2})*$' AND status <> 'killed'`)).toBe(named);
+    expect(await one(`SELECT count(DISTINCT place_countries)::int FROM jobs WHERE status <> 'killed'`)).toBeLessThan(2000);
+  });
+
   it('keeps the rows that list no place for place=unstated, and its count is the rows it returns', async () => {
     const noCountry = await one(`SELECT count(*)::int FROM jobs WHERE status <> 'killed' AND cardinality(place_keys) = 0`);
     expect(noCountry).toBeGreaterThan(0);
@@ -797,7 +818,7 @@ d('THE INVARIANT and the place predicate, on a known spread of places', () => {
     // unindexed view each of the 250 probes would read the whole board.
     const names: string[] = (await sql(
       `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'jobs'
-          AND column_name NOT IN ('place_keys', 'place_leaves') ORDER BY ordinal_position`
+          AND column_name NOT IN ('place_keys', 'place_leaves', 'place_countries') ORDER BY ordinal_position`
     )).map((r) => r.column_name as string);
     const slot = `abs(hashtext(j.id)) % 10`;
     const literal = (values: string[]) => (values.length === 0 ? `'{}'::text[]` : `ARRAY[${values.map((v) => `'${v.replace(/'/g, "''")}'`).join(', ')}]::text[]`);
@@ -805,14 +826,18 @@ d('THE INVARIANT and the place predicate, on a known spread of places', () => {
       `CASE ${slot} ${spread.map((places, i) => `WHEN ${i} THEN ${literal(of(places))}`).join(' ')} END`;
     const keys = (places: Spread[number]) => [...new Set(places.flatMap(placeKeysOf))].sort();
     const leaves = (places: Spread[number]) => [...new Set(places.map(placeLeafOf))].sort();
+    // The countries the keys name, as derivedFor() writes them for the Location counts to group by.
+    const countries = (places: Spread[number]) => [[...new Set(places.map((p) => p.country))].sort().join(' ')];
+    const text = (spread: Spread, of: (places: Spread[number]) => string[]) =>
+      `CASE ${slot} ${spread.map((places, i) => `WHEN ${i} THEN '${of(places).join('').replace(/'/g, "''")}'`).join(' ')} END`;
     for (const [table, spread] of [['spread', SPREAD], ['spread_single', ONE_COUNTRY_EACH]] as const) {
-      await conn.query(`CREATE TEMP TABLE ${table} AS SELECT j.id, ${pick(spread, keys)} AS place_keys, ${pick(spread, leaves)} AS place_leaves FROM public.jobs j`);
+      await conn.query(`CREATE TEMP TABLE ${table} AS SELECT j.id, ${pick(spread, keys)} AS place_keys, ${pick(spread, leaves)} AS place_leaves, ${text(spread, countries)} AS place_countries FROM public.jobs j`);
       await conn.query(`ALTER TABLE ${table} ADD PRIMARY KEY (id)`);
       await conn.query(`CREATE INDEX ON ${table} USING gin (place_keys)`);
       await conn.query(`ANALYZE ${table}`);
     }
     makeView = (detail, spreadTable = 'spread') =>
-      `CREATE TEMP VIEW jobs AS SELECT ${names.map((c) => (c === 'detail_total' ? `${detail} AS detail_total` : `j.${c}`)).join(', ')}, s.place_keys, s.place_leaves FROM public.jobs j JOIN pg_temp.${spreadTable} s ON s.id = j.id`;
+      `CREATE TEMP VIEW jobs AS SELECT ${names.map((c) => (c === 'detail_total' ? `${detail} AS detail_total` : `j.${c}`)).join(', ')}, s.place_keys, s.place_leaves, s.place_countries FROM public.jobs j JOIN pg_temp.${spreadTable} s ON s.id = j.id`;
     await conn.query(makeView('j.detail_total'));
   });
   afterAll(async () => {

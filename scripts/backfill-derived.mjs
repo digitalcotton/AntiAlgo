@@ -11,13 +11,14 @@
  * definition over the rows already on file so the two halves agree immediately.
  *
  * IT ALSO FILLS db/220's place_country, place_admin1, place_city and place_label,
- * and db/222's place_keys and place_leaves (every place a posting lists), and it
- * is the only thing that will for rows already on file: the ingest writes them on
- * the next crawl, but "the next crawl" is up to a day away. db/222 does not fill
- * its two columns itself, so until this has run every row reads '{}', which the
- * board reads as "Not stated". Run with --all after db/222 lands, and after a
- * change to placeOf(), placesOf() or src/data/place-cities.json, for the same
- * reason as any other rule change here.
+ * and db/222's place_keys and place_leaves (every place a posting lists) and
+ * db/223's place_countries (the countries among them), and it is the only thing
+ * that will for rows already on file: the ingest writes them on the next crawl,
+ * but "the next crawl" is up to a day away. db/222 and db/223 do not fill their
+ * columns themselves, so until this has run every row reads '{}' and '', which the
+ * board reads as "Not stated". Run with --all after db/222 or db/223 lands, and
+ * after a change to placeOf(), placesOf() or src/data/place-cities.json, for the
+ * same reason as any other rule change here.
  *
  * ONE DEFINITION. It imports src/lib/jobs-derived.mjs, the same module the
  * ingest calls. It does not restate a single rule in SQL. That is the whole
@@ -44,11 +45,11 @@ const arg = (name, fallback) => {
   return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 };
 // Values bound per row: the id, nine derived columns (db/207, db/212), the
-// four place columns (db/220) and the two place arrays (db/222). The
-// placeholders are generated from this so a column added later cannot leave the
-// VALUES list one short, and the page size is held under Postgres's 65,535 bound
-// parameters per statement.
-const PER_ROW = 16;
+// four place columns (db/220), the two place arrays (db/222) and the country
+// string (db/223). The placeholders are generated from this so a column added
+// later cannot leave the VALUES list one short, and the page size is held under
+// Postgres's 65,535 bound parameters per statement.
+const PER_ROW = 17;
 const PAGE = Math.min(
   Math.floor(65535 / PER_ROW),
   Math.max(100, Number(arg('--page', '2000')) || 2000)
@@ -98,7 +99,9 @@ for (;;) {
       d.place_country, d.place_admin1, d.place_city, d.place_label,
       // db/222: every place it lists. A JS array goes out as a Postgres array
       // literal, so the ::text[] cast below reads it back; [] is '{}'.
-      d.place_keys, d.place_leaves
+      d.place_keys, d.place_leaves,
+      // db/223: the countries among them, one string ('' for none, never null).
+      d.place_countries
     );
   });
 
@@ -122,11 +125,13 @@ for (;;) {
        place_city       = v.place_city::text,
        place_label      = v.place_label::text,
        place_keys       = v.place_keys::text[],
-       place_leaves     = v.place_leaves::text[]
+       place_leaves     = v.place_leaves::text[],
+       place_countries  = v.place_countries::text
      FROM (VALUES ${holes.join(',')}) AS v(id, derived_tier, derived_fam, derived_fam_source,
                                            derived_region, derived_friction, priced, comp_min_k,
                                            comp_max_k, comp_mid_k, place_country, place_admin1,
-                                           place_city, place_label, place_keys, place_leaves)
+                                           place_city, place_label, place_keys, place_leaves,
+                                           place_countries)
      WHERE j.id = v.id
        AND (j.derived_tier     IS DISTINCT FROM v.derived_tier::text
          OR j.derived_fam      IS DISTINCT FROM v.derived_fam::text
@@ -142,7 +147,8 @@ for (;;) {
          OR j.place_city       IS DISTINCT FROM v.place_city::text
          OR j.place_label      IS DISTINCT FROM v.place_label::text
          OR j.place_keys       IS DISTINCT FROM v.place_keys::text[]
-         OR j.place_leaves     IS DISTINCT FROM v.place_leaves::text[])`,
+         OR j.place_leaves     IS DISTINCT FROM v.place_leaves::text[]
+         OR j.place_countries  IS DISTINCT FROM v.place_countries::text)`,
     params
   );
   changed += res.rowCount || 0;

@@ -604,8 +604,8 @@ describe('derivedFor: the place columns and the repaired region', () => {
   it('keeps every field the ingest and the backfill bind', () => {
     expect(Object.keys(derivedFor({ ...base, country: null, location: 'Austin, TX' })).sort()).toEqual([
       'comp_max_k', 'comp_mid_k', 'comp_min_k', 'derived_fam', 'derived_fam_source', 'derived_friction',
-      'derived_region', 'derived_tier', 'place_admin1', 'place_city', 'place_country', 'place_keys',
-      'place_label', 'place_leaves', 'priced'
+      'derived_region', 'derived_tier', 'place_admin1', 'place_city', 'place_countries', 'place_country',
+      'place_keys', 'place_label', 'place_leaves', 'priced'
     ]);
   });
 });
@@ -994,12 +994,33 @@ describe('derivedFor: place_keys and place_leaves', () => {
     expect(d.place_label).toBe('Austin, TX');
   });
 
-  it('a posting with no place has empty arrays, which is "Not stated"', () => {
+  it('a posting with no place has empty arrays and an empty country string, which is "Not stated"', () => {
     for (const location of ['Remote', 'Multiple Locations', 'Europe', '', null]) {
       const d = derivedFor({ ...base, country: null, location });
       expect(d.place_keys, String(location)).toEqual([]);
       expect(d.place_leaves, String(location)).toEqual([]);
+      expect(d.place_countries, String(location)).toBe('');
       expect(d.place_country, String(location)).toBeNull();
+    }
+  });
+
+  it('place_countries is the country keys of place_keys, sorted and joined by a space', () => {
+    // The Location counts group by this string and split it, so it must say exactly what the two letter
+    // keys say: each country once, in order, however many of its places the posting lists.
+    expect(derivedFor({ ...base, country: 'CA', location: 'United States / Canada / London' }).place_countries).toBe('CA GB US');
+    expect(derivedFor({ ...base, country: 'DE', location: 'London / Germany' }).place_countries).toBe('DE GB');
+    expect(derivedFor({ ...base, country: 'US', location: 'Chicago, IL, Evanston, IL' }).place_countries).toBe('US');
+    expect(derivedFor({ ...base, country: 'US', location: 'Austin, Texas, USA' }).place_countries).toBe('US');
+    const rows: ReadonlyArray<readonly [string, string | null]> = [
+      ['London / Germany', 'DE'], ['Chicago, IL, Evanston, IL', 'US'], ['Dallas, TX, Chicago, IL, Columbus, OH', 'US'],
+      ['Argentina, Brazil, Chile, Colombia', 'MX'], ['Stockholm; Germany & Netherlands (Remote)', 'DE'],
+      ['Remote (La Ceiba, AT, HN), Remote (Trelew, U, AR), Remote (Manaus, AM, BR)', 'US'], ['Remote', null], ['Austin, TX', null]
+    ];
+    for (const [location, country] of rows) {
+      const d = derivedFor({ ...base, country, location });
+      const fromKeys = d.place_keys.filter((k: string) => k.length === 2).join(' ');
+      expect(d.place_countries, `${location} [${country}]`).toBe(fromKeys);
+      expect(d.place_countries.split(' ').filter(Boolean), location).toEqual([...d.place_countries.split(' ').filter(Boolean)].sort());
     }
   });
 

@@ -463,7 +463,7 @@ WITH base AS (
          j.posting_id, j.department, j.comp_posted, j.comp_range, j.days_up, j.first_seen, j.last_seen,
          j.detail_total, j.detail_components, j.source, NULL::text AS description, j.status, j.kill_id,
          j.derived_fam, j.derived_fam_source,
-         j.search, j.search_tc, j.place_keys,
+         j.search, j.search_tc, j.place_keys, j.place_countries,
          CASE WHEN jsonb_typeof(j.comp_range->'min') = 'number' THEN (j.comp_range->>'min')::numeric END AS comp_min,
          ${KILL_COLUMNS},
          -- WHERE THE WORK HAPPENS. This read the location TEXT only, and the
@@ -667,8 +667,10 @@ function textTotalFilter(titleClause: string): string {
  * took 507 ms inlined and a fraction of that materialised. See needsFlags.
  *
  * It stays NARROW on purpose, and narrower than the flags themselves: each row
- * carries the six values the options read, `keep_base` (every flag that is not
- * a control, folded to one boolean), `scope_ok`, and `miss`, one integer with a
+ * carries the six values the options read (the last is the short place_countries
+ * string, not the place_keys array it is taken from: match_place reads the array
+ * before this point and the flags need no more of it), `keep_base` (every flag
+ * that is not a control, folded to one boolean), `scope_ok`, and `miss`, one integer with a
  * bit set for each control the row FAILS. "Every control but this one" is then
  * `keep_base AND (miss & mask) = 0` for the mask that leaves this control's bit
  * out, one test where the five flags were five, which is what the forty-odd
@@ -725,17 +727,24 @@ function facetCountSql(mode: TextMode, titleClause: string, materialize: boolean
     // every country it names and is counted under each.
     `${on('place')} AS place_all`,
     // The places, counted over everything but the place filter. A posting is
-    // counted once under each country it lists (a country is a two letter key,
-    // and keys are distinct, so never twice under one), and the empty key is the
-    // rows that list none (`place=unstated` reaches them): the LEFT JOIN gives a
-    // row with no keys one NULL, which is the '' entry. So each number is exactly
-    // the rows its own filter returns, and the numbers add up to MORE than the
-    // total whenever a posting lists two countries. NULL (not an empty object)
-    // when no row qualifies.
+    // counted once under each country it lists (place_countries names each once),
+    // and the empty string is the rows that list none (`place=unstated` reaches
+    // them): the LEFT JOIN gives it one NULL, which is the '' entry. So each number
+    // is exactly the rows its own filter returns, and the numbers add up to MORE
+    // than the total whenever a posting lists two countries. NULL (not an empty
+    // object) when no row qualifies.
+    //
+    // GROUPED FIRST, SPLIT AFTER (db/223). The rows are grouped by the short
+    // place_countries string, 262 distinct values on the local board, and
+    // only those groups are split into countries and summed. The first version
+    // unnested place_keys of every row (2.87 keys a row) and kept the two letter
+    // ones, 22 ms where grouping the old place_country column took 2: reading the
+    // arrays was the cost, and flags no longer carries them.
     `(SELECT jsonb_object_agg(k, n)
-        FROM (SELECT coalesce(u.k, '') AS k, count(*)::int AS n
-                FROM flags f LEFT JOIN LATERAL unnest(f.place_keys) AS u(k) ON length(u.k) = 2
-               WHERE ${keep('place')} GROUP BY 1) p) AS places`,
+        FROM (SELECT coalesce(u.c, '') AS k, sum(g.n)::int AS n
+                FROM (SELECT place_countries, count(*)::int AS n FROM flags WHERE ${keep('place')} GROUP BY 1) g
+                LEFT JOIN LATERAL unnest(string_to_array(nullif(g.place_countries, ''), ' ')) AS u(c) ON true
+               GROUP BY 1) p) AS places`,
     // EVERY COUNTRY THE LIVE BOARD HOLDS, so a country the other filters leave
     // nothing is a zero in the list and not a missing row (readCounts adds the
     // zeros). It cannot come from `flags`: the search words are in the CTE's
@@ -754,7 +763,7 @@ function facetCountSql(mode: TextMode, titleClause: string, materialize: boolean
   ];
   return `${boardFacetCte(mode)}
 , flags AS ${materialize ? 'MATERIALIZED' : 'NOT MATERIALIZED'} (
-  SELECT facet_location, facet_comp, facet_freshness, derived_fam, comp_min, place_keys,
+  SELECT facet_location, facet_comp, facet_freshness, derived_fam, comp_min, place_countries,
          COALESCE(${[...SCOPE_FLAGS, titleClause].join(' AND ')}, false) AS scope_ok,
          COALESCE(${[...FIXED_FLAGS, titleClause].join(' AND ')}, false) AS keep_base,
          (${CONTROLS.map((c) => `(NOT COALESCE(${CONTROL_FLAGS[c]}, false))::int * ${bit(c)}`).join(' + ')}) AS miss

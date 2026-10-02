@@ -360,7 +360,10 @@ function values(j) {
     d.place_country, d.place_admin1, d.place_city, d.place_label,
     // Every place it lists (db/222), the arrays the board filters on. A JS array
     // is bound as a Postgres array, an empty one as '{}': "Not stated", never null.
-    d.place_keys, d.place_leaves
+    d.place_keys, d.place_leaves,
+    // The countries among them as one string (db/223), what the Location counts
+    // group by: '' when it lists none, never null.
+    d.place_countries
   ];
 }
 

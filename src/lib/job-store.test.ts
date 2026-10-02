@@ -456,8 +456,14 @@ describe('the new filters', () => {
     expect(sql).toContain('AS place_universe');
     // It takes no part in any number: the places are still counted from the CTE's flags, over every
     // control but the place, and the universe is read from `jobs`, never from them.
-    expect(sql).toContain('FROM flags f LEFT JOIN LATERAL unnest(f.place_keys) AS u(k) ON length(u.k) = 2');
-    expect(sql).toContain('WHERE keep_base AND (miss & 15) = 0 GROUP BY 1');
+    // Grouped by the short place_countries string first and split after, so the flags carry that string
+    // and not the array it is taken from (db/223): the flags select the string, and nothing counts keys.
+    expect(sql).toContain('FROM (SELECT place_countries, count(*)::int AS n FROM flags WHERE keep_base AND (miss & 15) = 0 GROUP BY 1) g');
+    expect(sql).toContain("LEFT JOIN LATERAL unnest(string_to_array(nullif(g.place_countries, ''), ' ')) AS u(c) ON true");
+    expect(sql).not.toContain('unnest(f.place_keys)');
+    const flagsBody = sql.slice(sql.indexOf(', flags AS')).split('FROM matched')[0];
+    expect(flagsBody).toContain('place_countries');
+    expect(flagsBody).not.toContain('place_keys');
     expect(sql.split('place_universe')[0].split('\n').at(-1)).not.toContain('flags');
     // It binds nothing, so the statement's parameters did not move.
     expect(statements()[0][1]).toHaveLength(21);
