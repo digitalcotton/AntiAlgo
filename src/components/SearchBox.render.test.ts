@@ -74,13 +74,13 @@ describe('SearchBox.astro: a real q field first', () => {
     expect(html).toMatch(/role="status"[^>]*aria-live="polite"/);
   });
 
-  it('shows the plan\'s placeholder when there are no chips, and none when there are', async () => {
+  it('shows the plan\'s placeholder when there are no chips, and still names the field when there are', async () => {
     expect(await render({ q: '' })).toContain('placeholder="Try &#34;senior designer london remote 150k&#34;"');
     const withChips = await render({ q: '', chips: CHIPS, chipRemoveHrefs: REMOVE });
     const input = withChips.match(/<input type="search"[^>]*>/)?.[0] ?? '';
-    // An empty attribute is written bare, so the check is that no text is there.
+    // A blank field beside a chip read as no field at all (owner, 2026-10-02).
     expect(input).not.toContain('Try');
-    expect(input).toMatch(/\splaceholder(\s|>)/);
+    expect(input).toContain('placeholder="Add a job title, company or skill"');
   });
 
   it('carries the endpoint, the sweep instant and the board\'s params as data for the script', async () => {

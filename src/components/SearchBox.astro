@@ -116,7 +116,11 @@ function chipLabel(chip: Chip): string {
 const owned = new Set(ownedFields);
 const chipFields = Object.entries(chipsToParams(chips)).filter(([name]) => !owned.has(name));
 const panelId = `${id}-listbox`;
-const placeholder = chips.length === 0 ? 'Try "senior designer london remote 150k"' : '';
+// WITH A CHIP IN THE BOX THE FIELD STILL SAYS WHAT IT IS FOR (owner, 2026-10-02).
+// It used to go blank, and a blank band beside "United States" reads as a label,
+// not a field: choosing a place looked like it had taken the search box away. The
+// words name what the field still adds, since the chip has answered "where".
+const placeholder = chips.length === 0 ? 'Try "senior designer london remote 150k"' : 'Add a job title, company or skill';
 ---
 
 <div
