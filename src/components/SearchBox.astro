@@ -112,7 +112,13 @@ const placeholder = chips.length === 0 ? 'Try "senior designer london remote 150
   data-suggest-path={suggestPath}
   data-suggest-v={sweepV}
   data-suggest-params={JSON.stringify(baseParams)}
+  data-suggest-timeout=""
 >
+  {/* data-suggest-timeout is declared empty on purpose: empty means the
+      script's own TIMEOUT_MS, so the wait has one definition. The interaction
+      spec lowers it to prove a request that never answers still ends. Declared
+      here rather than only set by the test so the markup states every hook the
+      script reads (scripts/check-dom-contracts.mjs). */}
   <label class="search-glyph mono" for={id} aria-hidden="true">&#9906;</label>
   <div class="sb-field">
     {
