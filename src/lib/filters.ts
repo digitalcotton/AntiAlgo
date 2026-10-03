@@ -7,26 +7,31 @@
  *
  * PURE ON PURPOSE, THE SAME REASON entitlement.ts AND desk.ts ARE. This file
  * touches no database, no localStorage, no request. That is what lets a
- * selection be validated, and a suppressed set be computed, with no
- * connection string and no browser, which matters here specifically because
- * a connection string is the one thing a worker in this repository is not
- * allowed to open. The impure halves are src/lib/filters-store.ts (the
- * account-backed reads and writes db/009_account_filter_state.sql holds) and
- * the client script in src/components/Filters.astro (localStorage,
- * sessionStorage, fetch).
+ * suppressed set be computed, and what a browser's own storage hands back be
+ * read safely, with no connection string and no browser, which matters here
+ * specifically because a connection string is the one thing a worker in this
+ * repository is not allowed to open. The impure halves are
+ * src/lib/filters-store.ts (the account-backed reads and writes
+ * db/009_account_filter_state.sql holds) and the client script in
+ * src/components/Filters.astro (localStorage, sessionStorage, fetch).
  *
- * WHY THE SELECTION IS VALIDATED HERE AND NOT ENCODED AS A DATABASE
- * CONSTRAINT. See db/009_account_filter_state.sql's own comment on its
- * `selection` column: the vocabulary a filter value may take (which comp
- * bands exist, which freshness buckets exist) is derived from the sweep by
- * src/lib/data.ts's filterGroups(), not fixed in this repository the way
- * STM-0002's states are. Copying that vocabulary into a SQL CHECK constraint
- * would be a second copy of it, and the two would drift the day a band is
- * renamed in data.ts and not in a migration nobody remembered to write.
- * normalizeFilterSelection() below is the one place that vocabulary is
- * actually enforced, run against the live groups every time a selection is
+ * WHY THE SELECTION IS NOT ENCODED AS A DATABASE CONSTRAINT, AND WHERE IT IS
+ * VALIDATED INSTEAD. See db/009_account_filter_state.sql's own comment on its
+ * `selection` column: the vocabulary a filter value may take (which places,
+ * which arrangements, which pay floors) is the board address's own, read by
+ * src/lib/board-query.ts's parseBoardQuery(), not fixed in this repository the
+ * way STM-0002's states are. Copying that vocabulary into a SQL CHECK
+ * constraint would be a second copy of it, and the two would drift the day a
+ * value is renamed in the parser and not in a migration nobody remembered to
+ * write. normalizeSavedSelection() in src/lib/filters-store.ts is the one place
+ * that vocabulary is actually enforced, by building the address a selection
+ * stands for and reading it with parseBoardQuery(), every time a selection is
  * read from storage or written to it, so a stale or tampered value never
- * reaches the table a row hides behind, never a chat box's fuzzy guess.
+ * reaches the table a row hides behind, never a chat box's fuzzy guess. (A
+ * normalizeFilterSelection() once lived here and checked a value against the
+ * options filterGroups() offers. Nothing but its own tests called it, and a
+ * second definition of a legal value is the drift this paragraph is about, so
+ * it was removed on 2026-10-02.)
  *
  * DETERMINISTIC MEANS NO ROW EVER MOVES FOR A REASON THIS FILE INVENTS.
  * suppressApplied() below is a plain set membership test: a job is
@@ -34,12 +39,13 @@
  * ranked, nothing scored, nothing reordered. That is the whole of what
  * MASTER-SPEC F10 asks this half of the feature to be.
  */
-import type { FilterGroup, Job } from './data';
+import type { Job } from './data';
 
-/** One value per filter group, keyed by the group's own `key`. Never a score,
-    never free text: every value here is either 'all' or one of that group's
-    own `options[].value`, which normalizeFilterSelection() is what actually
-    enforces. */
+/** One value per control, keyed by the name the address gives it (`place`,
+    `remote`, `pay_min`; a selection read back from an old row may also carry
+    `freshness`, see filters-store.ts). Never a score, never free text: every
+    value here is either 'all' or one the board's address parsers accept, which
+    normalizeSavedSelection() in filters-store.ts is what actually enforces. */
 export type FilterSelection = Record<string, string>;
 
 /**
@@ -57,34 +63,6 @@ export const SEEN_DIMMER_STORAGE_KEY = 'ti-index-seen-dimmer:v1';
     default on". Named so the client script and any test asserting on the
     default read the same constant rather than a literal `true` typed twice. */
 export const DEFAULT_SEEN_DIMMER_ENABLED = true;
-
-/**
- * A selection, made safe. Every group filterGroups() currently offers gets an
- * entry; a group this call was not given (a stale key from a selection saved
- * before a group existed, or one saved after a group was retired, per
- * filterGroups()'s own dead-option pruning) is dropped rather than carried
- * forward as an orphan, and a value that is not 'all' and not one of that
- * group's own option values falls back to 'all' rather than being trusted.
- *
- * `raw` is `unknown` on purpose: it is what JSON.parse() on a browser's own
- * localStorage, or a request body this repository does not control the
- * shape of, actually hands back. A malformed value here is never a thrown
- * error and never a half-applied selection; it is silently the safest
- * reading of what a stranger's browser or a network hiccup left behind.
- */
-export function normalizeFilterSelection(raw: unknown, groups: readonly FilterGroup[]): FilterSelection {
-  const source: Record<string, unknown> =
-    raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-
-  const normalized: FilterSelection = {};
-  for (const group of groups) {
-    const candidate = source[group.key];
-    const isKnownValue =
-      typeof candidate === 'string' && group.options.some((option) => option.value === candidate);
-    normalized[group.key] = isKnownValue ? (candidate as string) : 'all';
-  }
-  return normalized;
-}
 
 /** True when every group in `selection` is set to 'all': the state a fresh
     visitor and a visitor who cleared every filter are both in, and the
@@ -144,7 +122,7 @@ export function suppressedSlugs(jobs: readonly Job[], appliedJobIds: ReadonlySet
  * thrown error a browser script would have to catch a second time. Returns
  * `unknown` rather than a narrowed type because the two callers (a filter
  * selection, an array of seen slugs) narrow it differently; see
- * normalizeFilterSelection() above and normalizeSeenSlugs() below.
+ * readSavedSelection() in filters-store.ts and normalizeSeenSlugs() below.
  */
 export function parseStoredJSON(raw: string | null | undefined): unknown {
   if (!raw) return null;

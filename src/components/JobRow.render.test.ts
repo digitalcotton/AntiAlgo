@@ -3,6 +3,7 @@ import { experimental_AstroContainer as AstroContainer } from 'astro/container';
 
 import JobRow from './JobRow.astro';
 import { locationShort, sourceLabel, sweepDate, sweptStamp, type Job } from '../lib/data';
+import type { RankFacts } from '../lib/rank-reason';
 
 /**
  * A render test for JobRow.astro's scoped verification label, MASTER-SPEC
@@ -55,7 +56,7 @@ function job(overrides: Partial<Job> = {}): Job {
   };
 }
 
-async function renderRow(props: { job: Job }): Promise<string> {
+async function renderRow(props: { job: Job; because?: RankFacts; fit?: boolean }): Promise<string> {
   const container = await AstroContainer.create();
   return container.renderToString(JobRow, { props });
 }
@@ -158,5 +159,110 @@ describe('JobRow.astro: the applied tag is always in the markup and off by defau
     // not produce a false pass.
     const openTag = html.match(/<li[^>]*data-job-row[^>]*>/)?.[0] ?? '';
     expect(openTag).not.toContain('data-applied');
+  });
+});
+
+/**
+ * THE RANKED-BECAUSE LINE. The first line of the why panel says which rule put
+ * the row where it is, from the facts the table hands the row. It is rendered on
+ * the server, inside the panel that is already in the markup, so it reads with
+ * scripting off (JobTable's noscript rule opens every panel).
+ */
+function because(over: Partial<RankFacts> = {}): RankFacts {
+  return {
+    position: 3,
+    sort: 'best',
+    tier: 1,
+    field: 'title',
+    fuzzy: false,
+    fuzzyScore: null,
+    query: 'product designer',
+    deets: 80,
+    ageDays: 22,
+    payStated: true,
+    ...over
+  };
+}
+
+/** The text of the rank line, with the entity Astro escapes a quote to turned back into the quote. */
+function rankLineOf(html: string): string | null {
+  const match = html.match(/<p[^>]*data-rank-reason[^>]*>([\s\S]*?)<\/p>/);
+  return match ? match[1].replace(/&quot;/g, '"').replace(/&#34;/g, '"') : null;
+}
+
+describe('JobRow.astro: the ranked-because line opens the why panel', () => {
+  it('a tier 1 row says every word is in the title, its true place, and what breaks a tie', async () => {
+    const html = await renderRow({ job: job(), because: because() });
+    expect(rankLineOf(html)).toBe(
+      'Ranked 3rd: every word you typed is in the title, then the closer text match, then Deets 80, then newer first.'
+    );
+  });
+
+  it('a close-spelling row says so, with the words as typed and the similarity', async () => {
+    const html = await renderRow({
+      job: job(),
+      because: because({ position: 2, tier: null, field: 'title', fuzzy: true, fuzzyScore: 0.52, query: 'prodct desiner' })
+    });
+    expect(rankLineOf(html)).toBe(
+      'Ranked 2nd: a close spelling of "prodct desiner" (similarity 0.52), then Deets 80, then newer first.'
+    );
+  });
+
+  it('a chosen sort is worded as that sort', async () => {
+    const html = await renderRow({ job: job(), because: because({ sort: 'fit', tier: null, field: null }) });
+    expect(rankLineOf(html)).toBe('Ranked 3rd by Deets: 80 of 100, highest first, then company and title A to Z.');
+  });
+
+  it('sits inside the why panel, ahead of the Deets breakdown, and the panel stays closed until opened', async () => {
+    const html = await renderRow({ job: job(), because: because() });
+    // The panel is in the markup with `hidden`, which is what the noscript rule
+    // opens. The line is its first child, so it is the first thing a reader sees
+    // and a screen reader reads on opening it.
+    expect(html).toMatch(/<div[^>]*data-why-panel[^>]*>\s*<p[^>]*data-rank-reason/);
+    expect(html).toMatch(/<div[^>]*hidden[^>]*data-why-panel|<div[^>]*data-why-panel[^>]*hidden/);
+    expect(html.indexOf('data-rank-reason')).toBeLessThan(html.indexOf('fit-bars'));
+    // And it is one line: one element, once.
+    expect(html.match(/data-rank-reason/g)).toHaveLength(1);
+  });
+
+  it('a row handed no facts renders no line and no empty element', async () => {
+    const html = await renderRow({ job: job() });
+    expect(html).not.toContain('data-rank-reason');
+    expect(html).not.toContain('rank-reason');
+    // The panel itself is untouched: the Deets breakdown is still there.
+    expect(html).toContain('data-why-panel');
+    expect(html).toContain('fit-bars');
+  });
+
+  it('facts that cannot be worded truthfully render no line either', async () => {
+    expect(await renderRow({ job: job(), because: because({ position: 0 }) })).not.toContain('rank-reason');
+    expect(await renderRow({ job: job(), because: because({ tier: 4 }) })).not.toContain('rank-reason');
+  });
+
+  it('a reader who does not see Deets gets no panel and so no line', async () => {
+    const html = await renderRow({ job: job(), because: because(), fit: false });
+    expect(html).not.toContain('data-why-panel');
+    expect(html).not.toContain('rank-reason');
+  });
+
+  it('carries no em dash, en dash or curly quote, with the line in', async () => {
+    const html = await renderRow({
+      job: job(),
+      because: because({ tier: null, fuzzy: true, fuzzyScore: 0.4, query: 'prodct desiner' })
+    });
+    expect(html).toContain('data-rank-reason');
+    const forbidden = [0x2014, 0x2013, 0x2018, 0x2019, 0x201c, 0x201d];
+    for (const codePoint of forbidden) {
+      expect(html.includes(String.fromCodePoint(codePoint))).toBe(false);
+    }
+  });
+
+  it('escapes what the reader typed rather than rendering it', async () => {
+    const html = await renderRow({
+      job: job(),
+      because: because({ tier: null, fuzzy: true, fuzzyScore: 0.4, query: '<script>alert(1)</script>' })
+    });
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).toContain('&lt;script&gt;');
   });
 });

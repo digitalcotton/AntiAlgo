@@ -2,13 +2,23 @@
  * backfill-derived.mjs: fill db/207's derived columns on rows that were written
  * before the column existed.
  *
- * WHY IT IS NEEDED AT ALL, GIVEN THE INGEST TRUNCATES. scripts/ingest-jobs.mjs
- * replaces the jobs table whole on every crawl and now writes these columns
- * itself, so the next crawl would fill them anyway. But "the next crawl" is up
- * to a day away, and until then every row reads derived_region 'Unknown',
- * derived_friction 'easy' and priced false, which is the column defaults
- * masquerading as measurements. This runs the same definition over the rows
- * already on file so the two halves agree immediately.
+ * WHY IT IS NEEDED AT ALL, GIVEN THE INGEST REPLACES THE BOARD.
+ * scripts/ingest-jobs.mjs replaces the jobs table whole on every crawl and now
+ * writes these columns itself, so the next crawl would fill them anyway. But
+ * "the next crawl" is up to a day away, and until then every row reads
+ * derived_region 'Unknown', derived_friction 'easy' and priced false, which is
+ * the column defaults masquerading as measurements. This runs the same
+ * definition over the rows already on file so the two halves agree immediately.
+ *
+ * IT ALSO FILLS db/220's place_country, place_admin1, place_city and place_label,
+ * and db/222's place_keys and place_leaves (every place a posting lists) and
+ * db/223's place_countries (the countries among them), and it is the only thing
+ * that will for rows already on file: the ingest writes them on the next crawl,
+ * but "the next crawl" is up to a day away. db/222 and db/223 do not fill their
+ * columns themselves, so until this has run every row reads '{}' and '', which the
+ * board reads as "Not stated". Run with --all after db/222 or db/223 lands, and
+ * after a change to placeOf(), placesOf() or src/data/place-cities.json, for the
+ * same reason as any other rule change here.
  *
  * ONE DEFINITION. It imports src/lib/jobs-derived.mjs, the same module the
  * ingest calls. It does not restate a single rule in SQL. That is the whole
@@ -34,7 +44,16 @@ const arg = (name, fallback) => {
   const i = process.argv.indexOf(name);
   return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 };
-const PAGE = Math.max(100, Number(arg('--page', '2000')) || 2000);
+// Values bound per row: the id, nine derived columns (db/207, db/212), the
+// four place columns (db/220), the two place arrays (db/222) and the country
+// string (db/223). The placeholders are generated from this so a column added
+// later cannot leave the VALUES list one short, and the page size is held under
+// Postgres's 65,535 bound parameters per statement.
+const PER_ROW = 17;
+const PAGE = Math.min(
+  Math.floor(65535 / PER_ROW),
+  Math.max(100, Number(arg('--page', '2000')) || 2000)
+);
 
 const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 if (!url) {
@@ -70,13 +89,19 @@ for (;;) {
   const params = [];
   rows.forEach((r, i) => {
     const d = derivedFor(r);
-    const b = i * 10;
-    holes.push(
-      `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10})`
-    );
+    const b = i * PER_ROW;
+    holes.push(`(${Array.from({ length: PER_ROW }, (_, k) => `$${b + k + 1}`).join(',')})`);
     params.push(
       r.id, d.derived_tier, d.derived_fam, d.derived_fam_source, d.derived_region, d.derived_friction,
-      d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k
+      d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k,
+      // db/220: where the posting is. Null is written as null (the ::text cast
+      // below keeps a VALUES list of nulls from being typed as unknown).
+      d.place_country, d.place_admin1, d.place_city, d.place_label,
+      // db/222: every place it lists. A JS array goes out as a Postgres array
+      // literal, so the ::text[] cast below reads it back; [] is '{}'.
+      d.place_keys, d.place_leaves,
+      // db/223: the countries among them, one string ('' for none, never null).
+      d.place_countries
     );
   });
 
@@ -94,10 +119,19 @@ for (;;) {
        priced           = v.priced::boolean,
        comp_min_k       = v.comp_min_k::integer,
        comp_max_k       = v.comp_max_k::integer,
-       comp_mid_k       = v.comp_mid_k::integer
+       comp_mid_k       = v.comp_mid_k::integer,
+       place_country    = v.place_country::text,
+       place_admin1     = v.place_admin1::text,
+       place_city       = v.place_city::text,
+       place_label      = v.place_label::text,
+       place_keys       = v.place_keys::text[],
+       place_leaves     = v.place_leaves::text[],
+       place_countries  = v.place_countries::text
      FROM (VALUES ${holes.join(',')}) AS v(id, derived_tier, derived_fam, derived_fam_source,
                                            derived_region, derived_friction, priced, comp_min_k,
-                                           comp_max_k, comp_mid_k)
+                                           comp_max_k, comp_mid_k, place_country, place_admin1,
+                                           place_city, place_label, place_keys, place_leaves,
+                                           place_countries)
      WHERE j.id = v.id
        AND (j.derived_tier     IS DISTINCT FROM v.derived_tier::text
          OR j.derived_fam      IS DISTINCT FROM v.derived_fam::text
@@ -107,7 +141,14 @@ for (;;) {
          OR j.priced           IS DISTINCT FROM v.priced::boolean
          OR j.comp_min_k       IS DISTINCT FROM v.comp_min_k::integer
          OR j.comp_max_k       IS DISTINCT FROM v.comp_max_k::integer
-         OR j.comp_mid_k       IS DISTINCT FROM v.comp_mid_k::integer)`,
+         OR j.comp_mid_k       IS DISTINCT FROM v.comp_mid_k::integer
+         OR j.place_country    IS DISTINCT FROM v.place_country::text
+         OR j.place_admin1     IS DISTINCT FROM v.place_admin1::text
+         OR j.place_city       IS DISTINCT FROM v.place_city::text
+         OR j.place_label      IS DISTINCT FROM v.place_label::text
+         OR j.place_keys       IS DISTINCT FROM v.place_keys::text[]
+         OR j.place_leaves     IS DISTINCT FROM v.place_leaves::text[]
+         OR j.place_countries  IS DISTINCT FROM v.place_countries::text)`,
     params
   );
   changed += res.rowCount || 0;
@@ -157,7 +198,11 @@ const { rows: check } = await client.query(`
          count(derived_fam)::int AS with_fam,
          count(*) FILTER (WHERE priced)::int AS priced,
          count(*) FILTER (WHERE derived_friction = 'hard')::int AS hard,
-         count(*) FILTER (WHERE derived_region <> 'Unknown')::int AS placed
+         count(*) FILTER (WHERE derived_region <> 'Unknown')::int AS placed,
+         count(place_country)::int AS with_country,
+         count(place_city)::int AS with_city,
+         count(*) FILTER (WHERE cardinality(place_keys) > 0)::int AS with_keys,
+         count(*) FILTER (WHERE cardinality(place_leaves) > 1)::int AS with_several
     FROM jobs WHERE status <> 'killed'`);
 // An applicant system nobody has checked reads 'easy' by default, which is a
 // default and not a measurement. Name it, so a new adapter's first night is a
@@ -175,7 +220,10 @@ console.log(
   `  department read  ${c.with_fam}\n` +
   `  range printed    ${c.priced}\n` +
   `  account to apply ${c.hard}\n` +
-  `  region placed    ${c.placed}` +
+  `  region placed    ${c.placed}\n` +
+  `  place country    ${c.with_country}\n` +
+  `  place city       ${c.with_city}\n` +
+  `  places listed    ${c.with_keys} (${c.with_several} list several)` +
   (unchecked.length
     ? `\n  NOT CHECKED, reading 'easy' by default: ` +
       unchecked.map((s) => `${s.ats} (${s.n})`).join(', ') +

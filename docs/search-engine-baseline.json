@@ -1,0 +1,43 @@
+{
+    "taken_at": "2026-10-02T07:34:46.81393-04:00",
+    "live_rows": 37286,
+    "rows_with_country": 15023,
+    "derived_region": {
+        "APAC": 233,
+        "EU": 942,
+        "LATAM": 50,
+        "UK": 406,
+        "Unknown": 21061,
+        "US Central": 683,
+        "US East": 1653,
+        "US West": 12258
+    },
+    "non_us_country_in_us_region": 979,
+    "derived_fam": {
+        "data-ai": 697,
+        "health": 4799,
+        "sales": 3640,
+        "(null)": 2648,
+        "hospitality": 1786,
+        "software": 5448,
+        "product": 796,
+        "manufacturing": 426,
+        "admin": 1895,
+        "customer": 1063,
+        "design": 311,
+        "operations": 2939,
+        "social-care": 837,
+        "public-safety": 521,
+        "security": 507,
+        "trades": 1785,
+        "finance": 1645,
+        "science": 365,
+        "people": 700,
+        "education": 738,
+        "legal": 725,
+        "it-infra": 2109,
+        "marketing": 906
+    },
+    "distinct_titles": 26717,
+    "distinct_locations": 7640
+}

@@ -32,7 +32,8 @@
  */
 
 import { FAMILIES } from './job-family.mjs';
-import { SENIORITY_LADDER } from './jobs-derived.mjs';
+import { SENIORITY_LADDER, countryName } from './jobs-derived.mjs';
+import { PLACE_UNSTATED, parsePlaceKey, placeKeyLabel } from './place-key';
 import rawJobs from '../data/jobs.json';
 import rawProspects from '../data/prospects.json';
 import rawKills from '../data/kills.json';
@@ -1822,10 +1823,11 @@ export type SortKey = 'fit' | 'comp' | 'age';
  * (compShortFromText) matches "$150,000" and prints a range; this pattern
  * used to require a literal "k" and no comma, so that same row sorted as if
  * it stated no pay at all. Written once here and consumed two ways:
- * compTop() below builds a JS RegExp from it, and job-store.ts's
- * BOARD_FACET_CTE interpolates the raw string into the SQL text it hands to
- * Postgres' regexp_matches(). THE TWO CONSUMERS MUST BE CHANGED TOGETHER —
- * see the matching comment on comp_top in job-store.ts.
+ * compTop() below builds a JS RegExp from it, and job-store.ts's compTopSql(),
+ * which boardFacetCte() builds its comp_top column with, interpolates the raw
+ * string into the SQL text it hands to Postgres' regexp_matches(). THE TWO
+ * CONSUMERS MUST BE CHANGED TOGETHER — see the matching comment on comp_top in
+ * job-store.ts.
  *
  * Group 1 is the digits, comma grouping intact ("150,000" or "150" or
  * "150.5"). Group 2 is a trailing "k"/"K" if present, else unmatched (NULL
@@ -2163,12 +2165,23 @@ export interface FilterOption {
   label: string;
   /** How many rows this option would leave. Shown, so a dead filter looks dead. */
   count: number;
+  /** Never selectable, whatever its count. Drawn, with its count, so the absence
+      is on the page; distinct from a zero, which is dead because choosing it
+      would empty the table (and is live again if the address already names it). */
+  disabled?: boolean;
 }
 
 export interface FilterGroup {
   key: string;
   label: string;
   options: FilterOption[];
+  /** Several options may be on at once, drawn as checkboxes (the Remote control).
+      The group's `all` option is then the row that clears the choice, not a box. */
+  multi?: boolean;
+  /** Where the group is drawn: the strip (the default), or as navigation under
+      the results (the occupational families, a classification of the title and
+      not something an employer stated). */
+  placement?: 'strip' | 'results';
 }
 
 /**
@@ -2300,93 +2313,218 @@ export function facetsOf(job: Job): JobFacets {
 }
 
 /**
- * The filter groups, derived from the rows themselves.
- *
- * THE CANVAS'S FOURTH GROUP EXISTS NOW. This said "the data carries no role
- * family", and that deriving one by reading job titles would mean inventing a
- * classification and presenting it as the machine's finding. The objection was
- * right and it was answered rather than ignored: src/lib/job-family.mjs is a
- * table of word tests a reader can check, not a model, and db/212 stores its
- * verdict in derived_fam beside the department it was read from. The SQL board
- * offers it as Field (facetGroupsFromCounts). This static path still has three
- * groups, because the design fixture it draws has no classifier behind it.
- *
- * Every option label describes exactly what the field holds. "Remote" means
- * the employer said remote — in the location text, or in the applicant
- * system's own flag, which is a different statement and not a competing guess
- * (see workplaceOf). Hybrid and Not stated are their own answers rather than
- * being folded into On-site.
+ * The counts the strip's controls read: the part of job-store.ts FacetCounts this
+ * file needs, restated as structure so data.ts does not import the store (which
+ * imports this file). `location`, `comp` and `freshness` are the OLD three and
+ * stay required, because the Pre-List (prospect-board.ts) counts exactly those
+ * and nothing else; `place`, `remote` and `pay` are the stated-facts counts, and
+ * their presence is what says "this is the board". See facetGroupsFromCounts.
  */
+export interface StripCounts {
+  total?: number;
+  location: Record<string, number>;
+  comp: Record<string, number>;
+  freshness: Record<string, number>;
+  /** Keyed by family id, plus 'all' and 'unplaced'. Optional so a caller built
+      before db/212 still type-checks and simply gets no field links. */
+  family?: Record<string, number>;
+  /** The arrangement counts under their own name; `location` is the same five
+      numbers and is read when this is absent. */
+  remote?: Record<string, number>;
+  /** `floors` is cumulative and keyed by the floor in thousands. */
+  pay?: { any: number; notListed: number; floors: Record<string, number> };
+  /** `all` is what the board shows with no place chosen (the Worldwide option's
+      number). Optional so a caller that cannot count it falls back to the sum of
+      the rest, which is only right while no posting lists two countries. */
+  place?: { countries: Record<string, number>; notStated: number; all?: number };
+}
+
+/** What the address has chosen, as far as the strip needs to know. `location`,
+    `comp` and `freshness` are the old three (the Pre-List's), the rest the
+    stated facts. BoardQuery satisfies all of it, so a page can hand its query
+    straight in. */
+export interface StripSelection {
+  location: string;
+  comp: string;
+  freshness: string;
+  fam?: string;
+  place?: string | null;
+  remote?: readonly string[];
+  payMin?: number | null;
+  compNotListed?: boolean;
+}
+
 /**
- * The same three groups, built from counts the store computed in SQL over the
- * filtered set (job-store.ts listBoardFiltered), for the server-paged board
- * where the rows on the page are not the population. Same labels, same
- * pruning as filterGroups(): an empty comp band is not offered, a group whose
- * every row falls in one option is a label and not a filter. One addition: the
- * option the address currently names is never dropped, so a select can always
- * show what the URL says even when it would leave nothing.
+ * The strip's groups, built from counts the store computed in SQL over the
+ * filtered set (job-store.ts listBoardFiltered), for the server-paged board where
+ * the rows on the page are not the population.
+ *
+ * THE BOARD'S STRIP IS THREE CONTROLS, IN THIS ORDER (docs/search-engine-design.md
+ * §2, docs/board-filters-design-prompt.md §4):
+ *
+ *   place     LOCATION, geography: Worldwide, then every country the live board
+ *             holds, most rows first and the ones the other filters leave empty
+ *             last at zero, then Not stated (`place=unstated`, the rows whose
+ *             country the board could not resolve). A single choice; its value is the
+ *             `place=` key, which is the same key a search-box chip writes, so
+ *             the control and the chip are ONE state. When the address names a
+ *             city or a region (a chip set it) the list still offers countries
+ *             and the control reads the place's own name.
+ *   remote    REMOTE, how the work is done: Remote, Hybrid, On-site, Not stated.
+ *             Several at once (`multi`), each with the count that arrangement
+ *             alone would leave.
+ *   pay_min   COMP, a floor: Any, $100k+ ... $300k+, Not listed. The floors are
+ *             the ones the store counted (`pay.floors`'s keys), so the strip
+ *             draws exactly the list the counts were taken for.
+ *
+ * THE COUNTS CONTRACT (docs/board-filters-design-prompt.md §5), which is why
+ * nothing here is ever dropped. Every count answers "how many rows would remain
+ * if I chose this, every other filter as it is" (the store takes it leave-one-out
+ * over ONE population), and an option that would leave nothing is returned at
+ * zero for the strip to draw muted and refuse. Removing options as they empty
+ * costs a reader their place; the old pruning ("a group whose every row falls in
+ * one option is a label and not a filter") is gone with it. A country the board
+ * holds is in the Location list whatever the other filters have left it: the
+ * store returns every one, at zero where it has to, and Filters.astro draws a zero
+ * muted and refused unless it is the choice already made. `disabled` on a
+ * FilterOption is still the way to say an option nothing can be asked of whatever
+ * its count; no option sets it today.
+ *
+ * THE FIELD IS NOT A STRIP CONTROL. It filtered on an inference (44% of rows are
+ * ambiguous between two families), so it left the strip and returns, as the last
+ * group, under `placement: 'results'`. Board.astro drew it as links beneath the
+ * table until 2026-10-02, when the owner removed them; nothing draws it now. It
+ * rides in this list because this list is the one thing a page hands the board.
+ *
+ * COUNTS WITH NONE OF THE NEW FIELDS ARE THE PRE-LIST'S (prospect-board.ts), and
+ * get the old three-select reading, pruned as it always was: every prospect is
+ * 'unknown' location, 'not-listed' comp and 'unknown' freshness, so a Remote
+ * control over them would be four zeros and a dead control.
  */
-export function facetGroupsFromCounts(
-  counts: {
-    location: Record<string, number>;
-    comp: Record<string, number>;
-    freshness: Record<string, number>;
-    /** Keyed by family id, plus 'all' and 'unplaced'. Optional so a caller
-        built before db/212 still type-checks and simply gets no Field group. */
-    family?: Record<string, number>;
-  },
-  selected: { location: string; comp: string; freshness: string; fam?: string }
-): FilterGroup[] {
+export function facetGroupsFromCounts(counts: StripCounts, selected: StripSelection): FilterGroup[] {
+  const groups: FilterGroup[] =
+    counts.place || counts.remote || counts.pay
+      ? [
+          ...(counts.place ? [placeGroup(counts.place, counts.total ?? 0, selected)] : []),
+          remoteGroup(counts.remote ?? counts.location),
+          ...(counts.pay ? [payGroup(counts.pay, counts.total ?? 0, selected)] : [])
+        ]
+      : prospectGroups(counts, selected);
+  if (counts.family) groups.push(fieldGroup(counts.family));
+  return groups;
+}
+
+/** LOCATION. See facetGroupsFromCounts. */
+function placeGroup(place: NonNullable<StripCounts['place']>, total: number, selected: StripSelection): FilterGroup {
+  const countries = Object.entries(place.countries)
+    .map(([code, count]) => ({ code, count, name: (countryName(code) as string | null) ?? code }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  // Worldwide is what the board would show with no place chosen. The store counts
+  // it over the same population (place.all), because a posting that lists two
+  // countries is under both of them: the countries and Not stated added up would
+  // count it twice, and Worldwide would print more than the board returns.
+  const everywhere = place.all ?? countries.reduce((sum, country) => sum + country.count, 0) + place.notStated;
+  const options: FilterOption[] = [{ value: 'all', label: 'Worldwide', count: everywhere }];
+
+  // THE PLACE THE ADDRESS HAS CHOSEN, WHEN THE LIST BELOW CANNOT SHOW IT: a city
+  // or a region (a search-box chip sets those), or a country the board does not
+  // hold at all (a stale bookmark: the store lists every country it does, at zero
+  // where the filters leave none). Without an option for it the select could not
+  // say what it holds. A city's count is the result total, since the place is
+  // applied there; a country with no rows is zero.
+  const chosen = selected.place ?? null;
+  const parts = chosen === null ? null : parsePlaceKey(chosen);
+  if (chosen !== null && parts !== null) {
+    const nested = parts.admin1 !== null || parts.city !== null;
+    if (nested || place.countries[parts.country] === undefined) {
+      options.push({ value: chosen, label: placeKeyLabel(chosen), count: nested ? total : 0 });
+    }
+  }
+
+  for (const country of countries) options.push({ value: country.code, label: country.name, count: country.count });
+  // Drawn last and never hidden: 6,602 of 37,286 live rows are in it (2026-10-02),
+  // and an absence is shown, not left out. It is a real choice (`place=unstated`,
+  // the rows that list no place), so it is live while it has rows and a muted
+  // zero when the other filters leave it none, like every country above it.
+  options.push({ value: PLACE_UNSTATED, label: 'Not stated', count: place.notStated });
+  return { key: 'place', label: 'Location', options };
+}
+
+/** REMOTE. See facetGroupsFromCounts. The `all` row clears the choice. */
+function remoteGroup(remote: Record<string, number>): FilterGroup {
+  return {
+    key: 'remote',
+    label: 'Remote',
+    multi: true,
+    options: [
+      { value: 'all', label: 'All', count: remote.all ?? 0 },
+      { value: 'remote', label: 'Remote', count: remote.remote ?? 0 },
+      { value: 'hybrid', label: 'Hybrid', count: remote.hybrid ?? 0 },
+      { value: 'onsite', label: 'On-site', count: remote.onsite ?? 0 },
+      { value: 'unstated', label: 'Not stated', count: remote.unstated ?? 0 }
+    ]
+  };
+}
+
+/** COMP. See facetGroupsFromCounts. The value is the floor in thousands. */
+function payGroup(pay: NonNullable<StripCounts['pay']>, total: number, selected: StripSelection): FilterGroup {
+  const floors = Object.keys(pay.floors)
+    .map(Number)
+    .filter((k) => Number.isFinite(k) && k > 0)
+    .sort((a, b) => a - b);
+  const floorOption = (k: number, count: number): FilterOption => ({ value: String(k), label: `$${k}k+`, count });
+  const options: FilterOption[] = floors.map((k) => floorOption(k, pay.floors[String(k)] ?? 0));
+  // A floor the box set that is not one of these (a typed "175k"): the select has
+  // to hold it to say what the address says. Its count is the result total.
+  const chosen = selected.compNotListed || selected.comp === 'not-listed' ? null : (selected.payMin ?? null);
+  if (chosen !== null && chosen > 0 && !floors.includes(chosen)) {
+    options.push(floorOption(chosen, total));
+    options.sort((a, b) => Number(a.value) - Number(b.value));
+  }
+  return {
+    key: 'pay_min',
+    label: 'Comp',
+    options: [
+      { value: 'all', label: 'Any', count: pay.any },
+      ...options,
+      { value: 'not-listed', label: 'Not listed', count: pay.notListed }
+    ]
+  };
+}
+
+/** The occupational families, as the navigation under the results. Sorted by
+    count: a reader scanning for their own field finds it faster where the board
+    is deepest. Not placed sorts with the rest; its size is the reason to keep it. */
+function fieldGroup(family: Record<string, number>): FilterGroup {
+  return {
+    key: 'fam',
+    label: 'Field',
+    placement: 'results',
+    options: [
+      { value: 'all', label: 'All fields', count: family.all ?? 0 },
+      ...[
+        ...FAMILIES.map((f) => ({ value: f.id, label: f.label, count: family[f.id] ?? 0 })),
+        { value: 'unplaced', label: 'Not placed', count: family.unplaced ?? 0 }
+      ].sort((a, b) => b.count - a.count)
+    ]
+  };
+}
+
+/** The old arrangement and pay-band selects, for counts that have no stated
+    facts (the Pre-List). Pruned exactly as they always were. */
+function prospectGroups(counts: StripCounts, selected: StripSelection): FilterGroup[] {
   const keep = (group: FilterGroup, current: string): FilterGroup => ({
     ...group,
     options: group.options.filter((o) => o.count > 0 || o.value === 'all' || o.value === current || o.value === 'not-listed')
   });
-  // The occupational family (src/lib/job-family.mjs, db/212). The group's key
-  // IS the query parameter the select submits, so it is 'fam' rather than
-  // 'family'.
-  //
-  // ONE FAMILY AT A TIME IN THE UI, SEVERAL IN THE ADDRESS. The select is a
-  // single choice because that is the interaction this strip already has, and a
-  // second interaction pattern for one filter is not worth the surface. The
-  // parameter is repeatable and the SQL takes an array, so `?fam=design&fam=product`
-  // works for anyone who writes it, and a multi-select can be added later
-  // without touching the query or the store.
-  //
-  // Options are sorted by count, not alphabetically: a reader scanning for
-  // their own field finds it faster where the board is deepest, and a family
-  // with no live rows is dropped by keep() below anyway.
-  const familyCounts = counts.family ?? {};
-  const familyGroup: FilterGroup = {
-    key: 'fam',
-    label: 'Field',
-    options: [
-      { value: 'all', label: 'All fields', count: familyCounts.all ?? 0 },
-      // NOT PLACED SORTS WITH THE REST (2026-09-28). It is never hidden — 12.3%
-      // of the board carries no family, and a filter that silently swallowed an
-      // eighth of the sweep would be the pre-filtering this product is named for
-      // refusing — but it used to be PINNED last, under every family however
-      // small. On a list whose whole promise is "sorted by count", that read as
-      // a broken number: under Location=Remote the options ran 287, 281, 101,
-      // 94 … 3, 2, and then jumped to 140 at the bottom. Its size is the reason
-      // to keep it, so its size is where it goes.
-      ...[
-        ...FAMILIES.map((f) => ({ value: f.id, label: f.label, count: familyCounts[f.id] ?? 0 })),
-        { value: 'unplaced', label: 'Not placed', count: familyCounts.unplaced ?? 0 }
-      ].sort((a, b) => b.count - a.count)
-    ]
-  };
-
   const groups: FilterGroup[] = [
-    ...(counts.family ? [keep(familyGroup, selected.fam ?? 'all')] : []),
     keep(
       {
         key: 'location',
-        label: 'Location',
+        label: 'Remote',
         // FOUR ANSWERS, NOT TWO (2026-09-28). "On-site or hybrid" was one cell
-        // holding three different facts — an office, a split week, and a
-        // posting that named no place at all — because facet_location folded
-        // hybrid into onsite and swept every unstated row in after it. Each is
-        // now its own option, and keep() below drops any that no row carries.
+        // holding three different facts: an office, a split week, and a posting
+        // that named no place at all. Each is its own option.
         options: [
           { value: 'all', label: 'All', count: counts.location.all ?? 0 },
           { value: 'remote', label: 'Remote', count: counts.location.remote ?? 0 },
@@ -2408,37 +2546,34 @@ export function facetGroupsFromCounts(
         ]
       },
       selected.comp
-    ),
-    // FRESHNESS IS NOT OFFERED (owner, 2026-09-28). The board already says a
-    // posting's age three other ways: the age strip across the top, the Age
-    // column on every row, and 15 of the 100 points in Deets. A fourth reading
-    // of one fact, as a dropdown whose options routinely carry identical
-    // counts, was a choice that was not a choice.
-    //
-    // The `freshness` query parameter still narrows, so an old bookmark keeps
-    // working; it simply has no control. If it is ever offered again it goes
-    // back here, and the counts are still computed for it.
+    )
+    // Freshness is counted but not offered (owner, 2026-09-28): the age strip, the
+    // Age column and Deets already say a posting's age.
   ];
-  // KEYED, NOT POSITIONAL. This read `[selected.location, selected.comp,
-  // selected.freshness][i]`, which was correct only while those three were the
-  // whole list in that order. The Field group was added ahead of them on
-  // 2026-09-27 and every index silently shifted by one, so a group was kept or
-  // dropped on the strength of a different group's selection. An index into a
-  // parallel array is a second copy of the group order; reading the group's own
-  // key cannot drift from it.
-  const chosen: Record<string, string | undefined> = {
-    fam: selected.fam,
-    location: selected.location,
-    comp: selected.comp,
-    freshness: selected.freshness
-  };
-  return groups.filter(
-    (group) =>
-      group.options.filter((o) => o.count > 0).length > 1 ||
-      (chosen[group.key] ?? 'all') !== 'all'
-  );
+  // KEYED, NOT POSITIONAL: a group is kept on the strength of its OWN selection.
+  const chosen: Record<string, string | undefined> = { location: selected.location, comp: selected.comp };
+  return groups.filter((group) => group.options.filter((o) => o.count > 0).length > 1 || (chosen[group.key] ?? 'all') !== 'all');
 }
 
+/**
+ * The filter groups, derived from the rows themselves.
+ *
+ * THE CANVAS'S FOURTH GROUP EXISTS NOW. This said "the data carries no role
+ * family", and that deriving one by reading job titles would mean inventing a
+ * classification and presenting it as the machine's finding. The objection was
+ * right and it was answered rather than ignored: src/lib/job-family.mjs is a
+ * table of word tests a reader can check, not a model, and db/212 stores its
+ * verdict in derived_fam beside the department it was read from. The SQL board
+ * offers it as navigation under the results, not as a strip control
+ * (facetGroupsFromCounts). This static path still has three groups, because the
+ * design fixture it draws has no classifier behind it.
+ *
+ * Every option label describes exactly what the field holds. "Remote" means
+ * the employer said remote — in the location text, or in the applicant
+ * system's own flag, which is a different statement and not a competing guess
+ * (see workplaceOf). Hybrid and Not stated are their own answers rather than
+ * being folded into On-site.
+ */
 export function filterGroups(jobs: readonly Job[]): FilterGroup[] {
   const facets = jobs.map(facetsOf);
   const count = (predicate: (facet: JobFacets) => boolean): number => facets.filter(predicate).length;
@@ -2456,7 +2591,9 @@ export function filterGroups(jobs: readonly Job[]): FilterGroup[] {
   return [
     {
       key: 'location',
-      label: 'Location',
+      // Remote, not Location (owner, 2026-10-02): the control filters how the
+      // work is done, and "Location" is the name of the geography control.
+      label: 'Remote',
       options: [
         // The same four answers the SQL board offers (facetGroupsFromCounts),
         // so a reader moving between the two boards meets one vocabulary. An

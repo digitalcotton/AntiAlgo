@@ -11,8 +11,10 @@
  * database, that cost a few seconds. Two things changed it: the board now
  * carries the whole crawl, about seven times the rows, and the load may be run
  * from the Mac mini over a home connection rather than from the build.
- * Sequential round trips multiply against both, and the TRUNCATE is held for
- * all of them, so minutes of lock instead of seconds.
+ * Sequential round trips multiply against both, and the replace's table lock is
+ * held for all of them, so minutes of lock instead of seconds. (Until
+ * 2026-10-02 that lock shut readers out as well. It now shuts out only other
+ * writers, see scripts/ingest-jobs.mjs, but it is still held for the whole load.)
  *
  * The rows of a batch now go in one statement. Same columns, same
  * ON CONFLICT (id) DO UPDATE, same transaction. The SET clause reads from
@@ -28,7 +30,7 @@
  */
 
 /** Columns bound per row. Must match values() in scripts/ingest-jobs.mjs. */
-export const COLUMNS_PER_ROW = 34;
+export const COLUMNS_PER_ROW = 41;
 
 /** Postgres refuses a statement carrying more bound parameters than this. */
 export const MAX_PARAMETERS = 65535;
@@ -44,6 +46,8 @@ const HEAD = `
                     comp_range, description, pipeline,
                     derived_tier, derived_fam, derived_fam_source, derived_region, derived_friction,
                     priced, comp_min_k, comp_max_k, comp_mid_k,
+                    place_country, place_admin1, place_city, place_label,
+                    place_keys, place_leaves, place_countries,
                     status, kill_id, ingested_at)
   VALUES `;
 
@@ -67,10 +71,14 @@ const TAIL = `
     derived_region=EXCLUDED.derived_region, derived_friction=EXCLUDED.derived_friction,
     priced=EXCLUDED.priced, comp_min_k=EXCLUDED.comp_min_k,
     comp_max_k=EXCLUDED.comp_max_k, comp_mid_k=EXCLUDED.comp_mid_k,
+    place_country=EXCLUDED.place_country, place_admin1=EXCLUDED.place_admin1,
+    place_city=EXCLUDED.place_city, place_label=EXCLUDED.place_label,
+    place_keys=EXCLUDED.place_keys, place_leaves=EXCLUDED.place_leaves,
+    place_countries=EXCLUDED.place_countries,
     status='live', kill_id=NULL, ingested_at=now()`;
 
 /**
- * The INSERT for exactly n rows: n runs of 22 placeholders, then the conflict
+ * The INSERT for exactly n rows: n runs of COLUMNS_PER_ROW placeholders, then the conflict
  * clause. Refuses a count that Postgres would reject, before anything is sent,
  * so a raised --batch fails at the first statement rather than halfway through
  * a night's load.

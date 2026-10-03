@@ -10,17 +10,34 @@ import Pagination from './Pagination.astro';
 import SortControl from './SortControl.astro';
 import StatTiles from './StatTiles.astro';
 import { ageHistogramFromJobs, clusterJobs, filterGroups, paginate, SORT_KEYS, type AgeHistogram, type FilterGroup, type Job, type SortKey } from '../lib/data';
-import { PER_PAGE_OPTIONS, boardHref, hiddenFields, pageSpan, type BoardQuery } from '../lib/board-query';
+import { PER_PAGE_OPTIONS, boardHref, hiddenFields, pageSpan, stripValues, type BoardQuery, type BoardSort } from '../lib/board-query';
+import { orderReason } from '../lib/rank-reason';
+import type { Chip } from '../lib/search-parse';
 
 /**
  * The board, the one component both tabs render through.
  *
- * WHY 'families' IS IN THE FILTER FORM'S SKIP LIST. The Field select submits
- * `fam=` itself, so carrying it as a hidden field too writes the parameter
- * twice (`?fam=health&q=&fam=health`). parseFamilies dedupes, so nothing
- * breaks — but a duplicated parameter in an address people share is the kind of
- * thing that gets copied into a bug report. Every filter the strip OWNS is
- * skipped for the same reason; families joined that list on 2026-09-27.
+ * WHAT THE STRIP OWNS, AND WHAT IT CARRIES. Every filter a strip control submits
+ * itself is left out of the form's hidden fields, so a parameter is never written
+ * twice (`?remote=remote&q=&remote=remote`): Location (`place`), Remote
+ * (`remote`) and Comp (`pay_min` / `comp`). `fam=` is NOT on that list any more.
+ * The Field select left the strip (2026-10-02), so nothing in the form submits it
+ * and it is carried, or choosing a Remote option would silently drop the field
+ * the reader had picked from the links under the table.
+ *
+ * ABOVE THE ROWS, UP TO TWO LINES. When a search fell back to close spellings, a
+ * line says so, so a near match is never mistaken for a match. And a reader who has
+ * no why panel on the rows (no Deets column: a signed-out reader while fit_public
+ * is dark) gets ONE line that states the order in force ("Ordered by best match:
+ * ..."), worded by rank-reason.ts orderReason() from the same rules and the same
+ * ORDER BY the per-row sentence follows. A reader who has the panel keeps the
+ * per-row sentence and gets no second statement of it: the line is for the reader
+ * who would otherwise be told nothing, and an order nobody can read is the thing
+ * this product exists to refuse.
+ *
+ * NOTHING UNDER THE TABLE (owner, 2026-10-02). "Fields these roles are filed
+ * under", the top families as `fam=<id>` links, was removed. An address that
+ * carries `fam=` still narrows the board, and Clear the filters still clears it.
  *
  * The index and the Pre-List are the same surface with different populations:
  * the Board tab lists postings, the Newly funded tab lists companies scored
@@ -47,8 +64,21 @@ interface Props {
   page?: { total: number; page: number; pages: number; per: number };
   /** Server mode: the address's own settings (src/lib/board-query.ts). */
   query?: BoardQuery;
-  /** Server mode: the groups with counts the store computed over the set. */
+  /** Server mode: the groups with counts the store computed over the set. The
+      strip draws the ones placed in it; the Field (placement 'results') is drawn
+      here, under the table, as links. */
   groups?: FilterGroup[];
+  /** Server mode: the search came back by close spelling, not by exact words. */
+  fuzzy?: boolean;
+  /** Server mode: the facts the search box has turned into chips, the address
+      that removes each (parallel arrays), and what its suggestions need
+      (Filters.astro passes them to SearchBox.astro). All optional: a page that
+      has not wired the box yet gets the box without chips. */
+  chips?: Chip[];
+  chipRemoveHrefs?: string[];
+  suggestPath?: string;
+  sweepV?: string;
+  baseParams?: Record<string, string>;
   /** Server mode: the age distribution over the whole set, from the store's
       GROUP BY (never one page's rows). Client mode builds it from `jobs`. */
   ageHistogram?: AgeHistogram | Promise<AgeHistogram>;
@@ -99,6 +129,12 @@ const {
   page: served,
   query,
   groups: servedGroups,
+  fuzzy = false,
+  chips,
+  chipRemoveHrefs,
+  suggestPath,
+  sweepV,
+  baseParams,
   ageHistogram,
   boardPath = '',
   titleChoices,
@@ -118,10 +154,12 @@ const {
 const sortKeys: readonly SortKey[] = fit ? SORT_KEYS : SORT_KEYS.filter((key) => key !== 'fit');
 // A reader who cannot see fit is served the age order in place of the unwritten
 // default (board.astro servedSort), so the control underlines Age for them.
-const sortCurrent = (q: BoardQuery): SortKey => (fit || q.sort !== 'fit' ? q.sort : 'age');
+const sortCurrent = (q: BoardQuery): BoardSort => (fit || q.sort !== 'fit' ? q.sort : 'age');
 
 const serverMode = mode === 'server' && served !== undefined && query !== undefined;
-const groups = serverMode ? (servedGroups ?? []) : filterGroups(jobs);
+const allGroups = serverMode ? (servedGroups ?? []) : filterGroups(jobs);
+// The strip draws what is placed in it; the Field group is not drawn at all.
+const groups = allGroups.filter((group) => group.placement !== 'results');
 const rows = clusterJobs(jobs);
 const clusterCount = rows.filter((row) => row.kind === 'cluster').length;
 const pages = paginate(rows, perPage);
@@ -129,7 +167,11 @@ const totalPages = serverMode && served ? served.pages : pages.length;
 
 // Server mode's links and forms, all built from the one URL contract.
 const q = query as BoardQuery;
-const sortHref = (key: SortKey): string => boardHref(boardPath, q, { sort: key });
+const sortHref = (key: BoardSort): string => boardHref(boardPath, q, { sort: key });
+// BEST IS OFFERED WHILE WORDS ARE TYPED, and first: it is the default order then
+// (defaultSortFor) and the one the rows are in until the reader moves it, so the
+// control has a segment to press for it. With no words it ranks nothing.
+const sortOffer: readonly BoardSort[] = serverMode && q.q !== '' ? ['best', ...sortKeys] : sortKeys;
 const prevHref = serverMode && served && served.page > 1 ? boardHref(boardPath, q, { page: served.page - 1 }) : null;
 const nextHref = serverMode && served && served.page < served.pages ? boardHref(boardPath, q, { page: served.page + 1 }) : null;
 const span = serverMode && served ? pageSpan(served.page, served.per, served.total) : null;
@@ -139,9 +181,36 @@ const spanText =
       ? 'No rows'
       : `Rows ${span.first.toLocaleString()} to ${span.last.toLocaleString()} of ${served.total.toLocaleString()}`
     : '';
+// THE ORDER, SAID ONCE, FOR A READER WITH NO PER-ROW REASON. The why panel (and the
+// sentence in it) is a Deets-reader's: JobTable draws neither without `fit`. So this
+// is drawn exactly when `fit` is false, and then for the order the reader is really
+// in (sortCurrent: their unwritten Deets default is served as age), with no Deets in
+// the best-match tail because the store was told they cannot see it (board.astro
+// deetsVisible). Nothing to say about a page with no rows.
+const orderLine =
+  serverMode && !fit && !teaser && served !== undefined && served.total > 0
+    ? orderReason({ sort: sortCurrent(q), query: q.q, fuzzy, deetsVisible: false })
+    : '';
 const clearHref = serverMode
-  ? boardHref(boardPath, q, { q: '', location: 'all', comp: 'all', freshness: 'all', ageMin: null, ageMax: null })
+  ? boardHref(boardPath, q, {
+      q: '',
+      location: 'all',
+      comp: 'all',
+      freshness: 'all',
+      ageMin: null,
+      ageMax: null,
+      place: null,
+      remote: [],
+      payMin: null,
+      compNotListed: false,
+      company: null,
+      // The Field is not on the strip any more, so "clear the filters" has to
+      // clear it too: a field the reader cannot see in the strip must not be the
+      // reason an empty page stays empty.
+      families: []
+    })
   : '';
+
 // The age strip's two handles write the range into the address, the same way
 // every other filter does. Only in server mode: the client board has no
 // address to write to.
@@ -159,7 +228,12 @@ const narrowedBeyondAge =
     q.comp !== 'all' ||
     q.freshness !== 'all' ||
     q.families.length > 0 ||
-    q.titles.length > 0);
+    q.titles.length > 0 ||
+    q.remote.length > 0 ||
+    q.payMin !== null ||
+    q.compNotListed ||
+    q.place !== null ||
+    q.company !== null);
 
 ---
 
@@ -195,14 +269,20 @@ const narrowedBeyondAge =
         <Filters
           mode="server"
           groups={groups}
-          selected={{ location: q.location, comp: q.comp, freshness: q.freshness, fam: q.families?.[0] ?? 'all' }}
+          selected={{ location: q.location, comp: q.comp, freshness: q.freshness, ...stripValues(q) }}
+          checked={{ remote: q.remote }}
           query={q.q}
           action={boardPath}
-          hidden={hiddenFields(q, ['location', 'comp', 'freshness', 'q', 'titles', 'families'])}
+          hidden={hiddenFields(q, ['location', 'remote', 'place', 'comp', 'freshness', 'q', 'titles'])}
           titleChoices={titleChoices}
           selectedTitles={q.titles}
+          chips={chips}
+          chipRemoveHrefs={chipRemoveHrefs}
+          suggestPath={suggestPath}
+          sweepV={sweepV}
+          baseParams={baseParams}
         >
-          <SortControl slot="sort" current={sortCurrent(q)} hrefFor={sortHref} keys={sortKeys} />
+          <SortControl slot="sort" current={sortCurrent(q)} hrefFor={sortHref} keys={sortOffer} />
         </Filters>
       ) : (
         <Filters groups={groups}>
@@ -228,6 +308,25 @@ const narrowedBeyondAge =
       </div>
     )}
 
+    {/* A NEAR MATCH IS NEVER LEFT TO LOOK LIKE A MATCH. The store answers from
+        close spellings only when the words matched nothing exactly; every row,
+        count and ordering on the page is then the close-spelling path's, and the
+        line says so before the first row. With no row to show (the other filters
+        emptied it) there is nothing for the line to be above, and the empty state
+        says what is true. */}
+    {serverMode && fuzzy && q.q !== '' && !teaser && served !== undefined && served.total > 0 && (
+      <p class="fuzzy-notice" role="status" data-fuzzy-notice>
+        No exact matches for "{q.q}". Showing close spellings.
+      </p>
+    )}
+
+    {/* THE ORDER IN FORCE, for a reader who has no why panel to read it in (see
+        orderLine above). One server-rendered line on the table's top edge, below
+        the close-spelling notice when both show. */}
+    {orderLine !== '' && (
+      <p class="order-notice" data-order-reason>{orderLine}</p>
+    )}
+
     {serverMode && served ? (
       <JobTable
         jobs={jobs}
@@ -235,6 +334,7 @@ const narrowedBeyondAge =
         verifiedBanner={false}
         hrefFor={hrefFor}
         fit={fit}
+        orderedBy={teaser ? undefined : { sort: q.sort, offset: (served.page - 1) * served.per, query: q.q }}
         emptyDetail="Nothing fits the filters you have set. Widening one of them is the fastest way back to a full table."
       >
         <a class="clear-filters" slot="empty-action" href={clearHref}>
@@ -456,6 +556,23 @@ const narrowedBeyondAge =
 
   .region-state:last-child {
     border-bottom: var(--border-hairline) solid var(--color-line-strong);
+  }
+
+  /* The two lines under the strip's results. Each is a band in the table's own
+     box: the same surface, the same hairline edges, no gaps, nothing rounded.
+     The notices sit on the table's top edge (the order line under the
+     close-spelling one when both show, each a hairline apart) and the field links
+     under its bottom one, so none adds a border of its own where it meets the table. */
+  .fuzzy-notice,
+  .order-notice {
+    margin: 0;
+    padding: var(--space-300) var(--space-500);
+    background: var(--color-surface);
+    border: var(--border-hairline) solid var(--color-line-strong);
+    border-bottom: none;
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    color: var(--color-muted);
   }
 
   .clear-filters {

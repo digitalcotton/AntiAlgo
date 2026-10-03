@@ -1,0 +1,15 @@
+{
+  "v": "2026-10-02T04:00:00Z",
+  "q": "l",
+  "parsed": { "words": ["l"], "chips": [], "offers": [] },
+  "total": 1,
+  "groups": [
+    {
+      "type": "titles",
+      "label": "Titles",
+      "items": [
+        { "id": "title:stale answer", "label": "STALE ANSWER FOR AN OLDER KEYSTROKE", "count": 1, "disabled": false, "apply": { "words": "stale" }, "href": "/board?q=stale" }
+      ]
+    }
+  ]
+}

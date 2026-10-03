@@ -533,8 +533,9 @@ export const PERSON_TABLES: readonly PersonTable[] = [
     table: 'account_filter_state',
     owner: 'app',
     holds:
-      'One row per person: the last filter selection they set on the index (location, comp, ' +
-      'freshness, as a small JSON object), user_id, created_at, updated_at.',
+      'One row per person: the last filter selection they set on the index (place, remote and ' +
+      'pay_min: where, which arrangements and a pay floor, as a small JSON object), user_id, ' +
+      'created_at, updated_at.',
     deleteReach: 'cascade',
     deleteNote:
       'ON DELETE CASCADE on the foreign key to user(id) (db/009_account_filter_state.sql), the same ' +

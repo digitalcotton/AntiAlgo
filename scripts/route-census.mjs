@@ -456,6 +456,7 @@ const NIGHTLY_SWEEP_ROUTES = new Set([
   '/board/[slug]',
   '/board/kills.json',
   '/board/stats.json',
+  '/board/suggest', // JSON: the search box's suggestions, counted over the live board and keyed to its crawl instant
   '/jobs-data',
   '/jobs-data/summary',
   '/desk', // desk-home.ts is built on job-store.ts

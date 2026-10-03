@@ -25,7 +25,7 @@
  *
  *   1. Touch production from anything but a production deploy. A preview build
  *      of a branch has the same credentials in scope on Vercel and would
- *      TRUNCATE the live table with whatever that branch carried. VERCEL_ENV
+ *      replace the live board with whatever that branch carried. VERCEL_ENV
  *      has to be exactly "production" or this does nothing.
  *   2. Run without credentials. A local `npm run build`, the data-contract
  *      proof's scratch build and the route census all build this site with no
@@ -130,7 +130,7 @@ if (!existsSync(FILE)) {
 }
 
 // WHICH EDITION IS THIS, AND IS IT OURS. Read before the load, so a file from
-// the wrong exporter never reaches the TRUNCATE at all.
+// the wrong exporter never reaches the replace at all.
 //
 // This fails the build rather than skipping the load quietly, for the same reason
 // refusal 2 above fails on missing credentials: the curated file being in this

@@ -282,7 +282,7 @@ const USERS = [
  * location, ats, ...); values are invented, not real postings.
  *
  * country is left null and location carries the full text on purpose:
- * regionOf() (src/lib/jobs-derived.mjs) reads country first and only falls
+ * regionFor() (src/lib/jobs-derived.mjs) reads country first and only falls
  * back to location when country is absent, so a row meant to prove the
  * location fallback has to actually omit country, not just leave it thin.
  */
@@ -484,13 +484,22 @@ async function seedFixtures(client) {
            -- found on 2026-09-30 by the first reset since. The value comes
            -- from the same derivedFor() the ingest uses, so the test database
            -- says what production would say.
-           derived_fam_source
+           derived_fam_source,
+           -- db/220, appended for the same reason: the numbers above stay put.
+           place_country, place_admin1, place_city, place_label,
+           -- db/222, every place the posting lists, appended again.
+           place_keys, place_leaves,
+           -- db/223, the countries among them as one string.
+           place_countries
          ) VALUES (
            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
            $11, $12, $13, $14, false, $15, $16,
            $17, $18, $19, 'tracked', 'live', NULL,
            $20, $21, $22, $23,
-           $24, $25, $26, $27, $28
+           $24, $25, $26, $27, $28,
+           $29, $30, $31, $32,
+           $33, $34,
+           $35
          )`,
         [
           raw.id, raw.company, raw.title, raw.url, raw.location, raw.country, raw.remote,
@@ -500,7 +509,10 @@ async function seedFixtures(client) {
           slug, raw.fit_total, JSON.stringify(raw.fit_components),
           d.derived_tier, d.derived_fam, d.derived_region, d.derived_friction,
           d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k,
-          d.derived_fam_source ?? null
+          d.derived_fam_source ?? null,
+          d.place_country, d.place_admin1, d.place_city, d.place_label,
+          d.place_keys, d.place_leaves,
+          d.place_countries
         ]
       );
     }

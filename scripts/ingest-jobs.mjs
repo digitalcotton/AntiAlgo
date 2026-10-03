@@ -31,7 +31,7 @@
  * without a build step, so the one INSERT ... ON CONFLICT statement is repeated
  * here and must stay in step with it.
  *
- * THE FLOOR ON A REPLACE (2026-10-01). --replace truncates and reloads, and
+ * THE FLOOR ON A REPLACE (2026-10-01). --replace clears and reloads, and
  * until now the only consistency check compared the incoming file against the
  * file's own _meta.count. Nothing compared it against the board already in the
  * table, so a crawl that reached a tenth of its boards published a tenth of the
@@ -39,8 +39,21 @@
  * as companies having stopped hiring. src/lib/ingest-floor.mjs now decides
  * whether tonight's count may replace the published one; the rule, the 70%
  * fraction and the evidence for it live in that file's header, and the two reads
- * it decides on happen inside this transaction, under the lock the TRUNCATE is
- * about to take, so the number compared is exactly the number being destroyed.
+ * it decides on happen inside this transaction, under a lock that keeps every
+ * other writer out, so the number compared is exactly the number being replaced.
+ *
+ * THE REPLACE DOES NOT SHUT THE BOARD (2026-10-02). --replace used to TRUNCATE,
+ * after asking for ACCESS EXCLUSIVE up front, and ACCESS EXCLUSIVE conflicts
+ * with the ACCESS SHARE that every plain SELECT takes, so every read of the board
+ * waited from that statement to the COMMIT. The load was about 1.4 s until db/219
+ * gave every inserted row a search vector to compute; db/219 measured the same
+ * load at 21 s and the probe run described at the statement below measured 33.6 s,
+ * on a local database, and it runs inside a production build while the site is
+ * serving. It now DELETEs under SHARE ROW EXCLUSIVE, which shuts out every
+ * writer and no reader, and VACUUMs once the transaction has committed. A reader
+ * sees last night's rows until the COMMIT and tonight's after it, never a
+ * wait and never an empty or half-written board. The measurements, and what a
+ * TRUNCATE gave that a DELETE has to be told to do, are at the statement.
  *
  * FLAGS
  *   --file <path>   tracker JSON to read (default src/data/general-sample.json)
@@ -49,7 +62,9 @@
  *                   below before it reaches the floor; for one that does not,
  *                   --replace --limit is a deliberate shrink and the floor
  *                   refuses it until --allow-shrink says it was meant.
- *   --replace       TRUNCATE the board first, inside the same transaction
+ *   --replace       DELETE the board first, inside the same transaction (readers
+ *                   keep the old rows until COMMIT), then VACUUM (ANALYZE) once
+ *                   it has committed
  *   --allow-shrink  publish a drop the floor would otherwise refuse. For a real
  *                   contraction, meant by a person. Never passed by the build.
  *   --dry-run       normalise and report, write nothing. With a database in
@@ -95,8 +110,9 @@ const REPLACE = process.argv.includes('--replace');
 const ALLOW_SHRINK = process.argv.includes(OVERRIDE_FLAG);
 // One owner for which variable wins, because the dry run's read only probe and
 // the real load both need it and two copies of that precedence would drift. The
-// unpooled endpoint is the right one for a big TRUNCATE and load; the refusal for
-// a missing value stays where the load is, so a dry run still works with none.
+// unpooled endpoint is the right one for a long load and the VACUUM after it; the
+// refusal for a missing value stays where the load is, so a dry run still works
+// with none.
 const DB_URL = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 const FILE = resolve(root, arg('file', join('src', 'data', 'general-sample.json')));
 const LIMIT = Number(arg('limit', '0')) || 0;
@@ -338,7 +354,16 @@ function values(j) {
     // a pool" is a different fact from "it is not one".
     typeof j.pipeline === 'boolean' ? j.pipeline : null,
     d.derived_tier, d.derived_fam, d.derived_fam_source, d.derived_region, d.derived_friction,
-    d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k
+    d.priced, d.comp_min_k, d.comp_max_k, d.comp_mid_k,
+    // Where the posting is (db/220), from the same derivedFor() call. Null is
+    // an answer: a posting that prints no place has none, and the column says so.
+    d.place_country, d.place_admin1, d.place_city, d.place_label,
+    // Every place it lists (db/222), the arrays the board filters on. A JS array
+    // is bound as a Postgres array, an empty one as '{}': "Not stated", never null.
+    d.place_keys, d.place_leaves,
+    // The countries among them as one string (db/223), what the Location counts
+    // group by: '' when it lists none, never null.
+    d.place_countries
   ];
 }
 
@@ -465,11 +490,13 @@ async function readBaselines(client) {
  * refused by the server rather than by this script's good intentions.
  *
  * AND IT TAKES NO LOCK. The real load locks `jobs` before reading, because the
- * count it compares has to be the count the TRUNCATE is about to destroy. A dry
- * run must not do that: ACCESS EXCLUSIVE on `jobs` stalls every reader on the
- * site, and nobody should be able to stop the board by asking a question about
- * it. So this reads without the lock and the number it reports can move before
- * the real run, which is the honest trade and is why the real check still runs.
+ * count it compares has to be the count the DELETE is about to remove. A dry run
+ * must not do that: the lock shuts out every writer, so the nightly load itself
+ * would queue behind a question, and nobody should be able to hold the load off
+ * by asking one. (Readers are not at risk either way: the lock is no longer one
+ * a SELECT waits for.) So this reads without the lock and the number it reports
+ * can move before the real run, which is the honest trade and is why the real
+ * check still runs.
  */
 async function floorIfDry(incoming) {
   const probe = new Client({ connectionString: DB_URL });
@@ -620,13 +647,86 @@ async function resolveSlugs(client, rows) {
 
   // A Map, not a find() over `assigned`: on a first run every row is a
   // newcomer, and a linear scan per row is 37,765 x 37,765 inside an open
-  // transaction holding a TRUNCATE.
+  // transaction holding the replace lock.
   const fresh = new Map(assigned);
   for (const r of rows) r.slug = held.get(r.id) ?? fresh.get(r.id) ?? r.slug;
   console.log(
     `slugs: ${held.size} kept from the ledger, ${assigned.length} newly assigned` +
       (contested ? `, ${contested} of them past a taken address` : '')
   );
+}
+
+/**
+ * After a replace has committed: reclaim last night's rows and refresh the
+ * planner's numbers (2026-10-02).
+ *
+ * WHY IT EXISTS. The replace DELETEs instead of TRUNCATEing so readers are not
+ * held out (see the lock comment at the statement). A TRUNCATE hands back an
+ * empty file with no dead rows and a row count that is simply tonight's; a
+ * DELETE leaves every one of last night's 37,765 row versions in place, with
+ * their TOAST rows and index entries, and the planner keeps estimating from
+ * before the load. Left alone, autovacuum would get to it some time after the
+ * threshold is crossed, and until it did the table would carry two nights and
+ * the first queries after a deploy would plan on a stale count. So the load
+ * asks for it, once, right after the COMMIT.
+ *
+ * OUTSIDE THE TRANSACTION, BECAUSE IT HAS TO BE. VACUUM is refused inside a
+ * transaction block, and would be pointless inside this one: the dead rows it
+ * is for are only dead once the DELETE has committed. It takes SHARE UPDATE
+ * EXCLUSIVE, which readers and writers both ignore, so the board stays up for
+ * it. Measured 2026-10-02 on the local board with 37,765 dead rows: 3.5 s, dead
+ * rows 37,765 to 0, 94 MB of empty pages handed back, and a reader probing
+ * every 100 ms saw a worst case of 36.7 ms.
+ *
+ * IT CANNOT FAIL THE LOAD. By the time this runs the board has committed and is
+ * current, so a failure here costs bloat that autovacuum will mop up, never a
+ * wrong board. Every failure is logged on stderr and the script goes on to exit
+ * 0. The wait is bounded as well, because a build is waiting on it and a wait
+ * needs a terminal state: statement_timeout covers the time VACUUM spends
+ * queueing for its lock (it conflicts with a running autovacuum of the same
+ * table) as well as the work, and 120 s is about 35 times what the local run
+ * took, for a database that is a network away.
+ *
+ * THE FALLBACK. If VACUUM cannot run, ANALYZE alone is tried, because the
+ * statistics are the half that changes what the board's queries do tonight and
+ * ANALYZE is the cheaper statement. A role without the right to vacuum does
+ * not get an error from Postgres, it gets a WARNING saying the table was
+ * skipped and a command that reports success; so the notices are read, and a
+ * "skipping" counts as the statement not having run. Both statements need the
+ * same right (the table's owner, or MAINTAIN on PostgreSQL 17 and later), so a
+ * role with neither falls through to the logged failure, which is the honest
+ * outcome. The load connects as the owner today.
+ */
+const TIDY_TIMEOUT_MS = 120_000;
+async function tidyAfterReplace(client) {
+  const notices = [];
+  const onNotice = (n) => notices.push(n.message);
+  client.on('notice', onNotice);
+  const started = Date.now();
+  const took = () => `${((Date.now() - started) / 1000).toFixed(1)}s`;
+  // One statement, and the notices it raised: throws if it errored or if
+  // Postgres skipped the table with a warning instead.
+  const attempt = async (statement) => {
+    notices.length = 0;
+    await client.query(statement);
+    const skipped = notices.find((m) => /skipping/i.test(m));
+    if (skipped) throw new Error(skipped);
+  };
+  try {
+    await client.query(`SET statement_timeout = ${TIDY_TIMEOUT_MS}`);
+    try {
+      await attempt('VACUUM (ANALYZE) jobs');
+      console.log(`vacuum: VACUUM (ANALYZE) jobs done in ${took()} (last night's rows reclaimed, statistics refreshed)`);
+    } catch (error) {
+      console.error(`vacuum: VACUUM (ANALYZE) jobs did not run (${error.message}); falling back to ANALYZE jobs. Last night's rows wait for autovacuum.`);
+      await attempt('ANALYZE jobs');
+      console.log(`vacuum: ANALYZE jobs done in ${took()} (statistics refreshed; dead rows left for autovacuum)`);
+    }
+  } catch (error) {
+    console.error(`vacuum: housekeeping failed (${error.message}). The load had already committed and the board is current; autovacuum will reclaim last night's rows and refresh the statistics in its own time.`);
+  } finally {
+    client.off('notice', onNotice);
+  }
 }
 
 if (!DB_URL) {
@@ -639,13 +739,16 @@ await client.connect();
 let written = 0;
 try {
   // THE WHOLE REPLACE IS ONE TRANSACTION, and that is what makes this safe to
-  // run unattended. The TRUNCATE, every upsert, and the board_stats write commit
+  // run unattended. The DELETE, every upsert, and the board_stats write commit
   // together or not at all. The board reads this table live (src/lib/job-store
-  // .ts), so if the truncate committed on its own and an insert then failed, the
+  // .ts), so if the delete committed on its own and an insert then failed, the
   // board would be served EMPTY until the next good run. Inside one transaction,
-  // any failure rolls the truncate back too and the previous board stands intact.
-  // TRUNCATE is transactional in Postgres, so this holds. The batch loop below is
-  // now only for progress logging; there are no per-batch commits.
+  // any failure rolls the delete back too and the previous board stands intact.
+  // DELETE is transactional like any statement, so this holds, and it is also
+  // what lets readers carry on: under MVCC a reader keeps seeing last night's rows
+  // until this transaction commits and sees tonight's, all at once, after it. The
+  // batch loop below is now only for progress logging; there are no per-batch
+  // commits.
   await client.query('BEGIN');
 
   // THE ADDRESSES, BEFORE ANY ROW IS WRITTEN (db/211). Until this existed the
@@ -660,32 +763,87 @@ try {
   // which is the signal the ghost watch and the counts depend on.
   if (REPLACE) {
     /*
-     * THE FLOOR, UNDER THE LOCK THE TRUNCATE IS ABOUT TO TAKE.
+     * THE LOCK, AND WHY IT IS NOT ACCESS EXCLUSIVE (2026-10-02).
      *
-     * The lock is requested explicitly rather than left to TRUNCATE for two
-     * reasons, and both of them are about the night of 2026-10-01, when two
-     * exporters wrote this table two minutes apart with row counts thirteen times
-     * apart and the bigger one happened to commit last.
+     * It is requested explicitly, ahead of the floor's two reads and the DELETE,
+     * for two reasons, and both of them are about the night of 2026-10-01, when
+     * two exporters wrote this table two minutes apart with row counts thirteen
+     * times apart and the bigger one happened to commit last.
      *
-     *   1. The count has to be the count being destroyed. READ COMMITTED gives
+     *   1. The count has to be the count being replaced. READ COMMITTED gives
      *      each statement its own snapshot, so a count taken before the lock
-     *      could be a rival's pre-commit view. Taken after it, it is what this
-     *      transaction is about to truncate, full stop.
+     *      could be a rival's pre-commit view, and a row a rival wrote between
+     *      the count and the DELETE would be deleted unseen. Taken after the
+     *      lock, with every other writer held out, it is what this transaction
+     *      is about to delete, full stop.
      *   2. It cannot deadlock. If the count ran first it would hold ACCESS
-     *      SHARE and then ask for ACCESS EXCLUSIVE; two ingests doing that at
+     *      SHARE and then ask for a stronger lock; two ingests doing that at
      *      once deadlock, and Postgres would kill one. Asking for the strong
-     *      lock first means two ingests queue exactly as they do today, and the
-     *      second one, once it is let through, reads the first one's committed
-     *      result and judges tonight's file against that.
+     *      lock first, in a mode that conflicts with itself, means two ingests
+     *      queue, and the second, once it is let through, reads the first one's
+     *      committed result and judges tonight's file against that.
      *
-     * WHAT IT COSTS A READER. Almost nothing. TRUNCATE is the next statement on
-     * this table and would have taken the same lock at the same point, so the
-     * only extra time the board is held shut is the two reads in between: a
-     * count over `jobs`, measured at 8 to 14 ms over the 37,765 rows on this
-     * machine's dev board, and a single-row read of board_stats at well under a
-     * millisecond. The load that follows holds the same lock for seconds.
+     * SHARE ROW EXCLUSIVE keeps both and takes nothing from a reader. It
+     * conflicts with ROW EXCLUSIVE, which INSERT, UPDATE and DELETE take, so no
+     * other writer gets in; with itself, so two ingests queue; and with SHARE
+     * UPDATE EXCLUSIVE, so autovacuum and ANALYZE stay off the table while it
+     * loads. It does not conflict with ACCESS SHARE, which is all a SELECT takes,
+     * so a reader never waits for it. Nor does a queued request for it hold later
+     * readers back, which a queued ACCESS EXCLUSIVE request does: it makes every
+     * new reader line up behind it, even while it is itself waiting on a reader.
+     *
+     * WHY IT HAD TO CHANGE, MEASURED 2026-10-02. Local database, 37,765 rows, a
+     * second connection running SELECT count(*) FROM jobs WHERE status <>
+     * 'killed' every 100 ms while a copy of this transaction was held open and
+     * then rolled back: this lock, this clear, then the real upsert in 250 row
+     * batches from a temp copy of the board, search trigger and all.
+     *
+     *   TRUNCATE under ACCESS EXCLUSIVE (what this was): the probe waited 33.7 s
+     *       for a 33.6 s load. That is the whole load, on a site that is serving.
+     *   DELETE under ACCESS EXCLUSIVE (the statement changed and the lock did
+     *       not): 48.3 s. Swapping TRUNCATE for DELETE alone fixes nothing; the
+     *       explicit lock here is what shuts the board.
+     *   DELETE under SHARE ROW EXCLUSIVE (this): the worst of 377 probes, 359 of
+     *       them taken while the lock was held for 39.9 s, was 18.5 ms, against
+     *       8 ms with no load running, and every one of them counted last night's
+     *       37,286 live rows until the transaction ended.
+     *
+     * A second connection holding the same lock was held out of the table: an
+     * UPDATE, an INSERT, a second copy of this LOCK and an ANALYZE each gave up
+     * with lock_timeout after waiting, and a plain SELECT ran at once. So what
+     * reasons 1 and 2 above rely on is still true; only the readers changed.
+     *
+     * WHAT A TRUNCATE GAVE THAT A DELETE HAS TO BE TOLD TO DO. Checked against
+     * the local schema on the same day, and against pg_constraint, pg_trigger and
+     * pg_depend rather than remembered:
+     *   - Foreign keys: none reference jobs and jobs references nothing, so
+     *     there was nothing for TRUNCATE to refuse and nothing for DELETE to
+     *     cascade into. board_kills and job_slug_ledger hold plain id columns,
+     *     on purpose (db/130, db/211).
+     *   - Triggers: the only one is jobs_search_refresh, BEFORE INSERT OR UPDATE
+     *     (db/219). TRUNCATE fires no row triggers and there is no DELETE
+     *     trigger for DELETE to fire, so the clear does the same thing. Every
+     *     insert after it still computes its search vector, as before.
+     *   - Sequences and identity columns: none, so RESTART IDENTITY was never in
+     *     play. No view, rule or publication reads jobs.
+     *   - ON CONFLICT (id): the rows this transaction deleted are invisible to
+     *     it, so every upsert below is a fresh insert, exactly as after a
+     *     TRUNCATE (measured: 37,765 inserts, 0 conflict updates).
+     *   - A table with no dead rows and fresh statistics. This is the one that is
+     *     real. A DELETE leaves 37,765 dead row versions, with their TOAST rows
+     *     and index entries, until a VACUUM, and the table holds both nights
+     *     until then (633 MB after a DELETE and the load, against 313 MB after a
+     *     TRUNCATE and the same load, both measured inside the transaction). A
+     *     TRUNCATE swaps in an empty file and the planner's row count is simply
+     *     the new one. tidyAfterReplace() below runs VACUUM (ANALYZE) once this
+     *     has committed, and it is the replacement for that.
+     *
+     * WHAT IT COSTS A READER NOW. Nothing at the lock and nothing at the COMMIT.
+     * During the load a read scans last night's row versions and tonight's
+     * uncommitted ones and skips the second kind; measured above, a board list
+     * query stayed under 2 ms throughout.
      */
-    await client.query('LOCK TABLE jobs IN ACCESS EXCLUSIVE MODE');
+    await client.query('LOCK TABLE jobs IN SHARE ROW EXCLUSIVE MODE');
     const verdict = floorVerdict({
       incoming: rows.length,
       ...(await readBaselines(client)),
@@ -705,8 +863,10 @@ try {
     }
     for (const line of verdict.lines) console.log(line);
 
-    await client.query('TRUNCATE jobs');
-    console.log('replaced: cleared the jobs table first (inside the transaction)');
+    // A DELETE with no WHERE: every row of the previous board, in this
+    // transaction only. rowCount is the count the floor just compared against.
+    const cleared = await client.query('DELETE FROM jobs');
+    console.log(`replaced: deleted the previous board's ${cleared.rowCount} row(s) first (inside the transaction; readers keep reading them until COMMIT)`);
   }
   assertBatchFits(BATCH);
   for (let i = 0; i < rows.length; i += BATCH) {
@@ -833,12 +993,16 @@ try {
 
   await client.query('COMMIT');
 } catch (error) {
-  // Rolls back the TRUNCATE and every upsert together: on any failure the board
+  // Rolls back the DELETE and every upsert together: on any failure the board
   // is left exactly as it was, never empty and never half-written.
   await client.query('ROLLBACK').catch(() => {});
   console.error(`FAILED after staging ${written} row(s); rolled back, the board is unchanged: ${error.message}`);
   await client.end();
   process.exit(1);
 }
+// Past the COMMIT. Only a replace leaves the nightly's worth of dead rows behind
+// (a plain upsert is what autovacuum has always handled), and nothing in here can
+// change the exit code: the load is done.
+if (REPLACE) await tidyAfterReplace(client);
 await client.end();
 console.log(`\ningested ${written} job(s).`);

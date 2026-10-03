@@ -54,6 +54,10 @@ export const ROUTES = [
 
   // --- The board and its surfaces, copied in from the Index ---
   { key: 'board', pattern: '/board', kind: 'static', note: "The board: every tracked and posted role, verified last night, the site's main listing surface.", sitemap: true },
+  // Beside /board/[slug], not under /api (see the waitlist-join note above): a
+  // static route wins over the dynamic one in Astro's routing, so /board/suggest
+  // is never read as the posting whose slug is "suggest".
+  { key: 'board-suggest', pattern: '/board/suggest', kind: 'asset', note: "GET. The search box's grouped, counted suggestions for the text being typed: titles, places, companies and facts, each count the total /board shows at that row's address.", sitemap: false },
   { key: 'board-detail', pattern: '/board/[slug]', kind: 'dynamic', note: 'One tracked posting, rendered per request from the job store. The same page as /role, for the bulk tracker.', sitemap: false },
   { key: 'job', pattern: '/role/[slug]', kind: 'dynamic', note: 'One page per posting, live and closed variants. The SEO surface.', sitemap: true },
   { key: 'job-markdown', pattern: '/role/[slug].md', kind: 'asset', note: 'The markdown twin of a job page: same sections, same order, same absences, for a model reading the record.', sitemap: false },

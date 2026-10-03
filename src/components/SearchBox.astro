@@ -1,0 +1,860 @@
+---
+import { chipsToParams, type Chip } from '../lib/search-parse';
+
+/**
+ * THE SEARCH BOX: one input, the facts the reader has already stated drawn as
+ * chips inside it, and a grouped suggestion panel under it. Filters.astro renders
+ * it in server mode in place of the old search cell; docs/search-engine-design.md
+ * §2 and §3 are the drawing, and docs/search-engine-plan.md "The suggest
+ * contract" is the endpoint it talks to.
+ *
+ * IT IS A REAL FORM FIELD FIRST. The input is `<input type="search" name="q">`
+ * inside the strip's own GET form, so without script Enter submits the words and
+ * the server does the rest. Everything script adds sits on top of that and may
+ * fail without taking the box down: the chips are server-rendered `<a href>`
+ * links (the remove link IS the board address without that chip), and a failed
+ * suggestion request ends in a visible state that says so.
+ *
+ * APPLIED CHIPS CARRY NO COUNT. The result total already says how many rows
+ * remain, and a count on an applied filter is a number with no clear question
+ * behind it. Counts belong on choices, and the panel is where choices are.
+ *
+ * THE CHIPS ARE ALSO THE FORM'S FIELDS. A chip drawn in the box that vanished on
+ * the next Enter would be a lie, so each chip's address parameter (the names
+ * chipsToParams already fixes: place, company, remote, pay_min, age_max) is
+ * written as a hidden input beside the box, and Filters.astro drops any hidden
+ * field of the same name it was handed, so a name is never submitted twice.
+ *
+ * EXCEPT THE NAMES A STRIP CONTROL OWNS (`ownedFields`). Location, Remote and
+ * Comp are keyed by place, remote and pay_min, so their own select and checkboxes
+ * submit those and the chip's hidden copy is dropped: left in, it would be a
+ * second answer to the same question, and unticking Remote in the strip while a
+ * Remote chip stood would re-send `remote=remote` and the change would never take.
+ * AND THE CHIP IS NOT DRAWN EITHER (owner, 2026-10-02). It used to be, beside the
+ * control showing the same words: "London, United Kingdom" twice across one row,
+ * which took the row's room, stacked the chip over the field, and made the box
+ * stop reading as a search box at all. The control is the one place that fact is
+ * shown and changed. A chip is drawn only for a fact no control shows (a company,
+ * a posted-within window), and its remove link is the only way to clear it.
+ *
+ * ONE MENU AT A TIME, ACROSS THE BOX AND THE STRIP. The panel and the strip's
+ * dropdowns never import each other; they speak through src/lib/menu-claim.ts.
+ * Opening the panel, or focusing the field, claims the slot and every strip menu
+ * closes; opening a strip menu claims it back and the panel closes.
+ *
+ * THE PANEL WEARS THE STRIP'S MENU, NOT A COPY OF IT. Its rows are `.menu-option`
+ * with `.menu-label` and `.menu-count`, and its box is `.menu-suggest`, which
+ * Filters.astro styles in the same rule as `.menu` (label left, count right in
+ * mono, hairlines, the hover surface, a dead row muted). So the panel only looks
+ * right inside `.filters`; nothing else renders this component. Rows are built by
+ * script and carry no Astro scope attribute, so every rule that reaches one goes
+ * through :global under `.search-box`, an element this component does render.
+ *
+ * THE DROPDOWN-FOCUS RULE (.claude/rules/dropdown-focus.md). A press on a row
+ * moves focus before the click resolves in Safari and Firefox on macOS, and a
+ * panel that closes when the field blurs then eats its own click. So every row's
+ * mousedown refuses its default and so does the panel's, focus never leaves the
+ * field, and the panel is not closed by focusout at all: it closes on Escape, on
+ * Tab, on a press outside the box, on a strip menu opening, on submit and on
+ * navigation.
+ *
+ * EVERY WAIT ENDS. A response answers within 150 ms or the panel says
+ * "Searching...", and from there it resolves to rows, to "No suggestions", or to
+ * "Suggestions are unavailable"; a request that never answers is cut off after
+ * six seconds and lands on the last one. There is no state that spins forever,
+ * and a keystroke aborts the request it replaces.
+ *
+ * Props. `q` is the words in the box. `chips` and `chipRemoveHrefs` are parallel
+ * arrays (a chip without a remove href is drawn without a link). `suggestPath`
+ * is the endpoint, `sweepV` the sweep instant the counts are for (sent as `v` so
+ * a new sweep is a new cache key), `baseParams` the board's current parameters,
+ * sent with every request so counts are leave-one-out over them.
+ */
+
+interface Props {
+  q: string;
+  chips?: Chip[];
+  chipRemoveHrefs?: string[];
+  suggestPath?: string;
+  sweepV?: string;
+  baseParams?: Record<string, string>;
+  /** Address parameters a strip control submits itself, so the box carries no
+      hidden field for a chip that writes one of them. */
+  ownedFields?: readonly string[];
+  /** The input's id; the panel and its options derive theirs from it. */
+  id?: string;
+}
+
+const {
+  q,
+  chips = [],
+  chipRemoveHrefs = [],
+  suggestPath = '/board/suggest',
+  sweepV = '',
+  baseParams = {},
+  ownedFields = [],
+  id = 'board-search'
+} = Astro.props;
+
+/** What a chip reads as. Exhaustive on purpose, with no default: a new chip kind
+    is a compile error here instead of a blank pill. */
+function chipLabel(chip: Chip): string {
+  switch (chip.kind) {
+    case 'place':
+      return chip.label;
+    case 'company':
+      return chip.name;
+    case 'remote':
+      return chip.value === 'onsite' ? 'On-site' : chip.value === 'hybrid' ? 'Hybrid' : 'Remote';
+    case 'pay':
+      return `$${chip.minK}k+`;
+    case 'age':
+      return chip.maxDays === 1 ? 'Today' : chip.maxDays === 7 ? 'This week' : `Last ${chip.maxDays} days`;
+    default: {
+      const exhaustive: never = chip;
+      return String(exhaustive);
+    }
+  }
+}
+
+const owned = new Set(ownedFields);
+const chipFields = Object.entries(chipsToParams(chips)).filter(([name]) => !owned.has(name));
+const panelId = `${id}-listbox`;
+// WITH A CHIP IN THE BOX THE FIELD STILL SAYS WHAT IT IS FOR (owner, 2026-10-02).
+// It used to go blank, and a blank band beside "United States" reads as a label,
+// not a field: choosing a place looked like it had taken the search box away. The
+// words name what the field still adds, since the chip has answered "where".
+// The chips the box draws: those whose address names no strip control (see the
+// header). Paired with their remove links before filtering, which are by index.
+const drawn = chips
+  .map((chip, index) => ({ chip, href: chipRemoveHrefs[index] }))
+  .filter(({ chip }) => !Object.keys(chipsToParams([chip])).some((name) => owned.has(name)));
+const placeholder = drawn.length === 0 ? 'Try "senior designer london remote 150k"' : 'Add a job title, company or skill';
+---
+
+<div
+  class="filter filter-search search-box"
+  data-search-box
+  data-suggest-path={suggestPath}
+  data-suggest-v={sweepV}
+  data-suggest-params={JSON.stringify(baseParams)}
+  data-suggest-timeout=""
+>
+  {/* data-suggest-timeout is declared empty on purpose: empty means the
+      script's own TIMEOUT_MS, so the wait has one definition. The interaction
+      spec lowers it to prove a request that never answers still ends. Declared
+      here rather than only set by the test so the markup states every hook the
+      script reads (scripts/check-dom-contracts.mjs). */}
+  <label class="search-glyph mono" for={id} aria-hidden="true">&#9906;</label>
+  <div class="sb-field">
+    {
+      drawn.length > 0 && (
+        <ul class="sb-chips" role="list" aria-label="Applied filters">
+          {drawn.map(({ chip, href }) => (
+            <li class="sb-chip" role="listitem" data-chip-kind={chip.kind}>
+              <span class="sb-chip-label mono">{chipLabel(chip)}</span>
+              {href ? (
+                <a class="sb-chip-x mono" href={href} aria-label={`Remove ${chipLabel(chip)}`}>&#10005;</a>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )
+    }
+    <input
+      type="search"
+      id={id}
+      class="search-input mono"
+      data-job-search
+      data-search-input
+      role="combobox"
+      aria-label="Search"
+      aria-autocomplete="list"
+      aria-expanded="false"
+      aria-controls={panelId}
+      name="q"
+      value={q}
+      placeholder={placeholder}
+      autocomplete="off"
+      autocapitalize="off"
+      spellcheck="false"
+      enterkeyhint="search"
+    />
+  </div>
+  {chipFields.map(([name, value]) => <input type="hidden" name={name} value={value} data-chip-field />)}
+  <div class="menu-suggest" id={panelId} role="listbox" aria-label="Suggestions" data-search-panel hidden></div>
+  <div class="visually-hidden" role="status" aria-live="polite" data-search-live></div>
+</div>
+
+<script>
+  import { claimMenu, onMenuClaimed } from '../lib/menu-claim';
+
+  /** One suggestion as the panel draws it. `count` is null when the endpoint sent
+      none, in which case the right-hand cell is left empty rather than a guess. */
+  interface Choice {
+    label: string;
+    count: number | null;
+    disabled: boolean;
+    href: string;
+  }
+  interface Section {
+    type: string;
+    label: string;
+    choices: Choice[];
+  }
+
+  type Status = 'loading' | 'empty' | 'error';
+
+  /** The wait budgets, on a person's clock. A key press is answered or visibly
+      pending within 230 ms (80 ms of debounce, then 150 ms); past six seconds a
+      typeahead is not coming and "unavailable" is the honest word. */
+  const DEBOUNCE_MS = 80;
+  const LOADING_AFTER_MS = 150;
+  const TIMEOUT_MS = 6000;
+  /** The endpoint truncates past 200 characters; so does the request, so a pasted
+      page never becomes a long URL. */
+  const MAX_QUERY_CHARS = 200;
+  /** At this width and below a group shows PHONE_ROWS rows and a More row. */
+  const PHONE_QUERY = '(max-width: 390px)';
+  const PHONE_ROWS = 3;
+
+  const TEXT: Record<Status, string> = {
+    loading: 'Searching...',
+    empty: 'No suggestions. Press Enter to search',
+    error: 'Suggestions are unavailable. Press Enter to search'
+  };
+
+  /** A same-origin address as a relative one, or null. A suggestion is a link the
+      reader will follow, so one that points off the site, or is not an address
+      at all, is dropped instead of drawn. */
+  function ownAddress(raw: unknown): string | null {
+    if (typeof raw !== 'string' || raw === '') return null;
+    try {
+      const url = new URL(raw, window.location.href);
+      return url.origin === window.location.origin ? `${url.pathname}${url.search}${url.hash}` : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** The response, read as suspiciously as the address is. A group with no usable
+      row is dropped; a body that is not the contract's shape is null, which the
+      caller shows as the error state. */
+  function readSections(body: unknown): Section[] | null {
+    if (typeof body !== 'object' || body === null) return null;
+    const groups = (body as { groups?: unknown }).groups;
+    if (!Array.isArray(groups)) return null;
+    const sections: Section[] = [];
+    for (const group of groups) {
+      if (typeof group !== 'object' || group === null) continue;
+      const record = group as { type?: unknown; label?: unknown; items?: unknown };
+      const items = Array.isArray(record.items) ? record.items : [];
+      const choices: Choice[] = [];
+      for (const item of items) {
+        if (typeof item !== 'object' || item === null) continue;
+        const row = item as { label?: unknown; count?: unknown; disabled?: unknown; href?: unknown };
+        const href = ownAddress(row.href);
+        if (typeof row.label !== 'string' || row.label === '' || href === null) continue;
+        const count = typeof row.count === 'number' && Number.isFinite(row.count) ? row.count : null;
+        // A zero is never selectable, whatever the flag says: a choice that
+        // returns nothing is shown, never offered.
+        choices.push({ label: row.label, count, disabled: row.disabled === true || count === 0, href });
+      }
+      if (choices.length === 0) continue;
+      const type = typeof record.type === 'string' ? record.type : 'group';
+      const label = typeof record.label === 'string' && record.label !== '' ? record.label : type;
+      sections.push({ type, label, choices });
+    }
+    return sections;
+  }
+
+  function node<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
+    const element = document.createElement(tag);
+    element.className = className;
+    if (text !== undefined) element.textContent = text;
+    return element;
+  }
+
+  function wire(box: HTMLElement): void {
+    const foundInput = box.querySelector<HTMLInputElement>('[data-search-input]');
+    const foundPanel = box.querySelector<HTMLElement>('[data-search-panel]');
+    const foundLive = box.querySelector<HTMLElement>('[data-search-live]');
+    if (!foundInput || !foundPanel || !foundLive) return;
+    // Re-bound so the narrowing survives into the functions below.
+    const input: HTMLInputElement = foundInput;
+    const panel: HTMLElement = foundPanel;
+    const live: HTMLElement = foundLive;
+
+    const phone = window.matchMedia(PHONE_QUERY);
+
+    let controller: AbortController | null = null;
+    let debounceTimer = 0;
+    let loadingTimer = 0;
+    // The rows on screen are the answer to the text in the box. False between a
+    // keystroke and the next answer, when keys and Enter must not act on rows
+    // that belong to the previous text.
+    let ready = false;
+    let sections: Section[] = [];
+    // Groups the reader has opened with More, on a phone.
+    let expanded = new Set<string>();
+    // Every selectable row in the panel, in reading order, More rows included.
+    let options: HTMLElement[] = [];
+    let active = -1;
+
+    const isOpen = (): boolean => !panel.hidden;
+
+    function announce(message: string): void {
+      live.textContent = message;
+    }
+
+    function setActive(next: number): void {
+      options[active]?.setAttribute('aria-selected', 'false');
+      active = next;
+      const row = options[next];
+      if (row) {
+        row.setAttribute('aria-selected', 'true');
+        input.setAttribute('aria-activedescendant', row.id);
+        row.scrollIntoView({ block: 'nearest' });
+      } else {
+        active = -1;
+        input.removeAttribute('aria-activedescendant');
+      }
+    }
+
+    function open(): void {
+      if (isOpen()) return;
+      claimMenu('search');
+      panel.hidden = false;
+      box.setAttribute('data-open', '');
+      input.setAttribute('aria-expanded', 'true');
+    }
+
+    function close(): void {
+      window.clearTimeout(debounceTimer);
+      window.clearTimeout(loadingTimer);
+      controller?.abort();
+      controller = null;
+      ready = false;
+      options = [];
+      active = -1;
+      sections = [];
+      expanded = new Set();
+      panel.hidden = true;
+      panel.replaceChildren();
+      panel.dataset.state = 'closed';
+      box.removeAttribute('data-open');
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+      announce('');
+    }
+
+    function showStatus(kind: Status): void {
+      options = [];
+      active = -1;
+      input.removeAttribute('aria-activedescendant');
+      const row = node('div', 'menu-status', TEXT[kind]);
+      row.setAttribute('role', 'presentation');
+      panel.replaceChildren(row);
+      panel.dataset.state = kind;
+      panel.setAttribute('aria-busy', kind === 'loading' ? 'true' : 'false');
+      // There is nothing to act on in any of the three, so keys do nothing and
+      // Enter submits what is typed; only "loading" is a wait.
+      ready = kind !== 'loading';
+      announce(TEXT[kind]);
+      open();
+    }
+
+    function optionRow(choice: Choice, id: string): HTMLElement {
+      const row = node('div', 'menu-option');
+      row.id = id;
+      row.setAttribute('role', 'option');
+      row.setAttribute('aria-selected', 'false');
+      row.dataset.href = choice.href;
+      if (choice.disabled) row.setAttribute('aria-disabled', 'true');
+      row.append(
+        node('span', 'menu-label', choice.label),
+        node('span', 'menu-count mono', choice.count === null ? '' : choice.count.toLocaleString())
+      );
+      // Focus stays in the field (see the header). The panel refuses it too, for
+      // the headings and the gaps; the row's own refusal is the one the rule names.
+      row.addEventListener('mousedown', (event) => event.preventDefault());
+      return row;
+    }
+
+    function showResults(next: Section[], keepActiveId?: string): void {
+      sections = next;
+      const rows: HTMLElement[] = [];
+      const reveal = !phone.matches;
+      const parts: HTMLElement[] = [];
+      next.forEach((section, sectionIndex) => {
+        const heading = node('div', 'menu-heading mono-label', section.label);
+        heading.setAttribute('aria-hidden', 'true');
+        const group = node('div', 'menu-group');
+        group.setAttribute('role', 'group');
+        group.setAttribute('aria-label', section.label);
+        const shown = reveal || expanded.has(section.type) ? section.choices : section.choices.slice(0, PHONE_ROWS);
+        shown.forEach((choice, rowIndex) => {
+          const row = optionRow(choice, `${panel.id}-opt-${sectionIndex}-${rowIndex}`);
+          group.append(row);
+          if (!choice.disabled) rows.push(row);
+        });
+        const hidden = section.choices.length - shown.length;
+        if (hidden > 0) {
+          const more = node('div', 'menu-option menu-more');
+          more.id = `${panel.id}-opt-${sectionIndex}-more`;
+          more.setAttribute('role', 'option');
+          more.setAttribute('aria-selected', 'false');
+          more.dataset.more = section.type;
+          more.append(node('span', 'menu-label', 'More'), node('span', 'menu-count mono', `+${hidden}`));
+          more.addEventListener('mousedown', (event) => event.preventDefault());
+          group.append(more);
+          rows.push(more);
+        }
+        parts.push(heading, group);
+      });
+      panel.replaceChildren(...parts);
+      panel.dataset.state = 'results';
+      panel.setAttribute('aria-busy', 'false');
+      options = rows;
+      active = -1;
+      input.removeAttribute('aria-activedescendant');
+      ready = true;
+      const keep = keepActiveId ? options.findIndex((row) => row.id === keepActiveId) : -1;
+      if (keep >= 0) setActive(keep);
+      const total = next.reduce((sum, section) => sum + section.choices.length, 0);
+      announce(`${total} suggestions`);
+      open();
+    }
+
+    function activate(row: HTMLElement): void {
+      if (row.getAttribute('aria-disabled') === 'true') return;
+      const more = row.dataset.more;
+      if (more !== undefined) {
+        // On a phone More shows the rest of ONE group, and the reader's place
+        // moves to the first row it revealed.
+        const sectionIndex = sections.findIndex((section) => section.type === more);
+        expanded.add(more);
+        showResults(sections, `${panel.id}-opt-${sectionIndex}-${PHONE_ROWS}`);
+        return;
+      }
+      const href = row.dataset.href;
+      if (!href) return;
+      close();
+      window.location.assign(href);
+    }
+
+    function baseParams(): Record<string, string> {
+      try {
+        const parsed: unknown = JSON.parse(box.dataset.suggestParams || '{}');
+        if (typeof parsed !== 'object' || parsed === null) return {};
+        const out: Record<string, string> = {};
+        for (const [name, value] of Object.entries(parsed)) if (typeof value === 'string') out[name] = value;
+        return out;
+      } catch {
+        return {};
+      }
+    }
+
+    /** Read at each request, not once: a test, or a slow network, can lower it. */
+    function timeoutMs(): number {
+      const set = Number(box.dataset.suggestTimeout);
+      return Number.isFinite(set) && set > 0 ? set : TIMEOUT_MS;
+    }
+
+    function request(): void {
+      const text = input.value.slice(0, MAX_QUERY_CHARS);
+      if (text.trim() === '') {
+        close();
+        return;
+      }
+      controller?.abort();
+      window.clearTimeout(loadingTimer);
+      const mine = new AbortController();
+      controller = mine;
+      expanded = new Set();
+
+      const url = new URL(box.dataset.suggestPath || '/board/suggest', window.location.origin);
+      for (const [name, value] of Object.entries(baseParams())) {
+        if (name !== 'q' && name !== 'v') url.searchParams.set(name, value);
+      }
+      url.searchParams.set('q', text);
+      if (box.dataset.suggestV) url.searchParams.set('v', box.dataset.suggestV);
+
+      const cutoff = window.setTimeout(() => mine.abort(), timeoutMs());
+      loadingTimer = window.setTimeout(() => {
+        if (controller === mine) showStatus('loading');
+      }, LOADING_AFTER_MS);
+
+      fetch(`${url.pathname}${url.search}`, { signal: mine.signal, headers: { Accept: 'application/json' } })
+        .then((response) => {
+          if (!response.ok) throw new Error(`suggest answered ${response.status}`);
+          return response.json() as Promise<unknown>;
+        })
+        .then((body) => {
+          // Answered a keystroke ago: that text has been replaced, drop it.
+          if (controller !== mine) return;
+          window.clearTimeout(loadingTimer);
+          const read = readSections(body);
+          if (read === null) showStatus('error');
+          else if (read.length === 0) showStatus('empty');
+          else showResults(read);
+        })
+        .catch(() => {
+          // An abort by a newer keystroke or by close() is not a failure; the
+          // cutoff's abort, a refused connection and a bad status all are.
+          if (controller !== mine) return;
+          window.clearTimeout(loadingTimer);
+          showStatus('error');
+        })
+        .finally(() => window.clearTimeout(cutoff));
+    }
+
+    function move(direction: 1 | -1): void {
+      if (!isOpen() || !ready || options.length === 0) return;
+      if (direction === 1) setActive(active < 0 ? 0 : Math.min(options.length - 1, active + 1));
+      // Up from the first row returns to the typed text, with nothing active.
+      else setActive(active < 0 ? options.length - 1 : active - 1);
+    }
+
+    input.addEventListener('input', () => {
+      // The rows on screen now answer text that is gone: nothing may act on them.
+      ready = false;
+      setActive(-1);
+      panel.setAttribute('aria-busy', 'true');
+      window.clearTimeout(debounceTimer);
+      if (input.value.trim() === '') {
+        close();
+        return;
+      }
+      debounceTimer = window.setTimeout(request, DEBOUNCE_MS);
+    });
+
+    // Focusing the field takes the slot, so a strip menu left open closes. The
+    // strip's own click handler would not: it ignores any click inside a cell.
+    input.addEventListener('focus', () => claimMenu('search'));
+
+    input.addEventListener('keydown', (event) => {
+      if (event.isComposing) return;
+      switch (event.key) {
+        case 'ArrowDown':
+          event.preventDefault();
+          if (isOpen()) move(1);
+          else if (input.value.trim() !== '') request();
+          break;
+        case 'ArrowUp':
+          if (isOpen()) {
+            event.preventDefault();
+            move(-1);
+          }
+          break;
+        case 'Enter': {
+          const row = options[active];
+          if (isOpen() && ready && row) {
+            event.preventDefault();
+            activate(row);
+          }
+          // Nothing active: the form submits what is typed.
+          break;
+        }
+        case 'Escape':
+          if (isOpen()) {
+            event.preventDefault();
+            close();
+          }
+          break;
+        case 'Tab': {
+          const row = options[active];
+          if (isOpen() && ready && row && !event.shiftKey) {
+            event.preventDefault();
+            activate(row);
+          } else if (isOpen()) {
+            close();
+          }
+          break;
+        }
+        case 'Backspace': {
+          if (input.value !== '' || event.repeat) break;
+          const removers = box.querySelectorAll<HTMLAnchorElement>('.sb-chip-x');
+          const last = removers[removers.length - 1];
+          if (last) {
+            event.preventDefault();
+            window.location.assign(last.href);
+          }
+          break;
+        }
+      }
+    });
+
+    // A press on the cell that is not the field, a link or the panel puts the
+    // caret in the field, which the old label wrapper did for free.
+    box.addEventListener('mousedown', (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target === input || target.closest('a, [data-search-panel]')) return;
+      event.preventDefault();
+      input.focus();
+    });
+
+    panel.addEventListener('mousedown', (event) => event.preventDefault());
+    panel.addEventListener('click', (event) => {
+      const target = event.target;
+      const row = target instanceof Element ? target.closest<HTMLElement>('[role="option"]') : null;
+      if (row) activate(row);
+    });
+
+    document.addEventListener('pointerdown', (event) => {
+      if (!isOpen()) return;
+      if (event.target instanceof Node && box.contains(event.target)) return;
+      close();
+    });
+
+    // A strip menu, or the Desk titles list, opened: this panel yields.
+    onMenuClaimed('search', close);
+
+    // A phone turned sideways, or a window resized across the line, redraws the
+    // rows it already holds with the other row budget.
+    phone.addEventListener('change', () => {
+      if (isOpen() && panel.dataset.state === 'results') showResults(sections, options[active]?.id);
+    });
+
+    input.form?.addEventListener('submit', close);
+    // Back or forward can restore this page, panel and all, from memory.
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted) close();
+    });
+
+    // Every listener above is attached. A module script runs after the page has
+    // painted, so a reader (or a browser test) can type before this line; the
+    // marker is how they tell.
+    box.setAttribute('data-wired', '');
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-search-box]').forEach(wire);
+</script>
+
+<style>
+  /* THE CELL. Written here rather than leaned on from Filters.astro, because a
+     child component's root element is not guaranteed the parent's scope
+     attribute. These are .filter and .filter-search, value for value. */
+  .search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-200);
+    /* A fixed basis, not `auto`: with auto the cell's wanted width is its chips
+       laid on one line, and three chips made the strip wrap the Dim cell onto a
+       second row. 13rem, down from the old cell's 15.7rem (2026-10-02): with
+       "London, United Kingdom" in Location the old basis put the row 6px over at
+       a 1280px window and Dim seen hung alone on a second line; at 13rem the
+       whole row holds there with a company chip as well (measured at 1280, 14rem
+       was the first that fit). It is only where the cell starts: it still takes
+       every pixel of slack the row has. */
+    flex: 1 1 13rem;
+    min-width: var(--space-900);
+    padding: var(--space-300) var(--space-500);
+    border-left: var(--border-hairline) solid var(--color-line);
+    white-space: nowrap;
+    cursor: text;
+  }
+
+  .search-box:first-child {
+    border-left: none;
+  }
+
+  /* Open, the cell is drawn the way an open strip cell is: a heavy outline
+     inward, so the strip does not move. */
+  .search-box[data-open] {
+    outline: var(--border-heavy) solid var(--color-foreground);
+    outline-offset: calc(-1 * var(--border-heavy));
+  }
+
+  .search-glyph {
+    flex: none;
+    color: var(--color-muted);
+    font-size: var(--size-100);
+  }
+
+  /* The chips and the caret share ONE line (owner, 2026-10-02: a chip stacked
+     over the field "doesn't work"). A chip never shrinks, a long one is capped
+     (.sb-chip-label), and the caret keeps its 8ch, so the field is always there
+     to type in. The strip's line layout counts all three as the box's floor. */
+  .sb-field {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--space-200);
+    min-width: 0;
+  }
+
+  /* The list drops out of the layout (its role is written on the element, since
+     some engines drop a list's semantics along with its box), so every chip is a
+     flex item of .sb-field itself and the caret follows the LAST chip on the same
+     line when there is room, instead of always starting a row of its own. */
+  .sb-chips {
+    display: contents;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* A chip is a hairline box in the mono voice: no fill, no rounding, no shadow.
+     The remove link is its right edge. */
+  .sb-chip {
+    display: inline-flex;
+    flex: none;
+    align-items: stretch;
+    border: var(--border-hairline) solid var(--color-line-strong);
+    font-size: var(--size-100);
+    /* 1.4 keeps the chip, border and all, inside the cell's own line height, so
+       a chip does not make the strip taller than the cells beside it. */
+    line-height: 1.4;
+    color: var(--color-foreground);
+  }
+
+  /* Capped, not shrunk: "Advantagemedicalstaffing" would otherwise be a quarter
+     of the strip. */
+  .sb-chip-label {
+    max-width: 16ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 var(--space-300);
+    font-size: var(--size-100);
+  }
+
+  .sb-chip-x {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--space-300);
+    border-left: var(--border-hairline) solid var(--color-line);
+    font-size: var(--size-100);
+    color: var(--color-muted);
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .sb-chip-x:hover {
+    background: var(--color-hover-surface);
+    color: var(--color-foreground);
+  }
+
+  .sb-chip-x:focus-visible {
+    outline: var(--border-heavy) solid var(--color-foreground);
+    outline-offset: calc(-1 * var(--border-heavy));
+    color: var(--color-foreground);
+  }
+
+  .search-input {
+    flex: 1 1 8ch;
+    min-width: 8ch;
+    font-size: var(--size-100);
+    padding: 0;
+    color: var(--color-foreground);
+    background: transparent;
+    border: none;
+  }
+
+  .search-input::placeholder {
+    color: var(--color-muted);
+  }
+
+  .search-input:focus-visible {
+    outline: none;
+  }
+
+  /* THE PANEL'S PLACE. Its surface (position, layer, background, hairline) comes
+     from Filters.astro's .menu rule, which lists .menu-suggest beside .menu; this
+     only says where it hangs: from the cell's own edges, so it is exactly as wide
+     as the box, and tall enough to scroll rather than run off the screen. */
+  .menu-suggest {
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: min(36rem, 75vh);
+    overflow-y: auto;
+    white-space: normal;
+    cursor: default;
+  }
+
+  /* A long title is cut at the panel's edge instead of widening the panel; the
+     count keeps its column. Two classes deeper than Filters.astro's .menu-option
+     rule, so the order the stylesheets load in cannot matter. */
+  .search-box .menu-suggest :global(.menu-option) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .search-box .menu-suggest :global(.menu-label) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Group heads: the uppercase mono label over each group, the hairline above
+     it the only thing that separates one group from the next. */
+  .search-box .menu-suggest :global(.menu-heading) {
+    flex: none;
+    padding: var(--space-300) var(--space-400) var(--space-200);
+    border-top: var(--border-hairline) solid var(--color-line);
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+
+  .search-box .menu-suggest :global(.menu-heading:first-child) {
+    border-top: none;
+  }
+
+  .search-box .menu-suggest :global(.menu-group) {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+  }
+
+  /* A wait, an empty answer or a failure: one muted line in the menu's own type. */
+  .search-box .menu-suggest :global(.menu-status) {
+    padding: var(--space-300) var(--space-400);
+    font-family: var(--font-family-mono);
+    font-size: var(--size-100);
+    color: var(--color-muted);
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  /* On the strip's line (Filters.astro measures it) the box gives way down to its
+     floor: the glyph, its chips and an 8ch caret. */
+  :global(.filters-row[data-layout='line']) > .search-box {
+    min-width: var(--strip-search-floor, var(--space-900));
+  }
+
+  /* In the strip's column, and on a phone without script, the cell is the strip's
+     full width and the panel with it. Its hairline moves from the left edge to the
+     top, as every strip cell's does. */
+  :global(.filters-row[data-layout='column']) > .search-box {
+    flex: 0 0 auto;
+    border-left: none;
+    border-top: var(--border-hairline) solid var(--color-line);
+  }
+  :global(.filters-row[data-layout='column']) > .search-box:first-child {
+    border-top: none;
+  }
+  @media (max-width: 48rem) { /* --breakpoint-phone */
+    .search-box {
+      /* The strip is a column here, where the 13rem basis would be a HEIGHT. */
+      flex: 0 0 auto;
+      border-left: none;
+      border-top: var(--border-hairline) solid var(--color-line);
+    }
+
+    .search-box:first-child {
+      border-top: none;
+    }
+  }
+</style>

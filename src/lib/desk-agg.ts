@@ -166,7 +166,7 @@ function prefsParams(prefs: LedgerSelection): { remoteOnly: boolean; compFloor: 
 /**
  * The lane, as one CTE both statements below share so the cut cannot drift
  * between the counts and the rows (the same discipline job-store.ts's
- * BOARD_FACET_CTE keeps). Parameters, in order:
+ * boardFacetCte() keeps). Parameters, in order:
  *   $1 the watch ordinals, $2 the normalised phrases, $3 the raw titles,
  *   $4 which of them are core, $5 remote-only, $6 the comp floor or NULL,
  *   $7 the sweep day, $8 the window in days, $9 the last-visit day or NULL,

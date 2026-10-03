@@ -7,8 +7,9 @@
  *
  * PARAMETERISED QUERIES ONLY. THIS FILE DOES NOT VALIDATE A SELECTION: it
  * persists whatever object it is handed, trusting the caller to have narrowed
- * it to the chips that map to real board fields first, the same way
- * filters-store.ts trusts normalizeFilterSelection().
+ * it to the chips that map to real board fields first. That is where it parts
+ * from filters-store.ts, whose saveFilterState() normalises whatever it is
+ * handed through normalizeSavedSelection() before it writes.
  */
 import { db } from './db';
 

@@ -2,7 +2,7 @@
  * jobs-data-cache.ts: hold a computed view until the next crawl replaces it.
  *
  * WHY A CACHE IS SAFE HERE AND USUALLY IS NOT. The jobs table is written by
- * exactly one writer, scripts/ingest-jobs.mjs, which truncates and reloads it
+ * exactly one writer, scripts/ingest-jobs.mjs, which deletes and reloads it
  * once per crawl inside one transaction. Between two crawls the data is
  * immutable, so a cached answer is not a stale answer, it is the same answer.
  * Every entry is stamped with the crawl it was computed from, and a stamp that

@@ -22,6 +22,9 @@ import {
   workplaceOf
 } from '../lib/data';
 import { FRESH_WINDOW_HOURS } from '../lib/data-contract';
+import { rankFactsOf } from '../lib/board-jobs';
+import type { BoardSort } from '../lib/board-query';
+import type { RankFacts } from '../lib/rank-reason';
 
 /**
  * The index table: column labels, rows, and the footer that carries the legend.
@@ -104,6 +107,16 @@ interface Props {
    * so nothing else moves. The page decides (flags.config.mjs fit_public).
    */
   fit?: boolean;
+  /**
+   * The order `jobs` arrived in, so each row's why panel can say why it sits
+   * where it sits: the sort the store ran, where this page starts in the WHOLE
+   * result (0 for page 1, (page - 1) * per after that), and the words typed. The
+   * caller owns all three (Board.astro, from the address). Read only under
+   * paging="server", where the order on screen is the order the store made; a
+   * client-paged table is re-sorted by the browser and could not keep the
+   * sentence true. Absent, no row draws a line.
+   */
+  orderedBy?: { sort: BoardSort; offset: number; query?: string };
   class?: string;
 }
 
@@ -116,6 +129,7 @@ const {
   emptyDetail = 'Nothing in this sweep fits the filters you have set. Widening one of them is the fastest way back to a full table.',
   hrefFor,
   fit = true,
+  orderedBy,
   class: className
 } = Astro.props;
 
@@ -126,6 +140,25 @@ const {
 // still needs its own real rank for the JobRow rendered inside that cluster's
 // expansion.
 const ranks = paging === 'client' ? sortRanks(jobs) : null;
+
+// THE RANKED-BECAUSE FACTS. A row's true rank is its place in `jobs`, the rows
+// exactly as the store ordered them, plus the page offset. It is NOT its place
+// among the clustered rows below: a cluster folds several of these into one row,
+// and the posting after it is still ranked after all of them. Looked up by the
+// Job object, so a cluster's members each keep their own rank. Built only where
+// there is a panel to hold the line (fit) and a server order to describe.
+const placeIn = new Map<Job, number>(jobs.map((job, index): [Job, number] => [job, index]));
+const becauseFor = (job: Job): RankFacts | undefined => {
+  if (!orderedBy || !fit || paging !== 'server') return undefined;
+  const at = placeIn.get(job);
+  if (at === undefined) return undefined;
+  const facts = rankFactsOf(job, {
+    sort: orderedBy.sort,
+    position: orderedBy.offset + at + 1,
+    query: orderedBy.query ?? ''
+  });
+  return facts ?? undefined;
+};
 
 // MASTER-SPEC F10. `rows` is what this file walks from here on: an ordinary
 // posting stays a `single`, and every duplicate cluster becomes one `cluster`
@@ -255,7 +288,7 @@ const sweptIso = loadStats().swept_at_utc;
               rows.map((row, index) => {
                 const rowHidden = paging === 'client' && index >= perPage;
                 if (row.kind === 'single') {
-                  return <JobRow job={row.job} surface="raised" ranks={ranks?.get(row.job.slug)} hidden={rowHidden} hrefFor={hrefFor} fit={fit} />;
+                  return <JobRow job={row.job} surface="raised" ranks={ranks?.get(row.job.slug)} because={becauseFor(row.job)} hidden={rowHidden} hrefFor={hrefFor} fit={fit} />;
                 }
 
                 const { cluster } = row;
@@ -386,7 +419,7 @@ const sweptIso = loadStats().swept_at_utc;
                       </summary>
                       <ul class="cluster-postings">
                         {cluster.postings.map((posting) => (
-                          <JobRow job={posting} surface="raised" ranks={ranks?.get(posting.slug)} hrefFor={hrefFor} fit={fit} />
+                          <JobRow job={posting} surface="raised" ranks={ranks?.get(posting.slug)} because={becauseFor(posting)} hrefFor={hrefFor} fit={fit} />
                         ))}
                       </ul>
                     </details>

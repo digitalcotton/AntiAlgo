@@ -15,9 +15,15 @@ describe('boardReturnLink', () => {
   });
 
   it('carries the whole question, not just the page', () => {
+    // An address from before `remote=` existed comes back under the new name:
+    // the link is rewritten through parseBoardQuery and boardHref, and the old
+    // `location=` is no longer written.
     expect(
       href('https://www.antialgo.ai/board?location=remote&sort=age&per=25&page=3', HERE, LISTS)
-    ).toBe('/board?location=remote&sort=age&per=25&page=3');
+    ).toBe('/board?remote=remote&sort=age&per=25&page=3');
+    expect(
+      href('https://www.antialgo.ai/board?remote=remote&sort=age&per=25&page=3', HERE, LISTS)
+    ).toBe('/board?remote=remote&sort=age&per=25&page=3');
   });
 
   it('returns the bare path when the reader was on page one', () => {

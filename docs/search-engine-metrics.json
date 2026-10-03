@@ -1,0 +1,2417 @@
+{
+  "meta": {
+    "generated_by": "npm run eval:search (test/eval/search.eval.ts)",
+    "measured_at": "2026-10-02T23:54:54.544Z",
+    "elapsed_s": 181,
+    "head": "e230c2e",
+    "engine_files_modified_in_tree": [
+      " M src/lib/search-suggest.ts"
+    ],
+    "node": "v22.23.1",
+    "load": {
+      "at_start": 2.91796875,
+      "at_end": 3.04638671875,
+      "cpu_count": 12
+    }
+  },
+  "environment": {
+    "database": "local Postgres (DATABASE_URL host is this machine)",
+    "live_rows": 37286,
+    "live_rows_at_baseline": 37286,
+    "sweep_date": "2026-10-01",
+    "sample": {
+      "salt": "search-eval-v1",
+      "size": 500,
+      "rule": "SELECT id FROM jobs WHERE status='live' AND length(title)>=4 ORDER BY md5(id||salt) LIMIT 500"
+    },
+    "known_item_rows_fetched_per_query": 100,
+    "board_page_size_for_latency_shapes": 5
+  },
+  "contract": {
+    "baseline_file": "docs/search-engine-baseline-search.json",
+    "baseline_measured_at": "2026-10-02T11:39:57.834Z",
+    "baseline_engine": "old: ILIKE substring on title/company, ORDER BY detail_total, live rows, as of 0caebff",
+    "query_rules": {
+      "title": "the exact title",
+      "title_company": "title + space + company",
+      "title_lower": "title lower-cased",
+      "words_reordered": "last title word moved to the front (titles of 2+ words only)",
+      "one_typo": "middle character deleted from the longest title word of length >= 5"
+    },
+    "metric_rules": "rank = 1-based position of the sampled id in the first 100 results; hit@1, hit@10 in %; MRR = mean(1/rank), 0 when absent",
+    "percentiles": "nearest rank"
+  },
+  "baseline_check": {
+    "replica_reproduces_committed_baseline": true,
+    "mismatches": [],
+    "checked": [
+      "n",
+      "hit1",
+      "hit10",
+      "mrr",
+      "zero_results"
+    ],
+    "note": "Every query type is replayed through the restated old engine and compared with docs/search-engine-baseline-search.json."
+  },
+  "known_item": {
+    "title": {
+      "new": {
+        "n": 500,
+        "hit1": 71,
+        "hit10": 90.4,
+        "hit100": 100,
+        "mrr": 0.779,
+        "zero_results": 0,
+        "fuzzy_rate": 0,
+        "title_equivalent_hit10": 100,
+        "latency_ms": {
+          "p50": 9.1,
+          "p95": 35.1,
+          "p99": 71.3,
+          "max": 185
+        }
+      },
+      "old_baseline": {
+        "n": 500,
+        "hit1": 67.4,
+        "hit10": 87.4,
+        "mrr": 0.747,
+        "zero_results": 0,
+        "latency_ms": {
+          "p50": 35,
+          "p95": 45,
+          "p99": 55
+        }
+      },
+      "old_replica": {
+        "n": 500,
+        "hit1": 67.4,
+        "hit10": 87.4,
+        "hit100": 98.6,
+        "mrr": 0.747,
+        "zero_results": 0,
+        "fuzzy_rate": null,
+        "title_equivalent_hit10": 97,
+        "latency_ms": {
+          "p50": 1.1,
+          "p95": 2.1,
+          "p99": 3.3,
+          "max": 3.7
+        }
+      },
+      "exact_id_ceiling": {
+        "hit1": 70,
+        "hit10": 91.8,
+        "share_of_sample_with_a_title_shared_by_more_than_ten": 14
+      },
+      "new_title_misses": []
+    },
+    "title_company": {
+      "new": {
+        "n": 500,
+        "hit1": 74.2,
+        "hit10": 92.2,
+        "hit100": 100,
+        "mrr": 0.81,
+        "zero_results": 0,
+        "fuzzy_rate": 0,
+        "title_equivalent_hit10": 100,
+        "latency_ms": {
+          "p50": 7,
+          "p95": 19.2,
+          "p99": 29.4,
+          "max": 30.8
+        }
+      },
+      "old_baseline": {
+        "n": 500,
+        "hit1": 0,
+        "hit10": 0,
+        "mrr": 0,
+        "zero_results": 100,
+        "latency_ms": {
+          "p50": 39,
+          "p95": 50,
+          "p99": 58
+        }
+      },
+      "old_replica": {
+        "n": 500,
+        "hit1": 0,
+        "hit10": 0,
+        "hit100": 0,
+        "mrr": 0,
+        "zero_results": 100,
+        "fuzzy_rate": null,
+        "title_equivalent_hit10": 0,
+        "latency_ms": {
+          "p50": 1,
+          "p95": 1.9,
+          "p99": 2.3,
+          "max": 2.6
+        }
+      },
+      "new_title_misses": []
+    },
+    "title_lower": {
+      "new": {
+        "n": 500,
+        "hit1": 71,
+        "hit10": 90.4,
+        "hit100": 100,
+        "mrr": 0.779,
+        "zero_results": 0,
+        "fuzzy_rate": 0,
+        "title_equivalent_hit10": 100,
+        "latency_ms": {
+          "p50": 8.5,
+          "p95": 35,
+          "p99": 69.3,
+          "max": 167.7
+        }
+      },
+      "old_baseline": {
+        "n": 500,
+        "hit1": 67.4,
+        "hit10": 87.4,
+        "mrr": 0.747,
+        "zero_results": 0,
+        "latency_ms": {
+          "p50": 37,
+          "p95": 47,
+          "p99": 55
+        }
+      },
+      "old_replica": {
+        "n": 500,
+        "hit1": 67.4,
+        "hit10": 87.4,
+        "hit100": 98.6,
+        "mrr": 0.747,
+        "zero_results": 0,
+        "fuzzy_rate": null,
+        "title_equivalent_hit10": 97,
+        "latency_ms": {
+          "p50": 1.2,
+          "p95": 2.1,
+          "p99": 3,
+          "max": 9.2
+        }
+      },
+      "exact_id_ceiling": {
+        "hit1": 70,
+        "hit10": 91.8,
+        "share_of_sample_with_a_title_shared_by_more_than_ten": 14
+      },
+      "new_title_misses": []
+    },
+    "words_reordered": {
+      "new": {
+        "n": 491,
+        "hit1": 66.2,
+        "hit10": 86.6,
+        "hit100": 99,
+        "mrr": 0.735,
+        "zero_results": 0,
+        "fuzzy_rate": 0,
+        "title_equivalent_hit10": 96.7,
+        "latency_ms": {
+          "p50": 8.3,
+          "p95": 35.6,
+          "p99": 77.2,
+          "max": 159.9
+        }
+      },
+      "old_baseline": {
+        "n": 491,
+        "hit1": 0,
+        "hit10": 0,
+        "mrr": 0,
+        "zero_results": 99.4,
+        "latency_ms": {
+          "p50": 38,
+          "p95": 47,
+          "p99": 56
+        }
+      },
+      "old_replica": {
+        "n": 491,
+        "hit1": 0,
+        "hit10": 0,
+        "hit100": 0,
+        "mrr": 0,
+        "zero_results": 99.4,
+        "fuzzy_rate": null,
+        "title_equivalent_hit10": 0,
+        "latency_ms": {
+          "p50": 1.1,
+          "p95": 1.9,
+          "p99": 2.7,
+          "max": 3.1
+        }
+      },
+      "new_title_misses": [
+        {
+          "id": "usajobs|869011200",
+          "title": "Primary Care Physician",
+          "query": "Physician Primary Care",
+          "rank": 0,
+          "top3": [
+            "Physician - Primary Care",
+            "Physician (Primary Care)",
+            "Physician (Primary Care)"
+          ]
+        },
+        {
+          "id": "usajobs|885652400",
+          "title": "SECURITY SPECIALIST",
+          "query": "SPECIALIST SECURITY",
+          "rank": 21,
+          "top3": [
+            "DC Security Specialist Intern, DC Security",
+            "Data Center Security Specialist , AMER-SW Data Center Security",
+            "Transportation Security Specialist"
+          ]
+        },
+        {
+          "id": "ashby|f51a8226-1740-4a60-9d01-7a8be5baff2b",
+          "title": "Spécialiste Support Pilotage et Comptabilité (Télétravail complet possible)",
+          "query": "possible) Spécialiste Support Pilotage et Comptabilité (Télétravail complet",
+          "rank": 48,
+          "top3": [
+            "Spécialiste Support Pilotage et Comptabilité (Télétravail complet possible - Limousin / Dordogne / Lot-et-Garonne)",
+            "Spécialiste Support Pilotage et Comptabilité (Télétravail complet possible - Orléans)",
+            "Spécialiste Support Pilotage et Comptabilité (Télétravail complet possible - Tours)"
+          ]
+        },
+        {
+          "id": "icims|31620",
+          "title": "Physical Therapy Aide",
+          "query": "Aide Physical Therapy",
+          "rank": 50,
+          "top3": [
+            "Physical Therapy Aide - Evanston, IL",
+            "Physical Therapy Aide - Bannockburn, IL",
+            "Physical Therapy Aide - Westerville, OH"
+          ]
+        },
+        {
+          "id": "icims|10629",
+          "title": "Quality Assurance Specialist I",
+          "query": "I Quality Assurance Specialist",
+          "rank": 19,
+          "top3": [
+            "Sr. Quality Assurance Specialist - 3rd Shift",
+            "Quality Assurance Specialist",
+            "Sr. Quality Assurance Specialist - 12-Hr Night Shift 2-2-3"
+          ]
+        },
+        {
+          "id": "amazon|10541961",
+          "title": "Area Manager",
+          "query": "Manager Area",
+          "rank": 63,
+          "top3": [
+            "Area Manager, Worldwide Operations, Fulfillment Center - Fixed, Fulfillment Center",
+            "Learning Area Manager",
+            "Area Manager, Fulfillment Center Operations"
+          ]
+        },
+        {
+          "id": "breezy|754dd4652058",
+          "title": "Local Truck Driver",
+          "query": "Driver Local Truck",
+          "rank": 24,
+          "top3": [
+            "CDL A TRUCK DRIVER- LOCAL",
+            "Class A Solo Truck Driver - LOCAL",
+            "CDL A Truck Driver-Local/Home Daily - Modesto, CA"
+          ]
+        },
+        {
+          "id": "greenhouse|4628879005",
+          "title": "Senior Technical Program Manager",
+          "query": "Manager Senior Technical Program",
+          "rank": 44,
+          "top3": [
+            "Senior Technical Program Manager, IT Experience Engineering",
+            "Senior Technical Program Manager, Supply Chain Business Transformation",
+            "Senior Technical Program Manager, Amazon Compliance Shared Services, CoSS"
+          ]
+        }
+      ]
+    },
+    "one_typo": {
+      "new": {
+        "n": 499,
+        "hit1": 66.9,
+        "hit10": 88,
+        "hit100": 96,
+        "mrr": 0.741,
+        "zero_results": 2.8,
+        "fuzzy_rate": 96,
+        "title_equivalent_hit10": 96,
+        "latency_ms": {
+          "p50": 23.3,
+          "p95": 41,
+          "p99": 73.9,
+          "max": 147.2
+        }
+      },
+      "old_baseline": {
+        "n": 499,
+        "hit1": 0,
+        "hit10": 0,
+        "mrr": 0,
+        "zero_results": 99.8,
+        "latency_ms": {
+          "p50": 38,
+          "p95": 48,
+          "p99": 58
+        }
+      },
+      "old_replica": {
+        "n": 499,
+        "hit1": 0,
+        "hit10": 0,
+        "hit100": 0,
+        "mrr": 0,
+        "zero_results": 99.8,
+        "fuzzy_rate": null,
+        "title_equivalent_hit10": 0,
+        "latency_ms": {
+          "p50": 0.8,
+          "p95": 1.5,
+          "p99": 1.9,
+          "max": 2.2
+        }
+      },
+      "new_title_misses": [
+        {
+          "id": "usajobs|884895800",
+          "title": "MAINTENANCE MECHANIC",
+          "query": "MAINTNANCE MECHANIC",
+          "rank": 0,
+          "top3": [
+            "MAINTNANCE MECHANIC LEADER-NIE",
+            "MAINTNANCE MECHANIC LEADER-NIE"
+          ]
+        },
+        {
+          "id": "teamtailor|8401806",
+          "title": "Maitre d'Hôtel F/H",
+          "query": "Maitre d'Htel F/H",
+          "rank": 0,
+          "top3": []
+        },
+        {
+          "id": "usajobs|869011200",
+          "title": "Primary Care Physician",
+          "query": "Primary Care Physcian",
+          "rank": 61,
+          "top3": [
+            "Physician - Primary Care",
+            "Physician - Primary Care",
+            "Physician (Primary Care)"
+          ]
+        },
+        {
+          "id": "amazon|10541961",
+          "title": "Area Manager",
+          "query": "Area Manger",
+          "rank": 0,
+          "top3": [
+            "Clinical Nurse Manager"
+          ]
+        },
+        {
+          "id": "usajobs|884502300",
+          "title": "Administrative Support Assistant (CYS) (Developmental) NF-02/03",
+          "query": "Administrative Support Assistant (CYS) (Develomental) NF-02/03",
+          "rank": 0,
+          "top3": []
+        },
+        {
+          "id": "teamtailor|6624672",
+          "title": "Business Consultant SAP Master Data, 80-100% (m/w/d)",
+          "query": "Business Consutant SAP Master Data, 80-100% (m/w/d)",
+          "rank": 0,
+          "top3": []
+        },
+        {
+          "id": "usajobs|883431700",
+          "title": "PLASTERER, WG-3605-09",
+          "query": "PLASTRER, WG-3605-09",
+          "rank": 0,
+          "top3": []
+        },
+        {
+          "id": "amazon|10553915",
+          "title": "Area Manager",
+          "query": "Area Manger",
+          "rank": 0,
+          "top3": [
+            "Clinical Nurse Manager"
+          ]
+        }
+      ]
+    }
+  },
+  "precision_at_10": {
+    "definition": "the share of the top-10 rows whose folded title contains every query word (as a substring of the folded title)",
+    "queries": "the 40 most frequent distinct live titles (grouped by lower-cased, trimmed title; ties by title), each queried as typed",
+    "new": {
+      "queries": 40,
+      "rows_examined": 400,
+      "rows_precise": 400,
+      "pooled_precision_at_10": 100,
+      "mean_precision_at_10": 100,
+      "queries_all_precise": 40,
+      "queries_with_no_results": 0
+    },
+    "old": {
+      "queries": 40,
+      "rows_examined": 400,
+      "rows_precise": 400,
+      "pooled_precision_at_10": 100,
+      "mean_precision_at_10": 100,
+      "queries_all_precise": 40,
+      "queries_with_no_results": 0
+    },
+    "below_100": [],
+    "per_query": [
+      {
+        "query": "transportation security officer",
+        "live_rows": 159,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "heavy mobile equipment repairer",
+        "live_rows": 80,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "infra delivery install technician",
+        "live_rows": 66,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "child and youth program assistant cy-01/02",
+        "live_rows": 61,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "insurance sales team leader",
+        "live_rows": 60,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "food service worker",
+        "live_rows": 57,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "retail sales assistant",
+        "live_rows": 51,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "data center technician",
+        "live_rows": 49,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "cook",
+        "live_rows": 47,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "store associate",
+        "live_rows": 47,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "agente di commercio / procacciatore (p. iva), settore pagamenti",
+        "live_rows": 46,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "assistant united states attorney",
+        "live_rows": 46,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "brenner du for gode gjesteopplevelser?",
+        "live_rows": 45,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "store worker",
+        "live_rows": 45,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "head chef",
+        "live_rows": 44,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "sales store checker",
+        "live_rows": 44,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "licensed life insurance agent",
+        "live_rows": 42,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "life insurance agent - training provided",
+        "live_rows": 42,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "meatcutting worker",
+        "live_rows": 42,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "medical support assistant (advanced)",
+        "live_rows": 42,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "verkäufer (m/w/d) für o2 telefónica im mediamarkt saturn",
+        "live_rows": 42,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "field sales executive",
+        "live_rows": 41,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "initiativbewerbung",
+        "live_rows": 39,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "commercial terrain - indépendant (freelance)",
+        "live_rows": 38,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "dental assistant",
+        "live_rows": 38,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "contract specialist",
+        "live_rows": 37,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "program analyst",
+        "live_rows": 37,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "aircraft mechanic",
+        "live_rows": 35,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "er du vår nye superhelt medarbeider?",
+        "live_rows": 35,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "police officer",
+        "live_rows": 34,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "sales development representative",
+        "live_rows": 33,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "surface maintenance mechanic",
+        "live_rows": 33,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "business development representative",
+        "live_rows": 32,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "dietitian (clinical)",
+        "live_rows": 32,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "account manager",
+        "live_rows": 31,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "certified pharmacy technician, amazon pharmacy",
+        "live_rows": 31,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "green & gold congressional aide",
+        "live_rows": 31,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "project manager",
+        "live_rows": 31,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "veterinarian nf-04",
+        "live_rows": 31,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      },
+      {
+        "query": "account executive",
+        "live_rows": 30,
+        "new": {
+          "returned": 10,
+          "precise": 10
+        },
+        "old": {
+          "returned": 10,
+          "precise": 10
+        }
+      }
+    ]
+  },
+  "data": {
+    "live_rows": {
+      "now": 37286,
+      "baseline": 37286
+    },
+    "country_coverage": {
+      "resolved_now": {
+        "rows": 30580,
+        "of": 37286,
+        "pct": 82,
+        "source": "jobs.place_country IS NOT NULL (what the board serves)"
+      },
+      "upstream_code_now": {
+        "rows": 15023,
+        "of": 37286,
+        "pct": 40.3,
+        "source": "jobs.country is a two-letter code (the baseline's definition)"
+      },
+      "upstream_code_baseline": {
+        "rows": 15023,
+        "of": 37286,
+        "pct": 40.3
+      },
+      "script_agrees_with_column": true
+    },
+    "place_script": {
+      "cities_learned": 543,
+      "holdout_by_row": {
+        "held_out": 3005,
+        "resolved": 2925,
+        "correct": 2862,
+        "accuracy_pct": 97.85,
+        "misses_where_text_names_the_other_country": 62,
+        "table_only": {
+          "rows": 84,
+          "placed": 19,
+          "correct": 19
+        }
+      },
+      "holdout_by_string": {
+        "held_out": 2865,
+        "resolved": 2779,
+        "correct": 2696,
+        "accuracy_pct": 97.01,
+        "misses_where_text_names_the_other_country": 83,
+        "table_only": {
+          "rows": 76,
+          "placed": 7,
+          "correct": 7
+        }
+      },
+      "coverage": {
+        "rows": 37286,
+        "upstream_country": 15023,
+        "place_country": 30580,
+        "place_rows": 37286,
+        "newly_resolved": 15560,
+        "rows_without_upstream": 22263,
+        "resolved_only_by_learned_table": 3631,
+        "largest_unresolved": [
+          {
+            "location": "Multiple Locations",
+            "rows": 1290
+          },
+          {
+            "location": "2 Locations",
+            "rows": 610
+          },
+          {
+            "location": "3 Locations",
+            "rows": 211
+          },
+          {
+            "location": "Remote job",
+            "rows": 193
+          },
+          {
+            "location": "",
+            "rows": 192
+          },
+          {
+            "location": "Location Negotiable After Selection",
+            "rows": 191
+          },
+          {
+            "location": "4 Locations",
+            "rows": 151
+          },
+          {
+            "location": "Remote",
+            "rows": 134
+          },
+          {
+            "location": "5 Locations",
+            "rows": 128
+          },
+          {
+            "location": "6 Locations",
+            "rows": 107
+          }
+        ]
+      }
+    },
+    "place_script_output": [
+      "build-place-table: 37286 live rows, 15023 with a valid upstream country",
+      "  learned 543 cities (>= 3 rows, >= 95% agreeing on the country)",
+      "  with a state: 298",
+      "holdout A: seeded 220, 80/20 by row",
+      "  held out           3005 rows (table learned on the rest: 461 cities)",
+      "  country resolved   2925 (97.3%), of which 2906 from the text alone",
+      "  country correct    2862 of 2925 resolved (97.8%) against the upstream code",
+      "  of the 63 misses, 62 are rows where the text spells out the other country",
+      "  table-only rows    84 the string alone cannot place; the table placed 19 (22.6%), 19 correct (100.0% of those placed)",
+      "  most common misses (location => answer, truth):",
+      "       9  Albuquerque, New Mexico => US (truth MX) [text contradicts upstream]",
+      "       8  Sydney, New South Wales, AUS => AU (truth GB) [text contradicts upstream]",
+      "       4  Gallup, New Mexico => US (truth MX) [text contradicts upstream]",
+      "       3  Bengaluru, UNAVAILABLE, IN => IN (truth US) [text contradicts upstream]",
+      "       3  Berlin, DE => DE (truth US) [text contradicts upstream]",
+      "       3  Holloman AFB, New Mexico => US (truth MX) [text contradicts upstream]",
+      "       3  Las Cruces, New Mexico => US (truth MX) [text contradicts upstream]",
+      "       2  Crownpoint, New Mexico => US (truth MX) [text contradicts upstream]",
+      "       2  Jemez Pueblo, New Mexico => US (truth MX) [text contradicts upstream]",
+      "       2  Melbourne, Victoria, AUS => AU (truth CA) [text contradicts upstream]",
+      "       2  Mumbai, IN => IN (truth US) [text contradicts upstream]",
+      "       2  Ontario, CA, US => US (truth CA) [text contradicts upstream]",
+      "holdout B: 80/20 by DISTINCT STRING, so the test strings were never seen",
+      "  held out           2865 rows (table learned on the rest: 449 cities)",
+      "  country resolved   2779 (97.0%), of which 2772 from the text alone",
+      "  country correct    2696 of 2779 resolved (97.0%) against the upstream code",
+      "  of the 83 misses, 83 are rows where the text spells out the other country",
+      "  table-only rows    76 the string alone cannot place; the table placed 7 (9.2%), 7 correct (100.0% of those placed)",
+      "  most common misses (location => answer, truth):",
+      "      38  Albuquerque, New Mexico => US (truth MX) [text contradicts upstream]",
+      "      11  Ontario, CA, US => US (truth CA) [text contradicts upstream]",
+      "       8  White Sands Missile Range, New Mexico => US (truth MX) [text contradicts upstream]",
+      "       5  Mumbai, IN => IN (truth US) [text contradicts upstream]",
+      "       4  Maribyrnong, Victoria => AU (truth CA) [text contradicts upstream]",
+      "       4  Sydney, New South Wales, Australia => AU (truth GB) [text contradicts upstream]",
+      "       3  Halifax, GB => GB (truth CA) [text contradicts upstream]",
+      "       3  San Felipe Pueblo, New Mexico => US (truth MX) [text contradicts upstream]",
+      "       2  Farmington, New Mexico => US (truth MX) [text contradicts upstream]",
+      "       1  Berlin, Berlin, DE => DE (truth US) [text contradicts upstream]",
+      "       1  North Wales, Pennsylvania => US (truth GB) [text contradicts upstream]",
+      "       1  Rieti, RI, Italy => IT (truth US) [text contradicts upstream]",
+      "coverage over every live row",
+      "  upstream country   15023 of 37286 (40.3%)   <- the baseline",
+      "  place country      30580 of 37286 (82.0%)",
+      "  newly resolved     15560 of the 22263 rows with no upstream country (69.9%), 3631 of them only because of the learned table",
+      "  text contradicts upstream on 305 rows with a country (text reads a different one, single place)",
+      "  largest unresolved strings:",
+      "     1290  \"Multiple Locations\"",
+      "      610  \"2 Locations\"",
+      "      211  \"3 Locations\"",
+      "      193  \"Remote job\"",
+      "      192  \"\"",
+      "      191  \"Location Negotiable After Selection\"",
+      "      151  \"4 Locations\"",
+      "      134  \"Remote\"",
+      "      128  \"5 Locations\"",
+      "      107  \"6 Locations\"",
+      "       79  \"Worldwide\"",
+      "       37  \"UNAVAILABLE, UNAVAILABLE, UNAVAILABLE\"",
+      "       36  \"Homeoffice\"",
+      "       34  \"Les Magasins généraux, Pantin\"",
+      "       32  \"May be filled in various FAA duty locations\"",
+      "--dry-run: nothing written."
+    ],
+    "place_cities_json_unchanged": true,
+    "place_cities_json_sha256": "17aa9439fb6b1e9d8e693f57235782400272d6a6f84bed40ea871eeda8509f56",
+    "region_distribution": {
+      "now": {
+        "US East": 8432,
+        "Unknown": 6607,
+        "US West": 6293,
+        "EU": 5714,
+        "US Central": 5557,
+        "APAC": 1997,
+        "UK": 1319,
+        "Canada": 930,
+        "LATAM": 437
+      },
+      "baseline": {
+        "APAC": 233,
+        "EU": 942,
+        "LATAM": 50,
+        "UK": 406,
+        "Unknown": 21061,
+        "US Central": 683,
+        "US East": 1653,
+        "US West": 12258
+      }
+    },
+    "non_us_country_in_a_us_region": {
+      "by_resolved_country_now": 0,
+      "by_upstream_code_now": 171,
+      "by_upstream_code_baseline": 979,
+      "largest_upstream_code_cases": [
+        {
+          "country": "MX",
+          "place_country": "US",
+          "derived_region": "US Central",
+          "location": "Albuquerque, New Mexico",
+          "n": 38
+        },
+        {
+          "country": "MX",
+          "place_country": "US",
+          "derived_region": "US Central",
+          "location": "Gallup, New Mexico",
+          "n": 14
+        },
+        {
+          "country": "MX",
+          "place_country": "US",
+          "derived_region": "US Central",
+          "location": "Kirtland AFB, New Mexico",
+          "n": 11
+        },
+        {
+          "country": "CA",
+          "place_country": "US",
+          "derived_region": "US West",
+          "location": "Ontario, CA, US",
+          "n": 11
+        },
+        {
+          "country": "MX",
+          "place_country": "US",
+          "derived_region": "US Central",
+          "location": "Holloman AFB, New Mexico",
+          "n": 9
+        },
+        {
+          "country": "MX",
+          "place_country": "US",
+          "derived_region": "US Central",
+          "location": "Santa Fe, New Mexico",
+          "n": 8
+        },
+        {
+          "country": "MX",
+          "place_country": "US",
+          "derived_region": "US Central",
+          "location": "White Sands Missile Range, New Mexico",
+          "n": 8
+        },
+        {
+          "country": "MX",
+          "place_country": "US",
+          "derived_region": "US Central",
+          "location": "Cannon AFB, New Mexico",
+          "n": 6
+        }
+      ]
+    },
+    "canada_in_a_us_region": {
+      "by_resolved_country_now": 0,
+      "by_upstream_code_now": 30
+    },
+    "remote_unresolved_rows_in_a_us_region": 597
+  },
+  "classifier": {
+    "source": "test/fixtures/family-corpus.json.gz",
+    "postings": 52739,
+    "classified": 47703,
+    "coverage_now": 0.9045,
+    "coverage_before": 0.9051,
+    "floor": 0.9,
+    "delta_points": -0.06
+  },
+  "parser_table": {
+    "measured": true,
+    "file": "src/lib/search-parse.test.ts",
+    "total": 356,
+    "passed": 356,
+    "failed": 0
+  },
+  "latency_board_shapes": {
+    "no_q": {
+      "label": "no words",
+      "runs": 50,
+      "total": 37286,
+      "fuzzy": false,
+      "latency_ms": {
+        "p50": 112.1,
+        "p95": 115.4,
+        "p99": 116.5,
+        "max": 116.5
+      }
+    },
+    "one_word": {
+      "label": "one word: designer",
+      "runs": 50,
+      "total": 387,
+      "fuzzy": false,
+      "latency_ms": {
+        "p50": 7.4,
+        "p95": 8,
+        "p99": 8.7,
+        "max": 8.7
+      }
+    },
+    "three_words": {
+      "label": "three words: senior product designer",
+      "runs": 50,
+      "total": 123,
+      "fuzzy": false,
+      "latency_ms": {
+        "p50": 7.9,
+        "p95": 9,
+        "p99": 9.4,
+        "max": 9.4
+      }
+    },
+    "typo": {
+      "label": "a typo: prodct desiner",
+      "runs": 50,
+      "total": 251,
+      "fuzzy": true,
+      "latency_ms": {
+        "p50": 30.4,
+        "p95": 32.5,
+        "p99": 33.8,
+        "max": 33.8
+      }
+    },
+    "words_place_remote_pay": {
+      "label": "words + place + remote + pay: product designer, US, remote, $150k+",
+      "runs": 50,
+      "total": 28,
+      "fuzzy": false,
+      "latency_ms": {
+        "p50": 8.2,
+        "p95": 9,
+        "p99": 9.3,
+        "max": 9.3
+      }
+    },
+    "broad_word": {
+      "label": "a broad word: engineer",
+      "runs": 50,
+      "total": 6218,
+      "fuzzy": false,
+      "latency_ms": {
+        "p50": 59.8,
+        "p95": 65.1,
+        "p99": 66.6,
+        "max": 66.6
+      }
+    }
+  },
+  "suggest_setup": {
+    "crawl_instant": "2026-09-26T07:33:10.000Z",
+    "vocabulary": {
+      "countries": 109,
+      "adminAreas": 66,
+      "cities": 3561,
+      "companies": 1421,
+      "placePhrases": 3379,
+      "titles": 26717,
+      "titleWords": 11820
+    },
+    "pools": {
+      "titles": 400,
+      "companies": 200,
+      "cities": 200,
+      "places": 300
+    },
+    "latency_ms": {
+      "lexicon_build": 181.7,
+      "lexicon_assemble": 126.4,
+      "lexicon_read": 54.5
+    }
+  },
+  "typeahead_titles": {
+    "sample": 500,
+    "shown": 8,
+    "rules": {
+      "last_word_4": "the title's words but the last, then the first four characters of its last word (whitespace-separated words, as the known-item rules cut them)",
+      "first_word_3": "the first three characters of the title's first word",
+      "first_word_4": "the first four characters of the title's first word",
+      "first_word_6": "the first six characters of the title's first word"
+    },
+    "hit": "the sampled posting's folded title (the harness's fold) equals the folded label of an item in the response's titles group, which holds at most eight; rank is the 1-based position of that item",
+    "variants": {
+      "last_word_4": {
+        "n": 500,
+        "missed": 16,
+        "in_top_8": 96.8,
+        "at_1": 86,
+        "in_top_3": 94.8,
+        "median_rank_when_found": 1,
+        "mrr": 0.904,
+        "no_completions": 1.8,
+        "typed_text_read_as_a_chip": 29,
+        "missed_where_the_typed_text_was_read_as_a_chip": 9,
+        "where_the_typed_fragment_has_a_letter_or_digit": {
+          "n": 500,
+          "missed": 16,
+          "in_top_8": 96.8,
+          "at_1": 86,
+          "in_top_3": 94.8,
+          "median_rank_when_found": 1,
+          "mrr": 0.904,
+          "no_completions": 1.8,
+          "typed_text_read_as_a_chip": 29,
+          "missed_where_the_typed_text_was_read_as_a_chip": 9
+        },
+        "misses": [
+          {
+            "title": "Quality Assurance Specialist I",
+            "typed": "Quality Assurance Specialist I",
+            "completions": 8,
+            "top3": [
+              "Quality Assurance Specialist",
+              "QUALITY ASSURANCE SPECIALIST (TITLE 32)",
+              "SUPERVISORY QUALITY ASSURANCE SPECIALIST"
+            ]
+          },
+          {
+            "title": "Senior Writer, Medical Communications",
+            "typed": "Senior Writer, Medical Comm",
+            "completions": 0,
+            "top3": []
+          },
+          {
+            "title": "Kaufmännischer Mitarbeiter (m/w/d), Buchhaltung & Administration",
+            "typed": "Kaufmännischer Mitarbeiter (m/w/d), Buchhaltung & Admi",
+            "completions": 0,
+            "top3": []
+          },
+          {
+            "title": "City of London Cleaning Job - 3x per week - 10.5 h weekly",
+            "typed": "City of London Cleaning Job - 3x per week - 10.5 h week",
+            "completions": 0,
+            "top3": []
+          },
+          {
+            "title": "Technical Product Marketing Manager, Piper AI SDR Agent",
+            "typed": "Technical Product Marketing Manager, Piper AI SDR Agen",
+            "completions": 0,
+            "top3": []
+          },
+          {
+            "title": "Growth Associate (St. Louis, MO)",
+            "typed": "Growth Associate (St. Louis, MO)",
+            "completions": 0,
+            "top3": []
+          },
+          {
+            "title": "Sales Development Representative - Kalamazoo, MI",
+            "typed": "Sales Development Representative - Kalamazoo, MI",
+            "completions": 0,
+            "top3": []
+          },
+          {
+            "title": "Senior Test Engineer",
+            "typed": "Senior Test Engi",
+            "completions": 8,
+            "top3": [
+              "Senior CUDA Test Development Software Engineer, SDET",
+              "Senior Software Development Engineer in Test - SDET",
+              "Senior Software Development Engineer in Test"
+            ]
+          }
+        ]
+      },
+      "first_word_3": {
+        "n": 500,
+        "missed": 370,
+        "in_top_8": 26,
+        "at_1": 9.4,
+        "in_top_3": 17.8,
+        "median_rank_when_found": 2,
+        "mrr": 0.148,
+        "no_completions": 0.4,
+        "typed_text_read_as_a_chip": 1,
+        "missed_where_the_typed_text_was_read_as_a_chip": 1,
+        "where_the_typed_fragment_has_a_letter_or_digit": {
+          "n": 500,
+          "missed": 370,
+          "in_top_8": 26,
+          "at_1": 9.4,
+          "in_top_3": 17.8,
+          "median_rank_when_found": 2,
+          "mrr": 0.148,
+          "no_completions": 0.4,
+          "typed_text_read_as_a_chip": 1,
+          "missed_where_the_typed_text_was_read_as_a_chip": 1
+        },
+        "misses": [
+          {
+            "title": "Senior NPI Technical Program Manager - Operations",
+            "typed": "Sen",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Senior GTM Recruiter",
+            "typed": "Sen",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Senior Engineering Manager, Infrastructure Security Engineering - DGX Cloud",
+            "typed": "Sen",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Senior Software Engineer, Infrastructure & Platform",
+            "typed": "Sen",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Deal Desk Senior Manager",
+            "typed": "Dea",
+            "completions": 8,
+            "top3": [
+              "Deal Desk Manager",
+              "Commercial Counsel, Deal Desk",
+              "Deal Desk"
+            ]
+          },
+          {
+            "title": "Senior Technical Consultant",
+            "typed": "Sen",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Senior Hardware System Validation Engineer",
+            "typed": "Sen",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "RECORDS & INFO MANAGEMENT SPECIALIST (KNOWLEDGE MANAGEMENT) (TITLE 5)",
+            "typed": "REC",
+            "completions": 8,
+            "top3": [
+              "Entry Level Recruiter | Sales Trainee",
+              "Recreation Assistant",
+              "Recreation Aid (Lifeguard) NF-01"
+            ]
+          }
+        ]
+      },
+      "first_word_4": {
+        "n": 500,
+        "missed": 342,
+        "in_top_8": 31.6,
+        "at_1": 12.4,
+        "in_top_3": 21.6,
+        "median_rank_when_found": 2,
+        "mrr": 0.183,
+        "no_completions": 0.8,
+        "typed_text_read_as_a_chip": 4,
+        "missed_where_the_typed_text_was_read_as_a_chip": 4,
+        "where_the_typed_fragment_has_a_letter_or_digit": {
+          "n": 500,
+          "missed": 342,
+          "in_top_8": 31.6,
+          "at_1": 12.4,
+          "in_top_3": 21.6,
+          "median_rank_when_found": 2,
+          "mrr": 0.183,
+          "no_completions": 0.8,
+          "typed_text_read_as_a_chip": 4,
+          "missed_where_the_typed_text_was_read_as_a_chip": 4
+        },
+        "misses": [
+          {
+            "title": "Senior NPI Technical Program Manager - Operations",
+            "typed": "Seni",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Senior GTM Recruiter",
+            "typed": "Seni",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Senior Engineering Manager, Infrastructure Security Engineering - DGX Cloud",
+            "typed": "Seni",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Senior Software Engineer, Infrastructure & Platform",
+            "typed": "Seni",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Deal Desk Senior Manager",
+            "typed": "Deal",
+            "completions": 8,
+            "top3": [
+              "Deal Desk Manager",
+              "Commercial Counsel, Deal Desk",
+              "Deal Desk"
+            ]
+          },
+          {
+            "title": "Senior Technical Consultant",
+            "typed": "Seni",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Senior Hardware System Validation Engineer",
+            "typed": "Seni",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "RECORDS & INFO MANAGEMENT SPECIALIST (KNOWLEDGE MANAGEMENT) (TITLE 5)",
+            "typed": "RECO",
+            "completions": 8,
+            "top3": [
+              "Medical Records Technician (Coder)",
+              "Certified Recovery Support Worker",
+              "Medical Records Technician"
+            ]
+          }
+        ]
+      },
+      "first_word_6": {
+        "n": 500,
+        "missed": 324,
+        "in_top_8": 35.2,
+        "at_1": 13.8,
+        "in_top_3": 25.2,
+        "median_rank_when_found": 2,
+        "mrr": 0.206,
+        "no_completions": 0,
+        "typed_text_read_as_a_chip": 0,
+        "missed_where_the_typed_text_was_read_as_a_chip": 0,
+        "where_the_typed_fragment_has_a_letter_or_digit": {
+          "n": 500,
+          "missed": 324,
+          "in_top_8": 35.2,
+          "at_1": 13.8,
+          "in_top_3": 25.2,
+          "median_rank_when_found": 2,
+          "mrr": 0.206,
+          "no_completions": 0,
+          "typed_text_read_as_a_chip": 0,
+          "missed_where_the_typed_text_was_read_as_a_chip": 0
+        },
+        "misses": [
+          {
+            "title": "Senior NPI Technical Program Manager - Operations",
+            "typed": "Senior",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Senior GTM Recruiter",
+            "typed": "Senior",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Senior Engineering Manager, Infrastructure Security Engineering - DGX Cloud",
+            "typed": "Senior",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Senior Software Engineer, Infrastructure & Platform",
+            "typed": "Senior",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Deal Desk Senior Manager",
+            "typed": "Deal",
+            "completions": 8,
+            "top3": [
+              "Deal Desk Manager",
+              "Commercial Counsel, Deal Desk",
+              "Deal Desk"
+            ]
+          },
+          {
+            "title": "Senior Technical Consultant",
+            "typed": "Senior",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "Senior Hardware System Validation Engineer",
+            "typed": "Senior",
+            "completions": 8,
+            "top3": [
+              "Senior Software Engineer",
+              "Senior Data Engineer",
+              "Senior Product Manager"
+            ]
+          },
+          {
+            "title": "RECORDS & INFO MANAGEMENT SPECIALIST (KNOWLEDGE MANAGEMENT) (TITLE 5)",
+            "typed": "RECORD",
+            "completions": 8,
+            "top3": [
+              "Medical Records Technician (Coder)",
+              "Medical Records Technician",
+              "Medical Records Technician (Coder/Audit/Training)"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "typeahead_names": {
+    "place": {
+      "rule": "the first 3, 4 or 5 characters of the city (chosen by the seeded generator), typed alone; hit when the response's places group holds the row's place key (country, region when it has one, city exactly as stored)",
+      "by_row": {
+        "n": 200,
+        "found": 181,
+        "found_pct": 90.5,
+        "at_1_pct": 58,
+        "median_rank_when_found": 1,
+        "by_letters": {
+          "3": {
+            "n": 70,
+            "found_pct": 88.6
+          },
+          "4": {
+            "n": 77,
+            "found_pct": 88.3
+          },
+          "5": {
+            "n": 53,
+            "found_pct": 96.2
+          }
+        },
+        "misses": [
+          {
+            "typed": "Fort",
+            "wanted": "US-MO/Fort Leonard Wood",
+            "offered": [
+              "US-VA/Fort Belvoir",
+              "US-TX/Fort Worth",
+              "US-CO/Fort Carson"
+            ]
+          },
+          {
+            "typed": "Fort",
+            "wanted": "US-TN/Fort Campbell",
+            "offered": [
+              "US-VA/Fort Belvoir",
+              "US-TX/Fort Worth",
+              "US-CO/Fort Carson"
+            ]
+          },
+          {
+            "typed": "For",
+            "wanted": "US-VA/Fort Myer",
+            "offered": [
+              "US-VA/Fort Belvoir",
+              "US-TX/Fort Worth",
+              "US-CO/Fort Carson"
+            ]
+          },
+          {
+            "typed": "Rock",
+            "wanted": "AU/Rockingham",
+            "offered": [
+              "US-MD/Rockville",
+              "US-IL/Rock Island",
+              "US-SC/Rock Hill"
+            ]
+          },
+          {
+            "typed": "New",
+            "wanted": "US-DE/New Castle",
+            "offered": [
+              "US-NY",
+              "US-NY/New York",
+              "US-NJ"
+            ]
+          },
+          {
+            "typed": "Mar",
+            "wanted": "US-MO/Maryland Heights",
+            "offered": [
+              "US-MD",
+              "FR/Marseille",
+              "US-GA/Marietta"
+            ]
+          },
+          {
+            "typed": "Nort",
+            "wanted": "US-RI/North Kingstown",
+            "offered": [
+              "GB",
+              "US-NC",
+              "US-ND"
+            ]
+          },
+          {
+            "typed": "Fort",
+            "wanted": "US-OK/Fort Sill",
+            "offered": [
+              "US-VA/Fort Belvoir",
+              "US-TX/Fort Worth",
+              "US-CO/Fort Carson"
+            ]
+          }
+        ]
+      },
+      "by_distinct_name": {
+        "n": 200,
+        "found": 175,
+        "found_pct": 87.5,
+        "at_1_pct": 47.5,
+        "median_rank_when_found": 1,
+        "by_letters": {
+          "3": {
+            "n": 65,
+            "found_pct": 75.4
+          },
+          "4": {
+            "n": 61,
+            "found_pct": 90.2
+          },
+          "5": {
+            "n": 74,
+            "found_pct": 95.9
+          }
+        },
+        "misses": [
+          {
+            "typed": "Wes",
+            "wanted": "US-IA/West Branch",
+            "offered": [
+              "US-WV",
+              "US-NY/West Point",
+              "US-FL/West Palm Beach"
+            ]
+          },
+          {
+            "typed": "Mar",
+            "wanted": "FR/Marcq-en-Barœul",
+            "offered": [
+              "US-MD",
+              "FR/Marseille",
+              "US-GA/Marietta"
+            ]
+          },
+          {
+            "typed": "Cor",
+            "wanted": "US-PA/Corry",
+            "offered": [
+              "US/Corpus Christi",
+              "US-TX/Corpus Christi",
+              "IT/Cornaredo"
+            ]
+          },
+          {
+            "typed": "Fair",
+            "wanted": "US-NJ/Fairfield",
+            "offered": [
+              "US-PA/Fairless Hills",
+              "US-WA/Fairchild AFB",
+              "US-VA/Fairfax"
+            ]
+          },
+          {
+            "typed": "Fort",
+            "wanted": "US-AZ/Fort Huachuca",
+            "offered": [
+              "US-VA/Fort Belvoir",
+              "US-TX/Fort Worth",
+              "US-CO/Fort Carson"
+            ]
+          },
+          {
+            "typed": "West",
+            "wanted": "US-IA/West Liberty",
+            "offered": [
+              "US-WV",
+              "US-NY/West Point",
+              "US-FL/West Palm Beach"
+            ]
+          },
+          {
+            "typed": "Glen",
+            "wanted": "US-IL/Glenview",
+            "offered": [
+              "US-NY/Glen Cove",
+              "US-AZ/Glendale",
+              "US-MD/Glen Burnie"
+            ]
+          },
+          {
+            "typed": "Cla",
+            "wanted": "ZA/Claremont",
+            "offered": [
+              "US-WV/Clarksburg",
+              "US-TN/Clarksville",
+              "US-NC/Clayton"
+            ]
+          }
+        ]
+      },
+      "distinct_names_in_the_row_sample": 150
+    },
+    "company": {
+      "rule": "the first 4 characters of the company name, typed alone; hit when the response's companies group holds that exact name",
+      "by_row": {
+        "n": 200,
+        "found": 199,
+        "found_pct": 99.5,
+        "at_1_pct": 89.5,
+        "median_rank_when_found": 1,
+        "by_letters": {
+          "4": {
+            "n": 200,
+            "found_pct": 99.5
+          }
+        },
+        "misses": [
+          {
+            "typed": "U.S.",
+            "wanted": "U.S. Army Cyber Command",
+            "offered": [
+              "U.S. Marine Corps",
+              "U.S. Army Corps of Engineers",
+              "U.S. Army Reserve Command"
+            ]
+          }
+        ]
+      },
+      "by_distinct_name": {
+        "n": 200,
+        "found": 184,
+        "found_pct": 92,
+        "at_1_pct": 61.5,
+        "median_rank_when_found": 1,
+        "by_letters": {
+          "4": {
+            "n": 200,
+            "found_pct": 92
+          }
+        },
+        "misses": [
+          {
+            "typed": "Nati",
+            "wanted": "National Agricultural Statistics Service",
+            "offered": [
+              "National Park Service",
+              "National Institutes of Health",
+              "National Geospatial-Intelligence Agency"
+            ]
+          },
+          {
+            "typed": "Bear",
+            "wanted": "Bearingpointczechrepublic",
+            "offered": [
+              "Bearingpointgmbh 1716386772",
+              "Bearingpointromania",
+              "Bearingpointgmbh"
+            ]
+          },
+          {
+            "typed": "Air",
+            "wanted": "Air Force Personnel Center",
+            "offered": [
+              "Air National Guard Units",
+              "Air Force Materiel Command",
+              "Air Mobility Command"
+            ]
+          },
+          {
+            "typed": "Offi",
+            "wanted": "Office of the Secretary of Defense",
+            "offered": [
+              "Office of the Secretary of the Interior",
+              "Offices, Boards and Divisions",
+              "Office of the Director of National Intelligence"
+            ]
+          },
+          {
+            "typed": "Fede",
+            "wanted": "Federal Election Commission",
+            "offered": [
+              "Federal Aviation Administration",
+              "Federal Emergency Management Agency",
+              "Federal Deposit Insurance Corporation"
+            ]
+          },
+          {
+            "typed": "Bear",
+            "wanted": "Bearingpointfinland 1740562180",
+            "offered": [
+              "Bearingpointgmbh 1716386772",
+              "Bearingpointromania",
+              "Bearingpointgmbh"
+            ]
+          },
+          {
+            "typed": "U.S.",
+            "wanted": "U.S. Special Operations Command (Army)",
+            "offered": [
+              "U.S. Marine Corps",
+              "U.S. Army Corps of Engineers",
+              "U.S. Army Reserve Command"
+            ]
+          },
+          {
+            "typed": "Offi",
+            "wanted": "Office of Budget and Program Analysis",
+            "offered": [
+              "Office of the Secretary of the Interior",
+              "Offices, Boards and Divisions",
+              "Office of the Director of National Intelligence"
+            ]
+          }
+        ]
+      },
+      "distinct_names_in_the_row_sample": 118
+    },
+    "group_size": 8
+  },
+  "counts_contract": {
+    "definition": "for every item of every group, item.count must equal the total the board shows at the item's href (parseBoardQuery of the href, then listBoardFiltered); the response's total must equal what the board shows for the text as typed (landing as board.astro decides it); and item.disabled must be count === 0",
+    "seed": 20261002,
+    "cases": 500,
+    "memo": "emptied before each case (every count comes from the store); a second pass leaves it to fill",
+    "filter_states": {
+      "by_number_of_filters": {
+        "0": 126,
+        "1": 129,
+        "2": 119,
+        "3": 87,
+        "4": 39
+      },
+      "by_kind": {
+        "place": 136,
+        "remote": 124,
+        "pay": 132,
+        "company": 136,
+        "family": 131,
+        "age": 125
+      },
+      "cases_with_no_filter": 126
+    },
+    "text": {
+      "cases_whose_text_states_a_fact": 150,
+      "cases_with_an_offer": 6,
+      "cases_the_board_answers_on_the_typo_path": 30,
+      "cases_whose_total_is_zero": 279
+    },
+    "totals_checked": 500,
+    "total_mismatches": 0,
+    "items_checked": 2440,
+    "items_by_group": {
+      "titles": 735,
+      "companies": 1144,
+      "facts": 108,
+      "places": 453
+    },
+    "items_that_count_something_by_group": {
+      "titles": 735,
+      "companies": 308,
+      "facts": 41,
+      "places": 453
+    },
+    "items_with_count_zero": 903,
+    "distinct_addresses_counted_by_the_board": 2275,
+    "item_mismatches": 0,
+    "mismatches": 0,
+    "first_mismatches": [],
+    "shape_violations": [],
+    "shape_violation_count": 0,
+    "memo_pass": {
+      "cases": 500,
+      "identical_to_the_cold_answer": 500,
+      "differing": []
+    },
+    "strip_invariants": {
+      "definition": "on the board each case's text lands on, from listBoardFiltered's counts: remote kinds (remote + hybrid + onsite + unstated) sum to the total with no remote filter; worldwide (place.all) is the total with no place filter, and the country counts + the not-stated count are never fewer than it (a posting that lists two countries is in both) and each country's count is the rows its own filter returns; pay.any is the total with no pay filter. When the control IS set, the comparison is with the same board taken with that control let go.",
+      "checked": {
+        "remote kinds sum to the remote-free total (remote set)": 176,
+        "worldwide equals the total (no place filter)": 356,
+        "countries + not stated cover the total (no place filter)": 356,
+        "a country count equals the rows its own filter returns": 500,
+        "pay any equals the total (no pay filter)": 348,
+        "pay any equals the pay-free total (pay set)": 152,
+        "remote kinds sum to the total (no remote filter)": 324,
+        "worldwide equals the place-free total (place set)": 144,
+        "countries + not stated cover the place-free total (place set)": 144
+      },
+      "states_checked": 500,
+      "violations": 0,
+      "violations_by_invariant": {},
+      "first_violations": []
+    }
+  },
+  "suggest_latency": {
+    "seed": 20261003,
+    "cold_requests_by_rows_the_board_shows": {
+      "no rows": 105,
+      "1 to 99 rows": 48,
+      "100 to 999 rows": 35,
+      "1,000 rows or more": 12
+    },
+    "queries": 200,
+    "queries_with_a_filter": 149,
+    "by_number_of_filters": {
+      "0": 51,
+      "1": 63,
+      "2": 35,
+      "3": 35,
+      "4": 16
+    },
+    "requests_that_failed": 0,
+    "latency_ms": {
+      "cold": {
+        "p50": 8.8,
+        "p95": 55,
+        "p99": 83.7,
+        "max": 85.1,
+        "share_under_100_ms": 100
+      },
+      "warm": {
+        "p50": 1,
+        "p95": 3.3,
+        "p99": 4.2,
+        "max": 5.7,
+        "share_under_100_ms": 100
+      },
+      "cold_by_rows_the_board_shows": {
+        "no rows": {
+          "p50": 7.1,
+          "p95": 26.7,
+          "p99": 49.7,
+          "max": 55,
+          "share_under_100_ms": 100
+        },
+        "1 to 99 rows": {
+          "p50": 9,
+          "p95": 59.4,
+          "p99": 78.4,
+          "max": 78.4,
+          "share_under_100_ms": 100
+        },
+        "100 to 999 rows": {
+          "p50": 19.8,
+          "p95": 82.2,
+          "p99": 84.2,
+          "max": 84.2,
+          "share_under_100_ms": 100
+        },
+        "1,000 rows or more": {
+          "p50": 35.7,
+          "p95": 85.1,
+          "p99": 85.1,
+          "max": 85.1,
+          "share_under_100_ms": 100
+        }
+      },
+      "slowest_cold": [
+        {
+          "text": "Lead Value in San ",
+          "search": "",
+          "ms": 85.1
+        },
+        {
+          "text": "Custo",
+          "search": "pay_min=not-listed",
+          "ms": 84.2
+        },
+        {
+          "text": "Senior Software",
+          "search": "",
+          "ms": 83.7
+        },
+        {
+          "text": "150k Seni",
+          "search": "place=US&remote=remote,hybrid,onsite",
+          "ms": 82.2
+        },
+        {
+          "text": "remote Busi",
+          "search": "age_max=14",
+          "ms": 78.4
+        }
+      ],
+      "load": {
+        "at_start": 4.09814453125,
+        "at_end": 3.9296875,
+        "cpu_count": 12
+      }
+    }
+  },
+  "suggest_cache_key": {
+    "how": "The endpoint's own GET handler is called in this process and the Cache-Control header it returns is read. A CDN honouring it is not part of this.",
+    "board_load_instant": "2026-09-26T07:33:10.000Z",
+    "cases": [
+      {
+        "request": "v is the current crawl instant",
+        "status": 200,
+        "cache_control": "public, max-age=60, s-maxage=86400, stale-while-revalidate=600",
+        "expected_cache_control": "public, max-age=60, s-maxage=86400, stale-while-revalidate=600",
+        "body_v": "2026-09-26T07:33:10.000Z",
+        "ok": true
+      },
+      {
+        "request": "v is a stale instant (2020-01-01T00:00:00.000Z)",
+        "status": 200,
+        "cache_control": "no-store",
+        "expected_cache_control": "no-store",
+        "body_v": "2026-09-26T07:33:10.000Z",
+        "ok": true
+      },
+      {
+        "request": "no v at all",
+        "status": 200,
+        "cache_control": "no-store",
+        "expected_cache_control": "no-store",
+        "body_v": "2026-09-26T07:33:10.000Z",
+        "ok": true
+      },
+      {
+        "request": "v is empty",
+        "status": 200,
+        "cache_control": "no-store",
+        "expected_cache_control": "no-store",
+        "body_v": "2026-09-26T07:33:10.000Z",
+        "ok": true
+      },
+      {
+        "request": "v is current but the address names a Desk title, so the answer depends on who asks",
+        "status": 200,
+        "cache_control": "private, no-store",
+        "expected_cache_control": "private, no-store",
+        "body_v": "2026-09-26T07:33:10.000Z",
+        "ok": true
+      }
+    ],
+    "checks": [
+      {
+        "check": "the response carries the board load instant (boardRowsLoadedAt of board_stats) as v",
+        "ok": true
+      },
+      {
+        "check": "the same request asked twice gets the same body",
+        "ok": true
+      },
+      {
+        "check": "a stale-v request is answered with the current counts, not the stale ones",
+        "ok": true
+      }
+    ],
+    "all_pass": true
+  },
+  "targets": [
+    {
+      "measure": "live rows with a resolved country",
+      "target": "from 42% to >= 85%",
+      "measured": "82% (30,580 of 37,286); the baseline file says 40.3%, not 42%",
+      "verdict": "MISS",
+      "note": "The largest unresolved strings are \"Multiple Locations\", \"N Locations\", \"Remote\", blank and \"Worldwide\": places the text does not name."
+    },
+    {
+      "measure": "place holdout accuracy",
+      "target": ">= 97%",
+      "measured": "97.85% by row (2862/2925); 97.01% by never-seen string (2696/2779)",
+      "verdict": "PASS",
+      "note": "Against the upstream code. 62 of 63 and 83 of 83 misses are rows where the text spells out the other country (Albuquerque, New Mexico coded MX), so the upstream code is the likelier error."
+    },
+    {
+      "measure": "non-US countries in a US region",
+      "target": "0",
+      "measured": "0 by resolved country; 171 by upstream code (baseline 979)",
+      "verdict": "PASS",
+      "note": "Judged on the resolved country, which is what the region now reads. The upstream-code residue is rows whose text names a US place (see the data section)."
+    },
+    {
+      "measure": "known-item hit@10, title (exact id)",
+      "target": ">= 95%, and >= old",
+      "measured": "90.4% (old 87.4%)",
+      "verdict": "MISS",
+      "note": "No engine can reach the target by exact id on this sample: 14% of the sampled postings share their title with more than ten others, which caps hit@10 at 91.8%."
+    },
+    {
+      "measure": "known-item hit@10, title_company (exact id)",
+      "target": ">= 95%, and >= old",
+      "measured": "92.2% (old 0%)",
+      "verdict": "MISS"
+    },
+    {
+      "measure": "known-item hit@10, title_lower (exact id)",
+      "target": ">= 95%, and >= old",
+      "measured": "90.4% (old 87.4%)",
+      "verdict": "MISS",
+      "note": "No engine can reach the target by exact id on this sample: 14% of the sampled postings share their title with more than ten others, which caps hit@10 at 91.8%."
+    },
+    {
+      "measure": "known-item hit@10, words_reordered (exact id)",
+      "target": ">= 95%, and >= old",
+      "measured": "86.6% (old 0%)",
+      "verdict": "MISS"
+    },
+    {
+      "measure": "known-item hit@10, one_typo (exact id)",
+      "target": ">= 95%, and >= old",
+      "measured": "88% (old 0%)",
+      "verdict": "MISS"
+    },
+    {
+      "measure": "known-item hit@10, title (title-equivalent)",
+      "target": ">= 95%, and >= old",
+      "measured": "100% (old 97%)",
+      "verdict": "PASS",
+      "note": "Counts a hit when the top ten holds any posting with the same folded title: many postings share one title, so the exact id can sit past ten among identical rows."
+    },
+    {
+      "measure": "typo hit@10, new (exact id)",
+      "target": ">= 80%",
+      "measured": "88% (old 0%)",
+      "verdict": "PASS"
+    },
+    {
+      "measure": "typo hit@10, new (title-equivalent)",
+      "target": ">= 80%",
+      "measured": "96% (old 0%)",
+      "verdict": "PASS"
+    },
+    {
+      "measure": "parser table",
+      "target": "100%",
+      "measured": "356 of 356 cases pass",
+      "verdict": "PASS"
+    },
+    {
+      "measure": "classifier coverage floor",
+      "target": ">= 0.90",
+      "measured": "0.9045 (was 0.9051)",
+      "verdict": "PASS"
+    },
+    {
+      "measure": "search p95, local",
+      "target": "<= 150 ms",
+      "measured": "115.4 / 8 / 9 / 32.5 / 9 / 65.1 ms across the six shapes",
+      "verdict": "PASS"
+    },
+    {
+      "measure": "suggest p95, local",
+      "target": "<= 100 ms",
+      "measured": "55 ms cold (memo emptied before each of 200 requests), 3.3 ms warm; 100% of cold requests under 100 ms",
+      "verdict": "PASS",
+      "note": "Judged on the cold figure, the slower of the two: it is the first request for text the process has not counted before. Warm is a repeat of a request just made. Local Postgres, the handler called in process: no network, no CDN."
+    },
+    {
+      "measure": "counts contract exactness",
+      "target": "100%",
+      "measured": "2,940 of 2,940 exact (2,440 items, 500 totals, 500 seeded cases); 0 mismatches, 0 shape violations, 500 of 500 memo answers identical to the cold ones",
+      "verdict": "PASS"
+    },
+    {
+      "measure": "strip invariants (exclusive groups sum to the total)",
+      "target": "0 violations",
+      "measured": "0 violations in 2,500 checks over 500 boards",
+      "verdict": "PASS"
+    },
+    {
+      "measure": "suggest cache key",
+      "target": "v is the board load instant; a stale v is answered no-store with the current v",
+      "measured": "5 of 5 requests and 3 of 3 checks as expected",
+      "verdict": "PASS",
+      "note": "Through the route's own GET handler called in process; the header it returns is read, a CDN honouring it is not tested."
+    }
+  ],
+  "fingerprint": "0803240cff139d218a6dc0c39c8b0b69efcffa7c3fdc922ffc7a627f0e53f70d"
+}

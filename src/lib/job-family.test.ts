@@ -117,6 +117,140 @@ describe('a short term never matches as a prefix', () => {
   it('qatar is not QA', () => expect(familyOf('Qatar', '')).not.toBe('software'));
 });
 
+/**
+ * THE 2026-10-02 REPAIR. docs/board-picker-research.md section 8 measured three
+ * defects by reading the stored families: a duplicated term, a prefix that
+ * invents a match, and a word that means two things. Each case below is a row
+ * the board really carries, pinned at the answer a reader would call right.
+ *
+ * `[department, title, family]`, with null for "no department" and for "no
+ * family". The title column is where the work is: a department is tried first
+ * and would hide the rule under test.
+ */
+describe('a lawyer is a lawyer, and a counselor is not', () => {
+  // `counsel` sat in both social-care and legal. Social care comes first, so
+  // every Counsel on the board was filed as social care.
+  const cases: ReadonlyArray<readonly [string | null, string | null, string]> = [
+    [null, 'Corporate Counsel', 'legal'],
+    [null, 'General Counsel', 'legal'],
+    [null, 'Senior Legal Counsel, Contracts (German speaker)', 'legal'],
+    // A lawyer's title names the practice first. Without `counsel` being
+    // claimed early, `commercial` and `product` (sales and product sit above
+    // legal) would take these the moment social care let go of the word.
+    [null, 'Commercial Counsel', 'legal'],
+    [null, 'Product Counsel', 'legal'],
+    ['G&A', 'Commercial Counsel', 'legal'],
+    // And the person who counsels stays in social care, every spelling.
+    [null, 'Substance Use Counselor', 'social-care'],
+    [null, 'Vocational Rehabilitation Counselor', 'social-care'],
+    [null, 'Guidance Counsellor', 'social-care'],
+    [null, 'Counseling Psychologist', 'social-care'],
+    ['Counseling', 'Case Manager', 'social-care'],
+    [null, 'Career Counselors', 'social-care']
+  ];
+  for (const [dept, title, want] of cases) {
+    it(`${dept ? `${dept} / ` : ''}${title} -> ${want}`, () => expect(familyOf(dept, title)).toBe(want));
+  }
+});
+
+describe('a word that only begins with a term does not match it', () => {
+  // The prefix rule lets a long term claim the start of a longer word. Right for
+  // engineer / engineering; wrong for sales / Salesforce. NOT_AN_EXTENSION is
+  // the list of words that start like a term and are something else.
+  const cases: ReadonlyArray<readonly [string | null, string | null, string | null]> = [
+    // Salesforce is a CRM product. An administrator of it is IT work (the
+    // phrase `salesforce admin`); a developer of it is software; a project
+    // manager of it is administration. None of them sells anything.
+    [null, 'Salesforce Administrator', 'it-infra'],
+    [null, 'Salesforce Admin', 'it-infra'],
+    [null, 'Salesforce Developer', 'software'],
+    [null, 'Salesforce Project Manager', 'admin'],
+    [null, 'Sr Salesforce Partner Marketing Manager', 'marketing'],
+    // ...while everything that really is sales stays sales.
+    [null, 'Sales Engineer', 'sales'],
+    [null, 'Account Executive', 'sales'],
+    [null, 'Sales Manager', 'sales'],
+    [null, 'Salesperson', 'sales'],
+    ['Sales', '', 'sales'],
+    // A barred word must not hide a good one beside it: the first `sales`-word
+    // here is Salesforce, the second is a salesperson.
+    [null, 'Salesforce Salesperson', 'sales'],
+    // Production is a factory floor, not product management, and is still
+    // claimed by manufacturing's own `production`; Productie is the Dutch.
+    ['Production Control', 'PRODUCTION CONTROLLER', 'manufacturing'],
+    ['Production', 'Production Supervisor', 'manufacturing'],
+    ['Productie', 'Operator', 'manufacturing'],
+    [null, 'Productiemedewerker', 'manufacturing'],
+    [null, 'Productivity Consultant', null],
+    // ...while product management stays product, plural included.
+    [null, 'Product Manager', 'product'],
+    ['Products', '', 'product'],
+    // Developmental services are social care, a nursery is not a nurse, and a
+    // Kitchener is a city.
+    [null, 'Direct Support Staff - Developmental Services', 'social-care'],
+    ['Managers', 'Nursery Manager - North London', null],
+    [null, 'Detailer - Kitchener', null],
+    [null, 'Kitchen Manager', 'hospitality'],
+    [null, 'Registered Nurses', 'health'],
+    // Fire protection is not a brand, in three languages.
+    [null, 'Specialist inom fysisk sakerhet och brandskydd', null],
+    [null, 'Brand Designer', 'design'],
+    [null, 'Branding Manager', 'marketing'],
+    // A German technician is a tradesman, not a technology worker.
+    [null, 'Techniker Gebaudeautomation', 'trades'],
+    // An operating-theatre nurse is health, not operations.
+    ['Operationssjuksköterska', '', 'health'],
+    // A pupil's internship is not a job in a school.
+    [null, 'Schülerpraktikum Technischer Systemplaner', null]
+  ];
+  for (const [dept, title, want] of cases) {
+    it(`${dept ? `${dept} / ` : ''}${title} -> ${want ?? 'null'}`, () => {
+      const got = familyOf(dept, title);
+      if (want === null) expect(got).toBeNull();
+      else expect(got).toBe(want);
+    });
+  }
+
+  it('Salesforce Administrator is not sales', () => {
+    // Stated on its own because it is the case the board research named: 96
+    // live rows carry "Salesforce", and the Administrator and Project Manager
+    // titles among them were filed under sales.
+    expect(familyOf(null, 'Salesforce Administrator')).not.toBe('sales');
+  });
+
+  it('the stems that ARE stems still match as prefixes', () => {
+    // The bars are specific. The reason the prefix rule exists is untouched.
+    expect(familyOf(null, 'Engineering Manager')).toBe('software');
+    expect(familyOf(null, 'Delivery Drivers')).toBe('operations');
+    expect(familyOf('Radiologic Technologist', '')).toBe('health');
+    expect(familyOf(null, 'Veterinario')).toBe('health');
+    expect(familyOf('Elektroniker für Betriebstechnik', '')).toBe('trades');
+    expect(familyOf(null, 'Cybersecurity Analyst')).toBe('security');
+  });
+});
+
+describe('words that mean two things in two fields', () => {
+  // `data` is the word for analysis and is also the first word of a data
+  // center, where the people rack servers. Data Center Technician was filed
+  // under Data & AI next to the data scientists.
+  const cases: ReadonlyArray<readonly [string | null, string | null, string]> = [
+    [null, 'Data Center Technician', 'it-infra'],
+    [null, 'Datacenter Technician', 'it-infra'],
+    [null, 'Data Centre Operations Manager', 'it-infra'],
+    [null, 'Data Center Infrastructure Specialist', 'it-infra'],
+    ['Datacenter', 'Technical Project Manager', 'it-infra'],
+    // ...while the data work stays data work.
+    [null, 'Data Engineer', 'data-ai'],
+    [null, 'Data Scientist', 'data-ai'],
+    [null, 'Data Analyst', 'data-ai'],
+    [null, 'Senior Data Engineering Manager', 'data-ai'],
+    ['Data Science', '', 'data-ai']
+  ];
+  for (const [dept, title, want] of cases) {
+    it(`${dept ? `${dept} / ` : ''}${title} -> ${want}`, () => expect(familyOf(dept, title)).toBe(want));
+  }
+});
+
 describe('the title is the fallback, and null is a real answer', () => {
   it('reads the title when the department classifies nothing', () => {
     expect(familyOf('FLZR', 'Registered Nurse, ICU')).toBe('health');
@@ -181,6 +315,12 @@ describe('coverage against the real corpus', () => {
   // to pin a figure that moves a little every night as the crawl reaches new
   // employers. Raise it when a block of terms earns it; never lower it to make
   // a red build green.
+  //
+  // 2026-10-02, the classifier repair: 90.51% -> 90.45%. Not a defect in the
+  // rules and not a reason to move the floor. Thirty-seven postings lost a
+  // family they were given by mistake (Salesforce read as sales, Brandenburg
+  // as a brand, a Schülerpraktikum as a school) and five gained one (Datacenter
+  // read as IT). A gap shown as a gap is the cheaper error than a wrong label.
   const FLOOR = 0.9;
 
   /**

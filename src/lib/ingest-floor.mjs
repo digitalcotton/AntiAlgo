@@ -2,7 +2,7 @@
  * ingest-floor.mjs: the night over night floor on replacing the board.
  *
  * WHY IT IS ITS OWN FILE. The same reason upsert-sql.mjs is. scripts/ingest-jobs
- * .mjs runs its work at import: it reads the crawl file, connects, truncates and
+ * .mjs runs its work at import: it reads the crawl file, connects, deletes and
  * loads. That is right for a script and useless for a test, so the part worth
  * testing lives here, where it can be imported with no database, no crawl file
  * and no open transaction. test/ingest-floor.test.mjs is that proof, and it is
@@ -107,7 +107,8 @@ function wholeCount(value, name) {
  *
  *   incoming     rows the normalised crawl file is about to write
  *   published    rows the table holds right now, read under the lock the
- *                TRUNCATE is about to take, so it is the number being destroyed
+ *                replace takes before its DELETE (SHARE ROW EXCLUSIVE: no other
+ *                writer gets in), so it is the number being deleted
  *   remembered   what the previous ingest said it staged, from board_stats
  *                (verified_live + killed), or null when no row exists yet
  *   rememberedAt board_stats.ingested_at, for the operator's sense of how old
