@@ -1,13 +1,13 @@
 {
   "_meta": {
-    "purpose": "Every kill still standing, from every sweep this machine has run, rebuilt whole from the append-only archive on 2026-10-03T12:27:48Z.",
+    "purpose": "Every kill still standing, from every sweep this machine has run, rebuilt whole from the append-only archive on 2026-10-03T13:25:08Z.",
     "contents": "4922 record(s), one per posting per rule. A rule that fires on the same posting on several nights is one record here with times_fired counting the nights, because that is one finding observed repeatedly and not several findings.",
     "why_this_file_exists": "kills.json holds THIS sweep and nothing else, because stats.killed counts it and the site holds the two to the same number. A kill that only lived in that file disappeared the next night, which made the kill list a claim the site could not keep. This file is the record; that one is the news.",
     "identity": "id is a digest of the posting URL and the rule that fired, so the same posting killed by the same rule is one record no matter which pipeline found it or how many times it has been rebuilt.",
     "excluded": "105 event(s) fired a rule that has since been retired and are not published here: they stay in the archive because it records what the machine did. 0 record(s) have been explicitly vacated.",
     "vacated": "A kill is a dated observation and stays true when a posting reappears, so nothing is withdrawn automatically. A row leaves this file only when a kill_vacated event names it, which is a deliberate act with a reason attached."
   },
-  "swept_at_utc": "2026-10-03T12:27:48Z",
+  "swept_at_utc": "2026-10-03T13:25:08Z",
   "archive_since": "2026-08-18",
   "total": 4922,
   "by_rule": {
@@ -113221,7 +113221,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-08T16:37:26Z",
       "last_fired_on": "2026-10-03",
-      "times_fired": 70,
+      "times_fired": 71,
       "pipeline": "sweep",
       "slug": "brex-staff-brand-designer"
     },
@@ -113247,7 +113247,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-08T16:37:26Z",
       "last_fired_on": "2026-10-03",
-      "times_fired": 70,
+      "times_fired": 71,
       "pipeline": "sweep",
       "slug": "brex-staff-brand-designer-interactive"
     },
@@ -113273,7 +113273,7 @@
       "ats": "greenhouse",
       "first_killed_at_utc": "2026-09-04T07:30:01Z",
       "last_fired_on": "2026-10-03",
-      "times_fired": 71,
+      "times_fired": 72,
       "pipeline": "sweep",
       "slug": "brex-staff-product-designer"
     }
