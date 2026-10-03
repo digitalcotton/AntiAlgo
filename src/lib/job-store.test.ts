@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The SQL the paged board sends, checked with no database: the facet rules
 // are in the text, every value is bound, the heavy column stays home. The
@@ -24,19 +24,27 @@ import {
   compileMatch,
   countBoardTotals,
   foldForSearch,
+  forgetPlaceUniverse,
   listBoardAgeHistogram,
   listBoardFiltered,
-  listBoardTitleCandidates
+  listBoardTitleCandidates,
+  placeUniverse
 } from './job-store';
 import { ISO_COUNTRIES } from './jobs-derived.mjs';
 
 /** A count row as the database returns it: totals, the text total, and the places JSON. */
 const COUNT_ROW = { total: 3, text_total: 3, location_all: 3, location_remote: 1, location_onsite: 2, places: { US: 2, '': 1 }, place_all: 3 };
 
-beforeEach(() => {
+beforeEach(async () => {
   query.mockReset();
   release.mockReset();
   query.mockResolvedValue({ rows: [COUNT_ROW] });
+  // The country list is read once and kept (placeUniverse), so the first board request of a cold process
+  // makes a statement of its own. Read it here, on an empty list, so that no test below finds that
+  // statement among the ones it counts; the tests of the list itself forget it first.
+  forgetPlaceUniverse();
+  await placeUniverse();
+  query.mockClear();
 });
 
 const FILTER = { q: 'design', location: 'remote', comp: 'all', freshness: 'all', sort: 'fit' as const, page: 2, perPage: 50, sweepDate: '2026-09-11', ageMin: null, ageMax: null };
@@ -441,21 +449,35 @@ describe('the new filters', () => {
     }
   });
   it('lists every country the live board holds, at zero where the filters left none, and never over a counted one', async () => {
+    // The mocked row answers the country-list statement too, with its place_universe.
+    forgetPlaceUniverse();
     query.mockResolvedValue({ rows: [{ ...COUNT_ROW, places: { US: 5, '': 2 }, place_universe: ['DE', 'FR', 'GB', 'US'] }] });
     const result = await listBoardFiltered(FILTER);
     expect(result.counts.place).toEqual({ countries: { US: 5, DE: 0, FR: 0, GB: 0 }, notStated: 2, all: 3 });
     // A universe that holds a counted country leaves its count alone.
     expect(result.counts.place.countries.US).toBe(5);
     // The row set the words found may be empty, and still every country is listed.
+    forgetPlaceUniverse();
     query.mockResolvedValue({ rows: [{ ...COUNT_ROW, total: 0, places: null, place_all: 0, place_universe: ['DE', 'GB'] }] });
     expect((await listBoardFiltered(FILTER)).counts.place).toEqual({ countries: { DE: 0, GB: 0 }, notStated: 0, all: 0 });
     // Nothing on the board, or a statement that returns no universe: the counted ones, as before.
+    forgetPlaceUniverse();
     query.mockResolvedValue({ rows: [{ ...COUNT_ROW, places: { US: 2, '': 1 }, place_universe: null }] });
     expect((await listBoardFiltered(FILTER)).counts.place).toEqual({ countries: { US: 2 }, notStated: 1, all: 3 });
   });
-  it('reads the list of countries off the live rows, as names and not as counts, beside the one CTE', async () => {
+  it('reads the list of countries in a statement of its own, as names and not as counts, and not in the counting one', async () => {
+    forgetPlaceUniverse();
+    query.mockClear();
     await listBoardFiltered(FILTER);
-    const sql = statements()[0][0] as string;
+    // The counting statement no longer carries it (2026-10-02): it is the one statement the count reads,
+    // and the list is kept in process (placeUniverse), so a request makes the list's read only when cold.
+    const counting = statements().find(([text]) => String(text).includes('AS text_total'))![0] as string;
+    expect(counting).not.toContain('place_universe');
+    expect(counting).not.toContain('place_keys @> ARRAY[c]');
+    const own = statements().filter(([text]) => String(text).includes('AS place_universe'));
+    expect(own).toHaveLength(1);
+    expect(own[0][1] ?? []).toEqual([]);
+    const sql = own[0][0] as string;
     // One probe of the GIN index on place_keys per ISO code, each ending at its first live row: the
     // literal predicate is what lets Postgres use the partial index. The codes are written from
     // jobs-derived.mjs's own list, all 250 of them, never from input.
@@ -463,20 +485,77 @@ describe('the new filters', () => {
     const codes = /unnest\(ARRAY\[((?:'[A-Z]{2}',?)+)\]::text\[\]\) AS c/.exec(sql)?.[1].match(/[A-Z]{2}/g) ?? [];
     expect(codes).toHaveLength(250);
     expect(codes).toEqual([...ISO_COUNTRIES]);
-    expect(sql).toContain('AS place_universe');
     // It takes no part in any number: the places are still counted from the CTE's flags, over every
     // control but the place, and the universe is read from `jobs`, never from them.
     // Grouped by the short place_countries string first and split after, so the flags carry that string
     // and not the array it is taken from (db/223): the flags select the string, and nothing counts keys.
-    expect(sql).toContain('FROM (SELECT place_countries, count(*)::int AS n FROM flags WHERE keep_base AND (miss & 15) = 0 GROUP BY 1) g');
-    expect(sql).toContain("LEFT JOIN LATERAL unnest(string_to_array(nullif(g.place_countries, ''), ' ')) AS u(c) ON true");
-    expect(sql).not.toContain('unnest(f.place_keys)');
-    const flagsBody = sql.slice(sql.indexOf(', flags AS')).split('FROM matched')[0];
+    expect(counting).toContain('FROM (SELECT place_countries, count(*)::int AS n FROM flags WHERE keep_base AND (miss & 15) = 0 GROUP BY 1) g');
+    expect(counting).toContain("LEFT JOIN LATERAL unnest(string_to_array(nullif(g.place_countries, ''), ' ')) AS u(c) ON true");
+    expect(counting).not.toContain('unnest(f.place_keys)');
+    const flagsBody = counting.slice(counting.indexOf(', flags AS')).split('FROM matched')[0];
     expect(flagsBody).toContain('place_countries');
     expect(flagsBody).not.toContain('place_keys');
-    expect(sql.split('place_universe')[0].split('\n').at(-1)).not.toContain('flags');
-    // It binds nothing, so the statement's parameters did not move.
-    expect(statements()[0][1]).toHaveLength(21);
+    // The counting statement binds what it always did, so its parameters did not move.
+    expect(statements().find(([text]) => String(text).includes('AS text_total'))![1]).toHaveLength(21);
+  });
+  describe('the country list is read once and kept, and the counts never are', () => {
+    afterEach(() => vi.useRealTimers());
+    const countryReads = () => statements().filter(([text]) => String(text).includes('AS place_universe')).length;
+
+    it('is one read when cold, however many requests arrive while it is read, and none while it is kept', async () => {
+      forgetPlaceUniverse();
+      query.mockClear();
+      query.mockResolvedValue({ rows: [{ ...COUNT_ROW, place_universe: ['DE', 'GB', 'US'] }] });
+      // Eight board requests at once on a cold process share one read of the list.
+      const results = await Promise.all(Array.from({ length: 8 }, () => listBoardFiltered(FILTER)));
+      expect(countryReads()).toBe(1);
+      for (const result of results) expect(Object.keys(result.counts.place.countries).sort()).toEqual(['DE', 'GB', 'US']);
+      // Kept: the next requests read none, and still list the countries.
+      await listBoardFiltered(FILTER);
+      await listBoardFiltered({ ...FILTER, q: '', place: 'GB' });
+      expect(countryReads()).toBe(1);
+      expect(await placeUniverse()).toEqual(['DE', 'GB', 'US']);
+    });
+
+    it('is read again after ten minutes, and not a moment before', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-10-02T12:00:00Z'));
+      forgetPlaceUniverse();
+      query.mockClear();
+      query.mockResolvedValue({ rows: [{ ...COUNT_ROW, place_universe: ['US'] }] });
+      await placeUniverse();
+      expect(countryReads()).toBe(1);
+      vi.setSystemTime(new Date('2026-10-02T12:09:59Z'));
+      await placeUniverse();
+      expect(countryReads()).toBe(1);
+      // A load that added a country shows it on the first request after the ten minutes.
+      query.mockResolvedValue({ rows: [{ ...COUNT_ROW, place_universe: ['JP', 'US'] }] });
+      vi.setSystemTime(new Date('2026-10-02T12:10:01Z'));
+      expect(await placeUniverse()).toEqual(['JP', 'US']);
+      expect(countryReads()).toBe(2);
+    });
+
+    it('does not keep a failed read: it fails the callers that asked, and the next one asks again', async () => {
+      forgetPlaceUniverse();
+      query.mockClear();
+      query.mockRejectedValueOnce(new Error('connection reset'));
+      await expect(Promise.all([placeUniverse(), placeUniverse()])).rejects.toThrow(/connection reset/);
+      expect(countryReads()).toBe(1);
+      query.mockResolvedValue({ rows: [{ ...COUNT_ROW, place_universe: ['FR'] }] });
+      expect(await placeUniverse()).toEqual(['FR']);
+      expect(countryReads()).toBe(2);
+    });
+
+    it('keeps no count: every request counts again, whatever the list holds', async () => {
+      forgetPlaceUniverse();
+      query.mockClear();
+      query.mockResolvedValue({ rows: [{ ...COUNT_ROW, places: { US: 5, '': 2 }, place_universe: ['DE', 'US'] }] });
+      expect((await listBoardFiltered(FILTER)).counts.place.countries).toEqual({ US: 5, DE: 0 });
+      query.mockResolvedValue({ rows: [{ ...COUNT_ROW, places: { US: 9, DE: 4, '': 2 }, place_universe: ['SHOULD-NOT-BE-READ'] }] });
+      // The list is kept (so the new row's universe is ignored); the counts are the new ones.
+      expect((await listBoardFiltered(FILTER)).counts.place.countries).toEqual({ US: 9, DE: 4 });
+      expect(statements().filter(([text]) => String(text).includes('AS text_total'))).toHaveLength(2);
+    });
   });
   it('binds the company as an exact match, trimmed, and not at all when blank', async () => {
     await listBoardFiltered({ ...FILTER, company: ' Figma ' });

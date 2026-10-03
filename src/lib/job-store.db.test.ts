@@ -57,7 +57,7 @@ vi.mock('./db', () => {
   return { db: () => ({ query: run, connect: async () => ({ query: run, release: () => undefined }) }), isConfigured: () => true };
 });
 
-import { FUZZY_WORD_THRESHOLD, PAY_FLOORS_K, buildSearchQuery, compileMatch, countBoardTotals, foldForSearch, listBoardAgeHistogram, listBoardFiltered, listBoardTitleCandidates, type BoardFilter } from './job-store';
+import { FUZZY_WORD_THRESHOLD, PAY_FLOORS_K, buildSearchQuery, compileMatch, countBoardTotals, foldForSearch, forgetPlaceUniverse, listBoardAgeHistogram, listBoardFiltered, listBoardTitleCandidates, placeUniverse, type BoardFilter } from './job-store';
 import { REMOTE_KINDS } from './board-query';
 import { COMP_BANDS } from './data';
 import { FAMILY_IDS } from './job-family.mjs';
@@ -614,6 +614,28 @@ d('the predicates, on the real columns', () => {
     for (const near of ['Unstated', 'UNSTATED', 'unstated ', 'none']) expect((await list({ place: near })).total, near).toBe(everything);
   });
 
+  it('keeps the country list: the same names as the table holds, read once, and a count is never kept', async () => {
+    // The list of every country the live board holds is read once and kept for ten minutes (placeUniverse); the
+    // counts are not. Held to the table: the list is exactly the two letter keys any live row lists.
+    forgetPlaceUniverse();
+    const held = (await sql(`SELECT DISTINCT k AS c FROM jobs, unnest(place_keys) AS k WHERE status <> 'killed' AND length(k) = 2 ORDER BY 1`)).map((r) => r.c as string);
+    expect(held.length).toBeGreaterThan(10);
+    shared.sent.length = 0;
+    expect([...(await placeUniverse())]).toEqual(held);
+    const reads = () => shared.sent.filter((s) => s.sql.includes('AS place_universe')).length;
+    expect(reads()).toBe(1);
+    // Boards of every shape list them all, and read the list no more.
+    for (const over of [{}, { q: 'designer' }, { place: 'unstated' }, { remote: ['hybrid'], payMin: 300 }, { q: 'prodct desiner' }] as Partial<BoardFilter>[]) {
+      const result = await list(over);
+      expect(Object.keys(result.counts.place.countries).sort(), JSON.stringify(over)).toEqual(held);
+    }
+    expect(reads()).toBe(1);
+    // Counts are counted every time: a posting count that moved between two requests is read, not remembered.
+    const before = (await list()).total;
+    expect((await list()).total).toBe(before);
+    expect(shared.sent.filter((s) => s.sql.includes('AS text_total')).length).toBeGreaterThan(6);
+  });
+
   it('lists every country the live board holds, whatever the words and filters leave, and none that it does not', async () => {
     const universe = (await sql(`SELECT DISTINCT k AS c FROM jobs, unnest(place_keys) AS k WHERE status <> 'killed' AND length(k) = 2 ORDER BY 1`)).map((r) => r.c as string);
     expect(universe.length).toBeGreaterThan(10);
@@ -867,11 +889,15 @@ d('THE INVARIANT and the place predicate, on a known spread of places', () => {
     makeView = (detail, spreadTable = 'spread') =>
       `CREATE TEMP VIEW jobs AS SELECT ${names.map((c) => (c === 'detail_total' ? `${detail} AS detail_total` : `j.${c}`)).join(', ')}, s.place_keys, s.place_leaves, s.place_countries FROM public.jobs j JOIN pg_temp.${spreadTable} s ON s.id = j.id`;
     await conn.query(makeView('j.detail_total'));
+    // The country list is kept for ten minutes (placeUniverse), and the board these tests are about now has four
+    // countries, not the real board's: the list read for the real columns above must not outlive them.
+    forgetPlaceUniverse();
   });
   afterAll(async () => {
     if (READY) {
       await conn.query('DROP VIEW IF EXISTS pg_temp.jobs');
       await conn.query('DROP TABLE IF EXISTS pg_temp.spread, pg_temp.spread_single');
+      forgetPlaceUniverse();
     }
   });
 

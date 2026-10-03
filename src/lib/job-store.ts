@@ -400,6 +400,61 @@ const PLACE_UNIVERSE_SQL = (() => {
            WHERE EXISTS (SELECT 1 FROM jobs WHERE status <> 'killed' AND place_keys @> ARRAY[c]))`;
 })();
 
+/** How long the country list is kept. See placeUniverse. */
+const PLACE_UNIVERSE_TTL_MS = 10 * 60_000;
+let universeKept: { at: number; countries: readonly string[] } | null = null;
+let universeLoading: Promise<readonly string[]> | null = null;
+
+/**
+ * EVERY COUNTRY THE LIVE BOARD HOLDS, kept in this process for ten minutes.
+ *
+ * WHY IT IS CACHED AND NOTHING ELSE IS. The Location list shows a country the
+ * other filters leave empty as a zero, which needs the names of all of them, and
+ * the names change only when ROWS change: the nightly load, or a backfill, which
+ * are minutes of a day. Reading them is a probe of the index per ISO code
+ * (PLACE_UNIVERSE_SQL), 3.3 ms of a counting statement for one word that took 6.6
+ * (docs/board-speed-plan.md), paid by every request for a list that was the same
+ * as the last one. So it is read once and kept. A load or a backfill that adds a country
+ * shows it within ten minutes; a request that finds the list older than that reads
+ * it again.
+ *
+ * THE COUNTS ARE NEVER CACHED. A number beside a choice must be the rows that
+ * choice returns now, and a cached count is a number with a past. Only this list of
+ * NAMES, which takes no part in any number, is kept: each country's count still
+ * comes from the statement, and a country on this list that the statement did not
+ * count is filled in at zero, exactly as before.
+ *
+ * ONE READ WHEN COLD. Callers that arrive while it is being read share the one
+ * promise (a cold instance under a burst asks the database once, not once each),
+ * and a read that fails is not kept: it fails its callers and the next one asks
+ * again. Every wait ends, as everywhere here: the read is one statement on the
+ * pool.
+ */
+export async function placeUniverse(): Promise<readonly string[]> {
+  if (universeKept !== null && Date.now() - universeKept.at < PLACE_UNIVERSE_TTL_MS) return universeKept.countries;
+  if (universeLoading !== null) return universeLoading;
+  const loading: Promise<readonly string[]> = db()
+    .query<{ place_universe: string[] | null }>(`SELECT ${PLACE_UNIVERSE_SQL} AS place_universe`)
+    .then(({ rows }) => {
+      const countries = rows[0]?.place_universe ?? [];
+      // Kept only if nobody forgot it while it was being read (forgetPlaceUniverse).
+      if (universeLoading === loading) universeKept = { at: Date.now(), countries };
+      return countries;
+    });
+  universeLoading = loading;
+  const settled = () => {
+    if (universeLoading === loading) universeLoading = null;
+  };
+  loading.then(settled, settled);
+  return loading;
+}
+
+/** Forget the country list. For a test, and for a script that has just written rows; nothing in the site calls it. */
+export function forgetPlaceUniverse(): void {
+  universeKept = null;
+  universeLoading = null;
+}
+
 /**
  * The facets, computed in SQL exactly as data.ts computes them in TypeScript
  * (facetsOf, workplaceOf, compBandOf, ageOf, compTop), so a count printed on an
@@ -750,22 +805,13 @@ function facetCountSql(mode: TextMode, titleClause: string, materialize: boolean
         FROM (SELECT coalesce(u.c, '') AS k, sum(g.n)::int AS n
                 FROM (SELECT place_countries, count(*)::int AS n FROM flags WHERE ${keep('place')} GROUP BY 1) g
                 LEFT JOIN LATERAL unnest(string_to_array(nullif(g.place_countries, ''), ' ')) AS u(c) ON true
-               GROUP BY 1) p) AS places`,
-    // EVERY COUNTRY THE LIVE BOARD HOLDS, so a country the other filters leave
-    // nothing is a zero in the list and not a missing row (readCounts adds the
-    // zeros). It cannot come from `flags`: the search words are in the CTE's
-    // WHERE as well as in match_q, so under words `flags` holds only the rows
-    // the words found. It is a list of NAMES, not a count, so it is read straight
-    // off the table and takes no part in any number: every count above still comes
-    // from the one CTE. One probe of the GIN index on place_keys per ISO code
-    // (PLACE_UNIVERSE_SQL): 4.2 ms at the median (40 runs, local, 2026-10-02) for
-    // the 109 countries the board holds, where a DISTINCT over unnest(place_keys)
-    // reads every key of every row and took 24 ms. (The recursive skip this
-    // replaced took 0.6 ms on place_country, which is a btree; an array has no
-    // order to skip along, and a GIN index only answers a bitmap scan, so a
-    // country as common as the US reads its whole posting list.) The literal
-    // status <> 'killed' is what lets Postgres use the partial index.
-    `${PLACE_UNIVERSE_SQL} AS place_universe`
+               GROUP BY 1) p) AS places`
+    // THE LIST OF EVERY COUNTRY THE BOARD HOLDS IS NOT IN THIS STATEMENT any more
+    // (2026-10-02): it is read once and kept (placeUniverse). It named the countries
+    // so a country the other filters leave nothing could be a zero in the list and
+    // not a missing row, and it was a list of NAMES, not a count, taking no part in
+    // any number here, yet it cost a probe of the index for every ISO code on every
+    // request (3.5 ms of a 6.8 ms statement with words).
   ];
   return `${boardFacetCte(mode)}
 , flags AS ${materialize ? 'MATERIALIZED' : 'NOT MATERIALIZED'} (
@@ -1450,7 +1496,11 @@ async function readTextMatches(conn: Queryable, setup: Setup): Promise<boolean> 
 }
 
 async function readCounts(conn: Queryable, setup: Setup): Promise<{ counts: FacetCounts; textTotal: number }> {
-  const { rows } = await runStatement(conn, plansForWords(setup.mode), facetCountSql(setup.mode, setup.titleClause, setup.materialize), [...setup.shared, ...setup.titleParams]);
+  // The country list is read beside the statement and only when it is not already kept (placeUniverse).
+  const [{ rows }, universe] = await Promise.all([
+    runStatement(conn, plansForWords(setup.mode), facetCountSql(setup.mode, setup.titleClause, setup.materialize), [...setup.shared, ...setup.titleParams]),
+    placeUniverse()
+  ]);
   const c: Record<string, number> = rows[0] ?? {};
   // The places arrive as one JSON object (see facetCountSql); '' is "no country".
   const countries: Record<string, number> = {};
@@ -1461,7 +1511,7 @@ async function readCounts(conn: Queryable, setup: Setup): Promise<{ counts: Face
   }
   // Then every country the live board holds that the filters left nothing in, at
   // zero: counted ones are never overwritten, so a zero only ever fills a gap.
-  for (const country of (rows[0]?.place_universe ?? []) as string[]) {
+  for (const country of universe) {
     if (!(country in countries)) countries[country] = 0;
   }
   const location = {
