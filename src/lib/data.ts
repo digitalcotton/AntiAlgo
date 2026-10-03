@@ -2180,7 +2180,10 @@ export interface FilterGroup {
   multi?: boolean;
   /** Where the group is drawn: the strip (the default), or as navigation under
       the results (the occupational families, a classification of the title and
-      not something an employer stated). */
+      not something an employer stated). No group is placed under the results
+      now (the Field's links were removed, 2026-10-02); Board.astro and
+      Filters.astro still draw only the strip's, so a group that is ever placed
+      there will not leak into it. */
   placement?: 'strip' | 'results';
 }
 
@@ -2315,19 +2318,19 @@ export function facetsOf(job: Job): JobFacets {
 /**
  * The counts the strip's controls read: the part of job-store.ts FacetCounts this
  * file needs, restated as structure so data.ts does not import the store (which
- * imports this file). `location`, `comp` and `freshness` are the OLD three and
- * stay required, because the Pre-List (prospect-board.ts) counts exactly those
- * and nothing else; `place`, `remote` and `pay` are the stated-facts counts, and
- * their presence is what says "this is the board". See facetGroupsFromCounts.
+ * imports this file). `location`, `comp` and `freshness` are the OLD three, which
+ * the Pre-List (prospect-board.ts) counts and nothing else does: `location` stays
+ * required, `comp` and `freshness` are optional because the SQL board no longer
+ * counts them (2026-10-02: no control reads them), and only the old three-select
+ * path below reads them, from the Pre-List's own counts. `place`, `remote` and
+ * `pay` are the stated-facts counts, and their presence is what says "this is the
+ * board". See facetGroupsFromCounts.
  */
 export interface StripCounts {
   total?: number;
   location: Record<string, number>;
-  comp: Record<string, number>;
-  freshness: Record<string, number>;
-  /** Keyed by family id, plus 'all' and 'unplaced'. Optional so a caller built
-      before db/212 still type-checks and simply gets no field links. */
-  family?: Record<string, number>;
+  comp?: Record<string, number>;
+  freshness?: Record<string, number>;
   /** The arrangement counts under their own name; `location` is the same five
       numbers and is read when this is absent. */
   remote?: Record<string, number>;
@@ -2390,11 +2393,12 @@ export interface StripSelection {
  * FilterOption is still the way to say an option nothing can be asked of whatever
  * its count; no option sets it today.
  *
- * THE FIELD IS NOT A STRIP CONTROL. It filtered on an inference (44% of rows are
- * ambiguous between two families), so it left the strip and returns, as the last
- * group, under `placement: 'results'`. Board.astro drew it as links beneath the
- * table until 2026-10-02, when the owner removed them; nothing draws it now. It
- * rides in this list because this list is the one thing a page hands the board.
+ * THE FIELD IS NOT HERE. It filtered on an inference (44% of rows are ambiguous
+ * between two families), so it left the strip and was offered as links under the
+ * table (a group placed 'results', built from a count per family). The owner removed
+ * the links on 2026-10-02 (d9bcd16), and nothing drew the group after that, so the
+ * group and the family counts behind it are gone (docs/board-speed-plan.md). The
+ * `fam=` FILTER is not: an address that names a family still narrows the board.
  *
  * COUNTS WITH NONE OF THE NEW FIELDS ARE THE PRE-LIST'S (prospect-board.ts), and
  * get the old three-select reading, pruned as it always was: every prospect is
@@ -2410,7 +2414,6 @@ export function facetGroupsFromCounts(counts: StripCounts, selected: StripSelect
           ...(counts.pay ? [payGroup(counts.pay, counts.total ?? 0, selected)] : [])
         ]
       : prospectGroups(counts, selected);
-  if (counts.family) groups.push(fieldGroup(counts.family));
   return groups;
 }
 
@@ -2492,27 +2495,12 @@ function payGroup(pay: NonNullable<StripCounts['pay']>, total: number, selected:
   };
 }
 
-/** The occupational families, as the navigation under the results. Sorted by
-    count: a reader scanning for their own field finds it faster where the board
-    is deepest. Not placed sorts with the rest; its size is the reason to keep it. */
-function fieldGroup(family: Record<string, number>): FilterGroup {
-  return {
-    key: 'fam',
-    label: 'Field',
-    placement: 'results',
-    options: [
-      { value: 'all', label: 'All fields', count: family.all ?? 0 },
-      ...[
-        ...FAMILIES.map((f) => ({ value: f.id, label: f.label, count: family[f.id] ?? 0 })),
-        { value: 'unplaced', label: 'Not placed', count: family.unplaced ?? 0 }
-      ].sort((a, b) => b.count - a.count)
-    ]
-  };
-}
 
 /** The old arrangement and pay-band selects, for counts that have no stated
     facts (the Pre-List). Pruned exactly as they always were. */
 function prospectGroups(counts: StripCounts, selected: StripSelection): FilterGroup[] {
+  // The Pre-List counts comp itself; a board count (which has none) never reaches this path.
+  const comp = counts.comp ?? {};
   const keep = (group: FilterGroup, current: string): FilterGroup => ({
     ...group,
     options: group.options.filter((o) => o.count > 0 || o.value === 'all' || o.value === current || o.value === 'not-listed')
@@ -2540,9 +2528,9 @@ function prospectGroups(counts: StripCounts, selected: StripSelection): FilterGr
         key: 'comp',
         label: 'Comp',
         options: [
-          { value: 'all', label: 'All', count: counts.comp.all ?? 0 },
-          ...COMP_BANDS.map((band) => ({ value: band.key, label: band.label, count: counts.comp[band.key] ?? 0 })),
-          { value: 'not-listed', label: 'Not listed', count: counts.comp['not-listed'] ?? 0 }
+          { value: 'all', label: 'All', count: comp.all ?? 0 },
+          ...COMP_BANDS.map((band) => ({ value: band.key, label: band.label, count: comp[band.key] ?? 0 })),
+          { value: 'not-listed', label: 'Not listed', count: comp['not-listed'] ?? 0 }
         ]
       },
       selected.comp

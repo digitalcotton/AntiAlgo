@@ -17,7 +17,6 @@ import type { BoardRow } from './board-jobs';
 import type { AgeHistogram, AgeBucket } from './data';
 import { COMP_TOP_PATTERN } from './data';
 import { normalizeTitle } from './ledger-titles';
-import { FAMILY_IDS } from './job-family.mjs';
 import { ISO_COUNTRIES } from './jobs-derived.mjs';
 import { SEARCH_MAX_CHARS } from './search-parse';
 import { PLACE_UNSTATED, isPlaceUnstated, parsePlaceKey, type BoardSort } from './board-query';
@@ -205,13 +204,22 @@ export interface BoardFilter {
 export interface FacetCounts {
   total: number;
   location: Record<string, number>;
-  comp: Record<string, number>;
-  freshness: Record<string, number>;
-  /** Keyed by family id, plus 'all' and 'unplaced' for the rows the classifier
-   *  could not place. 'unplaced' is a real option a reader can select: 12.3% of
-   *  the board carries no family, and a filter that silently swallowed an eighth
-   *  of the sweep would be the pre-filtering this product refuses. */
-  family: Record<string, number>;
+  /** NOT COUNTED BY THE BOARD ANY MORE (2026-10-02): the three below are absent
+   *  from what the store returns, because nothing the board draws reads them. The
+   *  pay bands (`comp`) went when COMP became floors: the floors' "Any" and "Not
+   *  listed" are `pay.any` and `pay.notListed`, which are still counted. The
+   *  freshness counts had no strip control, and the Field's (`family`) links under
+   *  the table were removed. Each cost an aggregate over every row per request, and
+   *  the three together about a third of the statement for the board with no words
+   *  (docs/board-speed-plan.md).
+   *  The FILTERS they belonged to (`comp=`, `freshness=`, `fam=`) still narrow
+   *  the board exactly as before; only the counting went. They stay on the type,
+   *  optional, because the Pre-List builds counts of this shape itself
+   *  (prospect-board.ts) and its three-select path reads comp and freshness. */
+  comp?: Record<string, number>;
+  freshness?: Record<string, number>;
+  /** Keyed by family id, plus 'all' and 'unplaced'. Not counted by the board; see above. */
+  family?: Record<string, number>;
   /** The arrangement counts under the new name: `all` plus the four kinds, each
    *  the rows that would remain if THAT arrangement alone were chosen. The same
    *  numbers as `location` by construction (one expression, read twice) and kept
@@ -648,7 +656,8 @@ function textTotalFilter(titleClause: string): string {
  * a fixed list of columns.
  *
  * EACH ROW'S FLAGS ARE COMPUTED ONCE (`flags AS MATERIALIZED`). This statement
- * has about forty count columns and every one repeats the keep clause, and
+ * has about forty count columns (sixteen since 2026-10-02, when the Field, pay
+ * band and freshness counts went) and every one repeats the keep clause, and
  * `matched` is inlined, so without this every match_* expression was evaluated
  * once per column per row. That was cheap when match_q was an ILIKE on two short
  * strings and ruinous when it became `search @@ to_tsquery(...)`: forty parses
@@ -667,9 +676,11 @@ function textTotalFilter(titleClause: string): string {
  * took 507 ms inlined and a fraction of that materialised. See needsFlags.
  *
  * It stays NARROW on purpose, and narrower than the flags themselves: each row
- * carries the six values the options read (the last is the short place_countries
- * string, not the place_keys array it is taken from: match_place reads the array
- * before this point and the flags need no more of it), `keep_base` (every flag
+ * carries the four values the options read (facet_location, facet_comp, comp_min,
+ * and the short place_countries string, not the place_keys array it is taken
+ * from: match_place reads the array before this point and the flags need no
+ * more of it; the freshness and family a row has are read only by their filters,
+ * which are flags, so they are not carried), `keep_base` (every flag
  * that is not a control, folded to one boolean), `scope_ok`, and `miss`, one integer with a
  * bit set for each control the row FAILS. "Every control but this one" is then
  * `keep_base AND (miss & mask) = 0` for the mask that leaves this control's bit
@@ -688,10 +699,15 @@ function facetCountSql(mode: TextMode, titleClause: string, materialize: boolean
   const allBits = (1 << CONTROLS.length) - 1;
   const keep = (except?: Control) => `keep_base AND (miss & ${except ? allBits & ~bit(except) : allBits}) = 0`;
   const on = (except: Control | undefined, extra = '') => `count(*) FILTER (WHERE ${keep(except)}${extra})::int`;
-  // The family's own counts are the one place match_family is NOT applied: a
-  // leave-one-out count answers "how many would this option leave", and
-  // counting Design inside a Design filter would answer "how many are already
-  // showing". Same shape as location_remote being counted without match_location.
+  // WHAT IS COUNTED IS WHAT THE PAGE DRAWS (2026-10-02). The strip's three controls
+  // (Location, Remote, Comp), the total and the text total. This statement also
+  // counted the Field (a column per family), the pay bands and freshness's three
+  // answers, thirty-odd aggregates over every row that nothing read: the Field
+  // links under the table were removed (d9bcd16), COMP became floors, and freshness
+  // never had a control on the strip. The filters those counts described are
+  // untouched: fam=, comp= and freshness= in an address still narrow the board, by
+  // their match flags and their bits in `miss`. What it saved is measured in
+  // docs/board-speed-plan.md and in the commit that made the change.
   const cols = [
     `${on(undefined)} AS total`,
     `count(*) FILTER (WHERE scope_ok)::int AS text_total`,
@@ -700,8 +716,10 @@ function facetCountSql(mode: TextMode, titleClause: string, materialize: boolean
     `${on('location', " AND facet_location = 'hybrid'")} AS location_hybrid`,
     `${on('location', " AND facet_location = 'onsite'")} AS location_onsite`,
     `${on('location', " AND facet_location = 'unstated'")} AS location_unstated`,
+    // The pay control's two ends, the floors' "Any" and "Not listed" (readCounts
+    // reads them as pay.any and pay.notListed). The bands between them are not
+    // counted: COMP is floors now.
     `${on('pay')} AS comp_all`,
-    ...COMP_BAND_SQL.map((b) => `${on('pay', ` AND facet_comp = '${b.key}'`)} AS "comp_${b.key}"`),
     `${on('pay', " AND facet_comp = 'not-listed'")} AS "comp_not-listed"`,
     // The pay floors, cumulative: "at least $150k" includes every posting at
     // $200k and over. Counted from comp_min, the figure the pay filter itself
@@ -710,18 +728,6 @@ function facetCountSql(mode: TextMode, titleClause: string, materialize: boolean
     // expressions, and are read from them rather than counted twice: every
     // aggregate is a pass over every row.
     ...PAY_FLOORS_K.map((k) => `${on('pay', ` AND comp_min >= ${k * 1000}`)} AS pay_${k}`),
-    `${on('freshness')} AS freshness_all`,
-    `${on('freshness', " AND facet_freshness = 'fresh'")} AS freshness_fresh`,
-    `${on('freshness', " AND facet_freshness = 'older'")} AS freshness_older`,
-    `${on('freshness', " AND facet_freshness = 'unknown'")} AS freshness_unknown`,
-    // One column per family, plus the two that are not families: every row, and
-    // the rows the classifier could not place. `unplaced` is shown rather than
-    // hidden — 12.3% of the board has no family, and a filter that silently
-    // swallowed an eighth of the sweep would be the pre-filtering this product
-    // is named for refusing.
-    `${on('family')} AS family_all`,
-    `${on('family', ' AND derived_fam IS NULL')} AS family_unplaced`,
-    ...FAMILY_IDS.map((id) => `${on('family', ` AND derived_fam = '${id}'`)} AS "family_${id}"`),
     // What the board shows with no place chosen: the Worldwide option's number.
     // It is NOT the countries and Not stated added up, now that a posting lists
     // every country it names and is counted under each.
@@ -763,7 +769,7 @@ function facetCountSql(mode: TextMode, titleClause: string, materialize: boolean
   ];
   return `${boardFacetCte(mode)}
 , flags AS ${materialize ? 'MATERIALIZED' : 'NOT MATERIALIZED'} (
-  SELECT facet_location, facet_comp, facet_freshness, derived_fam, comp_min, place_countries,
+  SELECT facet_location, facet_comp, comp_min, place_countries,
          COALESCE(${[...SCOPE_FLAGS, titleClause].join(' AND ')}, false) AS scope_ok,
          COALESCE(${[...FIXED_FLAGS, titleClause].join(' AND ')}, false) AS keep_base,
          (${CONTROLS.map((c) => `(NOT COALESCE(${CONTROL_FLAGS[c]}, false))::int * ${bit(c)}`).join(' + ')}) AS miss
@@ -1473,18 +1479,11 @@ async function readCounts(conn: Queryable, setup: Setup): Promise<{ counts: Face
       // The same five numbers under their new name, copied from the one
       // expression rather than counted twice, so they cannot differ.
       remote: { ...location },
-      comp: Object.fromEntries([...COMP_BAND_SQL.map((b) => b.key), 'not-listed', 'all'].map((k) => [k, c[`comp_${k}`] ?? 0])),
       pay: {
         any: c.comp_all ?? 0,
         notListed: c['comp_not-listed'] ?? 0,
         floors: Object.fromEntries(PAY_FLOORS_K.map((k) => [String(k), c[`pay_${k}`] ?? 0]))
       },
-      freshness: { all: c.freshness_all ?? 0, fresh: c.freshness_fresh ?? 0, older: c.freshness_older ?? 0, unknown: c.freshness_unknown ?? 0 },
-      family: Object.fromEntries([
-        ['all', c.family_all ?? 0],
-        ['unplaced', c.family_unplaced ?? 0],
-        ...FAMILY_IDS.map((id) => [id, c[`family_${id}`] ?? 0] as const)
-      ]),
       place: { countries, notStated, all: c.place_all ?? 0 }
     }
   };

@@ -429,10 +429,13 @@ d('the typo path', () => {
     const c = res.counts;
     expect(c.location.all).toBe(res.total);
     expect(c.remote.all).toBe(res.total);
-    expect(c.comp.all).toBe(res.total);
     expect(c.pay.any).toBe(res.total);
-    expect(c.freshness.all).toBe(res.total);
-    expect(c.family.all).toBe(res.total);
+    // comp.all, freshness.all and family.all are not here: the store does not count the pay bands, freshness or the
+    // Field any more (nothing the page draws reads them; docs/board-speed-plan.md). pay.any is what the Comp control's
+    // "Any" reads, and it is still held to the population above.
+    expect(c.comp).toBeUndefined();
+    expect(c.freshness).toBeUndefined();
+    expect(c.family).toBeUndefined();
     // Worldwide is this population, and the countries and Not stated add up to at least it (a posting that
     // lists two countries is in both).
     expect(c.place.all).toBe(res.total);
@@ -498,10 +501,41 @@ d('the predicates, on the real columns', () => {
     );
     // Not-listed and a floor are exclusive: not-listed wins, and the floor is dropped.
     expect((await list({ compNotListed: true, payMin: 100 })).total).toBe(result.counts.pay.notListed);
-    // A band outranks a floor while the strip still has bands.
+    // A band outranks a floor while the strip still has bands. The band's count is not taken any more (COMP is
+    // floors, and nothing reads it), so the rows the band filter returns are held to the table itself: a posted
+    // minimum from the band's floor up to its ceiling, and the same rows with a floor beside it.
     const band = COMP_BANDS[1];
-    expect((await list({ comp: band.key, payMin: 300 })).total).toBe(result.counts.comp[band.key]);
+    const inBand = await one(
+      `SELECT count(*)::int FROM jobs WHERE ${live} AND jsonb_typeof(comp_range->'min') = 'number' AND (comp_range->>'min')::numeric >= $1::numeric AND (comp_range->>'min')::numeric < $2::numeric`,
+      [band.floor, band.ceiling]
+    );
+    expect(inBand).toBeGreaterThan(0);
+    expect((await list({ comp: band.key })).total).toBe(inBand);
+    expect((await list({ comp: band.key, payMin: 300 })).total).toBe(inBand);
   });
+
+  it('still narrows by the three filters whose counts are gone: a family, freshness and a band', async () => {
+    // The counts for the Field, freshness and the pay bands were taken out of the statement; the FILTERS stay, as
+    // fam=, freshness= and comp= in an address. Each is held to the table here, with no count to compare it with.
+    const live = `status <> 'killed'`;
+    const everything = (await list()).total;
+    // A family: the rows whose derived_fam is that family, 'unplaced' the rows with none, two together their union.
+    const counts = await sql(`SELECT derived_fam AS fam, count(*)::int AS n FROM jobs WHERE ${live} GROUP BY 1`);
+    const byFamily = new Map(counts.map((r) => [r.fam as string | null, r.n as number]));
+    expect(byFamily.size).toBeGreaterThan(3);
+    for (const id of [...FAMILY_IDS].filter((f) => (byFamily.get(f) ?? 0) > 0).slice(0, 4)) {
+      expect((await list({ families: [id] })).total, id).toBe(byFamily.get(id));
+    }
+    expect((await list({ families: ['unplaced'] })).total).toBe(byFamily.get(null) ?? 0);
+    const two = [...FAMILY_IDS].filter((f) => (byFamily.get(f) ?? 0) > 0).slice(0, 2);
+    expect((await list({ families: [...two, 'unplaced'] })).total).toBe(two.reduce((a, f) => a + (byFamily.get(f) ?? 0), 0) + (byFamily.get(null) ?? 0));
+    // Freshness: the three answers are a partition of the board, and the filter returns each part.
+    const parts = await Promise.all(['fresh', 'older', 'unknown'].map(async (f) => (await list({ freshness: f })).total));
+    expect(parts.reduce((a, b) => a + b, 0)).toBe(everything);
+    // Bands: together with Not listed they are a partition of the board too.
+    const bands = await Promise.all([...COMP_BANDS.map((b) => b.key), 'not-listed'].map(async (k) => (await list({ comp: k })).total));
+    expect(bands.reduce((a, b) => a + b, 0)).toBe(everything);
+  }, 60_000);
 
   it('keeps a company by its exact name', async () => {
     const [{ company, n }] = await sql(`SELECT company, count(*)::int AS n FROM jobs WHERE status <> 'killed' GROUP BY company ORDER BY n DESC, company LIMIT 1`);
@@ -706,17 +740,13 @@ async function checkCountsContract(filter: Partial<BoardFilter>, label: string, 
     await expectEq(`remote.${k}`, c.remote[k], { remote: [k], location: 'all' });
     expect(c.location[k]).toBe(c.remote[k]);
   }
-  // The pay control: any, every floor, not listed, and every band the strip still shows.
+  // The pay control: any, every floor, not listed. (The bands, freshness and the families are not counted any
+  // more, 2026-10-02, so there is nothing of theirs to hold to the rows: the page draws none of them. Their
+  // FILTERS are still in play in every combination below, narrowing the board every count above is taken over,
+  // and 'still narrows by the three filters whose counts are gone' holds each to the table.)
   await expectEq('pay.any', c.pay.any, { ...noPay });
   for (const k of PAY_FLOORS_K) await expectEq(`pay.floors.${k}`, c.pay.floors[String(k)], { ...noPay, payMin: k });
   await expectEq('pay.notListed', c.pay.notListed, { ...noPay, compNotListed: true });
-  await expectEq('comp.all', c.comp.all, { ...noPay });
-  for (const band of [...COMP_BANDS.map((b) => b.key), 'not-listed']) await expectEq(`comp.${band}`, c.comp[band], { ...noPay, comp: band });
-  // Freshness, and a sample of the families (every family would be twenty more calls a combination).
-  for (const f of ['all', 'fresh', 'older', 'unknown']) await expectEq(`freshness.${f}`, c.freshness[f], { freshness: f });
-  const families = [...FAMILY_IDS, 'unplaced'].filter((id) => c.family[id] > 0);
-  for (const id of [...families].sort(() => rnd.next() - 0.5).slice(0, 3)) await expectEq(`family.${id}`, c.family[id], { families: [id] });
-  await expectEq('family.all', c.family.all, { families: [] });
   // The places. Worldwide (place.all) is the board with no place chosen, counted on its own. Each country's
   // count is the rows with that country chosen (sampled below, and every one of them in its own test), and
   // a posting that lists two countries is in both, so the countries and Not stated add up to AT LEAST the
@@ -738,8 +768,6 @@ async function checkCountsContract(filter: Partial<BoardFilter>, label: string, 
   for (const country of zeros) await expectEq(`place.${country} (a zero)`, 0, { place: country });
   // Not stated is a place the address can name now, so its count is the rows place=unstated returns.
   await expectEq('place.notStated', c.place.notStated, { place: 'unstated' });
-  // And the controls that have no options are consistent with the page they came with.
-  expect(c.family.all, `${label} :: family.all is the total with no family`).toBe(await total({ families: [] }));
   return checked;
 }
 

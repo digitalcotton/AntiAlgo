@@ -129,25 +129,35 @@ describe('listBoardFiltered', () => {
     expect(countParams[11]).toBeNull();
   });
 
-  it('counts each family leave-one-out, so a count is what that option would leave', async () => {
+  it('does not count the Field, the pay bands or freshness, and still counts every control the page draws, leave-one-out', async () => {
     await listBoardFiltered({ ...FILTER, families: ['design'] });
     const [countSql] = statements()[0];
-    // The identifier is quoted because a family id carries a hyphen
-    // (social-care, public-safety, it-infra, data-ai).
-    expect(countSql).toContain('AS "family_design"');
-    expect(countSql).toContain('AS "family_social-care"');
-    expect(countSql).toContain('AS family_unplaced');
-    expect(countSql).toContain('AS family_all');
-    // Every other facet count respects the family filter; the family counts do
-    // not, or picking Design would make every family count read as Design's own.
-    // The controls are bits of `miss` in the order location, pay, freshness,
-    // family, place (1, 2, 4, 8, 16), so "every control but family" is the mask
-    // 23 and "every control but location" is 30.
-    const famLine = String(countSql).split('\n').find((l) => l.includes('AS "family_design"')) ?? '';
-    expect(famLine).toContain('(miss & 23) = 0');
+    // NOT COMPUTED ANY MORE (2026-10-02, docs/board-speed-plan.md): a count per family, a count per pay band and
+    // freshness's three answers were aggregates over every row that nothing read. The Field links under the table
+    // were removed, COMP is floors, and freshness never had a control on the strip. This used to pin the family
+    // columns; it pins their absence, so they cannot come back as work done for nobody.
+    expect(countSql).not.toMatch(/family_/);
+    expect(countSql).not.toMatch(/freshness_/);
+    expect(countSql).not.toMatch(/"comp_(?:under|\d|300)/);
+    expect(countSql).not.toContain("facet_freshness = '");
+    // What the page draws is still counted: the pay control's two ends (the floors' Any and Not listed), every
+    // floor, the arrangements and the places.
+    for (const column of ['AS comp_all', 'AS "comp_not-listed"', 'AS pay_100', 'AS pay_300', 'AS location_remote', 'AS place_all', 'AS places']) {
+      expect(countSql, column).toContain(column);
+    }
+    // The FILTERS they belonged to are untouched: fam=, comp= and freshness= still narrow the board, each as its
+    // bit of `miss` (location, pay, freshness, family, place = 1, 2, 4, 8, 16), so the total still respects all
+    // five (mask 31) and "every control but location" is still 30.
+    expect(countSql).toContain('match_family');
+    expect(countSql).toContain('match_freshness');
     const locLine = String(countSql).split('\n').find((l) => l.includes('AS location_remote')) ?? '';
     expect(locLine).toContain('(miss & 30) = 0');
     expect(String(countSql).split('\n').find((l) => l.includes('AS total'))).toContain('(miss & 31) = 0');
+    // The flags carry what the counts read and no more: not the family or freshness a row has.
+    const flagsBody = String(countSql).slice(String(countSql).indexOf(', flags AS')).split('FROM matched')[0];
+    expect(flagsBody).toContain('SELECT facet_location, facet_comp, comp_min, place_countries,');
+    expect(flagsBody).not.toContain('derived_fam');
+    expect(flagsBody).not.toContain('facet_freshness');
   });
 
   it('mirrors the TypeScript facet rules in SQL', async () => {

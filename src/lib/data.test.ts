@@ -314,25 +314,26 @@ describe('facetsOf location for a company that has not posted', () => {
 });
 
 describe('facetGroupsFromCounts: the board (stated-fact counts)', () => {
-  // The strip is three controls and the Field leaves it. Every count is the
-  // store's leave-one-out count over one population, and nothing is dropped.
+  // The strip is three controls and nothing else. Every count is the store's
+  // leave-one-out count over one population, and nothing is dropped. The counts
+  // here are the board's own: no comp bands, no freshness, no family (the store
+  // does not count them any more, 2026-10-02).
   const ALL = { location: 'all', comp: 'all', freshness: 'all' } as const;
   const counts = {
     total: 100,
-    location: {}, comp: {}, freshness: {},
+    location: {},
     remote: { all: 100, remote: 40, hybrid: 10, onsite: 45, unstated: 5 },
     pay: { any: 100, notListed: 60, floors: { '100': 30, '150': 20, '200': 8, '250': 0, '300': 0 } },
-    place: { countries: { US: 60, GB: 12, CA: 12, IN: 4 }, notStated: 12 },
-    family: { all: 100, software: 40, design: 30, unplaced: 25, legal: 3, sales: 2 }
+    place: { countries: { US: 60, GB: 12, CA: 12, IN: 4 }, notStated: 12 }
   };
 
-  it('is Location, Remote, Comp, in that order, and the Field after them as navigation, not a strip control', async () => {
+  it('is Location, Remote, Comp, in that order, all strip controls', async () => {
     const { facetGroupsFromCounts } = await import('./data');
     const groups = facetGroupsFromCounts(counts, ALL);
-    expect(groups.map((g) => g.key)).toEqual(['place', 'remote', 'pay_min', 'fam']);
-    expect(groups.map((g) => g.label)).toEqual(['Location', 'Remote', 'Comp', 'Field']);
-    expect(groups.map((g) => g.placement ?? 'strip')).toEqual(['strip', 'strip', 'strip', 'results']);
-    expect(groups.map((g) => g.multi === true)).toEqual([false, true, false, false]);
+    expect(groups.map((g) => g.key)).toEqual(['place', 'remote', 'pay_min']);
+    expect(groups.map((g) => g.label)).toEqual(['Location', 'Remote', 'Comp']);
+    expect(groups.map((g) => g.placement ?? 'strip')).toEqual(['strip', 'strip', 'strip']);
+    expect(groups.map((g) => g.multi === true)).toEqual([false, true, false]);
   });
 
   it('Location: Worldwide first (everything), countries by count with English names, Not stated last and a real choice', async () => {
@@ -458,14 +459,13 @@ describe('facetGroupsFromCounts: the board (stated-fact counts)', () => {
   it('never drops a group or an option: over an empty set every control is still there, every option at zero', async () => {
     const { facetGroupsFromCounts } = await import('./data');
     const empty = {
-      total: 0, location: {}, comp: {}, freshness: {},
+      total: 0, location: {},
       remote: { all: 0, remote: 0, hybrid: 0, onsite: 0, unstated: 0 },
       pay: { any: 0, notListed: 0, floors: { '100': 0, '150': 0, '200': 0, '250': 0, '300': 0 } },
-      place: { countries: {}, notStated: 0 },
-      family: { all: 0 }
+      place: { countries: {}, notStated: 0 }
     };
     const groups = facetGroupsFromCounts(empty, ALL);
-    expect(groups.map((g) => g.key)).toEqual(['place', 'remote', 'pay_min', 'fam']);
+    expect(groups.map((g) => g.key)).toEqual(['place', 'remote', 'pay_min']);
     // Remote and Comp keep every option; Location is Worldwide and Not stated.
     expect(groups[0].options.map((o) => o.value)).toEqual(['all', 'unstated']);
     expect(groups[1].options.map((o) => o.value)).toEqual(['all', 'remote', 'hybrid', 'onsite', 'unstated']);
@@ -477,22 +477,22 @@ describe('facetGroupsFromCounts: the board (stated-fact counts)', () => {
     const { facetGroupsFromCounts } = await import('./data');
     const oneAnswer = { ...counts, remote: { all: 100, remote: 0, hybrid: 0, onsite: 100, unstated: 0 }, place: { countries: { US: 100 }, notStated: 0 } };
     const groups = facetGroupsFromCounts(oneAnswer, ALL);
-    expect(groups.map((g) => g.key)).toEqual(['place', 'remote', 'pay_min', 'fam']);
+    expect(groups.map((g) => g.key)).toEqual(['place', 'remote', 'pay_min']);
     expect(groups[1].options).toHaveLength(5);
   });
 
-  it('the Field: every family with its count, by count, Not placed sorted among them, as results navigation', async () => {
+  it('builds no Field group: it was the links under the table, removed 2026-10-02, and its counts are not taken', async () => {
+    // This used to pin the Field (every family with its count, by count, as a group placed under the results).
+    // Nothing draws it and the store no longer counts a family per row, so the group is gone. The fam= FILTER is
+    // not: an address that names a family still narrows the board (job-store.test.ts and the db test pin that).
+    // Counts that still carry a family object, from a caller older than this change, are ignored, not drawn.
     const { facetGroupsFromCounts } = await import('./data');
-    const fam = facetGroupsFromCounts(counts, ALL).find((g) => g.key === 'fam')!;
-    expect(fam.placement).toBe('results');
-    // Not placed sorts by its count, like every other field: it used to be
-    // pinned last under every family however small.
-    expect(fam.options.slice(0, 6).map((o) => o.value)).toEqual(['all', 'software', 'design', 'unplaced', 'legal', 'sales']);
-    // The counts that are zero are returned too; the page decides what to draw.
-    expect(fam.options.length).toBeGreaterThan(6);
-    // No family counts, no Field group.
-    const { family: _drop, ...without } = counts;
-    expect(facetGroupsFromCounts(without, ALL).map((g) => g.key)).toEqual(['place', 'remote', 'pay_min']);
+    const old = { ...counts, family: { all: 100, software: 40, design: 30, unplaced: 25 } };
+    for (const given of [counts, old]) {
+      const groups = facetGroupsFromCounts(given, ALL);
+      expect(groups.map((g) => g.key)).toEqual(['place', 'remote', 'pay_min']);
+      expect(groups.filter((g) => g.placement === 'results')).toEqual([]);
+    }
   });
 });
 

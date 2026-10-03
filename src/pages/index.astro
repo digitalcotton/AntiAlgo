@@ -53,7 +53,7 @@ const bq = parseBoardQuery(new URLSearchParams());
 // for unknown IPs, where we default to US).
 const country = (Astro.request.headers.get('x-vercel-ip-country') || 'US').toUpperCase();
 const EMPTY_COUNTS = {
-  total: 0, location: {}, comp: {}, freshness: {}, family: {}, remote: {},
+  total: 0, location: {}, remote: {},
   pay: { any: 0, notListed: 0, floors: {} }, place: { countries: {}, notStated: 0, all: 0 }
 };
 let bServed: Awaited<ReturnType<typeof listBoardFiltered>> = { rows: [], total: 0, counts: EMPTY_COUNTS, fuzzy: false };
