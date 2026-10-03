@@ -137,60 +137,15 @@ describe('Board.astro: the strip is Location, Remote and Comp, and carries the F
   });
 });
 
-describe('Board.astro: "Fields these roles are filed under" under the results', () => {
-  const links = (html: string) => [...html.matchAll(/<a class="same-field-link"[^>]*href="([^"]*)"[^>]*data-field="([^"]*)"[^>]*>\s*<span[^>]*>([^<]*)<\/span>\s*<span[^>]*>([^<]*)<\/span>/g)].map((m) => ({
-    href: m[1].replace(/&#38;|&amp;/g, '&'), id: m[2], label: m[3], count: m[4]
-  }));
-
-  it('is the five biggest families by count, as links to fam=<id>, with no Not placed and no zero', async () => {
+describe('Board.astro: nothing under the table', () => {
+  it('draws no Field links (owner, 2026-10-02), and the strip still has no Field control', async () => {
     const html = await render({
       jobs: JOBS, mode: 'server', ...SERVED, groups: servedGroups(), query: { ...DEFAULT_QUERY, remote: ['remote'], location: 'remote' }
     });
-    expect(html).toContain('data-same-field');
-    expect(html).toContain('aria-label="Fields these roles are filed under"');
-    expect(html).toContain('Fields these roles are filed under');
-    const found = links(html);
-    expect(found.map((l) => [l.id, l.count])).toEqual([['software', '50'], ['design', '30'], ['sales', '12'], ['legal', '9'], ['finance', '7']]);
-    // Each link keeps the reader's other filters and moves the field, from page one.
-    expect(found[0].href).toBe('/board?remote=remote&fam=software');
-    expect(found.some((l) => l.id === 'unplaced' || l.id === 'support')).toBe(false);
-    // And it says what the list is: a classification, not a stated fact.
-    expect(html).toContain('A classification of the title, not something the employer stated.');
-    // They are navigation, not strip controls: nothing in the form submits them.
+    expect(html).not.toContain('data-same-field');
+    expect(html).not.toContain('Fields these roles are filed under');
     const form = html.match(/<form class="filters-row"[^>]*>([\s\S]*?)<\/form>/)?.[1] ?? '';
-    expect(form).not.toContain('same-field');
-  });
-
-  it('shows the chosen field, even outside the top five, and a way back to every field', async () => {
-    const html = await render({
-      jobs: JOBS, mode: 'server', ...SERVED, groups: servedGroups(), query: { ...DEFAULT_QUERY, families: ['marketing'] }
-    });
-    const found = links(html);
-    expect(found.map((l) => l.id)).toEqual(['software', 'design', 'sales', 'legal', 'finance', 'marketing']);
-    const current = html.match(/<a class="same-field-link"[^>]*aria-current="true"[^>]*data-field="([^"]*)"/)?.[1];
-    expect(current).toBe('marketing');
-    // The "All fields" link is the address without fam, with the count of every field.
-    expect(html).toMatch(/<a class="same-field-link" href="\/board"[^>]*>\s*<span[^>]*>All fields<\/span>\s*<span[^>]*>120<\/span>/);
-  });
-
-  it('is not drawn on the home teaser, without a Field group, or in client mode', async () => {
-    const teaser = await render({ jobs: JOBS, mode: 'server', ...SERVED, groups: servedGroups(), query: DEFAULT_QUERY, teaser: true });
-    expect(teaser).not.toContain('data-same-field');
-    const noFamily = await render({
-      jobs: JOBS, mode: 'server', ...SERVED,
-      groups: facetGroupsFromCounts({ ...COUNTS, family: undefined }, { location: 'all', comp: 'all', freshness: 'all' }),
-      query: DEFAULT_QUERY
-    });
-    expect(noFamily).not.toContain('data-same-field');
-    expect(await render({ jobs: JOBS })).not.toContain('data-same-field');
-  });
-
-  it('"Clear the filters" clears the field too: it is not on the strip, so it cannot be the reason a page stays empty', async () => {
-    const html = await render({
-      jobs: [], mode: 'server', boardPath: '/board', page: { total: 0, page: 1, pages: 1, per: 5 }, groups: servedGroups(),
-      query: { ...DEFAULT_QUERY, families: ['design'], remote: ['remote'], location: 'remote', q: 'zzz' }
-    });
-    expect(html).toMatch(/<a class="clear-filters"[^>]*href="\/board"/);
+    expect(form).not.toContain('name="fam"');
   });
 });
 

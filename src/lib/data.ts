@@ -2392,9 +2392,9 @@ export interface StripSelection {
  *
  * THE FIELD IS NOT A STRIP CONTROL. It filtered on an inference (44% of rows are
  * ambiguous between two families), so it left the strip and returns, as the last
- * group, under `placement: 'results'` for Board.astro to draw as navigation
- * ("Fields these roles are filed under") beneath the table. It rides in this
- * list because this list is the one thing a page hands the board.
+ * group, under `placement: 'results'`. Board.astro drew it as links beneath the
+ * table until 2026-10-02, when the owner removed them; nothing draws it now. It
+ * rides in this list because this list is the one thing a page hands the board.
  *
  * COUNTS WITH NONE OF THE NEW FIELDS ARE THE PRE-LIST'S (prospect-board.ts), and
  * get the old three-select reading, pruned as it always was: every prospect is

@@ -27,8 +27,8 @@ against the local copy of the nightly board, 37,286 live rows. Full output:
   skills mentioned in descriptions. Ranked by where the words are found.
 - **A strip that means what it says.** LOCATION is geography (it was mislabelled
   work arrangement). REMOTE is several-at-once. COMP is a pay floor, defined
-  exactly as the Desk already defines it. Field left the strip and returns as
-  links under the results, labelled as a classification.
+  exactly as the Desk already defines it. Field left the strip; the links that
+  carried it under the results were removed too (owner, 2026-10-02).
 - **A job is found under every place it lists.** "London / Germany" is in
   London, UK and in Germany; "Chicago, IL, Evanston, IL" is in both cities. Each
   place's number is exactly the jobs you get when you choose it, so the Location

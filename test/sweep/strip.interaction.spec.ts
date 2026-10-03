@@ -807,38 +807,24 @@ test.describe('Best, and the order the rows are in', () => {
   });
 });
 
-test.describe('the Field is navigation under the results, not a strip control', () => {
-  test('is not on the strip; the links under the table are fam=<id>, five at most, and survive a strip change', async ({ page }) => {
+test.describe('the Field is on no surface of the board', () => {
+  // Owner, 2026-10-02: the "Fields these roles are filed under" links under the
+  // table were removed. The Field had already left the strip (an inference, not a
+  // stated fact). What still holds is the address: fam= narrows, and a strip change
+  // carries it, because nothing in the form submits it.
+  test('is not on the strip and not under the table; an address that names one still narrows, and a strip change carries it', async ({ page }) => {
     await openBoard(page);
     await expect(page.locator('[data-filter-group="fam"]')).toHaveCount(0);
     await expect(page.locator('.filters-row')).not.toContainText('Field');
+    await expect(page.locator('[data-same-field]')).toHaveCount(0);
+    await expect(page.locator('body')).not.toContainText('Fields these roles are filed under');
 
-    const nav = page.locator('[data-same-field]');
-    await expect(nav).toBeVisible();
-    await expect(nav).toContainText('Fields these roles are filed under');
-    await expect(nav).toContainText('A classification of the title, not something the employer stated.');
-    const links = nav.locator('a.same-field-link');
-    expect(await links.count()).toBeGreaterThan(0);
-    expect(await links.count()).toBeLessThanOrEqual(5);
-    // Below the table, not above it.
-    const [navBox, tableBox] = [await nav.boundingBox(), await page.locator('[data-job-table]').boundingBox()];
-    expect(navBox!.y).toBeGreaterThan(tableBox!.y + tableBox!.height - 2);
-
-    const first = links.first();
-    const id = await first.getAttribute('data-field');
-    await Promise.all([page.waitForURL(new RegExp(`[?&]fam=${id}(?:&|$)`)), first.click()]);
-    expect(await total(page)).toBeLessThanOrEqual(6);
-    await expect(page.locator('[data-same-field] a[aria-current="true"]')).toHaveAttribute('data-field', id!);
-
-    // Choosing a strip option keeps the field the reader picked below: nothing in
-    // the form submits fam, so it has to be carried.
+    // Every row of the seeded board (scripts/test-db.mjs) is design.
+    await openBoard(page, '?fam=design');
+    expect(await total(page)).toBe(6);
     await trigger(page, 'Remote').click();
     await choose(page, open(page), 'On-site', /[?&]remote=onsite(?:&|$)/);
-    expect(params(page).getAll('fam')).toEqual([id]);
-    expect(params(page).getAll('remote')).toEqual(['onsite']);
-
-    // And there is a way back to every field.
-    await Promise.all([page.waitForURL((url) => !url.searchParams.has('fam')), page.locator('[data-same-field] a', { hasText: 'All fields' }).click()]);
+    expect(params(page).getAll('fam')).toEqual(['design']);
     expect(params(page).getAll('remote')).toEqual(['onsite']);
   });
 });
@@ -1035,10 +1021,4 @@ test.describe('a phone', () => {
     }
   });
 
-  test('the field links are 44pt targets', async ({ page }) => {
-    await openBoard(page);
-    const heights = await page.locator('[data-same-field] a.same-field-link').evaluateAll((links) => links.map((a) => a.getBoundingClientRect().height));
-    expect(heights.length).toBeGreaterThan(0);
-    expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
-  });
 });
